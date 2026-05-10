@@ -12,6 +12,7 @@ export {
   getOrCreateDbKey,
   storeProfilePrivateKey,
   getProfilePrivateKey,
+  listProfilePrivateKeys,
   encryptDbBlob,
   decryptDbBlob,
 } from "./crypto-store";

@@ -45,7 +45,7 @@ import {
   restoreDatabase,
   rotateEncryptionKey,
 } from "./backend-client";
-import { detectApiMode } from "./adapter";
+
 
 import type {
   LocalProfile,
@@ -366,15 +366,7 @@ export function useRotateKey() {
 export function useGetSharedPedigree(token: string) {
   return useQuery({
     queryKey: ["shared", token],
-    queryFn: async () => {
-      const mode = detectApiMode();
-      if (mode === "tauri") {
-        return importShared(token);
-      }
-      const res = await fetch(`/api/share/${token}`);
-      if (!res.ok) throw new Error("Share link invalid or expired");
-      return res.json() as Promise<Pedigree>;
-    },
+    queryFn: () => importShared(token),
     enabled: !!token,
   });
 }

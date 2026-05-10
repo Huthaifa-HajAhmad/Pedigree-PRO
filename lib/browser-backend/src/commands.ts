@@ -10,7 +10,7 @@
 
 import { exec, query, queryOne, lastInsertRowId } from "./db";
 import { computeHash } from "@workspace/crypto";
-import { getProfilePrivateKey } from "./crypto-store";
+import { getProfilePrivateKey, listProfilePrivateKeys } from "./crypto-store";
 
 // =============================================================================
 // Profile Types & Operations
@@ -551,25 +551,47 @@ export interface ShareResult {
 }
 
 // Browser sharing: encrypt and export as .hpcl file for manual transfer
-export function share_pedigree(args: {
+export async function share_pedigree(args: {
   pedigree_id: number;
   recipient_key: string;
-}): ShareResult {
-  // In browser mode, sharing produces a token that is the encrypted payload itself
-  // (base64-encoded) since there is no relay server. The recipient decrypts manually.
+}): Promise<ShareResult> {
   const pedigree = get_pedigree({ id: args.pedigree_id });
-  const token = btoa(JSON.stringify(pedigree)); // placeholder: real impl uses encryption
+  const { encryptForRecipient } = await import("@workspace/crypto");
+  const envelope = await encryptForRecipient(JSON.stringify(pedigree), args.recipient_key);
+  const token = btoa(envelope);
   return {
     share_token: token,
     share_url: `${window.location.origin}/share/${token}`,
   };
 }
 
-export function import_shared(args: { share_token: string }): Pedigree {
-  // In browser mode, import directly from the token (base64 encoded pedigree)
+export async function import_shared(args: { share_token: string }): Promise<Pedigree> {
+  // Try to decrypt the token using each stored private key (hybrid encryption)
+  try {
+    const { decryptFromSender } = await import("@workspace/crypto");
+    const privateKeys = await listProfilePrivateKeys();
+    for (const { privateKey } of privateKeys) {
+      try {
+        const decrypted = await decryptFromSender(atob(args.share_token), privateKey);
+        const decoded = JSON.parse(decrypted);
+        return create_pedigree({
+          title: decoded.title,
+          patient_id: decoded.patient_id,
+          canvas_data: decoded.canvas_data,
+          notes: decoded.notes,
+          creator_key: decoded.creator_key ?? "imported",
+        });
+      } catch {
+        // Key mismatch — try next key
+      }
+    }
+  } catch {
+    // Crypto module unavailable — fall through to legacy fallback
+  }
+
+  // Fallback: unencrypted base64 JSON (legacy / placeholder shares)
   try {
     const decoded = JSON.parse(atob(args.share_token));
-    // Re-create the pedigree in local database
     return create_pedigree({
       title: decoded.title,
       patient_id: decoded.patient_id,
@@ -577,7 +599,7 @@ export function import_shared(args: { share_token: string }): Pedigree {
       notes: decoded.notes,
       creator_key: decoded.creator_key ?? "imported",
     });
-  } catch (e) {
+  } catch {
     throw new Error("Invalid share token");
   }
 }

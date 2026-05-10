@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { useCreatePedigree, useListPatients, useImportPedigreeNative, useImportPedigreeLegacy, queryKeys } from "@workspace/api-client-react";
+import { useCreatePedigree, useListPatients, useImportPedigreeNative, useImportPedigreeLegacy, queryKeys, detectApiMode } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { Upload, FileText, AlertTriangle, CheckCircle2, X, Dna, Database } from "lucide-react";
@@ -24,6 +24,7 @@ export function ImportDialog({ children }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [importMode, setImportMode] = useState<ImportMode>("ped");
   const fileRef = useRef<HTMLInputElement>(null);
+  const isBrowserMode = detectApiMode() === "browser";
 
   const [, navigate] = useLocation();
   const queryClient = useQueryClient();
@@ -336,6 +337,17 @@ export function ImportDialog({ children }: Props) {
               <button onClick={() => { setStep("upload"); setError(null); }} className="text-muted-foreground hover:text-foreground transition-colors flex-shrink-0"><X className="w-4 h-4" /></button>
             </div>
 
+            {isBrowserMode && (
+              <div className="border border-yellow-500/30 bg-yellow-500/10 rounded p-3">
+                <div className="flex items-center gap-2 text-yellow-400 text-xs font-semibold uppercase tracking-wider mb-1">
+                  <AlertTriangle className="w-3.5 h-3.5" /> Desktop Only
+                </div>
+                <div className="text-xs text-yellow-300/80">
+                  Legacy database import requires filesystem access and is only available in the Tauri desktop app.
+                </div>
+              </div>
+            )}
+
             <div className="border border-yellow-500/30 bg-yellow-500/10 rounded p-3">
               <div className="flex items-center gap-2 text-yellow-400 text-xs font-semibold uppercase tracking-wider mb-1">
                 <AlertTriangle className="w-3.5 h-3.5" /> Legacy Migration
@@ -351,7 +363,9 @@ export function ImportDialog({ children }: Props) {
 
             <div className="flex gap-3">
               <button onClick={() => { setStep("upload"); setError(null); }} className="flex-1 py-2 rounded border border-border text-sm hover:border-primary hover:text-primary transition-colors">Back</button>
-              <button data-testid="button-confirm-legacy-import" onClick={handleLegacyImport} className="flex-1 py-2 rounded text-sm font-semibold transition-all bg-primary text-primary-foreground hover:opacity-90">Migrate Database</button>
+              <button data-testid="button-confirm-legacy-import" onClick={handleLegacyImport} disabled={isBrowserMode} className="flex-1 py-2 rounded text-sm font-semibold transition-all bg-primary text-primary-foreground hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed">
+                {isBrowserMode ? "Desktop Only" : "Migrate Database"}
+              </button>
             </div>
           </div>
         )}

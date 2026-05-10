@@ -40,7 +40,7 @@ async function deriveKeyFromPassphrase(
   return crypto.subtle.deriveKey(
     {
       name: "PBKDF2",
-      salt,
+      salt: salt as unknown as unknown as ArrayBuffer,
       iterations: 256_000,
       hash: "SHA-512",
     },
@@ -63,7 +63,7 @@ async function exportKey(key: CryptoKey): Promise<Uint8Array> {
  * Imports raw bytes to a CryptoKey.
  */
 async function importKey(raw: Uint8Array): Promise<CryptoKey> {
-  return crypto.subtle.importKey("raw", raw, "AES-GCM", true, [
+  return crypto.subtle.importKey("raw", raw as unknown as ArrayBuffer, "AES-GCM", true, [
     "encrypt",
     "decrypt",
   ]);
@@ -91,7 +91,7 @@ async function unwrapKey(
 ): Promise<CryptoKey> {
   return crypto.subtle.unwrapKey(
     "raw",
-    wrappedKey,
+    wrappedKey as unknown as ArrayBuffer,
     wrappingKey,
     { name: "AES-KW" },
     { name: "AES-GCM", length: 256 },
@@ -117,16 +117,22 @@ export async function getOrCreateDbKey(
     return deriveKeyFromPassphrase(passphrase, salt);
   }
 
-  // No passphrase: use a randomly generated key stored in IndexedDB
-  const stored = await get<Uint8Array>(DB_KEY_NAME, KEY_STORE);
+  // No passphrase: wrap the DB key with a randomly generated wrapping key before storing
+  const stored = await get<{ wrappedKey: Uint8Array; wrappingKey: Uint8Array } | null>(
+    DB_KEY_NAME,
+    KEY_STORE
+  );
   if (stored) {
-    return importKey(stored);
+    const wrappingKey = await importKey(stored.wrappingKey);
+    return unwrapKey(stored.wrappedKey, wrappingKey);
   }
 
-  const key = await generateAesKey();
-  const exported = await exportKey(key);
-  await set(DB_KEY_NAME, exported, KEY_STORE);
-  return key;
+  const dbKey = await generateAesKey();
+  const wrappingKey = await generateAesKey();
+  const wrappedKey = await wrapKey(dbKey, wrappingKey);
+  const exportedWrappingKey = await exportKey(wrappingKey);
+  await set(DB_KEY_NAME, { wrappedKey, wrappingKey: exportedWrappingKey }, KEY_STORE);
+  return dbKey;
 }
 
 /**
@@ -149,6 +155,30 @@ export async function getProfilePrivateKey(
 }
 
 /**
+ * Lists all stored profile private keys in IndexedDB.
+ */
+export async function listProfilePrivateKeys(): Promise<
+  Array<{ profileId: string; privateKey: string }>
+> {
+  const { keys } = await import("idb-keyval");
+  const allKeys = await keys(KEY_STORE);
+  const entries: Array<{ profileId: string; privateKey: string }> = [];
+  for (const key of allKeys) {
+    if (
+      typeof key === "string" &&
+      key.startsWith("hc:profile_private_key:")
+    ) {
+      const profileId = key.slice("hc:profile_private_key:".length);
+      const privateKey = await get<string>(key, KEY_STORE);
+      if (privateKey) {
+        entries.push({ profileId, privateKey });
+      }
+    }
+  }
+  return entries;
+}
+
+/**
  * Encrypts a database blob (Uint8Array) using AES-256-GCM.
  */
 export async function encryptDbBlob(
@@ -157,9 +187,9 @@ export async function encryptDbBlob(
 ): Promise<{ ciphertext: Uint8Array; iv: Uint8Array }> {
   const iv = crypto.getRandomValues(new Uint8Array(12));
   const ciphertext = await crypto.subtle.encrypt(
-    { name: "AES-GCM", iv },
+    { name: "AES-GCM", iv: iv as unknown as ArrayBuffer },
     key,
-    data
+    data as unknown as ArrayBuffer
   );
   return { ciphertext: new Uint8Array(ciphertext), iv };
 }
@@ -173,9 +203,9 @@ export async function decryptDbBlob(
   key: CryptoKey
 ): Promise<Uint8Array> {
   const decrypted = await crypto.subtle.decrypt(
-    { name: "AES-GCM", iv },
+    { name: "AES-GCM", iv: iv as unknown as ArrayBuffer },
     key,
-    ciphertext
+    ciphertext as unknown as ArrayBuffer
   );
   return new Uint8Array(decrypted);
 }
