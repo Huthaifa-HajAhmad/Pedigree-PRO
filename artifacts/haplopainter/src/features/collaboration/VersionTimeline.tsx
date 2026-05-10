@@ -1,0 +1,219 @@
+import { useState, useCallback } from "react";
+import { useListVersions, useRestoreVersion, queryKeys } from "@workspace/api-client-react";
+import { useQueryClient } from "@tanstack/react-query";
+import { Clock, RotateCcw, GitBranch, ChevronLeft, ChevronRight, Play, Pause } from "lucide-react";
+import type { PedigreeVersion } from "@workspace/api-client-react";
+
+interface VersionTimelineProps {
+  pedigreeId: number;
+  currentCanvas: string; // JSON string of current canvas
+  onRestore?: (canvasData: string) => void;
+  onPreview?: (canvasData: string) => void;
+}
+
+/**
+ * VersionTimeline — Horizontal scrubber showing all saved pedigree versions.
+ *
+ * Features:
+ * - Thumbnail previews from version table
+ * - Saver identity from local_profiles public_key
+ * - Click to preview, double-click to restore
+ * - Follow mode: auto-play through history
+ */
+export function VersionTimeline({ pedigreeId, currentCanvas, onRestore, onPreview }: VersionTimelineProps) {
+  const { data: versions, isLoading } = useListVersions(pedigreeId);
+  const restoreVersion = useRestoreVersion();
+  const queryClient = useQueryClient();
+  const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [playInterval, setPlayInterval] = useState<ReturnType<typeof setInterval> | null>(null);
+
+  const handleSelect = useCallback((index: number, version: PedigreeVersion) => {
+    setSelectedIndex(index);
+    if (onPreview) {
+      onPreview(version.canvas_data);
+    }
+  }, [onPreview]);
+
+  const handleRestore = useCallback((version: PedigreeVersion) => {
+    restoreVersion.mutate(
+      { pedigreeId, versionId: version.id },
+      {
+        onSuccess: (pedigree) => {
+          queryClient.invalidateQueries({ queryKey: queryKeys.pedigree(pedigreeId) });
+          if (onRestore && pedigree.canvas_data) {
+            onRestore(pedigree.canvas_data);
+          }
+        },
+      }
+    );
+  }, [pedigreeId, restoreVersion, queryClient, onRestore]);
+
+  const handlePlay = useCallback(() => {
+    if (!versions || versions.length === 0) return;
+    setIsPlaying(true);
+    let idx = selectedIndex ?? 0;
+    const interval = setInterval(() => {
+      idx = (idx + 1) % versions.length;
+      setSelectedIndex(idx);
+      if (onPreview) {
+        onPreview(versions[idx].canvas_data);
+      }
+    }, 2000);
+    setPlayInterval(interval);
+  }, [versions, selectedIndex, onPreview]);
+
+  const handlePause = useCallback(() => {
+    setIsPlaying(false);
+    if (playInterval) {
+      clearInterval(playInterval);
+      setPlayInterval(null);
+    }
+  }, [playInterval]);
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-20 border-t border-border bg-card">
+        <div className="text-xs text-muted-foreground animate-pulse">Loading versions...</div>
+      </div>
+    );
+  }
+
+  if (!versions || versions.length === 0) {
+    return (
+      <div className="flex items-center justify-center h-20 border-t border-border bg-card">
+        <div className="text-xs text-muted-foreground">No saved versions yet</div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="border-t border-border bg-card px-3 py-2">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center gap-2">
+          <GitBranch className="w-3.5 h-3.5 text-muted-foreground" />
+          <span className="text-xs font-medium">Version History</span>
+          <span className="text-[10px] text-muted-foreground">({versions.length} versions)</span>
+        </div>
+        <div className="flex items-center gap-1">
+          {isPlaying ? (
+            <button
+              onClick={handlePause}
+              className="p-1 rounded hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
+              title="Pause playback"
+            >
+              <Pause className="w-3.5 h-3.5" />
+            </button>
+          ) : (
+            <button
+              onClick={handlePlay}
+              className="p-1 rounded hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
+              title="Play history"
+            >
+              <Play className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Timeline */}
+      <div className="flex items-center gap-1 overflow-x-auto pb-1 scrollbar-thin">
+        {versions.map((version, index) => {
+          const isSelected = selectedIndex === index;
+          const date = new Date(version.created_at).toLocaleDateString();
+          const time = new Date(version.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+
+          return (
+            <div
+              key={version.id}
+              className={`flex-shrink-0 w-28 cursor-pointer rounded border transition-all ${
+                isSelected
+                  ? "border-primary bg-primary/5 ring-1 ring-primary/30"
+                  : "border-border bg-background hover:border-muted-foreground/30"
+              }`}
+              onClick={() => handleSelect(index, version)}
+              onDoubleClick={() => handleRestore(version)}
+              title={`Double-click to restore\n${version.label ?? `Version ${version.version_number}`}\n${date} ${time}`}
+            >
+              {/* Thumbnail */}
+              <div className="h-14 bg-muted/50 rounded-t flex items-center justify-center overflow-hidden">
+                {version.thumbnail ? (
+                  <img
+                    src={version.thumbnail}
+                    alt={`Version ${version.version_number}`}
+                    className="w-full h-full object-contain"
+                  />
+                ) : (
+                  <Clock className="w-4 h-4 text-muted-foreground/40" />
+                )}
+              </div>
+
+              {/* Info */}
+              <div className="px-2 py-1.5">
+                <div className="text-[10px] font-medium truncate">
+                  {version.label ?? `v${version.version_number}`}
+                </div>
+                <div className="text-[9px] text-muted-foreground flex items-center gap-1">
+                  <span>{date}</span>
+                  <span>{time}</span>
+                </div>
+                {version.saver_key && (
+                  <div className="text-[9px] text-primary/70 truncate font-mono">
+                    {version.saver_key.slice(0, 8)}...
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Selected version actions */}
+      {selectedIndex !== null && versions[selectedIndex] && (
+        <div className="flex items-center justify-between mt-2 pt-2 border-t border-border/50">
+          <div className="text-[10px] text-muted-foreground">
+            {versions[selectedIndex].label ?? `Version ${versions[selectedIndex].version_number}`}
+            {" "}·{" "}
+            {new Date(versions[selectedIndex].created_at).toLocaleString()}
+          </div>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => {
+                if (selectedIndex > 0) {
+                  const newIndex = selectedIndex - 1;
+                  setSelectedIndex(newIndex);
+                  if (onPreview) onPreview(versions[newIndex].canvas_data);
+                }
+              }}
+              disabled={selectedIndex === 0}
+              className="p-1 rounded hover:bg-accent text-muted-foreground disabled:opacity-30 transition-colors"
+            >
+              <ChevronLeft className="w-3 h-3" />
+            </button>
+            <button
+              onClick={() => handleRestore(versions[selectedIndex])}
+              className="flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+            >
+              <RotateCcw className="w-3 h-3" />
+              Restore
+            </button>
+            <button
+              onClick={() => {
+                if (selectedIndex < versions.length - 1) {
+                  const newIndex = selectedIndex + 1;
+                  setSelectedIndex(newIndex);
+                  if (onPreview) onPreview(versions[newIndex].canvas_data);
+                }
+              }}
+              disabled={selectedIndex === versions.length - 1}
+              className="p-1 rounded hover:bg-accent text-muted-foreground disabled:opacity-30 transition-colors"
+            >
+              <ChevronRight className="w-3 h-3" />
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

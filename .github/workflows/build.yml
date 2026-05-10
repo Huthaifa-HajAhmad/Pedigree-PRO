@@ -1,0 +1,128 @@
+name: Build & Release
+
+on:
+  push:
+    tags: ['v*']
+  pull_request:
+    branches: [main]
+
+jobs:
+  # ── Type Checking ────────────────────────────────────────────
+  typecheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: '9' }
+      - uses: actions/setup-node@v4
+        with: { node-version: '22', cache: 'pnpm' }
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run typecheck
+
+  # ── Tauri Desktop Build (Windows) ────────────────────────────
+  build-tauri-windows:
+    needs: typecheck
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: '9' }
+      - uses: actions/setup-node@v4
+        with: { node-version: '22', cache: 'pnpm' }
+      - run: pnpm install --frozen-lockfile
+      - uses: tauri-apps/tauri-action@v0
+        with:
+          projectPath: artifacts/haplopainter
+          tagName: ${{ github.ref_name }}
+          releaseName: 'HaploClinical v__VERSION__ (Windows)'
+          releaseBody: 'See CHANGELOG.md for details.'
+          includeUpdaterJson: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+
+  # ── Tauri Desktop Build (macOS) ──────────────────────────────
+  build-tauri-macos:
+    needs: typecheck
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: '9' }
+      - uses: actions/setup-node@v4
+        with: { node-version: '22', cache: 'pnpm' }
+      - run: pnpm install --frozen-lockfile
+      - run: rustup target add aarch64-apple-darwin
+      - uses: tauri-apps/tauri-action@v0
+        with:
+          projectPath: artifacts/haplopainter
+          tagName: ${{ github.ref_name }}
+          releaseName: 'HaploClinical v__VERSION__ (macOS)'
+          args: '--target universal-apple-darwin'
+          includeUpdaterJson: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+
+  # ── Tauri Desktop Build (Linux) ──────────────────────────────
+  build-tauri-linux:
+    needs: typecheck
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: '9' }
+      - uses: actions/setup-node@v4
+        with: { node-version: '22', cache: 'pnpm' }
+      - run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+      - run: pnpm install --frozen-lockfile
+      - uses: tauri-apps/tauri-action@v0
+        with:
+          projectPath: artifacts/haplopainter
+          tagName: ${{ github.ref_name }}
+          releaseName: 'HaploClinical v__VERSION__ (Linux)'
+          includeUpdaterJson: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+
+  # ── Relay Service Deployment ─────────────────────────────────
+  deploy-relay:
+    needs: typecheck
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: '9' }
+      - run: cd services/relay && pnpm install --frozen-lockfile
+      - uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CF_API_TOKEN }}
+          workingDirectory: services/relay
+          command: deploy
+
+  # ── Static Web Frontend Deployment ───────────────────────────
+  deploy-web:
+    needs: typecheck
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: '9' }
+      - uses: actions/setup-node@v4
+        with: { node-version: '22', cache: 'pnpm' }
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @workspace/haplopainter build
+      - uses: cloudflare/pages-action@v1
+        with:
+          apiToken: ${{ secrets.CF_API_TOKEN }}
+          accountId: ${{ secrets.CF_ACCOUNT_ID }}
+          projectName: haploclinical-web
+          directory: artifacts/haplopainter/dist

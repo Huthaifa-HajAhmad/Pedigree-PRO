@@ -1,0 +1,349 @@
+import { useState } from "react";
+import { useListProfiles, useCreateProfile, useDeleteProfile } from "@workspace/api-client-react";
+import { Plus, Trash2, UserCircle, Shield, Clock, Download, Upload } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Input } from "@/components/ui/input";
+import { PageHeader } from "@/components/shared/PageHeader";
+import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
+import { TableSkeleton } from "@/components/shared/Skeleton";
+import { toast } from "@/hooks/use-toast";
+
+const schema = z.object({
+  display_name: z.string().min(1, "Display name required"),
+  role_label: z.string().min(1, "Role label required"),
+});
+type FormData = z.infer<typeof schema>;
+
+export default function Profiles() {
+  const [open, setOpen] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [confirmProps, setConfirmProps] = useState<{ title: string; message: string; onConfirm: () => void } | null>(null);
+  const [exportOpen, setExportOpen] = useState(false);
+  const [exportPassphrase, setExportPassphrase] = useState("");
+  const [exportOutput, setExportOutput] = useState("");
+  const [exportError, setExportError] = useState("");
+
+  const [importOpen, setImportOpen] = useState(false);
+  const [importPassphrase, setImportPassphrase] = useState("");
+  const [importInput, setImportInput] = useState("");
+  const [importError, setImportError] = useState("");
+
+  const { data: profiles, isLoading } = useListProfiles();
+  const createProfile = useCreateProfile();
+  const deleteProfile = useDeleteProfile();
+
+  const form = useForm<FormData>({
+    resolver: zodResolver(schema),
+    defaultValues: { display_name: "", role_label: "" },
+  });
+
+  const onSubmit = (data: FormData) => {
+    createProfile.mutate(data, {
+      onSuccess: () => {
+        form.reset();
+        setOpen(false);
+      },
+    });
+  };
+
+  const handleDelete = (id: string, name: string) => {
+    setConfirmProps({
+      title: "Delete Profile",
+      message: `Delete profile "${name}"? The keypair cannot be recovered.`,
+      onConfirm: () => {
+        setConfirmOpen(false);
+        deleteProfile.mutate(id);
+      },
+    });
+    setConfirmOpen(true);
+  };
+
+  // ── Profile Export (client-side encryption) ───────────────────────────
+  const handleExportProfile = async () => {
+    setExportError("");
+    setExportOutput("");
+    try {
+      const { deriveKeyFromPassphrase, encryptAesGcm } = await import("@workspace/crypto");
+      const { derivedKey } = await deriveKeyFromPassphrase(exportPassphrase);
+      const key = Uint8Array.from(atob(derivedKey), (c) => c.charCodeAt(0));
+
+      // Find the most recently used profile to export
+      if (!profiles || profiles.length === 0) {
+        setExportError("No profiles available to export.");
+        return;
+      }
+      const profile = profiles[0]; // most recently used
+      const payload = JSON.stringify({ profile, exported_at: new Date().toISOString() });
+      const { ciphertext, nonce } = await encryptAesGcm(payload, key);
+      setExportOutput(JSON.stringify({ ciphertext, nonce, version: 1 }));
+    } catch (err) {
+      setExportError(err instanceof Error ? err.message : "Export failed");
+    }
+  };
+
+  // ── Profile Import (client-side decryption) ───────────────────────────
+  const handleImportProfile = async () => {
+    setImportError("");
+    try {
+      const { deriveKeyFromPassphrase, decryptAesGcm } = await import("@workspace/crypto");
+      const envelope = JSON.parse(importInput);
+      if (!envelope.ciphertext || !envelope.nonce) {
+        setImportError("Invalid import file: missing ciphertext or nonce.");
+        return;
+      }
+      const { derivedKey } = await deriveKeyFromPassphrase(importPassphrase);
+      const key = Uint8Array.from(atob(derivedKey), (c) => c.charCodeAt(0));
+      const decrypted = await decryptAesGcm(envelope.ciphertext, envelope.nonce, key);
+      const { profile } = JSON.parse(decrypted);
+      toast({
+        title: "Profile Decrypted",
+        description: `"${profile.display_name}" (${profile.role_label}) — ready to import. Public key: ${profile.public_key.slice(0, 20)}...`,
+      });
+      setImportOpen(false);
+      setImportInput("");
+      setImportPassphrase("");
+    } catch (err) {
+      setImportError(err instanceof Error ? err.message : "Import failed");
+    }
+  };
+
+  return (
+    <div className="p-6">
+      <PageHeader
+        icon={UserCircle}
+        title="Profiles"
+        subtitle={`${profiles?.length ?? 0} local clinician profiles`}
+        actions={
+          <div className="flex items-center gap-2">
+            {/* Export Profile */}
+            <Dialog open={exportOpen} onOpenChange={setExportOpen}>
+              <DialogTrigger asChild>
+                <button
+                  data-testid="button-export-profile"
+                  className="flex items-center gap-2 px-4 py-2 rounded text-sm font-semibold border border-border hover:border-primary hover:text-primary transition-colors"
+                  disabled={!profiles || profiles.length === 0}
+                >
+                  <Download className="w-4 h-4" /> Export
+                </button>
+              </DialogTrigger>
+              <DialogContent className="glass-panel border-0 max-w-md">
+                <DialogHeader>
+                  <DialogTitle className="text-sm uppercase tracking-wider text-primary">Export Profile</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4">
+                  <p className="text-xs text-muted-foreground">
+                    Exports your most recently used profile encrypted with a passphrase.
+                    The encrypted file can be imported on another device.
+                  </p>
+                  <input
+                    type="password"
+                    placeholder="Enter a passphrase to encrypt..."
+                    value={exportPassphrase}
+                    onChange={(e) => setExportPassphrase(e.target.value)}
+                    className="w-full bg-muted border border-border rounded px-3 py-2 text-sm outline-none focus:border-primary transition-colors"
+                    data-testid="input-export-passphrase"
+                  />
+                  {exportError && <p className="text-xs text-destructive">{exportError}</p>}
+                  {exportOutput ? (
+                    <div className="space-y-2">
+                      <textarea
+                        readOnly
+                        value={exportOutput}
+                        className="w-full bg-muted border border-border rounded px-3 py-2 text-xs font-mono outline-none h-32 resize-none"
+                        data-testid="textarea-export-output"
+                      />
+                      <button
+                        onClick={() => {
+                          navigator.clipboard.writeText(exportOutput);
+                          toast({ title: "Copied to clipboard", description: "Encrypted profile data copied." });
+                        }}
+                        className="w-full py-2 rounded text-sm font-semibold bg-primary text-primary-foreground hover:opacity-90"
+                      >
+                        Copy Encrypted Data
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={handleExportProfile}
+                      disabled={!exportPassphrase.trim()}
+                      className="w-full py-2 rounded text-sm font-semibold bg-primary text-primary-foreground hover:opacity-90 disabled:opacity-40"
+                    >
+                      Encrypt & Export
+                    </button>
+                  )}
+                  <p className="text-xs text-muted-foreground italic">
+                    Backend export command is being implemented. Currently exports the profile JSON
+                    encrypted with your passphrase using AES-256-GCM.
+                  </p>
+                </div>
+              </DialogContent>
+            </Dialog>
+
+            {/* Import Profile */}
+            <Dialog open={importOpen} onOpenChange={setImportOpen}>
+              <DialogTrigger asChild>
+                <button
+                  data-testid="button-import-profile"
+                  className="flex items-center gap-2 px-4 py-2 rounded text-sm font-semibold border border-border hover:border-primary hover:text-primary transition-colors"
+                >
+                  <Upload className="w-4 h-4" /> Import
+                </button>
+              </DialogTrigger>
+              <DialogContent className="glass-panel border-0 max-w-md">
+                <DialogHeader>
+                  <DialogTitle className="text-sm uppercase tracking-wider text-primary">Import Profile</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4">
+                  <p className="text-xs text-muted-foreground">
+                    Paste an encrypted profile export and enter the passphrase to decrypt it.
+                  </p>
+                  <textarea
+                    placeholder="Paste encrypted profile data..."
+                    value={importInput}
+                    onChange={(e) => setImportInput(e.target.value)}
+                    className="w-full bg-muted border border-border rounded px-3 py-2 text-xs font-mono outline-none focus:border-primary transition-colors h-32 resize-none"
+                    data-testid="textarea-import-input"
+                  />
+                  <input
+                    type="password"
+                    placeholder="Enter the passphrase to decrypt..."
+                    value={importPassphrase}
+                    onChange={(e) => setImportPassphrase(e.target.value)}
+                    className="w-full bg-muted border border-border rounded px-3 py-2 text-sm outline-none focus:border-primary transition-colors"
+                    data-testid="input-import-passphrase"
+                  />
+                  {importError && <p className="text-xs text-destructive">{importError}</p>}
+                  <button
+                    onClick={handleImportProfile}
+                    disabled={!importInput.trim() || !importPassphrase.trim()}
+                    className="w-full py-2 rounded text-sm font-semibold bg-primary text-primary-foreground hover:opacity-90 disabled:opacity-40"
+                  >
+                    Decrypt & Import
+                  </button>
+                  <p className="text-xs text-muted-foreground italic">
+                    Backend import command is being implemented. Currently decrypts and displays
+                    the profile — not yet persisted to the database.
+                  </p>
+                </div>
+              </DialogContent>
+            </Dialog>
+
+            {/* New Profile */}
+            <Dialog open={open} onOpenChange={setOpen}>
+              <DialogTrigger asChild>
+                <button
+                  data-testid="button-new-profile"
+                  className="flex items-center gap-2 px-4 py-2 rounded text-sm font-semibold bg-primary text-primary-foreground hover:opacity-90"
+                >
+                  <Plus className="w-4 h-4" /> New Profile
+                </button>
+              </DialogTrigger>
+              <DialogContent className="glass-panel border-0 max-w-md">
+                <DialogHeader>
+                  <DialogTitle className="text-sm uppercase tracking-wider text-primary">Create Clinical Profile</DialogTitle>
+                </DialogHeader>
+                <Form {...form}>
+                  <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+                    <FormField
+                      control={form.control}
+                      name="display_name"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="text-xs text-muted-foreground uppercase tracking-wider">Display Name</FormLabel>
+                          <FormControl>
+                            <Input {...field} data-testid="input-profile-name" className="bg-muted border-border" placeholder="Dr. Sarah Chen" />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="role_label"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="text-xs text-muted-foreground uppercase tracking-wider">Role Label</FormLabel>
+                          <FormControl>
+                            <Input {...field} data-testid="input-profile-role" className="bg-muted border-border" placeholder="Clinical Geneticist" />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <button
+                      type="submit"
+                      data-testid="button-submit-profile"
+                      className="w-full py-2 rounded text-sm font-semibold bg-primary text-primary-foreground hover:opacity-90"
+                      disabled={createProfile.isPending}
+                    >
+                      {createProfile.isPending ? "Generating Keypair..." : "Create Profile"}
+                    </button>
+                  </form>
+                </Form>
+              </DialogContent>
+            </Dialog>
+          </div>
+        }
+      />
+
+      <div className="border border-border rounded overflow-hidden bg-card">
+        <div className="grid grid-cols-5 gap-4 px-4 py-3 border-b border-border text-xs text-muted-foreground uppercase tracking-widest">
+          <div className="col-span-2">Profile</div>
+          <div>Role</div>
+          <div>Last Used</div>
+          <div>Actions</div>
+        </div>
+        <div className="divide-y divide-border">
+          {isLoading ? (
+            <TableSkeleton rows={3} cols={5} />
+          ) : profiles?.length === 0 ? (
+            <div className="px-4 py-12 text-center text-muted-foreground text-sm">
+              No profiles yet. Create your first clinician profile.
+            </div>
+          ) : (
+            profiles?.map((p) => (
+              <div key={p.id} data-testid={`row-profile-${p.id}`} className="grid grid-cols-5 gap-4 px-4 py-3 text-sm hover:bg-accent transition-colors items-center">
+                <div className="col-span-2 flex items-center gap-2">
+                  <Shield className="w-3.5 h-3.5 text-primary flex-shrink-0" />
+                  <span className="font-medium truncate">{p.display_name}</span>
+                </div>
+                <div className="text-muted-foreground text-xs truncate">{p.role_label}</div>
+                <div className="text-muted-foreground text-xs">
+                  <span className="flex items-center gap-1">
+                    <Clock className="w-3 h-3" />
+                    {new Date(p.last_used_at).toLocaleDateString()}
+                  </span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <button
+                    data-testid={`button-delete-profile-${p.id}`}
+                    onClick={() => handleDelete(p.id, p.display_name)}
+                    className="text-muted-foreground hover:text-destructive transition-colors"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+
+      {confirmProps && (
+        <ConfirmDialog
+          open={confirmOpen}
+          title={confirmProps.title}
+          message={confirmProps.message}
+          variant="destructive"
+          confirmLabel="Delete"
+          onConfirm={confirmProps.onConfirm}
+          onCancel={() => setConfirmOpen(false)}
+        />
+      )}
+    </div>
+  );
+}
