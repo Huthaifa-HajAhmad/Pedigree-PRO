@@ -1,0 +1,88 @@
+// HaploClinical — Unified API Client (React Query Hooks + Direct Functions)
+
+// Unified API adapter (Tauri desktop + browser standalone)
+export { apiCall, detectApiMode } from "./adapter";
+export type { ApiMode } from "./adapter";
+
+// Direct API functions (for imperative calls, not React Query)
+export {
+  listProfiles,
+  createProfile,
+  switchProfile,
+  deleteProfile,
+  listPatients,
+  getPatient,
+  createPatient,
+  updatePatient,
+  deletePatient,
+  listPedigrees,
+  getPedigree,
+  createPedigree,
+  updatePedigree,
+  deletePedigree,
+  listVersions,
+  saveVersion,
+  restoreVersion,
+  getDashboardStats,
+  getRecentActivity,
+  getPreferences,
+  savePreferences,
+  sharePedigree,
+  importShared,
+  importPedigreeNative,
+  importPedigreeLegacy,
+  backupDatabase,
+  restoreDatabase,
+  rotateEncryptionKey,
+} from "./backend-client";
+
+export type {
+  LocalProfile,
+  CreateProfileInput,
+  Patient,
+  CreatePatientInput,
+  PedigreeSummary,
+  Pedigree,
+  CreatePedigreeInput,
+  PedigreeVersion,
+  SaveVersionInput,
+  DashboardStats,
+  ActivityItem,
+  Preferences,
+  ShareResult,
+  LegacyImportSummary,
+} from "./backend-client";
+
+// React Query hooks — canonical API for HaploClinical data access
+export {
+  useListProfiles,
+  useCreateProfile,
+  useDeleteProfile,
+  useSwitchProfile,
+  useListPatients,
+  useGetPatient,
+  useCreatePatient,
+  useUpdatePatient,
+  useDeletePatient,
+  useListPedigrees,
+  useGetPedigree,
+  useCreatePedigree,
+  useUpdatePedigree,
+  useDeletePedigree,
+  useListVersions,
+  useSaveVersion,
+  useRestoreVersion,
+  useGetDashboardStats,
+  useGetRecentActivity,
+  useGetPreferences,
+  useSavePreferences,
+  useSharePedigree,
+  useImportShared,
+  useImportPedigreeNative,
+  useImportPedigreeLegacy,
+  useBackupDatabase,
+  useRestoreDatabase,
+  useRotateKey,
+  useGetSharedPedigree,
+  queryKeys,
+} from "./hooks";
