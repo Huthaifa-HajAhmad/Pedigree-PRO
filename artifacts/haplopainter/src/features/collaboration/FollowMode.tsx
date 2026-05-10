@@ -6,7 +6,7 @@ import type { PedigreeVersion } from "@workspace/api-client-react";
 interface FollowModeProps {
   versions: PedigreeVersion[];
   currentIndex: number;
-  onChangeIndex: (index: number) => void;
+  onChangeIndex: (index: number | ((prev: number) => number)) => void;
   onPreview: (canvasData: string) => void;
   onClose: () => void;
 }

@@ -37,13 +37,14 @@ export async function createProfile(input: CreateProfileInput): Promise<LocalPro
   const mode = detectApiMode();
   if (mode === "browser") {
     const { generateEd25519Keypair } = await import("@workspace/crypto");
+    const { storeProfilePrivateKey } = await import("@workspace/browser-backend");
     const { publicKey, privateKey } = await generateEd25519Keypair();
     const result = await apiCall<LocalProfile>("create_profile", {
       ...input,
       public_key: publicKey,
     } as unknown as Record<string, unknown>);
     // Store private key in IndexedDB for browser mode (no OS keychain)
-    localStorage.setItem(`hc:profile_private_key:${result.id}`, privateKey);
+    await storeProfilePrivateKey(result.id, privateKey);
     return result;
   }
   return apiCall<LocalProfile>("create_profile", input as unknown as Record<string, unknown>);
