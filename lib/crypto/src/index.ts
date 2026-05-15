@@ -15,8 +15,7 @@
 
 import { getPublicKey, sign, verify, utils as ed25519Utils } from "@noble/ed25519";
 import { sha256 } from "@noble/hashes/sha256";
-import { sha512 } from "@noble/hashes/sha512";
-import { bytesToHex, hexToBytes } from "@noble/hashes/utils";
+import { bytesToHex } from "@noble/hashes/utils";
 
 // =============================================================================
 // Ed25519 Key Generation

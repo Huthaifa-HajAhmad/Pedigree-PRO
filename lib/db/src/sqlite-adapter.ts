@@ -2,19 +2,24 @@
 // Requires better-sqlite3 (native driver, used by Tauri backend).
 // For browser mode, sql.js is used via @workspace/browser-backend instead.
 
-let Database: any;
+import type BetterSqlite3 from "better-sqlite3";
+import type { BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
+
+declare function require(id: string): unknown;
+
+let Database: typeof BetterSqlite3;
 let driverName = 'none';
 
 function isCommonJS(): boolean {
-  return typeof (globalThis as any).require === 'function';
+  return typeof require === 'function';
 }
 
 // Try native driver first (better-sqlite3)
 try {
   const mod = isCommonJS()
-    ? (globalThis as any).require('better-sqlite3')
+    ? require('better-sqlite3')
     : await import('better-sqlite3');
-  Database = mod.default ?? mod;
+  Database = (mod as { default?: typeof BetterSqlite3 }).default ?? (mod as typeof BetterSqlite3);
   driverName = 'better-sqlite3';
 } catch (_e1) {
   throw new Error(
@@ -25,12 +30,12 @@ try {
 }
 
 // Load drizzle-orm at runtime
-let drizzleFn: any;
+let drizzleFn: (sqlite: BetterSqlite3) => BetterSQLite3Database<Record<string, never>>;
 try {
   const mod = isCommonJS()
-    ? (globalThis as any).require('drizzle-orm/better-sqlite3')
+    ? require('drizzle-orm/better-sqlite3')
     : await import('drizzle-orm/better-sqlite3');
-  drizzleFn = mod.drizzle ?? mod;
+  drizzleFn = (mod as { drizzle?: typeof drizzleFn }).drizzle ?? (mod as typeof drizzleFn);
 } catch (err) {
   throw new Error("Unable to load 'drizzle-orm/better-sqlite3'. Ensure it's installed in the workspace (pnpm install).\nOriginal error: " + String(err));
 }
