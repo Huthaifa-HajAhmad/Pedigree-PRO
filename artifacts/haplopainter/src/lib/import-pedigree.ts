@@ -1,21 +1,4 @@
-export interface PedigreeNode {
-  id: string;
-  type: "male" | "female" | "unknown";
-  affected: boolean;
-  deceased: boolean;
-  proband: boolean;
-  label: string;
-  age: string;
-  x: number;
-  y: number;
-}
-
-export interface PedigreeEdge {
-  id: string;
-  type: "couple" | "parent-child";
-  sourceId: string;
-  targetId: string;
-}
+import type { PedigreeNode, PedigreeEdge } from "@/features/pedigree-editor/canvas/types";
 
 export interface CanvasData {
   nodes: PedigreeNode[];
@@ -61,7 +44,6 @@ function layoutNodes(individuals: Individual[]): Map<string, { x: number; y: num
   let safety = 0;
   while (head < queue.length && safety++ < 10000) {
     const ind = queue[head++];
-    const gen = generation.get(ind.rawId) ?? 0;
     for (const child of individuals) {
       if (child.fatherId === ind.rawId || child.motherId === ind.rawId) {
         const parentGen = Math.max(
@@ -137,6 +119,7 @@ function toCanvasData(individuals: Individual[]): CanvasData {
     id: `n_${ind.rawId}_${idx}`,
     type: ind.sex,
     affected: ind.affected,
+    carrier: false,
     deceased: false,
     proband: false,
     label: ind.name || ind.rawId,

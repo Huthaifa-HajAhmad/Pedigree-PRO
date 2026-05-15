@@ -43,7 +43,7 @@ export function VersionHistoryPanel({
                 {v.thumbnail ? (
                   <div className="flex-shrink-0 w-[72px] h-[45px] rounded border border-border overflow-hidden bg-black">
                     <img src={v.thumbnail} alt={`Session v${v.version_number} preview`}
-                      className="w-full h-full object-contain" draggable={false} />
+                      className="w-full h-full object-contain" loading="lazy" decoding="async" draggable={false} />
                   </div>
                 ) : (
                   <div className="flex-shrink-0 w-[72px] h-[45px] rounded border border-border bg-muted/10 flex items-center justify-center">

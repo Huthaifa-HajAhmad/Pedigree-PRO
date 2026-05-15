@@ -1,4 +1,4 @@
-import type { CanvasData, PedigreeNode, PedigreeEdge } from "../canvas/types";
+import type { CanvasData, PedigreeNode } from "../canvas/types";
 
 const PEDIGREE_TEMPLATES = [
   { key: "nuclear",           name: "Nuclear Family",      desc: "2 parents + proband child" },
