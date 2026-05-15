@@ -117,6 +117,7 @@ export interface RibbonToolbarProps {
   handleExportPNG: () => void;
   handleExportSVG: () => void;
   handleExportJSON: () => void;
+  handleExportPPRO: () => void;
 }
 
 export function RibbonToolbar(props: RibbonToolbarProps) {
@@ -131,6 +132,7 @@ export function RibbonToolbar(props: RibbonToolbarProps) {
 
   return (
     <div
+      data-print-hidden
       className="flex items-stretch border-b border-border bg-card flex-shrink-0"
       style={{ height: "72px", minHeight: "72px", position: "relative", zIndex: 20 }}
     >
@@ -608,6 +610,7 @@ export function RibbonToolbar(props: RibbonToolbarProps) {
                     { id: "svg", label: "SVG Image (.svg)", sub: "Scalable vector graphic", icon: <FileText className="w-4 h-4 text-purple-400" />, fn: props.handleExportSVG },
                     { id: "png", label: "PNG Image (.png)", sub: "High-resolution bitmap (2x)", icon: <FileJson className="w-4 h-4 text-cyan-400" />, fn: props.handleExportPNG },
                     { id: "json", label: "JSON", sub: "Raw canvas data", icon: <FileJson className="w-4 h-4 text-blue-400" />, fn: props.handleExportJSON },
+                    { id: "ppro", label: "Pedigree PRO (.ppro)", sub: "Full provenance + history", icon: <FileJson className="w-4 h-4 text-emerald-400" />, fn: props.handleExportPPRO },
                   ] as const).map((item, i) => (
                     <button key={item.id} data-testid={`button-export-${item.id}`}
                       onClick={item.fn} disabled={!!props.exportingFormat}

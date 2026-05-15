@@ -22,14 +22,22 @@ export const THEMES: Theme[] = [
 ];
 
 const THEME_IDS = new Set(THEMES.map((t) => t.id));
-const DEVICE_KEY  = "pedigree-pro-device-id";
-const STORAGE_KEY = "pedigree-pro-theme";
+const DEVICE_KEY  = "ppro_device_id";
+const STORAGE_KEY = "ppro_theme";
+const LEGACY_DEVICE_KEY  = "pedigree-pro-device-id";
+const LEGACY_STORAGE_KEY = "pedigree-pro-theme";
 
 // ── Device ID ─────────────────────────────────────────────────────────────────
 function getOrCreateDeviceId(): string {
   try {
     const existing = localStorage.getItem(DEVICE_KEY);
     if (existing) return existing;
+    const legacy = localStorage.getItem(LEGACY_DEVICE_KEY);
+    if (legacy) {
+      localStorage.setItem(DEVICE_KEY, legacy);
+      localStorage.removeItem(LEGACY_DEVICE_KEY);
+      return legacy;
+    }
     const id = crypto.randomUUID();
     localStorage.setItem(DEVICE_KEY, id);
     return id;
@@ -42,7 +50,16 @@ function getOrCreateDeviceId(): string {
 export function getStoredTheme(): ThemeId {
   try {
     const v = localStorage.getItem(STORAGE_KEY);
-    if (v && THEME_IDS.has(v as ThemeId)) return v as ThemeId;
+    if (!v) {
+      const legacy = localStorage.getItem(LEGACY_STORAGE_KEY);
+      if (legacy && THEME_IDS.has(legacy as ThemeId)) {
+        localStorage.setItem(STORAGE_KEY, legacy);
+        localStorage.removeItem(LEGACY_STORAGE_KEY);
+        return legacy as ThemeId;
+      }
+    } else if (THEME_IDS.has(v as ThemeId)) {
+      return v as ThemeId;
+    }
   } catch {}
   return "terminal";
 }

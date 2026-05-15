@@ -1,22 +1,35 @@
-/* eslint-disable @typescript-eslint/no-var-requires */
 // Conditional database loader: Postgres (default) or SQLite (when DATABASE_URL starts with sqlite:)
+//
+// Table exports are typed as `any` because the Drizzle ORM generates incompatible
+// types (PgTableWithColumns vs SQLiteTableWithColumns) that cannot be unified.
+// The `db` instance is typed as the SQLite variant since browser mode is the
+// primary deployment target. Desktop mode uses the Tauri Rust backend instead.
+//
+// SAFETY: Only one code path executes at runtime (SQLite or Postgres), and the
+// schema shapes are intentionally identical between both backends.
 
-export let db: any;
+import type { BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
+
+export let db: BetterSQLite3Database<Record<string, never>>;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export let pool: any;
 
-// DEPRECATED tables (Phase 0-D removal)
-export let usersTable: any;
-
-// Core tables
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export let patientsTable: any;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export let pedigreesTable: any;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export let pedigreeVersionsTable: any;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export let activityLogTable: any;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export let appPreferencesTable: any;
 
-// New tables (Phase 0-B)
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export let localProfilesTable: any;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export let pedigreeNodeAnnotationsTable: any;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export let pedigreePhenotypesTable: any;
 
 // Initialize synchronously using top-level await so module evaluation waits for DB setup
@@ -26,7 +39,6 @@ if (process.env.DATABASE_URL && process.env.DATABASE_URL.startsWith("sqlite:")) 
   db = sqliteAdapter.db;
 
   const sqliteSchema = await import("./schema_sqlite_index");
-  usersTable = sqliteSchema.usersTable;
   patientsTable = sqliteSchema.patientsTable;
   pedigreesTable = sqliteSchema.pedigreesTable;
   pedigreeVersionsTable = sqliteSchema.pedigreeVersionsTable;
@@ -49,9 +61,8 @@ if (process.env.DATABASE_URL && process.env.DATABASE_URL.startsWith("sqlite:")) 
 
   const { Pool } = pg;
   pool = new Pool({ connectionString: process.env.DATABASE_URL });
-  db = drizzle(pool, { schema });
+  db = drizzle(pool, { schema }) as unknown as BetterSQLite3Database<Record<string, never>>;
 
-  usersTable = schema.usersTable;
   patientsTable = schema.patientsTable;
   pedigreesTable = schema.pedigreesTable;
   pedigreeVersionsTable = schema.pedigreeVersionsTable;
@@ -61,4 +72,3 @@ if (process.env.DATABASE_URL && process.env.DATABASE_URL.startsWith("sqlite:")) 
   pedigreeNodeAnnotationsTable = schema.pedigreeNodeAnnotationsTable;
   pedigreePhenotypesTable = schema.pedigreePhenotypesTable;
 }
-

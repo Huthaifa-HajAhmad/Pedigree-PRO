@@ -8,11 +8,10 @@ export const pedigreeVersionsTable = pgTable("pedigree_versions", {
   versionNumber: integer("version_number").notNull().default(1),
   label: text("label"),
   canvasData: text("canvas_data").notNull(),
-  canvasHash: text("canvas_hash"),           // SHA-256 of canvasData (tamper evidence)
+  canvasHash: text("canvas_hash"),
   thumbnail: text("thumbnail"),
-  savedById: integer("saved_by_id"),          // DEPRECATED — replaced by saver_key (Phase 0-D removal)
-  saverKey: text("saver_key"),                // Ed25519 public key of saver
-  saverSignature: text("saver_signature"),     // Ed25519 signature over (canvas_hash || created_at)
+  saverKey: text("saver_key"),
+  saverSignature: text("saver_signature"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

@@ -9,14 +9,14 @@ export interface UsePedigreeDraftParams {
 }
 
 export function usePedigreeDraft({ id, pedigreeData, canvasRef, draftKeyRef }: UsePedigreeDraftParams) {
-  const draftKey = `haplopainter_draft_${id}`;
+  const draftKey = `ppro_draft_${id}`;
   const draftCheckedRef = useRef(false);
   const draftEnabledRef = useRef(false);
   const [showDraftBanner, setShowDraftBanner] = useState(false);
   const [draftData, setDraftData] = useState<CanvasData | null>(null);
 
   // Keep draftKeyRef in sync
-  useEffect(() => { draftKeyRef.current = `haplopainter_draft_${id}`; }, [id]);
+  useEffect(() => { draftKeyRef.current = `ppro_draft_${id}`; }, [id]);
 
   // Reset draft refs when navigating between pedigrees
   useEffect(() => {

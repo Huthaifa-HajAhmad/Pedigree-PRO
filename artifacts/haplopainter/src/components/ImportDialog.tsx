@@ -170,7 +170,7 @@ export function ImportDialog({ children }: Props) {
         setResult({
           canvasData: { nodes: [], edges: [] },
           familyIds: [],
-          warnings: [`Imported: ${summary.pedigrees_imported} pedigrees, ${summary.patients_imported} patients, ${summary.users_found} users`],
+          warnings: [`Imported: ${summary.pedigrees_imported} pedigrees, ${summary.patients_imported} patients`],
           suggestedTitle: `Legacy DB: ${filename}`,
         });
         setStep("legacy_summary");

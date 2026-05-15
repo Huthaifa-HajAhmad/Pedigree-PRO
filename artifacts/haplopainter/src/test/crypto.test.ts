@@ -2,6 +2,8 @@ import { describe, it, expect } from "vitest";
 import {
   computeHash, generateEd25519Keypair, signData, verifySignature,
   encryptAesGcm, decryptAesGcm, deriveKeyFromPassphrase,
+  getPublicKeyFromPrivate, generateSymmetricKey,
+  sodiumSealBox, sodiumOpenSealedBox,
 } from "@workspace/crypto";
 
 describe("computeHash (SHA-256)", () => {
@@ -114,5 +116,74 @@ describe("deriveKeyFromPassphrase", () => {
     const result = await deriveKeyFromPassphrase("any-passphrase");
     expect(result.salt.length).toBeGreaterThan(0);
     expect(result.derivedKey.length).toBeGreaterThan(0);
+  });
+});
+
+describe("getPublicKeyFromPrivate", () => {
+  it("derives the same public key as generateEd25519Keypair", async () => {
+    const kp = await generateEd25519Keypair();
+    const derived = await getPublicKeyFromPrivate(kp.privateKey);
+    expect(derived).toBe(kp.publicKey);
+  });
+
+  it("produces different public keys for different private keys", async () => {
+    const kp1 = await generateEd25519Keypair();
+    const kp2 = await generateEd25519Keypair();
+    expect(kp1.publicKey).not.toBe(kp2.publicKey);
+  });
+});
+
+describe("generateSymmetricKey", () => {
+  it("produces a 32-byte key", () => {
+    const key = generateSymmetricKey();
+    expect(key).toBeInstanceOf(Uint8Array);
+    expect(key.length).toBe(32);
+  });
+
+  it("produces unique keys on each call", () => {
+    const a = generateSymmetricKey();
+    const b = generateSymmetricKey();
+    expect(a).not.toEqual(b);
+  });
+});
+
+describe("sodiumSealBox + sodiumOpenSealedBox", () => {
+  it("encrypts and decrypts a message round-trip", async () => {
+    const kp = await generateEd25519Keypair();
+    const message = "test-pedigree-sharing-data";
+    const sealed = await sodiumSealBox(message, kp.publicKey);
+    expect(sealed).toBeDefined();
+    expect(sealed.length).toBeGreaterThan(0);
+    const decrypted = await sodiumOpenSealedBox(sealed, kp.privateKey);
+    expect(decrypted).toBe(message);
+  });
+
+  it("fails to decrypt with wrong private key", async () => {
+    const kp1 = await generateEd25519Keypair();
+    const kp2 = await generateEd25519Keypair();
+    const sealed = await sodiumSealBox("secret-message", kp1.publicKey);
+    await expect(sodiumOpenSealedBox(sealed, kp2.privateKey)).rejects.toThrow();
+  });
+
+  it("handles complex JSON data round-trip", async () => {
+    const kp = await generateEd25519Keypair();
+    const data = JSON.stringify({
+      id: 1,
+      title: "Test Pedigree",
+      canvas_data: { nodes: [{ id: "n1", type: "male" }], edges: [] },
+      creator_key: kp.publicKey,
+    });
+    const sealed = await sodiumSealBox(data, kp.publicKey);
+    const decrypted = await sodiumOpenSealedBox(sealed, kp.privateKey);
+    expect(decrypted).toBe(data);
+    const parsed = JSON.parse(decrypted);
+    expect(parsed.title).toBe("Test Pedigree");
+  });
+
+  it("produces different ciphertexts for same plaintext (ephemeral keypair)", async () => {
+    const kp = await generateEd25519Keypair();
+    const a = await sodiumSealBox("same-data", kp.publicKey);
+    const b = await sodiumSealBox("same-data", kp.publicKey);
+    expect(a).not.toBe(b);
   });
 });

@@ -103,22 +103,6 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
 
-  # ── Relay Service Deployment ─────────────────────────────────
-  deploy-relay:
-    needs: typecheck
-    if: github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-        with: { version: '9' }
-      - run: cd services/relay && pnpm install --frozen-lockfile
-      - uses: cloudflare/wrangler-action@v3
-        with:
-          apiToken: ${{ secrets.CF_API_TOKEN }}
-          workingDirectory: services/relay
-          command: deploy
-
   # ── Static Web Frontend Deployment ───────────────────────────
   deploy-web:
     needs: typecheck

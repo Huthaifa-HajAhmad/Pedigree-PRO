@@ -9,18 +9,9 @@ export const patientsTable = sqliteTable("patients", {
   sex: text("sex"),
   ethnicity: text("ethnicity"),
   referralReason: text("referral_reason"),
-  clinicianId: integer("clinician_id"), // DEPRECATED — replaced by clinician_key (Phase 0-D removal)
-  clinicianKey: text("clinician_key"),   // Ed25519 public key of responsible clinician
+  clinicianKey: text("clinician_key"),
   createdAt: text("created_at").notNull(),
   updatedAt: text("updated_at").notNull(),
 });
 
 export type Patient = typeof patientsTable.$inferSelect;
-
-/**
- * Phase 0-B Migration Notes:
- * - `clinicianId` (FK → users.id) is DEPRECATED.
- * - `clinicianKey` (Ed25519 public key) is the new identity column.
- * - Dual-write: populate both columns during transition.
- * - Removal: drop `clinicianId` in Phase 0-D cleanup.
- */

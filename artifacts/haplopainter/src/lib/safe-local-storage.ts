@@ -55,3 +55,46 @@ export function safeSetJSON(key: string, value: unknown): boolean {
     return false;
   }
 }
+
+const MIGRATION_FLAG = "ppro_ls_migrated_v1";
+
+const KEY_MIGRATIONS: Array<[string, string]> = [
+  ["haplopainter_draft_", "ppro_draft_"],
+  ["pedigree-pro_open_tabs", "ppro_open_tabs"],
+  ["pedigree-pro-device-id", "ppro_device_id"],
+  ["pedigree-pro-theme", "ppro_theme"],
+];
+
+export function migrateLegacyKeys(): void {
+  try {
+    if (localStorage.getItem(MIGRATION_FLAG)) return;
+  } catch { return; }
+
+  try {
+    for (const [oldPrefix, newPrefix] of KEY_MIGRATIONS) {
+      if (oldPrefix.endsWith("_") && newPrefix.endsWith("_")) {
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (key && key.startsWith(oldPrefix)) {
+            const newKey = newPrefix + key.slice(oldPrefix.length);
+            const value = localStorage.getItem(key);
+            if (value !== null) {
+              localStorage.setItem(newKey, value);
+              localStorage.removeItem(key);
+            }
+            i--;
+          }
+        }
+      } else {
+        const value = localStorage.getItem(oldPrefix);
+        if (value !== null) {
+          localStorage.setItem(newPrefix, value);
+          localStorage.removeItem(oldPrefix);
+        }
+      }
+    }
+    localStorage.setItem(MIGRATION_FLAG, "1");
+  } catch (e) {
+    warn(`Migration failed: ${e instanceof Error ? e.message : String(e)}`);
+  }
+}

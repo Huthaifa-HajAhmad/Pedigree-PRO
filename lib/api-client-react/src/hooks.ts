@@ -39,6 +39,7 @@ import {
   savePreferences,
   sharePedigree,
   importShared,
+  exportPedigreePpro,
   importPedigreeNative,
   importPedigreeLegacy,
   backupDatabase,
@@ -309,8 +310,15 @@ export function useImportShared() {
 }
 
 // =============================================================================
-// Import Hooks
+// Export & Import Hooks
 // =============================================================================
+
+export function useExportPedigreePpro() {
+  return useMutation({
+    mutationFn: ({ pedigreeId, exporterKey }: { pedigreeId: number; exporterKey: string }) =>
+      exportPedigreePpro(pedigreeId, exporterKey),
+  });
+}
 
 export function useImportPedigreeNative() {
   const queryClient = useQueryClient();

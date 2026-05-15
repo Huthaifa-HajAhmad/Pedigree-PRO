@@ -7,12 +7,10 @@ export const pedigreesTable = pgTable("pedigrees", {
   title: text("title").notNull(),
   patientId: integer("patient_id"),
   canvasData: text("canvas_data"),
-  canvasHash: text("canvas_hash"),           // SHA-256 of canvasData (tamper evidence)
+  canvasHash: text("canvas_hash"),
   notes: text("notes"),
-  createdById: integer("created_by_id"),      // DEPRECATED — replaced by creator_key (Phase 0-D removal)
-  creatorKey: text("creator_key"),            // Ed25519 public key of creator
-  creatorSignature: text("creator_signature"), // Ed25519 signature over (canvas_hash || created_at)
-  shareToken: text("share_token"),            // DEPRECATED — will move to zero-knowledge relay (Phase 0-D)
+  creatorKey: text("creator_key"),
+  creatorSignature: text("creator_signature"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });
