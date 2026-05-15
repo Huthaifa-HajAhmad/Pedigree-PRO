@@ -10,7 +10,7 @@
 
 import { exec, query, queryOne, lastInsertRowId } from "./db";
 import { computeHash } from "@workspace/crypto";
-import { getProfilePrivateKey, listProfilePrivateKeys } from "./crypto-store";
+import { listProfilePrivateKeys } from "./crypto-store";
 
 // =============================================================================
 // Profile Types & Operations

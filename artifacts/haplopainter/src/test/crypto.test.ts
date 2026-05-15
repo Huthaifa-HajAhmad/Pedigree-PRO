@@ -34,15 +34,15 @@ describe("generateEd25519Keypair + signData + verifySignature", () => {
   it("produces a valid keypair with public and secret keys", async () => {
     const kp = await generateEd25519Keypair();
     expect(kp.publicKey).toBeDefined();
-    expect(kp.secretKey).toBeDefined();
+    expect(kp.privateKey).toBeDefined();
     expect(kp.publicKey.length).toBeGreaterThan(0);
-    expect(kp.secretKey.length).toBeGreaterThan(0);
+    expect(kp.privateKey.length).toBeGreaterThan(0);
   });
 
   it("signs and verifies a message round-trip", async () => {
     const kp = await generateEd25519Keypair();
     const message = "test-pedigree-data";
-    const signature = await signData(message, kp.secretKey);
+    const signature = await signData(message, kp.privateKey);
     expect(signature).toBeDefined();
     expect(signature.length).toBeGreaterThan(0);
     const valid = await verifySignature(message, signature, kp.publicKey);
@@ -53,14 +53,14 @@ describe("generateEd25519Keypair + signData + verifySignature", () => {
     const kp1 = await generateEd25519Keypair();
     const kp2 = await generateEd25519Keypair();
     const message = "test-pedigree-data";
-    const signature = await signData(message, kp1.secretKey);
+    const signature = await signData(message, kp1.privateKey);
     const valid = await verifySignature(message, signature, kp2.publicKey);
     expect(valid).toBe(false);
   });
 
   it("rejects tampered message", async () => {
     const kp = await generateEd25519Keypair();
-    const signature = await signData("original-message", kp.secretKey);
+    const signature = await signData("original-message", kp.privateKey);
     const valid = await verifySignature("tampered-message", signature, kp.publicKey);
     expect(valid).toBe(false);
   });
@@ -99,7 +99,7 @@ describe("encryptAesGcm + decryptAesGcm", () => {
 describe("deriveKeyFromPassphrase", () => {
   it("produces deterministic output with same passphrase and salt", async () => {
     const a = await deriveKeyFromPassphrase("test-passphrase");
-    const b = await deriveKeyFromPassphrase("test-passphrase");
+    const b = await deriveKeyFromPassphrase("test-passphrase", a.salt);
     expect(a.derivedKey).toBe(b.derivedKey);
     expect(a.salt).toBe(b.salt);
   });
