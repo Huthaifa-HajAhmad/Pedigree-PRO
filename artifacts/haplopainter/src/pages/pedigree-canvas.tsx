@@ -2,10 +2,10 @@ import { useState, useRef, useCallback, useEffect, useMemo } from "react";
 import { useParams, useLocation } from "wouter";
 import {
   useGetPedigree, useUpdatePedigree, useListVersions,
-  useSaveVersion, useRestoreVersion, queryKeys,
+  useSaveVersion, useRestoreVersion, useListProfiles, queryKeys,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
-import { exportJSON, exportPDF, exportPPTX, exportClinicalReport, exportPNG, exportSVG } from "@/lib/export-pedigree";
+import { exportJSON, exportPPRO, exportPDF, exportPPTX, exportClinicalReport, exportPNG, exportSVG } from "@/lib/export-pedigree";
 import { getAccentHex } from "@/lib/theme";
 import { validatePedigree } from "@/lib/validate-pedigree";
 import { computeAutoLayout } from "@/lib/auto-layout";
@@ -38,6 +38,7 @@ export default function PedigreeCanvas() {
   const queryClient = useQueryClient();
   const { data: pedigree, isLoading } = useGetPedigree(id);
   const { data: versions, isLoading: versionsLoading } = useListVersions(id);
+  const { data: profiles } = useListProfiles();
   const updatePedigree = useUpdatePedigree();
   const saveVersion = useSaveVersion();
   const restoreVersion = useRestoreVersion();
@@ -116,8 +117,8 @@ export default function PedigreeCanvas() {
   const { tabs, openTab, closeTab } = usePedigreeTabs();
 
   // ── Draft persistence ───────────────────────────────────────────────────
-  const draftKeyRef = useRef(`haplopainter_draft_${id}`);
-  useEffect(() => { draftKeyRef.current = `haplopainter_draft_${id}`; }, [id]);
+  const draftKeyRef = useRef(`ppro_draft_${id}`);
+  useEffect(() => { draftKeyRef.current = `ppro_draft_${id}`; }, [id]);
   const { showDraftBanner, draftEnabledRef, handleRestoreDraft, handleDismissDraft } = usePedigreeDraft({ id, pedigreeData: pedigree, canvasRef, draftKeyRef });
   const onRestoreDraft = useCallback(() => handleRestoreDraft(setCanvas, setHistory, setFuture), [handleRestoreDraft]);
 
@@ -178,7 +179,7 @@ export default function PedigreeCanvas() {
         queryClient.setQueryData(queryKeys.pedigree(id), (old: any) => old ? { ...old, canvas_data: JSON.stringify(newCanvas), canvas_hash: undefined } : old);
         setSaveStatus("saved");
         setTimeout(() => setSaveStatus("idle"), 2000);
-        try { localStorage.removeItem(`haplopainter_draft_${id}`); } catch {}
+        try { localStorage.removeItem(`ppro_draft_${id}`); } catch {}
       },
       onError: () => {
         setSaveStatus("idle");
@@ -388,6 +389,11 @@ export default function PedigreeCanvas() {
         handleExportPNG={he(exportPNG, "PNG")}
         handleExportSVG={he(exportSVG, "SVG")}
         handleExportJSON={() => { exportJSON(getExportInfo(), canvas); setShowExportMenu(false); }}
+        handleExportPPRO={() => {
+            const exporterKey = profiles && profiles.length > 0 ? profiles[0].public_key : "";
+            exportPPRO(id, exporterKey, getExportInfo().title);
+            setShowExportMenu(false);
+          }}
       />
 
       <PedigreeCanvasBody

@@ -1,4 +1,4 @@
-import { pgTable, text, serial, timestamp, integer, pgEnum } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, timestamp, pgEnum } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -13,8 +13,7 @@ export const patientsTable = pgTable("patients", {
   sex: sexEnum("sex"),
   ethnicity: text("ethnicity"),
   referralReason: text("referral_reason"),
-  clinicianId: integer("clinician_id"), // DEPRECATED — replaced by clinician_key (Phase 0-D removal)
-  clinicianKey: text("clinician_key"),  // Ed25519 public key of responsible clinician
+  clinicianKey: text("clinician_key"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

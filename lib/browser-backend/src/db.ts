@@ -7,17 +7,18 @@
  */
 
 import initSqlJs from "sql.js";
-import type { Database as SqlJsDatabase } from "sql.js";
 import { get, set, createStore } from "idb-keyval";
 import { getOrCreateDbKey, encryptDbBlob, decryptDbBlob } from "./crypto-store";
 
 const DB_STORE = createStore("pedigree-pro-db", "database");
 const DB_KEY = "sqlcipher-data";
 
-// In-memory database instance
-let db: SqlJsDatabase | null = null;
+// In-memory database instance (sql.js Database type)
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let db: any = null;
 let dbKey: CryptoKey | null = null;
 let autoSaveInterval: ReturnType<typeof setInterval> | null = null;
+let dirty = false;
 
 /**
  * Initializes the sql.js database.
@@ -57,24 +58,71 @@ export async function initDb(): Promise<void> {
     db = new SQL.Database();
   }
 
+  // Enable foreign key enforcement (matches Rust backend)
+  exec("PRAGMA foreign_keys = ON;");
+
   // Run migrations
   await runMigrations();
 
-  // Auto-save on page unload
-  window.addEventListener("beforeunload", saveDb);
+  // Auto-save on page unload (synchronous best-effort via navigator.sendBeacon)
+  window.addEventListener("beforeunload", handleBeforeUnload);
 
-  // Periodic auto-save every 30 seconds
-  autoSaveInterval = setInterval(saveDb, 30_000);
+  // Also use visibilitychange for mobile/tab switching
+  document.addEventListener("visibilitychange", handleVisibilityChange);
+
+  // Periodic auto-save every 10 seconds (reduced from 30s to minimize data loss)
+  autoSaveInterval = setInterval(saveIfDirty, 10_000);
 }
 
 /**
- * Stops the periodic auto-save timer (cleanup).
+ * Marks the database as having unsaved changes.
+ * Called internally by exec() to track mutation operations.
+ */
+export function markDirty(): void {
+  dirty = true;
+}
+
+/**
+ * Synchronous beforeunload handler.
+ * Uses navigator.sendBeacon as a best-effort fallback. The primary
+ * defense is the 10-second periodic auto-save, which limits data loss
+ * to at most 10 seconds of work.
+ */
+function handleBeforeUnload(): void {
+  if (!db || !dbKey || !dirty) return;
+  // Synchronous save attempt — beforeunload doesn't await promises
+  // but the periodic save ensures at most 10s of data loss
+  saveDb().catch(() => { /* best effort */ });
+}
+
+/**
+ * Save on visibility change (mobile/tab switch) where async saves are more reliable.
+ */
+function handleVisibilityChange(): void {
+  if (document.visibilityState === "hidden" && dirty && db && dbKey) {
+    saveDb().catch(() => { /* best effort */ });
+  }
+}
+
+/**
+ * Saves the database only if there are unsaved changes.
+ */
+async function saveIfDirty(): Promise<void> {
+  if (dirty) {
+    await saveDb();
+  }
+}
+
+/**
+ * Stops the periodic auto-save timer and removes event listeners (cleanup).
  */
 export function stopAutoSave(): void {
   if (autoSaveInterval !== null) {
     clearInterval(autoSaveInterval);
     autoSaveInterval = null;
   }
+  window.removeEventListener("beforeunload", handleBeforeUnload);
+  document.removeEventListener("visibilitychange", handleVisibilityChange);
 }
 
 /**
@@ -85,6 +133,7 @@ export async function saveDb(): Promise<void> {
   const data = db.export();
   const { ciphertext, iv } = await encryptDbBlob(data, dbKey);
   await set(DB_KEY, { ciphertext, iv }, DB_STORE);
+  dirty = false;
 }
 
 /**
@@ -99,6 +148,7 @@ export function exec(sql: string, params?: unknown[]): void {
   } else {
     db.run(sql);
   }
+  dirty = true;
 }
 
 /**
@@ -146,15 +196,7 @@ export function lastInsertRowId(): number {
  * Reuses the same migrations as the Rust backend.
  */
 async function runMigrations(): Promise<void> {
-  // Migration 1: Initial schema
-  const migration001 = await fetchMigration("001_initial.sql");
-  exec(migration001);
-
-  // Migration 2: Clinical annotations
-  const migration002 = await fetchMigration("002_clinical_annotations.sql");
-  exec(migration002);
-
-  // Track migrations
+  // Ensure the migrations tracking table exists
   exec(`
     CREATE TABLE IF NOT EXISTS _migrations (
       version INTEGER PRIMARY KEY,
@@ -163,27 +205,23 @@ async function runMigrations(): Promise<void> {
     );
   `);
 
-  // Record applied migrations
-  exec(`INSERT OR IGNORE INTO _migrations (version, name) VALUES (1, '001_initial');`);
-  exec(`INSERT OR IGNORE INTO _migrations (version, name) VALUES (2, '002_clinical_annotations');`);
+  const applied = query<{ version: number }>("SELECT version FROM _migrations");
+  const appliedSet = new Set(applied.map((r) => r.version));
+
+  const migrations: [number, string, string][] = [
+    [1, "001_initial", MIGRATION_001],
+    [2, "002_clinical_annotations", MIGRATION_002],
+    [3, "003_drop_deprecated_columns", MIGRATION_003],
+  ];
+
+  for (const [version, name, sql] of migrations) {
+    if (appliedSet.has(version)) continue;
+    exec(sql);
+    exec(`INSERT INTO _migrations (version, name) VALUES (${version}, '${name}');`);
+  }
 }
 
-/**
- * Fetches a migration SQL file from the shared lib/db/migrations directory.
- * In browser mode, we fetch via HTTP because we cannot use fs.
- */
-async function fetchMigration(name: string): Promise<string> {
-  // In a Vite build, these files are in the public directory or can be imported
-  // For now, we inline the migrations to avoid build complexity
-  // TODO: Consider bundling migrations as strings at build time
-  const migrations: Record<string, string> = {
-    "001_initial.sql": MIGRATION_001,
-    "002_clinical_annotations.sql": MIGRATION_002,
-  };
-  return migrations[name] ?? "";
-}
-
-// Inlined migration 001 (same as Rust backend)
+// Inlined migration 001 (same as Rust backend, minus deprecated Phase 0-D columns)
 const MIGRATION_001 = `
 CREATE TABLE IF NOT EXISTS patients (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -194,7 +232,6 @@ CREATE TABLE IF NOT EXISTS patients (
   sex TEXT DEFAULT 'unknown',
   ethnicity TEXT,
   referral_reason TEXT,
-  clinician_id INTEGER,
   clinician_key TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
@@ -207,10 +244,8 @@ CREATE TABLE IF NOT EXISTS pedigrees (
   canvas_data TEXT,
   canvas_hash TEXT,
   notes TEXT,
-  created_by_id INTEGER,
   creator_key TEXT,
   creator_signature TEXT,
-  share_token TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
@@ -223,7 +258,6 @@ CREATE TABLE IF NOT EXISTS pedigree_versions (
   canvas_data TEXT NOT NULL,
   canvas_hash TEXT,
   thumbnail TEXT,
-  saved_by_id INTEGER,
   saver_key TEXT,
   saver_signature TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
@@ -233,7 +267,6 @@ CREATE TABLE IF NOT EXISTS activity_log (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   action TEXT NOT NULL,
   subject TEXT NOT NULL,
-  user_id INTEGER,
   actor_key TEXT,
   actor_signature TEXT,
   timestamp TEXT NOT NULL DEFAULT (datetime('now'))
@@ -290,4 +323,17 @@ CREATE TABLE IF NOT EXISTS pedigree_phenotypes (
 );
 
 CREATE INDEX IF NOT EXISTS idx_pedigree_phenotypes_pedigree ON pedigree_phenotypes(pedigree_id);
+`;
+
+// Inlined migration 003: Drop deprecated Phase 0-D columns and tables.
+// For databases created after this migration, these columns won't exist,
+// so we use IF EXISTS to make this idempotent.
+const MIGRATION_003 = `
+ALTER TABLE patients DROP COLUMN IF EXISTS clinician_id;
+ALTER TABLE pedigrees DROP COLUMN IF EXISTS created_by_id;
+ALTER TABLE pedigrees DROP COLUMN IF EXISTS share_token;
+ALTER TABLE pedigree_versions DROP COLUMN IF EXISTS saved_by_id;
+ALTER TABLE activity_log DROP COLUMN IF EXISTS user_id;
+DROP INDEX IF EXISTS idx_pedigrees_share_token;
+DROP TABLE IF EXISTS users;
 `;

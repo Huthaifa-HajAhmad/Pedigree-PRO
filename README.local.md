@@ -1,19 +1,22 @@
-Local-first run (SQLite)
+# Local-first Development (Browser Mode)
 
-1. Install dependencies (pnpm):
-   pnpm install -w
+1. Install dependencies:
+   pnpm install --ignore-scripts
 
-2. Initialize local SQLite DB:
-   pnpm --filter @workspace/db run init-sqlite
+2. Build libraries:
+   pnpm -r --if-present run build
 
-3. Start the API server (set env from .env.example):
-   copy .env.example .env.local
-   set DATABASE_URL=sqlite:./data/db.sqlite
-   pnpm --filter @workspace/api-server run start
+3. Start the frontend dev server:
+   pnpm --filter @workspace/haplopainter run dev
+   → http://localhost:4173
 
-4. Frontend (dev):
-   pnpm --filter @workspace/mockup-sandbox run dev
+4. Run typechecking:
+   pnpm run typecheck
+
+5. Run tests:
+   pnpm run test
 
 Notes:
-- This creates ./data/db.sqlite (single file DB) suitable for distribution.
-- Later packaging (Tauri) will bundle the server + this DB file and the frontend static assets into an installer for clinicians.
+- Browser mode uses sql.js (WASM SQLite) with IndexedDB persistence — no server required.
+- Data is encrypted at rest using AES-256-GCM via Web Crypto API.
+- Desktop mode uses Tauri + SQLCipher; see `artifacts/haplopainter/src-tauri/`.

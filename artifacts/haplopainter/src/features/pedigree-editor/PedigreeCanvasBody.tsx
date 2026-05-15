@@ -145,11 +145,12 @@ export function PedigreeCanvasBody(props: PedigreeCanvasBodyProps) {
   }, [handleWheel, svgRef]);
 
   return (
-    <div className="flex flex-1 overflow-hidden">
+    <div className="flex flex-1 overflow-hidden" data-print-area>
       <div className={`flex-1 overflow-hidden relative ${showGrid ? "grid-bg" : ""}`}>
         <svg
           ref={svgRef}
           data-canvas-svg="true"
+          data-pedigree-canvas
           className="w-full h-full"
           viewBox={`${viewBox.x} ${viewBox.y} ${vbW} ${vbH}`}
           onMouseMove={handleMouseMove} onMouseUp={handleMouseUp}

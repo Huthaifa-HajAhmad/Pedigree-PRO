@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from "react";
-import { Share2, QrCode, Link2, Copy, Check, X, AlertTriangle } from "lucide-react";
+import { Share2, QrCode, Link2, Copy, Check, X, AlertTriangle, Loader2 } from "lucide-react";
 
 interface LanShareProps {
   pedigreeData: string; // JSON string of the pedigree to share
@@ -213,6 +213,12 @@ export function LanShare({ pedigreeData, onClose, onPedigreeReceived }: LanShare
 
         {mode === "host" && (
           <div className="space-y-3">
+            {status === "connecting" && !offer && (
+              <div className="flex items-center justify-center gap-2 py-3 text-xs text-muted-foreground">
+                <Loader2 className="w-4 h-4 animate-spin text-primary" />
+                <span>Establishing connection...</span>
+              </div>
+            )}
             <div>
               <label className="text-xs text-muted-foreground block mb-1">Your Offer (send to guest)</label>
               <div className="flex gap-2">
@@ -268,7 +274,12 @@ export function LanShare({ pedigreeData, onClose, onPedigreeReceived }: LanShare
               disabled={!offer || status === "connecting"}
               className="w-full py-2 text-xs font-medium rounded bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
             >
-              {status === "connecting" ? "Connecting..." : "Join Session"}
+              {status === "connecting" ? (
+                <span className="flex items-center justify-center gap-1.5">
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  Connecting...
+                </span>
+              ) : "Join Session"}
             </button>
 
             {answer && (

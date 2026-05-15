@@ -1,4 +1,4 @@
-import { pgTable, text, serial, timestamp, integer } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, timestamp } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -6,9 +6,8 @@ export const activityLogTable = pgTable("activity_log", {
   id: serial("id").primaryKey(),
   action: text("action").notNull(),
   subject: text("subject").notNull(),
-  userId: integer("user_id"),                 // DEPRECATED — replaced by actor_key (Phase 0-D removal)
-  actorKey: text("actor_key"),                // Ed25519 public key of actor
-  actorSignature: text("actor_signature"),     // Ed25519 signature over (action || subject || timestamp)
+  actorKey: text("actor_key"),
+  actorSignature: text("actor_signature"),
   timestamp: timestamp("timestamp", { withTimezone: true }).notNull().defaultNow(),
 });
 

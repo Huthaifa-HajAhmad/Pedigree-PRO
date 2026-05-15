@@ -108,7 +108,6 @@ export interface Patient {
   sex: string | null;
   ethnicity: string | null;
   referral_reason: string | null;
-  clinician_id: number | null;
   clinician_key: string | null;
   created_at: string;
   updated_at: string;
@@ -130,18 +129,18 @@ export function list_patients(args?: { search?: string }): Patient[] {
   if (search) {
     const pattern = `%${search}%`;
     return query<Patient>(
-      "SELECT id, mrn, first_name, last_name, date_of_birth, sex, ethnicity, referral_reason, clinician_id, clinician_key, created_at, updated_at FROM patients WHERE first_name LIKE ? OR last_name LIKE ? OR mrn LIKE ? ORDER BY last_name, first_name",
+      "SELECT id, mrn, first_name, last_name, date_of_birth, sex, ethnicity, referral_reason, clinician_key, created_at, updated_at FROM patients WHERE first_name LIKE ? OR last_name LIKE ? OR mrn LIKE ? ORDER BY last_name, first_name",
       [pattern, pattern, pattern]
     );
   }
   return query<Patient>(
-    "SELECT id, mrn, first_name, last_name, date_of_birth, sex, ethnicity, referral_reason, clinician_id, clinician_key, created_at, updated_at FROM patients ORDER BY last_name, first_name"
+    "SELECT id, mrn, first_name, last_name, date_of_birth, sex, ethnicity, referral_reason, clinician_key, created_at, updated_at FROM patients ORDER BY last_name, first_name"
   );
 }
 
 export function get_patient(args: { id: number }): Patient {
   const patient = queryOne<Patient>(
-    "SELECT id, mrn, first_name, last_name, date_of_birth, sex, ethnicity, referral_reason, clinician_id, clinician_key, created_at, updated_at FROM patients WHERE id = ?",
+    "SELECT id, mrn, first_name, last_name, date_of_birth, sex, ethnicity, referral_reason, clinician_key, created_at, updated_at FROM patients WHERE id = ?",
     [args.id]
   );
   if (!patient) throw new Error("Patient not found");
@@ -222,7 +221,6 @@ export interface Pedigree {
   notes: string | null;
   creator_key: string | null;
   creator_signature: string | null;
-  share_token: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -287,7 +285,7 @@ export function list_pedigrees(args?: {
 
 export function get_pedigree(args: { id: number }): Pedigree {
   const pedigree = queryOne<Pedigree>(
-    "SELECT id, title, patient_id, canvas_data, canvas_hash, notes, creator_key, creator_signature, share_token, created_at, updated_at FROM pedigrees WHERE id = ?",
+    "SELECT id, title, patient_id, canvas_data, canvas_hash, notes, creator_key, creator_signature, created_at, updated_at FROM pedigrees WHERE id = ?",
     [args.id]
   );
   if (!pedigree) throw new Error("Pedigree not found");
@@ -550,14 +548,14 @@ export interface ShareResult {
   share_url: string;
 }
 
-// Browser sharing: encrypt and export as .ppro file for manual transfer
+// Browser sharing: encrypt using libsodium sealed box for end-to-end encryption per ADR-001
 export async function share_pedigree(args: {
   pedigree_id: number;
   recipient_key: string;
 }): Promise<ShareResult> {
   const pedigree = get_pedigree({ id: args.pedigree_id });
-  const { encryptForRecipient } = await import("@workspace/crypto");
-  const envelope = await encryptForRecipient(JSON.stringify(pedigree), args.recipient_key);
+  const { sodiumSealBox } = await import("@workspace/crypto");
+  const envelope = await sodiumSealBox(JSON.stringify(pedigree), args.recipient_key);
   const token = btoa(envelope);
   return {
     share_token: token,
@@ -566,13 +564,13 @@ export async function share_pedigree(args: {
 }
 
 export async function import_shared(args: { share_token: string }): Promise<Pedigree> {
-  // Try to decrypt the token using each stored private key (hybrid encryption)
+  // Try to decrypt the token using each stored private key (libsodium sealed box)
   try {
-    const { decryptFromSender } = await import("@workspace/crypto");
+    const { sodiumOpenSealedBox } = await import("@workspace/crypto");
     const privateKeys = await listProfilePrivateKeys();
     for (const { privateKey } of privateKeys) {
       try {
-        const decrypted = await decryptFromSender(atob(args.share_token), privateKey);
+        const decrypted = await sodiumOpenSealedBox(atob(args.share_token), privateKey);
         const decoded = JSON.parse(decrypted);
         return create_pedigree({
           title: decoded.title,
@@ -613,28 +611,180 @@ export interface LegacyImportSummary {
   pedigrees_imported: number;
   versions_imported: number;
   activity_entries_imported: number;
-  users_found: number;
   migration_profile_key: string;
+}
+
+// =============================================================================
+// .ppro Export/Import (ADR-004 §4.3)
+// =============================================================================
+
+export interface PproVersionEntry {
+  version_number: number;
+  label: string | null;
+  canvas_data: string;
+  canvas_hash: string | null;
+  saver_key: string | null;
+  saver_signature: string | null;
+  created_at: string;
+}
+
+export interface PproPedigreeData {
+  title: string;
+  canvas_data: unknown | null;
+  canvas_hash: string | null;
+  notes: string | null;
+  node_annotations: Record<string, unknown>[];
+  phenotypes: Record<string, unknown>[];
+  version_history: PproVersionEntry[];
+}
+
+export interface PproProvenance {
+  creator_key: string;
+  creator_signature: string | null;
+  exported_at: string;
+  exported_by_key: string;
+  export_signature: string | null;
+}
+
+export interface PproExport {
+  format_version: string;
+  export_type: string;
+  pedigree: PproPedigreeData | null;
+  provenance: PproProvenance;
+}
+
+export function export_pedigree_ppro(args: {
+  pedigree_id: number;
+  exporter_key: string;
+}): string {
+  const ped = get_pedigree({ id: args.pedigree_id });
+
+  const canvas_data = ped.canvas_data ? JSON.parse(ped.canvas_data) : null;
+
+  const versions = query<PproVersionEntry>(
+    "SELECT version_number, label, canvas_data, canvas_hash, saver_key, saver_signature, created_at FROM pedigree_versions WHERE pedigree_id = ? ORDER BY version_number ASC",
+    [args.pedigree_id]
+  );
+
+  const nodeAnnotations = query<Record<string, unknown>>(
+    "SELECT node_id, hpo_terms, omim_ids, variant_hgvs, test_results, clinical_notes, affected_status, carrier_status FROM pedigree_node_annotations WHERE pedigree_id = ?",
+    [args.pedigree_id]
+  );
+
+  const phenotypes = query<Record<string, unknown>>(
+    "SELECT condition_name, omim_id, hpo_terms, inheritance_mode, notes FROM pedigree_phenotypes WHERE pedigree_id = ?",
+    [args.pedigree_id]
+  );
+
+  const exportDoc: PproExport = {
+    format_version: "1.0",
+    export_type: "pedigree",
+    pedigree: {
+      title: ped.title,
+      canvas_data,
+      canvas_hash: ped.canvas_hash,
+      notes: ped.notes,
+      node_annotations: nodeAnnotations,
+      phenotypes,
+      version_history: versions,
+    },
+    provenance: {
+      creator_key: ped.creator_key ?? "",
+      creator_signature: ped.creator_signature ?? null,
+      exported_at: new Date().toISOString(),
+      exported_by_key: args.exporter_key,
+      export_signature: null,
+    },
+  };
+
+  return JSON.stringify(exportDoc, null, 2);
 }
 
 export function import_pedigree_native(args: {
   path: string;
   importer_key: string;
 }): Pedigree {
-  // Browser mode: path is actually the file content (base64 or JSON string)
-  // since we don't have filesystem access
+  let data: PproExport;
   try {
-    const data = JSON.parse(args.path);
-    return create_pedigree({
-      title: data.title,
-      patient_id: data.patient_id,
-      canvas_data: data.canvas_data,
-      notes: data.notes,
-      creator_key: args.importer_key,
-    });
-  } catch (e) {
-    throw new Error("Invalid .ppro import data");
+    data = JSON.parse(args.path);
+  } catch {
+    throw new Error("Invalid .ppro import data: not valid JSON");
   }
+
+  if (data.format_version !== "1.0") {
+    throw new Error(`Unsupported .ppro format version: ${data.format_version}`);
+  }
+
+  if (data.export_type !== "pedigree" || !data.pedigree) {
+    throw new Error("Invalid .ppro file: expected export_type 'pedigree'");
+  }
+
+  const ped = data.pedigree;
+  const canvasStr = ped.canvas_data ? JSON.stringify(ped.canvas_data) : null;
+
+  const created = create_pedigree({
+    title: ped.title,
+    patient_id: null,
+    canvas_data: canvasStr,
+    notes: ped.notes ?? null,
+    creator_key: args.importer_key ?? data.provenance?.creator_key ?? "imported",
+    creator_signature: data.provenance?.creator_signature ?? null,
+  });
+
+  if (ped.node_annotations && ped.node_annotations.length > 0) {
+    for (const ann of ped.node_annotations) {
+      exec(
+        "INSERT INTO pedigree_node_annotations (pedigree_id, node_id, hpo_terms, omim_ids, variant_hgvs, test_results, clinical_notes, affected_status, carrier_status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))",
+        [
+          created.id,
+          ann.node_id ?? "",
+          ann.hpo_terms ?? null,
+          ann.omim_ids ?? null,
+          ann.variant_hgvs ?? null,
+          ann.test_results ?? null,
+          ann.clinical_notes ?? null,
+          ann.affected_status ?? "unknown",
+          ann.carrier_status ?? "unknown",
+        ]
+      );
+    }
+  }
+
+  if (ped.phenotypes && ped.phenotypes.length > 0) {
+    for (const ph of ped.phenotypes) {
+      exec(
+        "INSERT INTO pedigree_phenotypes (pedigree_id, condition_name, omim_id, hpo_terms, inheritance_mode, notes, created_at) VALUES (?, ?, ?, ?, ?, ?, datetime('now'))",
+        [
+          created.id,
+          ph.condition_name ?? "",
+          ph.omim_id ?? null,
+          ph.hpo_terms ?? null,
+          ph.inheritance_mode ?? null,
+          ph.notes ?? null,
+        ]
+      );
+    }
+  }
+
+  if (ped.version_history && ped.version_history.length > 0) {
+    for (const v of ped.version_history) {
+      exec(
+        "INSERT INTO pedigree_versions (pedigree_id, version_number, label, canvas_data, canvas_hash, saver_key, saver_signature, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        [
+          created.id,
+          v.version_number,
+          v.label ?? null,
+          v.canvas_data,
+          v.canvas_hash ?? null,
+          v.saver_key ?? null,
+          v.saver_signature ?? null,
+          v.created_at ?? new Date().toISOString(),
+        ]
+      );
+    }
+  }
+
+  return created;
 }
 
 export function import_pedigree_legacy(args: { path: string }): LegacyImportSummary {

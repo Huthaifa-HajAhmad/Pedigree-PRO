@@ -13,6 +13,14 @@ const DB_KEY_NAME = "db-encryption-key";
 const PASSPHRASE_SALT_NAME = "passphrase-salt";
 
 /**
+ * Converts a Uint8Array to an ArrayBuffer for Web Crypto API consumption.
+ * Handles the TypeScript 5.9 Uint8Array<ArrayBuffer> generic correctly.
+ */
+function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
+  return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
+}
+
+/**
  * Generates a random 256-bit AES key for database encryption.
  */
 async function generateAesKey(): Promise<CryptoKey> {
@@ -37,10 +45,10 @@ async function deriveKeyFromPassphrase(
     false,
     ["deriveBits", "deriveKey"]
   );
-  return crypto.subtle.deriveKey(
+return crypto.subtle.deriveKey(
     {
       name: "PBKDF2",
-      salt: salt as unknown as unknown as ArrayBuffer,
+      salt: toArrayBuffer(salt),
       iterations: 256_000,
       hash: "SHA-512",
     },
@@ -63,7 +71,7 @@ async function exportKey(key: CryptoKey): Promise<Uint8Array> {
  * Imports raw bytes to a CryptoKey.
  */
 async function importKey(raw: Uint8Array): Promise<CryptoKey> {
-  return crypto.subtle.importKey("raw", raw as unknown as ArrayBuffer, "AES-GCM", true, [
+  return crypto.subtle.importKey("raw", toArrayBuffer(raw), "AES-GCM", true, [
     "encrypt",
     "decrypt",
   ]);
@@ -91,7 +99,7 @@ async function unwrapKey(
 ): Promise<CryptoKey> {
   return crypto.subtle.unwrapKey(
     "raw",
-    wrappedKey as unknown as ArrayBuffer,
+    toArrayBuffer(wrappedKey),
     wrappingKey,
     { name: "AES-KW" },
     { name: "AES-GCM", length: 256 },
@@ -187,9 +195,9 @@ export async function encryptDbBlob(
 ): Promise<{ ciphertext: Uint8Array; iv: Uint8Array }> {
   const iv = crypto.getRandomValues(new Uint8Array(12));
   const ciphertext = await crypto.subtle.encrypt(
-    { name: "AES-GCM", iv: iv as unknown as ArrayBuffer },
+    { name: "AES-GCM", iv: toArrayBuffer(iv) },
     key,
-    data as unknown as ArrayBuffer
+    toArrayBuffer(data)
   );
   return { ciphertext: new Uint8Array(ciphertext), iv };
 }
@@ -203,9 +211,9 @@ export async function decryptDbBlob(
   key: CryptoKey
 ): Promise<Uint8Array> {
   const decrypted = await crypto.subtle.decrypt(
-    { name: "AES-GCM", iv: iv as unknown as ArrayBuffer },
+    { name: "AES-GCM", iv: toArrayBuffer(iv) },
     key,
-    ciphertext as unknown as ArrayBuffer
+    toArrayBuffer(ciphertext)
   );
   return new Uint8Array(decrypted);
 }

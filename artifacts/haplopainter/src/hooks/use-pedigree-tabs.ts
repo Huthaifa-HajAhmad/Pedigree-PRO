@@ -5,8 +5,19 @@ export interface PedigreeTab {
   title: string;
 }
 
-const TABS_KEY = "pedigree-pro_open_tabs";
+const TABS_KEY = "ppro_open_tabs";
+const LEGACY_TABS_KEY = "pedigree-pro_open_tabs";
 const MAX_TABS = 8;
+
+function migrateTabsKey(): void {
+  try {
+    const legacy = localStorage.getItem(LEGACY_TABS_KEY);
+    if (legacy) {
+      localStorage.setItem(TABS_KEY, legacy);
+      localStorage.removeItem(LEGACY_TABS_KEY);
+    }
+  } catch {}
+}
 
 function readTabs(): PedigreeTab[] {
   try {
@@ -31,7 +42,7 @@ function writeTabs(tabs: PedigreeTab[]): void {
 }
 
 export function usePedigreeTabs() {
-  const [tabs, setTabs] = useState<PedigreeTab[]>(readTabs);
+  const [tabs, setTabs] = useState<PedigreeTab[]>(() => { migrateTabsKey(); return readTabs(); });
 
   useEffect(() => {
     const handler = (e: StorageEvent) => {

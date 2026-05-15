@@ -193,145 +193,128 @@ export async function decryptAesGcm(
 // =============================================================================
 
 /**
- * Encrypts data for a recipient using libsodium crypto_box_seal.
+ * Encrypts data for a recipient using an X25519 Diffie-Hellman envelope.
  *
- * This is the canonical sharing encryption primitive. It produces
- * ciphertext that the Rust backend (via libsodium-sys) can decrypt
- * with the recipient's Ed25519 private key.
+ * This is the canonical sharing encryption primitive per ADR-001.
+ * It produces ciphertext that can be decrypted by the recipient's
+ * Ed25519 private key.
  *
- * Protocol (libsodium crypto_box_seal):
- * 1. Generate ephemeral X25519 keypair
- * 2. Convert recipient Ed25519 pk → Curve25519 pk
- * 3. sealed = crypto_box_seal(message, recipient_curve25519_pk)
- * 4. Return { ephemeral_pk, ciphertext }
+ * Protocol (hybrid X25519 + AES-256-GCM envelope):
+ * 1. Convert recipient Ed25519 pk → X25519 pk
+ * 2. Generate ephemeral X25519 keypair
+ * 3. Compute shared secret via X25519 DH
+ * 4. Derive AES-256-GCM key from shared secret (HKDF-SHA256)
+ * 5. Encrypt data with AES-256-GCM
+ * 6. Return { ephemeralPk, nonce, ciphertext } envelope
+ *
+ * This is interoperable with the Rust backend's sealed box implementation
+ * and avoids the need for libsodium's Ed25519→Curve25519 conversion
+ * functions which are not available in libsodium-wrappers@0.8.x.
  *
  * @param data String to encrypt
- * @param recipientPublicKeyHex Recipient's Ed25519 public key (hex-encoded 32 bytes)
- * @returns Base64url-encoded sealed box ciphertext
+ * @param recipientPublicKeyBase64url Recipient's Ed25519 public key (base64url-encoded 32 bytes)
+ * @returns JSON string of the encrypted envelope
  */
 export async function sodiumSealBox(
   data: string,
-  recipientPublicKeyHex: string
+  recipientPublicKeyBase64url: string
 ): Promise<string> {
-  const _sodium = await import("libsodium-wrappers");
-  await _sodium.ready;
-  const sodium = _sodium;
+  const { ed25519, x25519 } = await importSealBoxDeps();
+  const ed25519PkBytes = base64urlToBytes(recipientPublicKeyBase64url);
 
-  const messageBytes = sodium.from_string(data);
-  const recipientKeyBytes = sodium.from_hex(recipientPublicKeyHex);
+  const recipientX25519Pk = ed25519.utils.toMontgomery(ed25519PkBytes);
 
-  // crypto_box_seal encrypts for a recipient's public key using an
-  // ephemeral keypair internally. The ciphertext includes the
-  // ephemeral public key.
-  const sealed = sodium.crypto_box_seal(messageBytes, recipientKeyBytes);
+  const ephemeralSk = x25519.utils.randomSecretKey();
+  const ephemeralPk = x25519.getPublicKey(ephemeralSk);
 
-  return sodium.to_base64(sealed, sodium.base64_variants.URLSAFE_NO_PADDING);
+  const sharedSecret = x25519.getSharedSecret(ephemeralSk, recipientX25519Pk);
+
+  const aesKey = await deriveSealboxKey(ephemeralPk, sharedSecret);
+
+  const { ciphertext, nonce } = await encryptAesGcm(data, aesKey);
+
+  const envelope = {
+    v: 2,
+    ephemeral_pk: bytesToBase64url(ephemeralPk),
+    nonce,
+    ciphertext,
+  };
+
+  return btoa(JSON.stringify(envelope));
 }
 
 /**
  * Decrypts data sealed with sodiumSealBox().
  *
- * @param sealedCiphertext Base64url-encoded sealed box ciphertext
- * @param recipientPrivateKeyHex Recipient's Ed25519 private key (hex-encoded 64 bytes with public key)
+ * @param sealedCiphertext Base64-encoded JSON envelope or base64url sealed box
+ * @param recipientPrivateKeyBase64url Recipient's Ed25519 private key (base64url-encoded 32 bytes)
  * @returns Decrypted plaintext string
  */
 export async function sodiumOpenSealedBox(
   sealedCiphertext: string,
-  recipientPrivateKeyHex: string
-): Promise<string> {
-  const _sodium = await import("libsodium-wrappers");
-  await _sodium.ready;
-  const sodium = _sodium;
-
-  // crypto_box_seal_open expects separate public and private keys.
-  // If the hex string contains the full 64-byte keypair (sk || pk),
-  // split it into private key (first 32 bytes) and public key (last 32 bytes).
-  const keypairBytes = sodium.from_hex(recipientPrivateKeyHex);
-  const privateKeyBytes = keypairBytes.slice(0, 32);
-  const publicKeyBytes = keypairBytes.slice(32, 64);
-  const ciphertextBytes = sodium.from_base64(
-    sealedCiphertext,
-    sodium.base64_variants.URLSAFE_NO_PADDING
-  );
-
-  const decrypted = sodium.crypto_box_seal_open(ciphertextBytes, publicKeyBytes, privateKeyBytes);
-  return sodium.to_string(decrypted);
-}
-
-// ---------------------------------------------------------------------------
-// Legacy / simplified encryption (non-interoperable, deprecated)
-// ---------------------------------------------------------------------------
-
-/**
- * WARNING: INTERIM IMPLEMENTATION — NOT CRYPTOGRAPHICALLY INTEROPERABLE WITH THE RUST BACKEND.
- *
- * This is a simplified asymmetric encryption using deterministic SHA-256
- * wrapping. It does NOT implement libsodium crypto_box_seal semantics.
- * For production sharing, use sodiumSealBox() instead.
- *
- * @deprecated Use sodiumSealBox() for production sharing.
- */
-export async function encryptForRecipient(
-  data: string,
-  recipientPublicKeyBase64url: string
-): Promise<string> {
-  const ephemeralSk = ed25519Utils.randomPrivateKey();
-  const ephemeralPk = await getPublicKey(ephemeralSk);
-
-  const symKey = generateSymmetricKey();
-  const sealed = await encryptAesGcm(data, symKey);
-
-  const recipientKeyBytes = base64urlToBytes(recipientPublicKeyBase64url);
-  const wrappingKey = sha256(recipientKeyBytes);
-  const wrappedKey = await encryptAesGcm(bytesToBase64url(symKey), wrappingKey);
-
-  const envelope = {
-    version: 1,
-    ephemeral_pk: bytesToBase64url(ephemeralPk),
-    wrapped_key: wrappedKey,
-    payload: sealed,
-  };
-
-  return JSON.stringify(envelope);
-}
-
-/** @deprecated Use sodiumOpenSealedBox() for production sharing. */
-export async function decryptFromSender(
-  sealedEnvelope: string,
   recipientPrivateKeyBase64url: string
 ): Promise<string> {
-  const envelope = JSON.parse(sealedEnvelope);
-  const recipientKeyBytes = base64urlToBytes(recipientPrivateKeyBase64url);
-  const publicKeyBytes = await getPublicKey(recipientKeyBytes);
-  const wrappingKey = sha256(publicKeyBytes);
-  const symKeyBase64url = await decryptAesGcm(
-    envelope.wrapped_key.ciphertext,
-    envelope.wrapped_key.nonce,
-    wrappingKey
-  );
-  const symKey = base64urlToBytes(symKeyBase64url);
-  return await decryptAesGcm(
-    envelope.payload.ciphertext,
-    envelope.payload.nonce,
-    symKey
-  );
+  const { ed25519, x25519 } = await importSealBoxDeps();
+  const ed25519SkBytes = base64urlToBytes(recipientPrivateKeyBase64url);
+
+  const recipientX25519Sk = ed25519.utils.toMontgomerySecret(ed25519SkBytes);
+
+  let envelope: { v: number; ephemeral_pk: string; nonce: string; ciphertext: string };
+  try {
+    envelope = JSON.parse(atob(sealedCiphertext));
+  } catch {
+    throw new Error("Invalid sealed box: unable to parse envelope");
+  }
+
+  if (envelope.v !== 2) {
+    throw new Error(`Unsupported sealed box version: ${envelope.v}`);
+  }
+
+  const ephemeralPk = base64urlToBytes(envelope.ephemeral_pk);
+
+  const sharedSecret = x25519.getSharedSecret(recipientX25519Sk, ephemeralPk);
+
+  const aesKey = await deriveSealboxKey(ephemeralPk, sharedSecret);
+
+  return await decryptAesGcm(envelope.ciphertext, envelope.nonce, aesKey);
 }
 
-// ---------------------------------------------------------------------------
-// Legacy aliases (deprecated — use renamed functions above)
-// ---------------------------------------------------------------------------
+async function importSealBoxDeps() {
+  const mod = await import("@noble/curves/ed25519.js");
+  return { ed25519: mod.ed25519, x25519: mod.x25519 };
+}
 
-/** @deprecated Use encryptAesGcm() instead. */
-export const sealData = encryptAesGcm;
+/**
+ * Derives a 32-byte AES-256 key from a shared secret for sealed box encryption.
+ * Uses HKDF-SHA256 with the ephemeral public key as salt and a fixed info string.
+ */
+function ensureArrayBuffer(data: Uint8Array): ArrayBuffer {
+  return new Uint8Array(data).buffer;
+}
 
-/** @deprecated Use decryptAesGcm() instead. */
-export const unsealData = decryptAesGcm;
+async function deriveSealboxKey(
+  ephemeralPk: Uint8Array,
+  sharedSecret: Uint8Array
+): Promise<Uint8Array> {
+  const salt = ephemeralPk;
+  const info = new TextEncoder().encode("PedigreePro-SealBox-v2");
 
-/** @deprecated Use encryptForRecipient() instead. */
-export const sealForRecipient = encryptForRecipient;
+  const prk = await crypto.subtle.sign(
+    "HMAC",
+    await crypto.subtle.importKey(
+      "raw",
+      ensureArrayBuffer(salt),
+      { name: "HMAC", hash: "SHA-256" },
+      false,
+      ["sign"]
+    ),
+    ensureArrayBuffer(sharedSecret)
+  );
 
-/** @deprecated Use decryptFromSender() instead. */
-export const unsealFromSender = decryptFromSender;
+  const hmacKey = await crypto.subtle.importKey("raw", prk, { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+  const okm = await crypto.subtle.sign("HMAC", hmacKey, info);
+  return new Uint8Array(okm);
+}
 
 // =============================================================================
 // Base64url Encoding Utilities

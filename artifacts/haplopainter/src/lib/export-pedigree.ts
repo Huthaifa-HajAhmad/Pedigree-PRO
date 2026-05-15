@@ -1,5 +1,6 @@
 import { computeRisk } from "@/lib/risk-calculator";
 import { validatePedigree } from "@/lib/validate-pedigree";
+import { exportPedigreePpro } from "@workspace/api-client-react";
 
 export interface ExportNode {
   id: string;
@@ -106,6 +107,12 @@ export function exportJSON(info: ExportInfo, canvas: ExportCanvas) {
   };
   const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
   triggerDownload(blob, `${safeFilename(info.title)}.json`);
+}
+
+export async function exportPPRO(pedigreeId: number, exporterKey: string, title: string): Promise<void> {
+  const pproJson = await exportPedigreePpro(pedigreeId, exporterKey);
+  const blob = new Blob([pproJson], { type: "application/json" });
+  triggerDownload(blob, `${safeFilename(title)}.ppro`);
 }
 
 // ---------------------------------------------------------------------------

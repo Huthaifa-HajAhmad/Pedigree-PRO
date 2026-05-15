@@ -1,4 +1,3 @@
-export * from "./users";
 export * from "./patients";
 export * from "./pedigrees";
 export * from "./pedigree_versions";

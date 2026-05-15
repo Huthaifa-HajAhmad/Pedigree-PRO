@@ -1,4 +1,3 @@
-export * from "./schema_sqlite_users";
 export * from "./schema_sqlite_patients";
 export * from "./schema_sqlite_pedigrees";
 export * from "./schema_sqlite_pedigree_versions";

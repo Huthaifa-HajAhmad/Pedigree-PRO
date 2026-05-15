@@ -71,7 +71,6 @@ export interface Patient {
   sex: string | null;
   ethnicity: string | null;
   referral_reason: string | null;
-  clinician_id: number | null;
   clinician_key: string | null;
   created_at: string;
   updated_at: string;
@@ -132,7 +131,6 @@ export interface Pedigree {
   notes: string | null;
   creator_key: string | null;
   creator_signature: string | null;
-  share_token: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -277,8 +275,15 @@ export interface LegacyImportSummary {
   pedigrees_imported: number;
   versions_imported: number;
   activity_entries_imported: number;
-  users_found: number;
   migration_profile_key: string;
+}
+
+/**
+ * Exports a pedigree in .ppro format (JSON with provenance, version history, annotations).
+ * Returns the JSON string suitable for saving to a .ppro file.
+ */
+export function exportPedigreePpro(pedigreeId: number, exporterKey: string): Promise<string> {
+  return apiCall<string>("export_pedigree_ppro", { pedigree_id: pedigreeId, exporter_key: exporterKey });
 }
 
 /**

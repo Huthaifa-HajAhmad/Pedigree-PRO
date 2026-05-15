@@ -2,12 +2,10 @@
 // Requires better-sqlite3 (native driver, used by Tauri backend).
 // For browser mode, sql.js is used via @workspace/browser-backend instead.
 
-import type BetterSqlite3 from "better-sqlite3";
-import type { BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
-
 declare function require(id: string): unknown;
 
-let Database: typeof BetterSqlite3;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let Database: any;
 let driverName = 'none';
 
 function isCommonJS(): boolean {
@@ -19,7 +17,7 @@ try {
   const mod = isCommonJS()
     ? require('better-sqlite3')
     : await import('better-sqlite3');
-  Database = (mod as { default?: typeof BetterSqlite3 }).default ?? (mod as typeof BetterSqlite3);
+  Database = (mod as { default?: unknown }).default ?? mod;
   driverName = 'better-sqlite3';
 } catch (_e1) {
   throw new Error(
@@ -30,7 +28,8 @@ try {
 }
 
 // Load drizzle-orm at runtime
-let drizzleFn: (sqlite: BetterSqlite3) => BetterSQLite3Database<Record<string, never>>;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let drizzleFn: (sqlite: any) => any;
 try {
   const mod = isCommonJS()
     ? require('drizzle-orm/better-sqlite3')

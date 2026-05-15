@@ -103,3 +103,50 @@
     transition-duration: 0.01ms !important;
   }
 }
+
+@media print {
+  body {
+    background: white !important;
+    color: black !important;
+    font-size: 11pt !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  nav,
+  aside,
+  [data-print-hidden],
+  .toolbar,
+  .sidebar,
+  .toast,
+  .modal-backdrop,
+  button[aria-label],
+  [role="toolbar"] {
+    display: none !important;
+  }
+
+  [data-print-area] {
+    position: static !important;
+    overflow: visible !important;
+    width: 100% !important;
+    height: auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  svg[data-pedigree-canvas] {
+    max-width: 100% !important;
+    height: auto !important;
+  }
+
+  .version-timeline,
+  .follow-mode-indicator,
+  .draft-banner {
+    display: none !important;
+  }
+
+  @page {
+    margin: 1cm;
+    size: landscape;
+  }
+}
