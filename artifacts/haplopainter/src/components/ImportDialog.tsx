@@ -4,6 +4,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { Upload, FileText, AlertTriangle, CheckCircle2, X, Dna, Database } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
 import { parseFile, type ParseResult } from "@/lib/import-pedigree";
 
 interface Props {
@@ -11,7 +12,7 @@ interface Props {
 }
 
 type Step = "upload" | "preview" | "importing" | "legacy_summary";
-type ImportMode = "ped" | "hpcl" | "legacy";
+type ImportMode = "ped" | "ppro" | "legacy";
 
 export function ImportDialog({ children }: Props) {
   const [open, setOpen] = useState(false);
@@ -51,7 +52,7 @@ export function ImportDialog({ children }: Props) {
 
   const detectImportMode = (file: File): ImportMode => {
     const ext = file.name.split(".").pop()?.toLowerCase() ?? "";
-    if (ext === "ppro") return "hpcl";
+    if (ext === "ppro") return "ppro";
     if (ext === "db" || ext === "sqlite" || ext === "sqlite3") return "legacy";
     return "ped";
   };
@@ -61,7 +62,7 @@ export function ImportDialog({ children }: Props) {
     const mode = detectImportMode(file);
     setImportMode(mode);
 
-    if (mode === "hpcl") {
+    if (mode === "ppro") {
       if (file.size > 20 * 1024 * 1024) {
         setError("File too large (max 20 MB).");
         return;
@@ -291,19 +292,19 @@ export function ImportDialog({ children }: Props) {
               </div>
             )}
             <div className="flex gap-3">
-              <button onClick={() => { setStep("upload"); setResult(null); setError(null); }} className="flex-1 py-2 rounded border border-border text-sm hover:border-primary hover:text-primary transition-colors">Back</button>
-              <button data-testid="button-confirm-import" onClick={handleImport} disabled={!title.trim()} className="flex-1 py-2 rounded text-sm font-semibold transition-all disabled:opacity-40 bg-primary text-primary-foreground">Import & Open Editor</button>
+              <Button variant="outline" onClick={() => { setStep("upload"); setResult(null); setError(null); }} className="flex-1">Back</Button>
+              <Button data-testid="button-confirm-import" onClick={handleImport} disabled={!title.trim()} className="flex-1">Import & Open Editor</Button>
             </div>
           </div>
         )}
 
-        {step === "preview" && importMode === "hpcl" && result && (
+        {step === "preview" && importMode === "ppro" && result && (
           <div className="space-y-4">
             <div className="flex items-center gap-3 p-3 border border-border rounded bg-muted/30">
               <FileText className="w-5 h-5 text-primary flex-shrink-0" />
               <div className="flex-1 min-w-0">
                 <div className="text-sm font-medium truncate">{filename}</div>
-                <div className="text-xs text-muted-foreground">Pedigree PRO .ppro — cryptographic provenance verified</div>
+                <div className="text-xs text-muted-foreground">Pedigree PRO native export — cryptographic provenance verified</div>
               </div>
               <button onClick={() => { setStep("upload"); setResult(null); }} className="text-muted-foreground hover:text-foreground transition-colors flex-shrink-0"><X className="w-4 h-4" /></button>
             </div>
@@ -320,8 +321,8 @@ export function ImportDialog({ children }: Props) {
             </div>
             {error && <div className="flex items-start gap-2 text-destructive bg-destructive/10 border border-destructive/30 rounded p-3 text-xs"><AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" /><span>{error}</span></div>}
             <div className="flex gap-3">
-              <button onClick={() => { setStep("upload"); setResult(null); }} className="flex-1 py-2 rounded border border-border text-sm hover:border-primary hover:text-primary transition-colors">Back</button>
-              <button data-testid="button-confirm-import" onClick={handleImport} disabled={!title.trim()} className="flex-1 py-2 rounded text-sm font-semibold transition-all disabled:opacity-40 bg-primary text-primary-foreground">Import & Open Editor</button>
+              <Button variant="outline" onClick={() => { setStep("upload"); setResult(null); }} className="flex-1">Back</Button>
+              <Button data-testid="button-confirm-import" onClick={handleImport} disabled={!title.trim()} className="flex-1">Import & Open Editor</Button>
             </div>
           </div>
         )}
@@ -362,10 +363,10 @@ export function ImportDialog({ children }: Props) {
             {error && <div className="flex items-start gap-2 text-destructive bg-destructive/10 border border-destructive/30 rounded p-3 text-xs"><AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" /><span>{error}</span></div>}
 
             <div className="flex gap-3">
-              <button onClick={() => { setStep("upload"); setError(null); }} className="flex-1 py-2 rounded border border-border text-sm hover:border-primary hover:text-primary transition-colors">Back</button>
-              <button data-testid="button-confirm-legacy-import" onClick={handleLegacyImport} disabled={isBrowserMode} className="flex-1 py-2 rounded text-sm font-semibold transition-all bg-primary text-primary-foreground hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed">
+              <Button variant="outline" onClick={() => { setStep("upload"); setError(null); }} className="flex-1">Back</Button>
+              <Button data-testid="button-confirm-legacy-import" onClick={handleLegacyImport} disabled={isBrowserMode} className="flex-1">
                 {isBrowserMode ? "Desktop Only" : "Migrate Database"}
-              </button>
+              </Button>
             </div>
           </div>
         )}
@@ -379,9 +380,9 @@ export function ImportDialog({ children }: Props) {
             <div className="text-xs text-muted-foreground space-y-1">
               {result.warnings.map((w, i) => <div key={i} className="text-emerald-300/80">{w}</div>)}
             </div>
-            <button onClick={() => { queryClient.invalidateQueries({ queryKey: queryKeys.pedigrees }); setOpen(false); reset(); navigate("/pedigrees"); }} className="w-full py-2 rounded text-sm font-semibold bg-primary text-primary-foreground hover:opacity-90">
+            <Button onClick={() => { queryClient.invalidateQueries({ queryKey: queryKeys.pedigrees }); setOpen(false); reset(); navigate("/pedigrees"); }} className="w-full">
               View Pedigrees
-            </button>
+            </Button>
           </div>
         )}
 

@@ -5,7 +5,7 @@ export interface PedigreeTab {
   title: string;
 }
 
-const TABS_KEY = "haplopainter_open_tabs";
+const TABS_KEY = "pedigree-pro_open_tabs";
 const MAX_TABS = 8;
 
 function readTabs(): PedigreeTab[] {

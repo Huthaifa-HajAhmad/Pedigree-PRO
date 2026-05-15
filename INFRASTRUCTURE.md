@@ -1,4 +1,4 @@
-# HaploClinical — Infrastructure & Zero-Cost Deployment Roadmap
+# Pedigree PRO — Infrastructure & Zero-Cost Deployment Roadmap
 
 **Document Version:** 1.0  
 **Date:** 2026-05-03  

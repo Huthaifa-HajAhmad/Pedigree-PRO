@@ -22,8 +22,8 @@ export const THEMES: Theme[] = [
 ];
 
 const THEME_IDS = new Set(THEMES.map((t) => t.id));
-const DEVICE_KEY  = "haplopainter-device-id";
-const STORAGE_KEY = "haplopainter-theme";
+const DEVICE_KEY  = "pedigree-pro-device-id";
+const STORAGE_KEY = "pedigree-pro-theme";
 
 // ── Device ID ─────────────────────────────────────────────────────────────────
 function getOrCreateDeviceId(): string {

@@ -24,26 +24,26 @@ use std::sync::Mutex;
 // =============================================================================
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct HpclExport {
+pub struct PproExport {
     pub format_version: String,
     pub export_type: String,
-    pub pedigree: Option<HpclPedigreeData>,
-    pub provenance: HpclProvenance,
+    pub pedigree: Option<PproPedigreeData>,
+    pub provenance: PproProvenance,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct HpclPedigreeData {
+pub struct PproPedigreeData {
     pub title: String,
     pub canvas_data: Option<serde_json::Value>,
     pub canvas_hash: Option<String>,
     pub notes: Option<String>,
     pub node_annotations: Vec<serde_json::Value>,
     pub phenotypes: Vec<serde_json::Value>,
-    pub version_history: Vec<HpclVersionEntry>,
+    pub version_history: Vec<PproVersionEntry>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct HpclVersionEntry {
+pub struct PproVersionEntry {
     pub version_number: i64,
     pub label: Option<String>,
     pub canvas_data: String,
@@ -54,7 +54,7 @@ pub struct HpclVersionEntry {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct HpclProvenance {
+pub struct PproProvenance {
     pub creator_key: String,
     pub creator_signature: Option<String>,
     pub exported_at: String,
@@ -78,13 +78,13 @@ pub struct HpclProvenance {
 /// 7. Log the import activity
 ///
 /// Returns the newly-created pedigree ID.
-pub fn import_pedigree_hpcl(
+pub fn import_pedigree_ppro(
     db: &Mutex<Connection>,
-    hpcl_json: &str,
+    ppro_json: &str,
     importer_key: &str,
 ) -> Result<i64, String> {
-    let export: HpclExport =
-        serde_json::from_str(hpcl_json).map_err(|e| format!("Invalid .ppro file: {}", e))?;
+    let export: PproExport =
+        serde_json::from_str(ppro_json).map_err(|e| format!("Invalid .ppro file: {}", e))?;
 
     // Validate format
     if export.format_version != "1.0" {

@@ -22,7 +22,7 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self'; connect-src 'self' https://relay.haploclinical.app; img-src 'self' data: blob:"
+      "csp": "default-src 'self'; connect-src 'self'; img-src 'self' data: blob:"
     }
   },
   "bundle": {
@@ -53,7 +53,7 @@
   "plugins": {
     "updater": {
       "endpoints": [
-        "https://github.com/your-org/haploclinical/releases/latest/download/latest.json"
+        "https://github.com/your-org/pedigree-pro/releases/latest/download/latest.json"
       ],
       "pubkey": "PLACEHOLDER_ED25519_PUBLIC_KEY_FOR_UPDATE_SIGNING"
     }

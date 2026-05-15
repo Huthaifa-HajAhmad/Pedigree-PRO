@@ -8,7 +8,7 @@
 
 import { get, set, createStore } from "idb-keyval";
 
-const KEY_STORE = createStore("haploclinical-keys", "keys");
+const KEY_STORE = createStore("pedigree-pro-keys", "keys");
 const DB_KEY_NAME = "db-encryption-key";
 const PASSPHRASE_SALT_NAME = "passphrase-salt";
 
@@ -142,7 +142,7 @@ export async function storeProfilePrivateKey(
   profileId: string,
   privateKey: string
 ): Promise<void> {
-  await set(`hc:profile_private_key:${profileId}`, privateKey, KEY_STORE);
+  await set(`ppro:profile_private_key:${profileId}`, privateKey, KEY_STORE);
 }
 
 /**
@@ -151,7 +151,7 @@ export async function storeProfilePrivateKey(
 export async function getProfilePrivateKey(
   profileId: string
 ): Promise<string | undefined> {
-  return get<string>(`hc:profile_private_key:${profileId}`, KEY_STORE);
+  return get<string>(`ppro:profile_private_key:${profileId}`, KEY_STORE);
 }
 
 /**
@@ -166,9 +166,9 @@ export async function listProfilePrivateKeys(): Promise<
   for (const key of allKeys) {
     if (
       typeof key === "string" &&
-      key.startsWith("hc:profile_private_key:")
+      key.startsWith("ppro:profile_private_key:")
     ) {
-      const profileId = key.slice("hc:profile_private_key:".length);
+      const profileId = key.slice("ppro:profile_private_key:".length);
       const privateKey = await get<string>(key, KEY_STORE);
       if (privateKey) {
         entries.push({ profileId, privateKey });

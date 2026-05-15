@@ -11,7 +11,7 @@
 
 ### 1.1 Problem Statement
 
-The HaploClinical platform serves clinicians and genetic counselors in professional healthcare environments. The platform mandate is:
+The Pedigree PRO platform serves clinicians and genetic counselors in professional healthcare environments. The platform mandate is:
 
 1. **Zero Mandatory Accounts:** No centralized user database, no passwords, no email verification, no auth SaaS dependency.
 2. **Data Sovereignty:** Patient pedigree data remains on the clinician's device; no cloud database stores identifiable patient information.
@@ -225,7 +225,7 @@ Relay Service:
 
 **Share Token URL format:**
 ```
-https://relay.haploclinical.app/s/Ab3Xk9... (short random token)
+https://relay.Pedigree PRO.app/s/Ab3Xk9... (short random token)
 ```
 The URL encodes only the relay endpoint + token. The encrypted payload is fetched from the relay. The relay never possesses decryption keys.
 

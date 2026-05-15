@@ -35,7 +35,7 @@ ADRs 001–003 define a local-first architecture: encrypted SQLite via SQLCipher
 
 ```
 ┌──────────────────────────────────────────────────────────────────┐
-│                    HaploClinical Desktop                          │
+│                    Pedigree PRO Desktop                          │
 │                                                                   │
 │  ┌─────────────────────────────┐  ┌────────────────────────────┐ │
 │  │    Frontend Process          │  │    Rust Backend Process     │ │
@@ -56,8 +56,8 @@ ADRs 001–003 define a local-first architecture: encrypted SQLite via SQLCipher
 │                                                                   │
 │  ┌──────────────────────────────────────────────────────────────┐ │
 │  │                    OS Integration                             │ │
-│  │  • ~/.haploclinical/data.db       (SQLCipher-encrypted)      │ │
-│  │  • ~/.haploclinical/exports/      (Encrypted export packages) │ │
+│  │  • ~/.Pedigree PRO/data.db       (SQLCipher-encrypted)      │ │
+│  │  • ~/.Pedigree PRO/exports/      (Encrypted export packages) │ │
 │  │  • OS Keychain (private keys)                                 │ │
 │  │  • File associations (.ppro files)                            │ │
 │  └──────────────────────────────────────────────────────────────┘ │
@@ -293,9 +293,9 @@ DELETE /api/relay/receive/:token
 
 ### 4.1 HIPAA Technical Safeguards Mapping
 
-HaploClinical is designed as a **medical device component** (pedigree visualization and risk calculation for clinical genetics). While not a Covered Entity itself, it must demonstrate HIPAA Technical Safeguards for institutions that deploy it with PHI.
+Pedigree PRO is designed as a **medical device component** (pedigree visualization and risk calculation for clinical genetics). While not a Covered Entity itself, it must demonstrate HIPAA Technical Safeguards for institutions that deploy it with PHI.
 
-| HIPAA Safeguard (§164.312) | Requirement | HaploClinical Implementation |
+| HIPAA Safeguard (§164.312) | Requirement | Pedigree PRO Implementation |
 |---|---|---|
 | **(a)(1) Access Control** | Unique user identification | ✅ Ed25519 keypair per local profile provides cryptographic unique identification. In Server Mode, TLS client certificates. |
 | **(a)(2)(i) Automatic Logoff** | Session timeout | ✅ No persistent sessions. In Tauri mode, database connection closes when app exits. Key material evicted from memory. |
@@ -343,9 +343,9 @@ HaploClinical is designed as a **medical device component** (pedigree visualizat
 ```
 
 **File Association:**
-- Extension: `.ppro` (HaploClinical Pedigree Link)
-- MIME type: `application/vnd.haploclinical.pedigree+json`
-- Registered with OS on Tauri installation → double-click opens in HaploClinical
+- Extension: `.ppro` (Pedigree PRO Pedigree Link)
+- MIME type: `application/vnd.Pedigree PRO.pedigree+json`
+- Registered with OS on Tauri installation → double-click opens in Pedigree PRO
 
 ---
 

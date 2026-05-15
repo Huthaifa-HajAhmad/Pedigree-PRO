@@ -1,13 +1,13 @@
 [package]
-name = "haploclinical"
+name = "pedigree-pro"
 version = "0.1.0"
-description = "HaploClinical — Secure Clinical Pedigree Platform"
-authors = ["HaploClinical Contributors"]
+description = "Pedigree PRO — Secure Clinical Pedigree Platform"
+authors = ["Pedigree PRO Contributors"]
 edition = "2021"
 rust-version = "1.77"
 
 [lib]
-name = "haploclinical_lib"
+name = "pedigree_pro_lib"
 crate-type = ["lib", "cdylib", "staticlib"]
 
 [build-dependencies]
