@@ -1,9 +1,13 @@
-
 packages:
   - artifacts/*
   - lib/*
   - lib/integrations/*
   - scripts
+
+allowBuilds:
+  better-sqlite3: set this to true or false
+  core-js: set this to true or false
+  esbuild: set this to true or false
 
 autoInstallPeers: false
 
