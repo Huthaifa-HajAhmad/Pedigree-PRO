@@ -1,7 +1,8 @@
 import { useState, useMemo } from "react";
 import { X, GitMerge, GitBranch, Trash2, ShieldCheck, AlertTriangle } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import type { CanvasData } from "@/features/pedigree-editor/canvas/types";
-import { computeCanvasDiff, diffSummary, diffColor } from "./VisualDiffEngine";
+import { computeCanvasDiff, diffColor } from "./VisualDiffEngine";
 
 interface ImportReviewModalProps {
   incomingTitle: string;
@@ -119,44 +120,35 @@ export function ImportReviewModal({
 
         {/* Decision buttons */}
         <div className="grid grid-cols-3 gap-2 mb-4">
-          <button
+          <Button
+            variant={decision === "merge" ? "default" : "outline"}
             onClick={() => setDecision("merge")}
-            className={`flex flex-col items-center gap-1.5 p-3 rounded border transition-colors ${
-              decision === "merge"
-                ? "border-primary bg-primary/5 text-primary"
-                : "border-border hover:border-primary/30 hover:bg-accent"
-            }`}
+            className="flex-col h-auto py-3 gap-1.5"
           >
             <GitMerge className="w-4 h-4" />
             <span className="text-xs font-medium">Merge</span>
             <span className="text-[10px] text-muted-foreground">Apply changes to current</span>
-          </button>
+          </Button>
 
-          <button
+          <Button
+            variant={decision === "branch" ? "default" : "outline"}
             onClick={() => setDecision("branch")}
-            className={`flex flex-col items-center gap-1.5 p-3 rounded border transition-colors ${
-              decision === "branch"
-                ? "border-primary bg-primary/5 text-primary"
-                : "border-border hover:border-primary/30 hover:bg-accent"
-            }`}
+            className="flex-col h-auto py-3 gap-1.5"
           >
             <GitBranch className="w-4 h-4" />
             <span className="text-xs font-medium">Branch</span>
             <span className="text-[10px] text-muted-foreground">Create new pedigree</span>
-          </button>
+          </Button>
 
-          <button
+          <Button
+            variant={decision === "reject" ? "destructive" : "outline"}
             onClick={() => setDecision("reject")}
-            className={`flex flex-col items-center gap-1.5 p-3 rounded border transition-colors ${
-              decision === "reject"
-                ? "border-destructive bg-destructive/5 text-destructive"
-                : "border-border hover:border-destructive/30 hover:bg-accent"
-            }`}
+            className="flex-col h-auto py-3 gap-1.5"
           >
             <Trash2 className="w-4 h-4" />
             <span className="text-xs font-medium">Reject</span>
             <span className="text-[10px] text-muted-foreground">Discard import</span>
-          </button>
+          </Button>
         </div>
 
         {/* Branch name input */}
@@ -175,35 +167,40 @@ export function ImportReviewModal({
         {decision && (
           <div className="flex gap-2">
             {decision === "merge" && (
-              <button
+              <Button
+                size="sm"
                 onClick={() => onMerge(incomingCanvas)}
-                className="flex-1 py-2 text-xs font-medium rounded bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+                className="flex-1"
               >
                 Confirm Merge
-              </button>
+              </Button>
             )}
             {decision === "branch" && (
-              <button
+              <Button
+                size="sm"
                 onClick={() => onBranch(incomingCanvas, newTitle)}
-                className="flex-1 py-2 text-xs font-medium rounded bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+                className="flex-1"
               >
                 Create Branch
-              </button>
+              </Button>
             )}
             {decision === "reject" && (
-              <button
+              <Button
+                variant="destructive"
+                size="sm"
                 onClick={onReject}
-                className="flex-1 py-2 text-xs font-medium rounded bg-destructive text-destructive-foreground hover:bg-destructive/90 transition-colors"
+                className="flex-1"
               >
                 Confirm Reject
-              </button>
+              </Button>
             )}
-            <button
+            <Button
+              variant="outline"
+              size="sm"
               onClick={() => setDecision(null)}
-              className="px-4 py-2 text-xs rounded border border-border hover:bg-accent transition-colors"
             >
               Back
-            </button>
+            </Button>
           </div>
         )}
       </div>

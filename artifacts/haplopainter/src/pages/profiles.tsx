@@ -5,10 +5,12 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
+import { FormLayout } from "@/components/shared/FormLayout";
 import { TableSkeleton } from "@/components/shared/Skeleton";
 import { toast } from "@/hooks/use-toast";
 
@@ -135,7 +137,7 @@ export default function Profiles() {
   };
 
   return (
-    <div className="p-6">
+    <section className="p-6">
       <PageHeader
         icon={UserCircle}
         title="Profiles"
@@ -145,13 +147,9 @@ export default function Profiles() {
             {/* Export Profile */}
             <Dialog open={exportOpen} onOpenChange={setExportOpen}>
               <DialogTrigger asChild>
-                <button
-                  data-testid="button-export-profile"
-                  className="flex items-center gap-2 px-4 py-2 rounded text-sm font-semibold border border-border hover:border-primary hover:text-primary transition-colors"
-                  disabled={!profiles || profiles.length === 0}
-                >
+                <Button variant="outline" data-testid="button-export-profile" disabled={!profiles || profiles.length === 0}>
                   <Download className="w-4 h-4" /> Export
-                </button>
+                </Button>
               </DialogTrigger>
               <DialogContent className="glass-panel border-0 max-w-md">
                 <DialogHeader>
@@ -164,6 +162,7 @@ export default function Profiles() {
                   </p>
                   <input
                     type="password"
+                    aria-label="Enter a passphrase to encrypt the export"
                     placeholder="Enter a passphrase to encrypt..."
                     value={exportPassphrase}
                     onChange={(e) => setExportPassphrase(e.target.value)}
@@ -181,15 +180,15 @@ export default function Profiles() {
                         data-testid="textarea-export-output"
                       />
                       <div className="flex gap-2">
-                        <button
+                        <Button
                           onClick={() => {
                             navigator.clipboard.writeText(exportOutput);
                             toast({ title: "Copied to clipboard", description: "Encrypted profile data copied." });
                           }}
-                          className="flex-1 py-2 rounded text-sm font-semibold bg-primary text-primary-foreground hover:opacity-90"
+                          className="flex-1"
                         >
                           Copy
-                        </button>
+                        </Button>
                         {exportBlobUrl && (
                           <a
                             href={exportBlobUrl}
@@ -202,13 +201,13 @@ export default function Profiles() {
                       </div>
                     </div>
                   ) : (
-                    <button
+                    <Button
                       onClick={handleExportProfile}
                       disabled={!exportPassphrase.trim() || isExporting}
-                      className="w-full py-2 rounded text-sm font-semibold bg-primary text-primary-foreground hover:opacity-90 disabled:opacity-40"
+                      className="w-full"
                     >
                       Encrypt & Export
-                    </button>
+                    </Button>
                   )}
                   <p className="text-xs text-muted-foreground italic">
                     Backend export command is being implemented. Currently exports the profile JSON
@@ -221,12 +220,9 @@ export default function Profiles() {
             {/* Import Profile */}
             <Dialog open={importOpen} onOpenChange={setImportOpen}>
               <DialogTrigger asChild>
-                <button
-                  data-testid="button-import-profile"
-                  className="flex items-center gap-2 px-4 py-2 rounded text-sm font-semibold border border-border hover:border-primary hover:text-primary transition-colors"
-                >
+                <Button variant="outline" data-testid="button-import-profile">
                   <Upload className="w-4 h-4" /> Import
-                </button>
+                </Button>
               </DialogTrigger>
               <DialogContent className="glass-panel border-0 max-w-md">
                 <DialogHeader>
@@ -237,6 +233,7 @@ export default function Profiles() {
                     Paste an encrypted profile export and enter the passphrase to decrypt it.
                   </p>
                   <textarea
+                    aria-label="Paste encrypted profile data to import"
                     placeholder="Paste encrypted profile data..."
                     value={importInput}
                     onChange={(e) => setImportInput(e.target.value)}
@@ -245,6 +242,7 @@ export default function Profiles() {
                   />
                   <input
                     type="password"
+                    aria-label="Enter the passphrase to decrypt the import"
                     placeholder="Enter the passphrase to decrypt..."
                     value={importPassphrase}
                     onChange={(e) => setImportPassphrase(e.target.value)}
@@ -253,13 +251,13 @@ export default function Profiles() {
                   />
                   {importError && <p className="text-xs text-destructive">{importError}</p>}
                   {isImporting && <div className="flex items-center justify-center py-4"><div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin" /></div>}
-                  <button
+                  <Button
                     onClick={handleImportProfile}
                     disabled={!importInput.trim() || !importPassphrase.trim() || isImporting}
-                    className="w-full py-2 rounded text-sm font-semibold bg-primary text-primary-foreground hover:opacity-90 disabled:opacity-40"
+                    className="w-full"
                   >
                     Decrypt & Import
-                  </button>
+                  </Button>
                   <p className="text-xs text-muted-foreground italic">
                     Backend import command is being implemented. Currently decrypts and displays
                     the profile — not yet persisted to the database.
@@ -269,59 +267,47 @@ export default function Profiles() {
             </Dialog>
 
             {/* New Profile */}
-            <Dialog open={open} onOpenChange={setOpen}>
-              <DialogTrigger asChild>
-                <button
-                  data-testid="button-new-profile"
-                  className="flex items-center gap-2 px-4 py-2 rounded text-sm font-semibold bg-primary text-primary-foreground hover:opacity-90"
-                >
-                  <Plus className="w-4 h-4" /> New Profile
-                </button>
-              </DialogTrigger>
-              <DialogContent className="glass-panel border-0 max-w-md">
-                <DialogHeader>
-                  <DialogTitle className="text-sm uppercase tracking-wider text-primary">Create Clinical Profile</DialogTitle>
-                </DialogHeader>
-                <Form {...form}>
-                  <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-                    <FormField
-                      control={form.control}
-                      name="display_name"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel className="text-xs text-muted-foreground uppercase tracking-wider">Display Name</FormLabel>
-                          <FormControl>
-                            <Input {...field} data-testid="input-profile-name" className="bg-muted border-border" placeholder="Dr. Sarah Chen" />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name="role_label"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel className="text-xs text-muted-foreground uppercase tracking-wider">Role Label</FormLabel>
-                          <FormControl>
-                            <Input {...field} data-testid="input-profile-role" className="bg-muted border-border" placeholder="Clinical Geneticist" />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <button
-                      type="submit"
-                      data-testid="button-submit-profile"
-                      className="w-full py-2 rounded text-sm font-semibold bg-primary text-primary-foreground hover:opacity-90"
-                      disabled={createProfile.isPending}
-                    >
-                      {createProfile.isPending ? "Generating Keypair..." : "Create Profile"}
-                    </button>
-                  </form>
-                </Form>
-              </DialogContent>
-            </Dialog>
+            <FormLayout
+                open={open}
+                onOpenChange={setOpen}
+                title="Create Clinical Profile"
+                submitLabel="Create Profile"
+                form={form}
+                onSubmit={onSubmit}
+                isSubmitting={createProfile.isPending}
+                trigger={
+                  <Button data-testid="button-new-profile">
+                    <Plus className="w-4 h-4" /> New Profile
+                  </Button>
+                }
+              >
+                <FormField
+                  control={form.control}
+                  name="display_name"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="text-xs text-muted-foreground uppercase tracking-wider">Display Name</FormLabel>
+                      <FormControl>
+                        <Input {...field} data-testid="input-profile-name" className="bg-muted border-border text-sm" placeholder="Dr. Sarah Chen" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="role_label"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="text-xs text-muted-foreground uppercase tracking-wider">Role Label</FormLabel>
+                      <FormControl>
+                        <Input {...field} data-testid="input-profile-role" className="bg-muted border-border text-sm" placeholder="Clinical Geneticist" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </FormLayout>
           </div>
         }
       />
@@ -380,6 +366,6 @@ export default function Profiles() {
           onCancel={() => setConfirmOpen(false)}
         />
       )}
-    </div>
+    </section>
   );
 }

@@ -6,14 +6,16 @@ import { Plus, Trash2, ChevronRight, Activity } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { SearchBar } from "@/components/shared/SearchBar";
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
+import { FormLayout } from "@/components/shared/FormLayout";
 import { TableSkeleton } from "@/components/shared/Skeleton";
+import { EmptyState } from "@/components/shared/EmptyState";
 
 const createPatientSchema = z.object({
   mrn: z.string().min(1, "MRN required"),
@@ -89,94 +91,82 @@ export default function Patients() {
   };
 
   return (
-    <div className="p-6">
+    <section className="p-6">
       <PageHeader
         icon={Activity}
         title="Patients"
         subtitle={`Patient registry — ${patients?.length ?? 0} records`}
         actions={
-          <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-            <DialogTrigger asChild>
-              <button
-                data-testid="button-create-patient"
-                className="flex items-center gap-2 px-4 py-2 rounded text-sm font-semibold tracking-wide transition-all bg-primary text-primary-foreground hover:opacity-90"
-              >
+          <FormLayout
+            open={dialogOpen}
+            onOpenChange={setDialogOpen}
+            title="Register Patient"
+            submitLabel="Register Patient"
+            form={form}
+            onSubmit={onSubmit}
+            isSubmitting={createPatient.isPending}
+            trigger={
+              <Button data-testid="button-create-patient">
                 <Plus className="w-4 h-4" />
                 New Patient
-              </button>
-            </DialogTrigger>
-            <DialogContent className="glass-panel border-0 max-w-md">
-              <DialogHeader>
-                <DialogTitle className="tracking-wider uppercase text-sm text-primary">Register Patient</DialogTitle>
-              </DialogHeader>
-              <Form {...form}>
-                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-                  <div className="grid grid-cols-2 gap-3">
-                    <FormField control={form.control} name="firstName" render={({ field }) => (
-                      <FormItem>
-                        <FormLabel className="text-xs text-muted-foreground uppercase tracking-wider">First Name</FormLabel>
-                        <FormControl><Input {...field} data-testid="input-firstName" className="bg-muted border-border text-sm" /></FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )} />
-                    <FormField control={form.control} name="lastName" render={({ field }) => (
-                      <FormItem>
-                        <FormLabel className="text-xs text-muted-foreground uppercase tracking-wider">Last Name</FormLabel>
-                        <FormControl><Input {...field} data-testid="input-lastName" className="bg-muted border-border text-sm" /></FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )} />
-                  </div>
-                  <FormField control={form.control} name="mrn" render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="text-xs text-muted-foreground uppercase tracking-wider">MRN</FormLabel>
-                      <FormControl><Input {...field} data-testid="input-mrn" placeholder="MRN-2024-XXX" className="bg-muted border-border text-sm" /></FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )} />
-                  <div className="grid grid-cols-2 gap-3">
-                    <FormField control={form.control} name="dateOfBirth" render={({ field }) => (
-                      <FormItem>
-                        <FormLabel className="text-xs text-muted-foreground uppercase tracking-wider">Date of Birth</FormLabel>
-                        <FormControl><Input {...field} type="date" data-testid="input-dob" className="bg-muted border-border text-sm" /></FormControl>
-                      </FormItem>
-                    )} />
-                    <FormField control={form.control} name="sex" render={({ field }) => (
-                      <FormItem>
-                        <FormLabel className="text-xs text-muted-foreground uppercase tracking-wider">Sex</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
-                          <FormControl>
-                            <SelectTrigger data-testid="select-sex" className="bg-muted border-border text-sm">
-                              <SelectValue placeholder="Select" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent className="bg-popover border-border">
-                            <SelectItem value="male">Male</SelectItem>
-                            <SelectItem value="female">Female</SelectItem>
-                            <SelectItem value="unknown">Unknown</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </FormItem>
-                    )} />
-                  </div>
-                  <FormField control={form.control} name="ethnicity" render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="text-xs text-muted-foreground uppercase tracking-wider">Ethnicity</FormLabel>
-                      <FormControl><Input {...field} data-testid="input-ethnicity" className="bg-muted border-border text-sm" /></FormControl>
-                    </FormItem>
-                  )} />
-                  <button
-                    type="submit"
-                    data-testid="button-submit-patient"
-                    disabled={createPatient.isPending}
-                    className="w-full py-2 rounded text-sm font-semibold tracking-wide transition-all bg-primary text-primary-foreground hover:opacity-90"
-                  >
-                    {createPatient.isPending ? "Saving..." : "Register Patient"}
-                  </button>
-                </form>
-              </Form>
-            </DialogContent>
-          </Dialog>
+              </Button>
+            }
+          >
+            <div className="grid grid-cols-2 gap-3">
+              <FormField control={form.control} name="firstName" render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="text-xs text-muted-foreground uppercase tracking-wider">First Name</FormLabel>
+                  <FormControl><Input {...field} data-testid="input-firstName" className="bg-muted border-border text-sm" /></FormControl>
+                  <FormMessage />
+                </FormItem>
+              )} />
+              <FormField control={form.control} name="lastName" render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="text-xs text-muted-foreground uppercase tracking-wider">Last Name</FormLabel>
+                  <FormControl><Input {...field} data-testid="input-lastName" className="bg-muted border-border text-sm" /></FormControl>
+                  <FormMessage />
+                </FormItem>
+              )} />
+            </div>
+            <FormField control={form.control} name="mrn" render={({ field }) => (
+              <FormItem>
+                <FormLabel className="text-xs text-muted-foreground uppercase tracking-wider">MRN</FormLabel>
+                <FormControl><Input {...field} data-testid="input-mrn" placeholder="MRN-2024-XXX" className="bg-muted border-border text-sm" /></FormControl>
+                <FormMessage />
+              </FormItem>
+            )} />
+            <div className="grid grid-cols-2 gap-3">
+              <FormField control={form.control} name="dateOfBirth" render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="text-xs text-muted-foreground uppercase tracking-wider">Date of Birth</FormLabel>
+                  <FormControl><Input {...field} type="date" data-testid="input-dob" className="bg-muted border-border text-sm" /></FormControl>
+                </FormItem>
+              )} />
+              <FormField control={form.control} name="sex" render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="text-xs text-muted-foreground uppercase tracking-wider">Sex</FormLabel>
+                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <FormControl>
+                      <SelectTrigger data-testid="select-sex" className="bg-muted border-border text-sm">
+                        <SelectValue placeholder="Select" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent className="bg-popover border-border">
+                      <SelectItem value="male">Male</SelectItem>
+                      <SelectItem value="female">Female</SelectItem>
+                      <SelectItem value="unknown">Unknown</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </FormItem>
+              )} />
+            </div>
+            <FormField control={form.control} name="ethnicity" render={({ field }) => (
+              <FormItem>
+                <FormLabel className="text-xs text-muted-foreground uppercase tracking-wider">Ethnicity</FormLabel>
+                <FormControl><Input {...field} data-testid="input-ethnicity" className="bg-muted border-border text-sm" /></FormControl>
+              </FormItem>
+            )} />
+          </FormLayout>
         }
       />
 
@@ -200,7 +190,7 @@ export default function Patients() {
           {isLoading ? (
             <TableSkeleton rows={5} cols={7} />
           ) : patients?.length === 0 ? (
-            <div className="px-4 py-8 text-center text-muted-foreground text-sm">No patients found</div>
+            <EmptyState icon={Activity} title="No patients found" description="Create your first patient record." />
           ) : (
             patients?.map((p) => (
               <div key={p.id} data-testid={`row-patient-${p.id}`} className="grid grid-cols-7 gap-4 px-4 py-3 text-sm hover:bg-accent transition-colors items-center">
@@ -213,9 +203,9 @@ export default function Patients() {
                 </div>
                 <div className="flex items-center gap-2">
                   <Link href={`/patients/${p.id}`}>
-                    <button data-testid={`button-view-patient-${p.id}`} className="text-xs flex items-center gap-1 text-muted-foreground hover:text-primary transition-colors">
+                    <Button variant="ghost" size="sm" data-testid={`button-view-patient-${p.id}`} className="text-xs">
                       View <ChevronRight className="w-3 h-3" />
-                    </button>
+                    </Button>
                   </Link>
                   <button
                     data-testid={`button-delete-patient-${p.id}`}
@@ -242,6 +232,6 @@ export default function Patients() {
           onCancel={() => setConfirmOpen(false)}
         />
       )}
-    </div>
+    </section>
   );
 }

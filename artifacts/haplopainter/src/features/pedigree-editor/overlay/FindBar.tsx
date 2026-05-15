@@ -1,4 +1,5 @@
 import { Search, ChevronUp, ChevronDown, X } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 export interface FindBarProps {
   searchQuery: string;
@@ -41,7 +42,7 @@ export function FindBar({
         }}
         placeholder="Find node…"
         className="bg-transparent outline-none text-xs w-40 placeholder:text-muted-foreground"
-        autoComplete="off"
+        aria-label="Find node"
         spellCheck={false}
       />
       {searchQuery.trim() && (
@@ -51,22 +52,26 @@ export function FindBar({
             : `${Math.min(searchMatchIndex + 1, searchMatchesCount)} / ${searchMatchesCount}`}
         </span>
       )}
-      <button
+      <Button
+        size="icon"
+        variant="ghost"
         onClick={onPrevMatch}
         title="Previous (Shift+Enter)"
-        className="text-muted-foreground hover:text-primary disabled:opacity-30 transition-colors"
         disabled={searchMatchesCount === 0}
+        className="h-auto w-auto p-0 text-muted-foreground hover:text-primary"
       >
         <ChevronUp className="w-3.5 h-3.5" />
-      </button>
-      <button
+      </Button>
+      <Button
+        size="icon"
+        variant="ghost"
         onClick={onNextMatch}
         title="Next (Enter)"
-        className="text-muted-foreground hover:text-primary disabled:opacity-30 transition-colors"
         disabled={searchMatchesCount === 0}
+        className="h-auto w-auto p-0 text-muted-foreground hover:text-primary"
       >
         <ChevronDown className="w-3.5 h-3.5" />
-      </button>
+      </Button>
       <button
         onClick={onClose}
         title="Close (Esc)"

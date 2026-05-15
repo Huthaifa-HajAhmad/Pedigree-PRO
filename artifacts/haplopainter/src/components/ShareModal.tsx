@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useSharePedigree } from "@workspace/api-client-react";
 import { Link2, Copy, Check, X, ExternalLink, Share2, Shield, Key, AlertTriangle } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 interface ShareModalProps {
   pedigreeId: number;
@@ -103,14 +104,15 @@ export function ShareModal({ pedigreeId, pedigreeTitle, onClose }: ShareModalPro
         )}
 
         {!shareData ? (
-          <button
+          <Button
+            variant="outline"
             onClick={handleGenerate}
             disabled={shareMutation.isPending}
-            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded border border-primary text-primary text-sm font-medium hover:bg-primary/10 transition-colors disabled:opacity-50"
+            className="w-full"
           >
             <Link2 className="w-4 h-4" />
             {shareMutation.isPending ? "Encrypting & Generating..." : "Generate Encrypted Share Link"}
-          </button>
+          </Button>
         ) : (
           <div className="space-y-3">
             {/* URL display */}
@@ -128,13 +130,15 @@ export function ShareModal({ pedigreeId, pedigreeTitle, onClose }: ShareModalPro
 
             {/* Actions */}
             <div className="flex gap-2">
-              <button
+              <Button
+                variant="outline"
+                size="sm"
                 onClick={handleCopy}
-                className="flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded border border-primary text-primary text-xs font-medium hover:bg-primary/10 transition-colors"
+                className="flex-1"
               >
                 {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
                 {copied ? "Copied!" : "Copy Link"}
-              </button>
+              </Button>
               <a
                 href={shareData.shareUrl}
                 target="_blank"
@@ -143,14 +147,15 @@ export function ShareModal({ pedigreeId, pedigreeTitle, onClose }: ShareModalPro
               >
                 <ExternalLink className="w-3.5 h-3.5" /> Preview
               </a>
-              <button
+              <Button
+                variant="outline"
+                size="sm"
                 onClick={() => { setShareData(null); setRecipientKey(""); }}
-                className="flex items-center justify-center min-w-[44px] min-h-[44px] px-3 py-2 rounded border border-border text-xs text-muted-foreground hover:border-destructive hover:text-destructive transition-colors"
                 title="Generate new link"
                 aria-label="Generate new share link"
               >
                 ↺ New
-              </button>
+              </Button>
             </div>
 
             {recipientKey && (

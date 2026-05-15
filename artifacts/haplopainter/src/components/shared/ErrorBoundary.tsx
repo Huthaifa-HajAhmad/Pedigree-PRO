@@ -1,5 +1,6 @@
 import { Component, type ErrorInfo, type ReactNode } from "react";
 import { AlertTriangle, RefreshCw } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 interface Props {
   children: ReactNode;
@@ -21,7 +22,7 @@ export class ErrorBoundary extends Component<Props, State> {
     return { hasError: true, error };
   }
 
-  componentDidCatch(error: Error, info: ErrorInfo) {
+  override componentDidCatch(error: Error, info: ErrorInfo) {
     console.error("[Pedigree PRO] Uncaught error:", error, info.componentStack);
   }
 
@@ -29,7 +30,7 @@ export class ErrorBoundary extends Component<Props, State> {
     this.setState({ hasError: false, error: null });
   };
 
-  render() {
+  override render() {
     if (this.state.hasError) {
       if (this.props.fallback) return this.props.fallback;
 
@@ -50,18 +51,17 @@ export class ErrorBoundary extends Component<Props, State> {
               </pre>
             )}
             <div className="flex gap-3 justify-center">
-              <button
+              <Button
                 onClick={() => window.location.reload()}
-                className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 transition-opacity"
               >
                 <RefreshCw className="w-4 h-4" /> Reload App
-              </button>
-              <button
+              </Button>
+              <Button
+                variant="outline"
                 onClick={this.handleReset}
-                className="px-4 py-2 rounded-lg border border-border text-sm text-muted-foreground hover:border-primary hover:text-primary transition-colors"
               >
                 Try Again
-              </button>
+              </Button>
             </div>
           </div>
         </div>

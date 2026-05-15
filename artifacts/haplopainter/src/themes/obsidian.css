@@ -1,0 +1,142 @@
+/* ─── Default: Obsidian (modern indigo dark) ─────────────────────────────── */
+:root {
+  --accent-hex: #6475F7;
+  --glow-strong: rgba(100, 117, 247, 0.55);
+  --glow-soft:   rgba(100, 117, 247, 0.22);
+  --grid-line:   rgba(100, 117, 247, 0.035);
+  --glass-bg:    rgba(11, 13, 26, 0.84);
+  --glass-bdr:   rgba(100, 117, 247, 0.14);
+  --button-outline: rgba(100, 117, 247, 0.14);
+  --badge-outline: rgba(100, 117, 247, 0.08);
+  --opaque-button-border-intensity: -8;
+  --elevate-1: rgba(100, 117, 247, 0.05);
+  --elevate-2: rgba(100, 117, 247, 0.10);
+
+  --background: 222 28% 6.5%;
+  --foreground: 220 14% 93%;
+  --border: 222 22% 17%;
+  --input: 222 22% 17%;
+  --ring: 235 75% 62%;
+
+  --card: 222 26% 9%;
+  --card-foreground: 220 14% 93%;
+  --card-border: 222 22% 19%;
+
+  --popover: 222 28% 8%;
+  --popover-foreground: 220 14% 93%;
+  --popover-border: 222 22% 18%;
+
+  --primary: 235 75% 62%;
+  --primary-foreground: 0 0% 100%;
+
+  --secondary: 222 20% 14%;
+  --secondary-foreground: 220 12% 78%;
+
+  --muted: 222 22% 11%;
+  --muted-foreground: 220 12% 55%;
+
+  --accent: 235 40% 18%;
+  --accent-foreground: 235 75% 75%;
+
+  --destructive: 0 68% 55%;
+  --destructive-foreground: 0 0% 100%;
+
+  --sidebar: 222 30% 5.5%;
+  --sidebar-foreground: 220 12% 85%;
+  --sidebar-border: 222 22% 14%;
+  --sidebar-primary: 235 75% 62%;
+  --sidebar-primary-foreground: 0 0% 100%;
+  --sidebar-accent: 222 22% 12%;
+  --sidebar-accent-foreground: 220 12% 75%;
+  --sidebar-ring: 235 75% 62%;
+
+  --chart-1: 235 75% 62%;
+  --chart-2: 174 76% 40%;
+  --chart-3: 270 60% 62%;
+  --chart-4: 30 90% 58%;
+  --chart-5: 0 70% 55%;
+
+  --app-font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+  --app-font-serif: 'Inter', system-ui, sans-serif;
+  --app-font-mono: 'JetBrains Mono', monospace;
+  --radius: 0.5rem;
+
+  --shadow-2xs: 0px 1px 0px 0px rgba(100,117,247,0.06);
+  --shadow-xs:  0px 1px 2px 0px rgba(100,117,247,0.08);
+  --shadow-sm:  0px 1px 3px 0px rgba(100,117,247,0.10);
+  --shadow:     0px 2px 6px 0px rgba(100,117,247,0.12);
+  --shadow-md:  0px 4px 10px 0px rgba(100,117,247,0.14);
+  --shadow-lg:  0px 8px 20px 0px rgba(100,117,247,0.16);
+  --shadow-xl:  0px 12px 28px 0px rgba(100,117,247,0.18);
+  --shadow-2xl: 0px 20px 44px 0px rgba(100,117,247,0.20);
+  --tracking-normal: 0em;
+  --spacing: 0.25rem;
+
+  --primary-border: hsl(235 75% 52%);
+  --secondary-border: hsl(222 20% 22%);
+  --muted-border: hsl(222 18% 20%);
+  --accent-border: hsl(235 30% 26%);
+  --destructive-border: hsl(0 68% 45%);
+  --sidebar-primary-border: hsl(235 75% 52%);
+  --sidebar-accent-border: hsl(222 20% 18%);
+}
+
+.dark {
+  --button-outline: rgba(100, 117, 247, 0.14);
+  --badge-outline: rgba(100, 117, 247, 0.08);
+  --opaque-button-border-intensity: 9;
+  --elevate-1: rgba(100, 117, 247, 0.05);
+  --elevate-2: rgba(100, 117, 247, 0.10);
+
+  --background: 222 28% 6.5%;
+  --foreground: 220 14% 93%;
+  --border: 222 22% 17%;
+  --input: 222 22% 17%;
+  --ring: 235 75% 62%;
+
+  --card: 222 26% 9%;
+  --card-foreground: 220 14% 93%;
+  --card-border: 222 22% 19%;
+
+  --popover: 222 28% 8%;
+  --popover-foreground: 220 14% 93%;
+  --popover-border: 222 22% 18%;
+
+  --primary: 235 75% 62%;
+  --primary-foreground: 0 0% 100%;
+
+  --secondary: 222 20% 14%;
+  --secondary-foreground: 220 12% 78%;
+
+  --muted: 222 22% 11%;
+  --muted-foreground: 220 12% 55%;
+
+  --accent: 235 40% 18%;
+  --accent-foreground: 235 75% 75%;
+
+  --destructive: 0 68% 55%;
+  --destructive-foreground: 0 0% 100%;
+
+  --sidebar: 222 30% 5.5%;
+  --sidebar-foreground: 220 12% 85%;
+  --sidebar-border: 222 22% 14%;
+  --sidebar-primary: 235 75% 62%;
+  --sidebar-primary-foreground: 0 0% 100%;
+  --sidebar-accent: 222 22% 12%;
+  --sidebar-accent-foreground: 220 12% 75%;
+  --sidebar-ring: 235 75% 62%;
+
+  --chart-1: 235 75% 62%;
+  --chart-2: 174 76% 40%;
+  --chart-3: 270 60% 62%;
+  --chart-4: 30 90% 58%;
+  --chart-5: 0 70% 55%;
+
+  --primary-border: hsl(235 75% 52%);
+  --secondary-border: hsl(222 20% 22%);
+  --muted-border: hsl(222 18% 20%);
+  --accent-border: hsl(235 30% 26%);
+  --destructive-border: hsl(0 68% 45%);
+  --sidebar-primary-border: hsl(235 75% 52%);
+  --sidebar-accent-border: hsl(222 20% 18%);
+}

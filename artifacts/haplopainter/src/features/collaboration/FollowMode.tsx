@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from "react";
 import { Play, Pause, SkipBack, SkipForward, Clock, X } from "lucide-react";
-import type { CanvasData } from "@/features/pedigree-editor/canvas/types";
+import { Button } from "@/components/ui/button";
 import type { PedigreeVersion } from "@workspace/api-client-react";
 
 interface FollowModeProps {
@@ -110,44 +110,54 @@ export function FollowMode({ versions, currentIndex, onChangeIndex, onPreview, o
       {/* Controls */}
       <div className="flex items-center justify-between px-3 py-2">
         <div className="flex items-center gap-1">
-          <button
+          <Button
+            variant="ghost"
+            size="icon"
             onClick={stepBack}
             disabled={currentIndex === 0}
-            className="p-1.5 rounded hover:bg-accent text-muted-foreground disabled:opacity-30 transition-colors"
+            className="h-8 w-8"
           >
             <SkipBack className="w-3.5 h-3.5" />
-          </button>
+          </Button>
 
           {isPlaying ? (
-            <button
+            <Button
+              variant="outline"
+              size="icon"
               onClick={pause}
-              className="p-1.5 rounded bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
+              className="h-8 w-8"
             >
               <Pause className="w-4 h-4" />
-            </button>
+            </Button>
           ) : (
-            <button
+            <Button
+              variant="outline"
+              size="icon"
               onClick={play}
-              className="p-1.5 rounded bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
+              className="h-8 w-8"
             >
               <Play className="w-4 h-4" />
-            </button>
+            </Button>
           )}
 
-          <button
+          <Button
+            variant="ghost"
+            size="icon"
             onClick={stepForward}
             disabled={currentIndex === versions.length - 1}
-            className="p-1.5 rounded hover:bg-accent text-muted-foreground disabled:opacity-30 transition-colors"
+            className="h-8 w-8"
           >
             <SkipForward className="w-3.5 h-3.5" />
-          </button>
+          </Button>
         </div>
 
         {/* Speed selector */}
         <div className="flex items-center gap-1">
           {[1000, 2000, 4000].map((ms) => (
-            <button
+            <Button
               key={ms}
+              variant={speed === ms ? "secondary" : "ghost"}
+              size="sm"
               onClick={() => {
                 setSpeed(ms);
                 if (isPlaying) {
@@ -155,14 +165,10 @@ export function FollowMode({ versions, currentIndex, onChangeIndex, onPreview, o
                   setTimeout(() => play(), 50);
                 }
               }}
-              className={`text-[10px] px-1.5 py-0.5 rounded transition-colors ${
-                speed === ms
-                  ? "bg-primary/10 text-primary"
-                  : "text-muted-foreground hover:bg-accent"
-              }`}
+              className="text-[10px] h-6 px-1.5"
             >
               {ms / 1000}s
-            </button>
+            </Button>
           ))}
         </div>
       </div>

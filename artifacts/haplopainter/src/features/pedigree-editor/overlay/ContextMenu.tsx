@@ -25,7 +25,6 @@ export function ContextMenu({
   onSetLinkMode: (mode: "couple" | "parent-child" | "consanguinity", sourceId: string) => void;
 }) {
   const isMale      = ctxNode.type === "male";
-  const isFemale    = ctxNode.type === "female";
   const isPregnancy = ctxNode.type === "pregnancy";
   const isSab       = ctxNode.type === "sab";
   const isEndpoint  = isPregnancy || isSab;

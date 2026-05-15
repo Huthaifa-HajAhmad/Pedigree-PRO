@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Palette, Check } from "lucide-react";
-import { THEMES, useTheme, type ThemeId } from "@/lib/theme";
+import { THEMES, useTheme } from "@/lib/theme";
 
 export function ThemePicker({ compact = false }: { compact?: boolean }) {
   const { themeId, setTheme } = useTheme();
