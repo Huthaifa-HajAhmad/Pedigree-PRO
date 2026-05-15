@@ -97,9 +97,7 @@ export function LanShare({ pedigreeData, onClose, onPedigreeReceived }: LanShare
         setStatus("connected");
       };
 
-      dc.onmessage = (event) => {
-        console.log("Guest received:", event.data);
-      };
+      dc.onmessage = () => {};
 
       const localOffer = await pc.createOffer();
       await pc.setLocalDescription(localOffer);
