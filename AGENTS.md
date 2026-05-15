@@ -144,22 +144,25 @@ Invoke-WebRequest -Uri "http://127.0.0.1:3788/console?limit=20" -UseBasicParsing
 
 ## Future Work
 
-### Deferred from Codebase Audit (May 2026)
+### Completed (May 2026)
 
-**L23 — Enable `noUnusedLocals` in tsconfig.base.json:**
-Setting `noUnusedLocals: true` surfaces ~15 pre-existing unused imports across 8 files. A dedicated cleanup pass is needed before enabling this flag permanently. Files affected:
-- `lib/crypto/src/index.ts` — unused `sha512`, `hexToBytes`
-- `lib/browser-backend/src/commands.ts` — unused `getProfilePrivateKey`
-- `lib/api-client-react/src/hooks.ts` — unused type imports (`LocalProfile`, `Patient`, etc.)
-- `artifacts/haplopainter/src/components/ThemePicker.tsx` — unused `ThemeId`
-- `artifacts/haplopainter/src/features/collaboration/FollowMode.tsx` — unused `CanvasData`
-- `artifacts/haplopainter/src/features/collaboration/ImportReviewModal.tsx` — unused `diffSummary`
-- `artifacts/haplopainter/src/features/pedigree-editor/overlay/ContextMenu.tsx` — unused `isFemale`
-- `artifacts/haplopainter/src/features/pedigree-editor/utils/templates.ts` — unused `PedigreeEdge`
-- `artifacts/haplopainter/src/lib/import-pedigree.ts` — unused `gen` variable
+**L23 — Enable `noUnusedLocals` in tsconfig.base.json:** ✅ Complete. All 17 unused imports across 9 files were removed. Flag enabled permanently in `tsconfig.base.json:11`.
 
-**L8 — Thumbnail virtualization for 50+ versions:**
-`VersionTimeline.tsx` currently uses `loading="lazy"` on `<img>` tags but does not virtualize the version list. For pedigrees with 50+ saved versions, all thumbnails remain in DOM. Implement `react-window` or `useVirtualizer` with fixed item height of ~90px.
+**L8 — Thumbnail virtualization for 50+ versions:** ✅ Complete. `VersionTimeline.tsx` now uses `@tanstack/react-virtual` `useVirtualizer` with horizontal layout, 120px estimate size, `useRef` scroll container.
+
+**Accessibility testing infrastructure:** ✅ Complete. `vitest` + `axe-core` with 45 a11y tests across 3 test files covering all 6 themes, buttons, forms, search inputs, and dialogs. `eslint-plugin-jsx-a11y` with 18 active rules in `eslint.config.mjs`. 10 unlabeled inputs fixed with `aria-label` and `<label htmlFor>`.
+
+**`noImplicitOverride: true`:** ✅ Complete. Enabled in `tsconfig.base.json:9`. `override` keyword added to `componentDidCatch` and `render` in `ErrorBoundary.tsx` and `PedigreeCanvasErrorBoundary.tsx`.
+
+**Self-hosted fonts (HIPAA privacy):** ✅ Complete. Google Fonts CDN links removed from `index.html`. Replaced with bundled `@fontsource/inter` (300/400/500/600/700+italic) and `@fontsource/jetbrains-mono` (400/500) via CSS imports in `index.css`.
+
+**6 easy `any` types replaced:** ✅ Complete. `lib/browser-backend/src/db.ts` — `sql.js Database` type. `lib/db/src/sqlite-adapter.ts` — `BetterSQLite3`, `BetterSQLite3Database`, `declare require()` helper.
+
+**Playwright smoke tests:** ✅ Complete. `playwright.config.ts` targeting `localhost:4173`. 3 smoke tests in `test/e2e/smoke.spec.ts`.
+
+**Crypto test fixes:** ✅ Complete. Fixed Ed25519 typo (`kp.secretKey` → `kp.privateKey`). Fixed PBKDF2 determinism test (now passes salt to second call).
+
+### Remaining Deferred Items
 
 **UX5 extended — ContextMenu keyboard navigation polish:**
 Arrow key handlers were added but these items remain:
@@ -172,6 +175,24 @@ Arrow key handlers were added but these items remain:
 
 **L3 extended — Dynamic import loading indicator:**
 Spinners added for export/import in `profiles.tsx`. Consider extracting a reusable `<DynamicImportSpinner>` component for `export-pedigree.ts` PDF/PPTX exports and `ShareModal.tsx`.
+
+**P2 — Version timeline virtualization:** ✅ Complete.
+
+**TS2 — Replace remaining `any` types (11 of 17 done):**
+11 conditional `any` types remain in `lib/db/src/index.ts` — table exports and `db`/`pool` vary between SQLite and Postgres backends. Needs union type design.
+
+**TS2 — Enable additional strict TS flags:**
+- `noUncheckedIndexedAccess` — requires audit pass (array/record access returns `T | undefined`)
+- `exactOptionalPropertyTypes` — complex, breaks optional prop patterns
+- `noPropertyAccessFromIndexSignature` — may break Drizzle ORM usage patterns
+
+**T4 — Expand Playwright E2E coverage:**
+Minimal smoke tests in place. Consider: canvas interaction tests, import/export flow, sharing flow, version history interaction.
+
+**P5 — web-vitals monitoring:** Not yet installed. Blocked on CI/CD monitoring infrastructure.
+
+**RB23 — Directory/package rename:**
+`artifacts/haplopainter/` and `@workspace/haplopainter` remain as internal names. Cascading changes across monorepo (tsconfig references, workspace filter commands, import paths). Defer to dedicated rename pass.
 
 ### Known Workarounds
 
