@@ -550,8 +550,9 @@ export function RibbonToolbar(props: RibbonToolbarProps) {
                 <div className="absolute left-0 top-full mt-1 z-50 w-72 border border-border rounded-lg shadow-xl overflow-hidden" style={{ background: "hsl(var(--popover))" }}>
                   <div className="px-3 py-2 border-b border-border text-[10px] text-muted-foreground uppercase tracking-widest">Save Session</div>
                   <div className="p-3 space-y-2">
-                    <div className="text-[10px] text-muted-foreground">Label for this snapshot:</div>
+                    <label htmlFor="session-label-input" className="text-[10px] text-muted-foreground">Label for this snapshot:</label>
                     <input
+                      id="session-label-input"
                       autoFocus
                       value={props.sessionLabel}
                       onChange={(e) => props.setSessionLabel(e.target.value)}

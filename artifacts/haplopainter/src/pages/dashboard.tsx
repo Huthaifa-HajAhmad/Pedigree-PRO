@@ -84,7 +84,7 @@ export default function Dashboard() {
   ));
 
   return (
-    <div className="p-6 max-w-7xl mx-auto flex flex-col h-screen">
+    <section className="p-6 max-w-7xl mx-auto flex flex-col h-screen">
       {/* Header */}
       <div className="mb-6 flex-shrink-0">
         <div className="flex items-center gap-3 mb-1.5">
@@ -166,6 +166,6 @@ export default function Dashboard() {
           </div>
         </div>
       </div>
-    </div>
+    </section>
   );
 }

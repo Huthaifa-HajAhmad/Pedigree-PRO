@@ -44,7 +44,7 @@ export function TabPickerPopover({
       <div className="p-2 border-b border-border">
         <input
           autoFocus
-          placeholder="Search pedigrees…"
+          aria-label="Search pedigrees"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="w-full text-xs bg-muted border border-border rounded px-2 py-1.5 outline-none focus:border-primary text-foreground placeholder:text-muted-foreground"

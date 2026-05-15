@@ -1,4 +1,5 @@
 import { Clock } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 export function DraftBanner({
   onRestore, onDismiss,
@@ -15,8 +16,8 @@ export function DraftBanner({
         </span>
       </div>
       <div className="flex items-center gap-3 flex-shrink-0 ml-4">
-        <button onClick={onRestore} className="text-xs px-3 py-1 rounded border border-amber-500/60 text-amber-300 hover:bg-amber-500/20 transition-colors font-medium">Restore</button>
-        <button onClick={onDismiss} className="text-xs text-muted-foreground hover:text-foreground transition-colors">Dismiss</button>
+        <Button size="sm" variant="outline" onClick={onRestore} className="border-amber-500/60 text-amber-300 hover:bg-amber-500/20">Restore</Button>
+        <Button size="sm" variant="ghost" onClick={onDismiss}>Dismiss</Button>
       </div>
     </div>
   );

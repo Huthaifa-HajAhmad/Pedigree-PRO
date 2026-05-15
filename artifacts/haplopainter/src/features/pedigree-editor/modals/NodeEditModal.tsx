@@ -232,7 +232,7 @@ export function NodeEditModal({
                       type="text"
                       value={ann.text}
                       onChange={(e) => onUpdateAnnotation(ann.id, { text: e.target.value })}
-                      placeholder="Annotation text…"
+                      aria-label="Annotation text"
                       className="w-full bg-transparent border border-border rounded-md px-2.5 py-1.5 text-xs focus:border-primary outline-none transition-colors"
                     />
 
@@ -259,7 +259,7 @@ export function NodeEditModal({
                           onChange={(e) => onUpdateAnnotation(ann.id, { color: e.target.value })}
                           className="w-5 h-5 rounded cursor-pointer flex-shrink-0"
                           style={{ padding: 0, border: "none", background: "none" }}
-                          title="Custom color"
+                           aria-label="Select color"
                         />
                       </div>
                     </div>

@@ -15,7 +15,7 @@ export function SearchBar({ value, onChange, placeholder = "Search...", testId }
       <input
         data-testid={testId ?? "input-search"}
         type="search"
-        placeholder={placeholder}
+        aria-label={placeholder}
         value={value}
         onChange={onChange}
         className="w-full pl-9 pr-4 py-2 bg-card border border-border rounded text-sm outline-none focus:border-primary transition-colors placeholder:text-muted-foreground"

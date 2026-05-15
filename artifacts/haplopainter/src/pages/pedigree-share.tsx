@@ -1,26 +1,7 @@
 import { useParams, Link } from "wouter";
 import { memo } from "react";
 import { useGetSharedPedigree } from "@workspace/api-client-react";
-
-interface PedigreeNode {
-  id: string;
-  type: "male" | "female" | "unknown" | "pregnancy" | "sab";
-  affected: boolean;
-  deceased: boolean;
-  proband: boolean;
-  carrier?: boolean;
-  label: string;
-  age: string;
-  x: number;
-  y: number;
-}
-
-interface PedigreeEdge {
-  id: string;
-  type: "couple" | "parent-child" | "consanguinity";
-  sourceId: string;
-  targetId: string;
-}
+import type { PedigreeNode, PedigreeEdge } from "@/features/pedigree-editor/canvas/types";
 
 interface CanvasData {
   nodes: PedigreeNode[];

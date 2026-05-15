@@ -30,7 +30,7 @@ export function AnnotationEditorPanel({
             value={annotation.text}
             onChange={(e) => onUpdate({ text: e.target.value })}
             className="w-full bg-transparent border border-border rounded px-2 py-1 text-xs focus:border-primary outline-none"
-            placeholder="Annotation text…"
+            aria-label="Annotation text"
             autoFocus
           />
 
@@ -46,7 +46,7 @@ export function AnnotationEditorPanel({
             <input type="color" value={annotation.color}
               onChange={(e) => onUpdate({ color: e.target.value })}
               className="w-4 h-4 rounded cursor-pointer"
-              title="Custom color"
+              aria-label="Select color"
               style={{ padding: 0, border: "none", background: "none" }}
             />
           </div>

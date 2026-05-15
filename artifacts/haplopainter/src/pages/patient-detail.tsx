@@ -3,12 +3,15 @@ import { useGetPatient, useListPedigrees, useCreatePedigree, queryKeys } from "@
 import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { ArrowLeft, Dna, Plus, ChevronRight } from "lucide-react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { FormLayout } from "@/components/shared/FormLayout";
+import { EmptyState } from "@/components/shared/EmptyState";
+import { TableSkeleton } from "@/components/shared/Skeleton";
 
 
 const schema = z.object({ title: z.string().min(1, "Title required"), notes: z.string().optional() });
@@ -53,11 +56,11 @@ export default function PatientDetail() {
   );
 
   return (
-    <div className="p-6">
+    <section className="p-6">
       <Link href="/patients">
-        <button data-testid="button-back-patients" className="flex items-center gap-2 text-sm text-muted-foreground hover:text-primary transition-colors mb-6">
+        <Button data-testid="button-back-patients" variant="ghost" className="mb-6">
           <ArrowLeft className="w-4 h-4" /> Back to Patients
-        </button>
+        </Button>
       </Link>
 
       {isLoading ? (
@@ -86,51 +89,40 @@ export default function PatientDetail() {
             <div className="lg:col-span-2 border border-border rounded bg-card">
               <div className="p-4 border-b border-border flex items-center justify-between">
                 <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Pedigrees ({pedigrees?.length ?? 0})</h2>
-                <Dialog open={open} onOpenChange={setOpen}>
-                  <DialogTrigger asChild>
-                    <button
-                      data-testid="button-new-pedigree"
-                      className="flex items-center gap-2 px-3 py-1.5 rounded text-xs font-semibold bg-primary text-primary-foreground hover:opacity-90"
-                    >
+                <FormLayout
+                  open={open}
+                  onOpenChange={setOpen}
+                  title="New Pedigree"
+                  submitLabel="Create Pedigree"
+                  form={form}
+                  onSubmit={onSubmit}
+                  isSubmitting={createPedigree.isPending}
+                  trigger={
+                    <Button data-testid="button-new-pedigree" size="sm">
                       <Plus className="w-3.5 h-3.5" /> New Pedigree
-                    </button>
-                  </DialogTrigger>
-                  <DialogContent className="glass-panel border-0">
-                    <DialogHeader>
-                      <DialogTitle className="tracking-wider uppercase text-sm text-primary">New Pedigree</DialogTitle>
-                    </DialogHeader>
-                    <Form {...form}>
-                      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-                        <FormField control={form.control} name="title" render={({ field }) => (
-                          <FormItem>
-                            <FormLabel className="text-xs text-muted-foreground uppercase tracking-wider">Title</FormLabel>
-                            <FormControl><Input {...field} data-testid="input-pedigree-title" className="bg-muted border-border" /></FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )} />
-                        <FormField control={form.control} name="notes" render={({ field }) => (
-                          <FormItem>
-                            <FormLabel className="text-xs text-muted-foreground uppercase tracking-wider">Notes</FormLabel>
-                            <FormControl><Input {...field} data-testid="input-pedigree-notes" className="bg-muted border-border" /></FormControl>
-                          </FormItem>
-                        )} />
-                        <button
-                          type="submit"
-                          data-testid="button-submit-pedigree"
-                          className="w-full py-2 rounded text-sm font-semibold bg-primary text-primary-foreground hover:opacity-90"
-                        >
-                          {createPedigree.isPending ? "Creating..." : "Create Pedigree"}
-                        </button>
-                      </form>
-                    </Form>
-                  </DialogContent>
-                </Dialog>
+                    </Button>
+                  }
+                >
+                  <FormField control={form.control} name="title" render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="text-xs text-muted-foreground uppercase tracking-wider">Title</FormLabel>
+                      <FormControl><Input {...field} data-testid="input-pedigree-title" className="bg-muted border-border text-sm" /></FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )} />
+                  <FormField control={form.control} name="notes" render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="text-xs text-muted-foreground uppercase tracking-wider">Notes</FormLabel>
+                      <FormControl><Input {...field} data-testid="input-pedigree-notes" className="bg-muted border-border text-sm" /></FormControl>
+                    </FormItem>
+                  )} />
+                </FormLayout>
               </div>
               <div className="divide-y divide-border">
                 {pedLoading ? (
-                  Array.from({ length: 3 }, (_, i) => <div key={i} className="p-4 h-16 animate-pulse bg-muted" />)
+                  <TableSkeleton rows={3} cols={1} />
                 ) : pedigrees?.length === 0 ? (
-                  <div className="p-8 text-center text-sm text-muted-foreground">No pedigrees for this patient yet</div>
+                  <EmptyState icon={Dna} title="No pedigrees" description="No pedigrees linked to this patient yet." />
                 ) : (
                   pedigrees?.map((p) => (
                     <Link key={p.id} href={`/pedigrees/${p.id}`}>
@@ -152,6 +144,6 @@ export default function PatientDetail() {
       ) : (
         <div className="text-center py-16 text-muted-foreground">Patient not found</div>
       )}
-    </div>
+    </section>
   );
 }

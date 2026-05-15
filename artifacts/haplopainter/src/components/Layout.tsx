@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { Link, useLocation } from "wouter";
 import { Activity, LayoutDashboard, Dna, ChevronRight, UserCircle, Shield, LogOut, WifiOff, Menu, X } from "lucide-react";
 import { ThemePicker } from "@/components/ThemePicker";
+import { SkipToContent } from "@/components/SkipToContent";
 import { useTheme } from "@/lib/theme";
 import { useListProfiles, useSwitchProfile } from "@workspace/api-client-react";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -48,6 +49,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex min-h-screen bg-background">
+      <SkipToContent />
       {/* Mobile hamburger */}
       {isMobile && (
         <button
@@ -193,7 +195,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
           <span>You are offline — Pedigree PRO works locally. All data is saved on this device.</span>
         </div>
       )}
-      <main className="flex-1 overflow-auto">
+      <main id="main-content" className="flex-1 overflow-auto">
         {children}
       </main>
     </div>

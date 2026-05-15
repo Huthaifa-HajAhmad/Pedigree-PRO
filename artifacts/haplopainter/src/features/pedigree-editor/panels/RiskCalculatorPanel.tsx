@@ -177,12 +177,13 @@ export function RiskPanelSidebar({
 
         {/* Individual focus */}
         <div>
-          <div className="text-xs text-muted-foreground uppercase tracking-wider mb-1.5">Individual Risk</div>
+          <label htmlFor="risk-individual-select" className="text-xs text-muted-foreground uppercase tracking-wider mb-1.5">Individual Risk</label>
           {validNodes.length === 0 ? (
             <p className="text-xs text-muted-foreground italic">No individuals on canvas yet.</p>
           ) : (
             <>
               <select
+                id="risk-individual-select"
                 value={effectiveFocusId ?? ""}
                 onChange={(e) => setFocusId(e.target.value || null)}
                 className="w-full text-xs bg-background border border-border rounded px-2 py-1.5 mb-2 text-foreground"
