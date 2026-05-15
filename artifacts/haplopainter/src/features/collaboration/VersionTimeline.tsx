@@ -2,6 +2,7 @@ import { useState, useCallback, useRef, useEffect } from "react";
 import { useListVersions, useRestoreVersion, queryKeys } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Clock, RotateCcw, GitBranch, ChevronLeft, ChevronRight, Play, Pause } from "lucide-react";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import type { PedigreeVersion } from "@workspace/api-client-react";
 
 interface VersionTimelineProps {
@@ -27,6 +28,14 @@ export function VersionTimeline({ pedigreeId, currentCanvas, onRestore, onPrevie
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const playIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  const virtualizer = useVirtualizer({
+    count: versions?.length ?? 0,
+    getScrollElement: () => scrollRef.current,
+    estimateSize: () => 120, // w-28 (112px) + gap (8px)
+    horizontal: true,
+  });
 
   // Cleanup interval on unmount
   useEffect(() => {
@@ -128,56 +137,63 @@ export function VersionTimeline({ pedigreeId, currentCanvas, onRestore, onPrevie
       </div>
 
       {/* Timeline */}
-      <div className="flex items-center gap-1 overflow-x-auto pb-1 scrollbar-thin">
-        {versions.map((version, index) => {
-          const isSelected = selectedIndex === index;
-          const date = (() => { try { return new Date(version.created_at).toLocaleDateString(); } catch { return "—"; } })();
-          const time = (() => { try { return new Date(version.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }); } catch { return "—"; } })();
+      <div ref={scrollRef} className="overflow-x-auto pb-1 scrollbar-thin">
+        <div style={{ width: `${virtualizer.getTotalSize()}px`, position: "relative", height: 96 }}>
+          {virtualizer.getVirtualItems().map((virtualItem) => {
+            const version = versions[virtualItem.index];
+            const index = virtualItem.index;
+            const isSelected = selectedIndex === index;
+            const date = (() => { try { return new Date(version.created_at).toLocaleDateString(); } catch { return "—"; } })();
+            const time = (() => { try { return new Date(version.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }); } catch { return "—"; } })();
 
-          return (
-            <div
-              key={version.id}
-              className={`flex-shrink-0 w-28 cursor-pointer rounded border transition-all ${
-                isSelected
-                  ? "border-primary bg-primary/5 ring-1 ring-primary/30"
-                  : "border-border bg-background hover:border-muted-foreground/30"
-              }`}
-              onClick={() => handleSelect(index, version)}
-              onDoubleClick={() => handleRestore(version)}
-              title={`Double-click to restore\n${version.label ?? `Version ${version.version_number}`}\n${date} ${time}`}
-            >
-              {/* Thumbnail */}
-              <div className="h-14 bg-muted/50 rounded-t flex items-center justify-center overflow-hidden">
-                  {version.thumbnail ? (
-                  <img
-                    src={version.thumbnail}
-                    alt={`Version ${version.version_number}`}
-                    className="w-full h-full object-contain"
-                    onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
-                  />
-                ) : (
-                  <Clock className="w-4 h-4 text-muted-foreground/40" />
-                )}
-              </div>
+            return (
+              <div
+                key={version.id}
+                style={{ position: "absolute", left: virtualItem.start }}
+                className={`w-28 cursor-pointer rounded border transition-all ${
+                  isSelected
+                    ? "border-primary bg-primary/5 ring-1 ring-primary/30"
+                    : "border-border bg-background hover:border-muted-foreground/30"
+                }`}
+                onClick={() => handleSelect(index, version)}
+                onDoubleClick={() => handleRestore(version)}
+                title={`Double-click to restore\n${version.label ?? `Version ${version.version_number}`}\n${date} ${time}`}
+              >
+                {/* Thumbnail */}
+                <div className="h-14 bg-muted/50 rounded-t flex items-center justify-center overflow-hidden">
+                    {version.thumbnail ? (
+                    <img
+                      src={version.thumbnail}
+                      alt={`Version ${version.version_number}`}
+                      className="w-full h-full object-contain"
+                      loading="lazy"
+                      decoding="async"
+                      onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+                    />
+                  ) : (
+                    <Clock className="w-4 h-4 text-muted-foreground/40" />
+                  )}
+                </div>
 
-              {/* Info */}
-              <div className="px-2 py-1.5">
-                <div className="text-[10px] font-medium truncate">
-                  {version.label ?? `v${version.version_number}`}
-                </div>
-                <div className="text-[9px] text-muted-foreground flex items-center gap-1">
-                  <span>{date}</span>
-                  <span>{time}</span>
-                </div>
-                {version.saver_key && (
-                  <div className="text-[9px] text-primary/70 truncate font-mono">
-                    {version.saver_key.slice(0, 8)}...
+                {/* Info */}
+                <div className="px-2 py-1.5">
+                  <div className="text-[10px] font-medium truncate">
+                    {version.label ?? `v${version.version_number}`}
                   </div>
-                )}
+                  <div className="text-[9px] text-muted-foreground flex items-center gap-1">
+                    <span>{date}</span>
+                    <span>{time}</span>
+                  </div>
+                  {version.saver_key && (
+                    <div className="text-[9px] text-primary/70 truncate font-mono">
+                      {version.saver_key.slice(0, 8)}...
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
-          );
-        })}
+            );
+          })}
+        </div>
       </div>
 
       {/* Selected version actions */}

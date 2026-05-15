@@ -48,20 +48,10 @@ import {
 
 
 import type {
-  LocalProfile,
   CreateProfileInput,
-  Patient,
   CreatePatientInput,
-  PedigreeSummary,
-  Pedigree,
   CreatePedigreeInput,
-  PedigreeVersion,
   SaveVersionInput,
-  DashboardStats,
-  ActivityItem,
-  Preferences,
-  ShareResult,
-  LegacyImportSummary,
 } from "./backend-client";
 
 // =============================================================================

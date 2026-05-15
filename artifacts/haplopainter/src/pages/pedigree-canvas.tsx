@@ -13,9 +13,9 @@ import { computeAutoLabels } from "@/lib/pedigree-labels";
 import { generateThumbnail } from "@/lib/generate-thumbnail";
 import { type InheritanceMode } from "@/lib/risk-calculator";
 import { usePedigreeTabs } from "@/hooks/use-pedigree-tabs";
-import { usePedigreeKeyboard } from "@/hooks/usePedigreeKeyboard";
-import { usePedigreeDraft } from "@/hooks/usePedigreeDraft";
-import { usePedigreeCanvas } from "@/features/pedigree-editor/hooks/usePedigreeCanvas";
+import { usePedigreeKeyboard } from "@/hooks/use-pedigree-keyboard";
+import { usePedigreeDraft } from "@/hooks/use-pedigree-draft";
+import { usePedigreeCanvas } from "@/features/pedigree-editor/hooks/use-pedigree-canvas";
 import { PedigreeCanvasBody } from "@/features/pedigree-editor/PedigreeCanvasBody";
 
 import type { PedigreeNode, PedigreeEdge, PedigreeAnnotation, CanvasData, DragState } from "@/features/pedigree-editor/canvas/types";
@@ -180,7 +180,10 @@ export default function PedigreeCanvas() {
         setTimeout(() => setSaveStatus("idle"), 2000);
         try { localStorage.removeItem(`haplopainter_draft_${id}`); } catch {}
       },
-      onError: () => setSaveStatus("idle"),
+      onError: () => {
+        setSaveStatus("idle");
+        toast({ title: "Save failed", description: "Changes could not be saved. Your draft is preserved locally.", variant: "destructive" });
+      },
     });
   }, [id, updatePedigree, queryClient]);
   autoSaveRef.current = autoSave;

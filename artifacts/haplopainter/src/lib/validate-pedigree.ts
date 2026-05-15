@@ -1,15 +1,4 @@
-export interface PedigreeNode {
-  id: string;
-  type: string;
-  label: string;
-}
-
-export interface PedigreeEdge {
-  id: string;
-  type: "couple" | "parent-child" | "consanguinity";
-  sourceId: string;
-  targetId: string;
-}
+import type { PedigreeNode, PedigreeEdge } from "@/features/pedigree-editor/canvas/types";
 
 export interface CanvasData {
   nodes: PedigreeNode[];
