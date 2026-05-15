@@ -348,7 +348,10 @@ export function computeRisk(
   nodeId: string,
   mode: InheritanceMode,
 ): RiskResult {
-  const safeNodes = nodes as RCalcNode[];
+  const KNOWN_NODE_TYPES = new Set(["male", "female", "unknown", "pregnancy", "sab"]);
+  const safeNodes = nodes
+    .filter((n): n is RCalcNode => KNOWN_NODE_TYPES.has(n.type))
+    .map((n) => n as RCalcNode);
   const safeEdges = edges as RCalcEdge[];
 
   const byId = new Map(safeNodes.map((n) => [n.id, n]));

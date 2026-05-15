@@ -71,8 +71,9 @@ export function computeAutoLabels(
 
     // BFS — keep re-queuing a node when a deeper generation is found (DAG-safe).
     const MAX_DEPTH = 200; // sanity cap for malformed graphs
-    while (queue.length > 0) {
-      const { id, gen } = queue.shift()!;
+    let qhead = 0;
+    while (qhead < queue.length) {
+      const { id, gen } = queue[qhead++];
       if (gen > MAX_DEPTH) continue;
       const current = genOf.get(id) ?? -1;
       if (gen <= current) continue; // already at this or deeper generation

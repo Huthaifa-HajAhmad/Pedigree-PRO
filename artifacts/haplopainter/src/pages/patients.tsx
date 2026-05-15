@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { useListPatients, useCreatePatient, useDeletePatient, queryKeys } from "@workspace/api-client-react";
+import { useState, useRef, useEffect } from "react";
+import { useListPatients, useListPedigrees, useCreatePatient, useDeletePatient, queryKeys } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { Plus, Trash2, ChevronRight, Activity } from "lucide-react";
@@ -28,18 +28,26 @@ type CreatePatientForm = z.infer<typeof createPatientSchema>;
 
 export default function Patients() {
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (searchTimerRef.current !== null) clearTimeout(searchTimerRef.current);
+    searchTimerRef.current = setTimeout(() => setDebouncedSearch(search), 300);
+    return () => { if (searchTimerRef.current !== null) clearTimeout(searchTimerRef.current); };
+  }, [search]);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [confirmProps, setConfirmProps] = useState<{ title: string; message: string; onConfirm: () => void } | null>(null);
   const queryClient = useQueryClient();
 
-  const { data: patients, isLoading } = useListPatients(search || undefined);
+  const { data: patients, isLoading } = useListPatients(debouncedSearch || undefined);
+  const { data: allPedigrees } = useListPedigrees();
   const createPatient = useCreatePatient();
   const deletePatient = useDeletePatient();
 
   const form = useForm<CreatePatientForm>({
     resolver: zodResolver(createPatientSchema),
-    defaultValues: { mrn: "", firstName: "", lastName: "", dateOfBirth: "", ethnicity: "" },
+    defaultValues: { mrn: "", firstName: "", lastName: "", dateOfBirth: "", sex: undefined, ethnicity: "" },
   });
 
   const onSubmit = (data: CreatePatientForm) => {
@@ -201,7 +209,7 @@ export default function Patients() {
                 <div className="text-muted-foreground text-xs">{p.date_of_birth ?? "—"}</div>
                 <div className="text-xs">{sexBadge(p.sex)}</div>
                 <div>
-                  <span className="text-xs px-2 py-0.5 rounded border border-border text-muted-foreground">—</span>
+                  <span className="text-xs px-2 py-0.5 rounded border border-border text-muted-foreground">{allPedigrees?.filter(ped => ped.patient_id === p.id).length ?? "—"}</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <Link href={`/patients/${p.id}`}>

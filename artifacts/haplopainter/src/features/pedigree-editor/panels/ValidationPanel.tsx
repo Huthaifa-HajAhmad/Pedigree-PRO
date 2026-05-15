@@ -24,8 +24,8 @@ export function ValidationIssueRow({
         onClick={onToggle}
       >
         <span
-          className="mt-0.5 flex-shrink-0 w-1.5 h-1.5 rounded-full"
-          style={{ background: severityColor, marginTop: "5px" }}
+          className="mt-1 flex-shrink-0 w-1.5 h-1.5 rounded-full"
+          style={{ background: severityColor }}
         />
         <div className="flex-1 min-w-0">
           <div className="text-xs font-medium" style={{ color: severityColor }}>

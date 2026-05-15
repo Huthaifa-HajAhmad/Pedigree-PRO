@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useSharePedigree } from "@workspace/api-client-react";
-import { Link2, Copy, Check, X, ExternalLink, Share2, Shield, Key } from "lucide-react";
+import { Link2, Copy, Check, X, ExternalLink, Share2, Shield, Key, AlertTriangle } from "lucide-react";
 
 interface ShareModalProps {
   pedigreeId: number;
@@ -13,7 +13,7 @@ interface ShareModalProps {
  *
  * Generates a share link via the zero-knowledge relay service.
  * The sharing protocol (ADR-001 §3.3):
- *   1. Frontend encrypts .hpcl with ephemeral symmetric key (libsodium sealed box)
+ *   1. Frontend encrypts .ppro with ephemeral symmetric key (libsodium sealed box)
  *   2. Frontend seals symmetric key for recipient's Ed25519 public key
  *   3. POST ciphertext + encrypted_key to Cloudflare Workers relay
  *   4. Relay returns share_token → recipient decrypts with their private key
@@ -40,10 +40,6 @@ export function ShareModal({ pedigreeId, pedigreeTitle, onClose }: ShareModalPro
       }
     );
   };
-
-  // For local-first beta: encrypted sharing is deferred to v0.2
-  // See ADR-001 §3.3 for full sharing protocol design
-  const sharingAvailable = false; // Toggle when relay + libsodium interop is verified
 
   const handleCopy = async () => {
     if (!shareData) return;
@@ -169,11 +165,11 @@ export function ShareModal({ pedigreeId, pedigreeTitle, onClose }: ShareModalPro
         {/* Encryption status indicator */}
         {shareMutation.isError && (
           <div className="mt-4 flex items-start gap-2 px-3 py-2 rounded border border-destructive/30 bg-destructive/5">
-            <span className="text-destructive mt-0.5 text-xs">⚠</span>
-            <p className="text-xs text-destructive/80">
-              Sharing is not fully available yet. Client-side encryption (libsodium sealed box)
-              must be implemented in the frontend. The backend relay service is ready.
-            </p>
+            <AlertTriangle className="w-3.5 h-3.5 text-destructive mt-0.5" />
+            <div>
+              <p className="text-xs text-destructive">{shareMutation.error?.message ?? "Sharing requires the relay service."}</p>
+              <p className="text-[10px] text-muted-foreground mt-1">Encrypted sharing will be available in v0.2. Use File → Export → .ppro for manual transfer.</p>
+            </div>
           </div>
         )}
       </div>

@@ -1,3 +1,4 @@
+import { memo } from "react";
 import type { PedigreeEdge, PedigreeNode } from "./types";
 import { NODE_SIZE } from "./types";
 
@@ -7,7 +8,7 @@ interface EdgeLineProps {
   invalid: boolean;
 }
 
-export function EdgeLine({ edge, nodes, invalid }: EdgeLineProps) {
+export const EdgeLine = memo(function EdgeLine({ edge, nodes, invalid }: EdgeLineProps) {
   const src = nodes.find((n) => n.id === edge.sourceId);
   const tgt = nodes.find((n) => n.id === edge.targetId);
   if (!src || !tgt) return null;
@@ -39,4 +40,4 @@ export function EdgeLine({ edge, nodes, invalid }: EdgeLineProps) {
 
   const drop = src.y + S / 2 + 40;
   return <path d={`M ${src.x} ${src.y + S / 2} L ${src.x} ${drop} L ${tgt.x} ${drop} L ${tgt.x} ${tgt.y - S / 2}`} fill="none" stroke={edgeStroke} strokeWidth={edgeWidth} strokeDasharray={edgeDash} />;
-}
+});

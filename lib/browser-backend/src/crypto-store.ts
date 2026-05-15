@@ -1,5 +1,5 @@
 /**
- * HaploClinical — Browser Backend Crypto Store
+ * Pedigree PRO — Browser Backend Crypto Store
  *
  * Manages encryption keys for the sql.js database using Web Crypto API.
  * In browser mode there is no OS keychain, so keys are stored in IndexedDB.

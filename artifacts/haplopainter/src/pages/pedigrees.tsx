@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useListPedigrees, useDeletePedigree, useCreatePedigree, useListPatients, queryKeys } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Link, useLocation } from "wouter";
@@ -25,13 +25,20 @@ type FormData = z.infer<typeof schema>;
 
 export default function Pedigrees() {
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (searchTimerRef.current !== null) clearTimeout(searchTimerRef.current);
+    searchTimerRef.current = setTimeout(() => setDebouncedSearch(search), 300);
+    return () => { if (searchTimerRef.current !== null) clearTimeout(searchTimerRef.current); };
+  }, [search]);
   const [open, setOpen] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [confirmProps, setConfirmProps] = useState<{ title: string; message: string; onConfirm: () => void } | null>(null);
   const [, navigate] = useLocation();
   const queryClient = useQueryClient();
 
-  const { data: pedigrees, isLoading } = useListPedigrees({ search: search || undefined });
+  const { data: pedigrees, isLoading } = useListPedigrees({ search: debouncedSearch || undefined });
   const { data: patients } = useListPatients();
   const deletePedigree = useDeletePedigree();
   const createPedigree = useCreatePedigree();

@@ -1,5 +1,5 @@
 /**
- * HaploClinical — Shared Cryptographic Primitives
+ * Pedigree PRO — Shared Cryptographic Primitives
  *
  * Provides Ed25519 signing/verification, SHA-256 content hashing,
  * symmetric encryption, and libsodium sealed boxes for all environments.

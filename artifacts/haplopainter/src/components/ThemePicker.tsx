@@ -24,7 +24,7 @@ export function ThemePicker({ compact = false }: { compact?: boolean }) {
 
       {open && (
         <>
-          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
+          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} role="presentation" aria-hidden="true" />
           <div
             className="absolute left-0 bottom-full mb-1 z-50 w-56 border border-border rounded shadow-lg overflow-hidden"
             style={{ background: "hsl(var(--popover))" }}

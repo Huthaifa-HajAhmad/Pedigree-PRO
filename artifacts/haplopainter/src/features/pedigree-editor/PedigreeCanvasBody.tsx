@@ -1,4 +1,4 @@
-import { type Dispatch, type SetStateAction, type RefObject } from "react";
+import { type Dispatch, type SetStateAction, type RefObject, useEffect } from "react";
 import { NodeShape } from "@/features/pedigree-editor/canvas/NodeShape";
 import { EdgeLine } from "@/features/pedigree-editor/canvas/EdgeLine";
 import { SibshipGroup } from "@/features/pedigree-editor/canvas/SibshipGroup";
@@ -17,7 +17,7 @@ import { ShareModal } from "@/components/ShareModal";
 import type { PedigreeNode, CanvasData } from "@/features/pedigree-editor/canvas/types";
 import { NODE_SIZE } from "@/features/pedigree-editor/canvas/types";
 import { type InheritanceMode } from "@/lib/risk-calculator";
-import { CANVAS_PRIMARY } from "@/lib/canvas-theme";
+
 
 export interface PedigreeCanvasBodyProps {
   svgRef: RefObject<SVGSVGElement | null>;
@@ -52,7 +52,7 @@ export interface PedigreeCanvasBodyProps {
   handleDragStart: (e: React.MouseEvent, nodeId: string) => void;
   handleNodeContextMenu: (nodeId: string, e: React.MouseEvent) => void;
   handleNodeDoubleClick: (nodeId: string, e: React.MouseEvent) => void;
-  getSVGCoords: (e: React.MouseEvent) => { x: number; y: number };
+  getSVGCoords: (e: { clientX: number; clientY: number }) => { x: number; y: number } | null;
   setSelectedIds: Dispatch<SetStateAction<Set<string>>>;
   setSelectedAnnotationId: Dispatch<SetStateAction<string | null>>;
   setAnnDragging: Dispatch<SetStateAction<{ annId: string; startSVG: { x: number; y: number }; initOffset: { x: number; y: number } } | null>>;
@@ -94,7 +94,7 @@ export interface PedigreeCanvasBodyProps {
   showRiskPanel: boolean;
   setShowRiskPanel: Dispatch<SetStateAction<boolean>>;
   showVersions: boolean;
-  versions: unknown;
+  versions: Array<{ id: number; canvas_data: string; label: string | null; version_number: number; created_at: string; thumbnail: string | null; saver_key?: string | null }> | undefined;
   versionsLoading: boolean;
   handleSaveVersion: () => void;
   handleRestoreVersion: (versionId: number) => void;
@@ -136,27 +136,36 @@ export function PedigreeCanvasBody(props: PedigreeCanvasBodyProps) {
     showShareModal, setShowShareModal, pedigree,
   } = props;
 
+  useEffect(() => {
+    const el = svgRef.current;
+    if (!el) return;
+    const handler = (e: WheelEvent) => { e.preventDefault(); handleWheel(e as unknown as React.WheelEvent); };
+    el.addEventListener("wheel", handler, { passive: false });
+    return () => el.removeEventListener("wheel", handler);
+  }, [handleWheel, svgRef]);
+
   return (
     <div className="flex flex-1 overflow-hidden">
       <div className={`flex-1 overflow-hidden relative ${showGrid ? "grid-bg" : ""}`}>
         <svg
           ref={svgRef}
+          data-canvas-svg="true"
           className="w-full h-full"
           viewBox={`${viewBox.x} ${viewBox.y} ${vbW} ${vbH}`}
           onMouseMove={handleMouseMove} onMouseUp={handleMouseUp}
-          onMouseDown={handleSVGMouseDown} onWheel={handleWheel}
+          onMouseDown={handleSVGMouseDown}
           style={{ cursor: panning ? "grabbing" : spaceHeld ? "grab" : lassoVisible ? "crosshair" : "default" }}
         >
           {visibleGenRows.map((row) => (
             <line key={row} x1={viewBox.x} y1={row} x2={viewBox.x + vbW} y2={row}
-              stroke={CANVAS_PRIMARY} strokeWidth={0.5} strokeDasharray="6 4" opacity={0.25}
+              stroke={"hsl(var(--primary))"} strokeWidth={0.5} strokeDasharray="6 4" opacity={0.25}
             />
           ))}
 
           {generationRailEntries.length > 0 && (
             <g style={{ pointerEvents: "none" }}>
               <line x1={viewBox.x + 44} y1={viewBox.y + 30} x2={viewBox.x + 44} y2={viewBox.y + vbH - 30}
-                stroke={CANVAS_PRIMARY} strokeWidth={0.75} opacity={0.12}
+                stroke={"hsl(var(--primary))"} strokeWidth={0.75} opacity={0.12}
               />
               {generationRailEntries.map(({ roman, y }) => (
                 <text key={roman} x={viewBox.x + 10} y={y + 5} fontSize={14} fontWeight="700"
@@ -168,7 +177,7 @@ export function PedigreeCanvasBody(props: PedigreeCanvasBodyProps) {
           )}
 
           <rect ref={lassoRectRef} x={0} y={0} width={0} height={0}
-            fill="hsl(var(--primary) / 0.08)" stroke={CANVAS_PRIMARY} strokeWidth={1.5}
+            fill="hsl(var(--primary) / 0.08)" stroke={"hsl(var(--primary))"} strokeWidth={1.5}
             strokeDasharray="8 4" style={{ display: "none", pointerEvents: "none" }}
           />
 
@@ -178,7 +187,7 @@ export function PedigreeCanvasBody(props: PedigreeCanvasBodyProps) {
                 const isActive = searchMatches[Math.min(searchMatchIndex, searchMatches.length - 1)] === n.id;
                 return (
                   <circle key={`search-${n.id}`} cx={n.x} cy={n.y} r={NODE_SIZE / 2 + 11}
-                    fill="none" stroke={CANVAS_PRIMARY} strokeWidth={isActive ? 2.5 : 1.5}
+                    fill="none" stroke={"hsl(var(--primary))"} strokeWidth={isActive ? 2.5 : 1.5}
                     strokeDasharray={isActive ? undefined : "5 4"} opacity={isActive ? 1 : 0.45}
                   />
                 );
@@ -255,6 +264,7 @@ export function PedigreeCanvasBody(props: PedigreeCanvasBodyProps) {
                   }}
                   onDragStart={(e) => {
                     const coords = getSVGCoords(e);
+                    if (!coords) return;
                     setSelectedAnnotationId(ann.id);
                     preDragCanvasRef.current = canvas;
                     setAnnDragging({
@@ -268,7 +278,7 @@ export function PedigreeCanvasBody(props: PedigreeCanvasBodyProps) {
           </g>
 
           {canvas.nodes.length === 0 && (
-            <text x={W / 2} y={H / 2} textAnchor="middle"
+            <text x={viewBox.x + vbW / 2} y={viewBox.y + vbH / 2} textAnchor="middle"
               fill="rgba(255,255,255,0.12)" fontSize={13}
               style={{ fontFamily: "JetBrains Mono, monospace" }}>
               Use toolbar to add nodes · M F U P keys for quick-add

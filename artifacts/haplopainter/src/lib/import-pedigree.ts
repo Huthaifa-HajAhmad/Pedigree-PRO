@@ -57,9 +57,10 @@ function layoutNodes(individuals: Individual[]): Map<string, { x: number; y: num
   founders.forEach((f) => generation.set(f.rawId, 0));
 
   const queue = [...founders];
+  let head = 0;
   let safety = 0;
-  while (queue.length > 0 && safety++ < 10000) {
-    const ind = queue.shift()!;
+  while (head < queue.length && safety++ < 10000) {
+    const ind = queue[head++];
     const gen = generation.get(ind.rawId) ?? 0;
     for (const child of individuals) {
       if (child.fatherId === ind.rawId || child.motherId === ind.rawId) {
@@ -185,7 +186,7 @@ function toCanvasData(individuals: Individual[]): CanvasData {
 }
 
 // ---------------------------------------------------------------------------
-// HaploPainter / PLINK PED format parser
+// PLINK PED format parser
 // Format: FamilyID  IndividualID  FatherID  MotherID  Sex  Phenotype [extra...]
 // Sep: whitespace (tab or space), Sex: 1=male 2=female else=unknown
 // Phenotype: 2=affected, else=unaffected (0/-9=missing treated as unaffected)
@@ -194,6 +195,7 @@ export function parsePed(content: string, filename: string): ParseResult {
   const warnings: string[] = [];
   const individuals: Individual[] = [];
   const familyIds = new Set<string>();
+  const seenIds = new Set<string>();
 
   const lines = content.split(/\r?\n/);
   for (let i = 0; i < lines.length; i++) {
@@ -207,6 +209,11 @@ export function parsePed(content: string, filename: string): ParseResult {
     }
 
     const [famId, indId, fatId, matId, sexCode, phenoCode] = cols;
+    if (seenIds.has(indId)) {
+      warnings.push(`Duplicate individual ID "${indId}" at line ${i + 1}: skipped`);
+      continue;
+    }
+    seenIds.add(indId);
     familyIds.add(famId);
 
     const sex: Individual["sex"] =
@@ -260,6 +267,18 @@ function resolveColumn(headers: string[], candidates: string[]): number {
   return -1;
 }
 
+function parseCSVLine(line: string, delimiter: string): string[] {
+  const result: string[] = [];
+  let current = "", inQuotes = false;
+  for (const ch of line) {
+    if (ch === '"') { inQuotes = !inQuotes; continue; }
+    if (ch === delimiter && !inQuotes) { result.push(current.trim()); current = ""; continue; }
+    current += ch;
+  }
+  result.push(current.trim());
+  return result;
+}
+
 export function parseCsv(content: string, filename: string): ParseResult {
   const warnings: string[] = [];
   const individuals: Individual[] = [];
@@ -273,7 +292,7 @@ export function parseCsv(content: string, filename: string): ParseResult {
   const firstLine = lines[0];
   const delimiter = firstLine.includes("\t") ? "\t" : ",";
 
-  const headers = firstLine.split(delimiter).map((h) => h.trim().replace(/^["']|["']$/g, ""));
+  const headers = parseCSVLine(firstLine, delimiter).map((h) => h.replace(/^["']|["']$/g, ""));
 
   // Column index resolution
   const colId       = resolveColumn(headers, ["id", "individual_id", "individualid", "person_id", "personid", "ind_id"]);
@@ -292,7 +311,7 @@ export function parseCsv(content: string, filename: string): ParseResult {
   const familyIds = new Set<string>();
 
   for (let i = 1; i < lines.length; i++) {
-    const row = lines[i].split(delimiter).map((c) => c.trim().replace(/^["']|["']$/g, ""));
+    const row = parseCSVLine(lines[i], delimiter);
 
     const rawId  = colId !== -1 ? (row[colId] ?? `row_${i}`) : `row_${i}`;
     const famId  = colFamilyId !== -1 ? (row[colFamilyId] ?? "FAM001") : "FAM001";

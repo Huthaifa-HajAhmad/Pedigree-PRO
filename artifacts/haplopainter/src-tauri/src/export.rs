@@ -1,11 +1,11 @@
-// HaploClinical — Encrypted Export Module
+// Pedigree PRO — Encrypted Export Module
 //
-// Implements the .hpcl export format (ADR-004 §4.3) with cryptographic
+// Implements the .ppro export format (ADR-004 §4.3) with cryptographic
 // provenance. Exports are JSON documents containing pedigree data,
 // annotations, phenotypes, version history, and Ed25519 signatures.
 //
 // IMPORTANT: Pedigree import logic has been split into:
-//   - import_native.rs  — Native .hpcl import (current program files)
+//   - import_native.rs  — Native .ppro import (current program files)
 //   - import_legacy.rs  — Legacy HaploPainter SQLite migration
 
 use rusqlite::params;
@@ -13,7 +13,7 @@ use serde::{Deserialize, Serialize};
 use std::sync::Mutex;
 
 // =============================================================================
-// .hpcl Format Type Definitions (ADR-004 §4.3)
+// .ppro Format Type Definitions (ADR-004 §4.3)
 // =============================================================================
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -59,7 +59,7 @@ pub struct HpclProvenance {
 // Pedigree Export
 // =============================================================================
 
-/// Exports a pedigree to the .hpcl JSON format.
+/// Exports a pedigree to the .ppro JSON format.
 ///
 /// Serializes the pedigree record, its version history, clinical annotations,
 /// and phenotypes into a structured JSON document with cryptographic provenance.

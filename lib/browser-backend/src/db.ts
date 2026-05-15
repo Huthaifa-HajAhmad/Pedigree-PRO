@@ -1,5 +1,5 @@
 /**
- * HaploClinical — Browser Backend Database Engine
+ * Pedigree PRO — Browser Backend Database Engine
  *
  * sql.js WASM SQLite with IndexedDB persistence.
  * Database is encrypted at rest using AES-256-GCM via Web Crypto API.
@@ -16,6 +16,7 @@ const DB_KEY = "sqlcipher-data";
 // In-memory database instance
 let db: any = null;
 let dbKey: CryptoKey | null = null;
+let autoSaveInterval: ReturnType<typeof setInterval> | null = null;
 
 /**
  * Initializes the sql.js database.
@@ -62,7 +63,17 @@ export async function initDb(): Promise<void> {
   window.addEventListener("beforeunload", saveDb);
 
   // Periodic auto-save every 30 seconds
-  setInterval(saveDb, 30_000);
+  autoSaveInterval = setInterval(saveDb, 30_000);
+}
+
+/**
+ * Stops the periodic auto-save timer (cleanup).
+ */
+export function stopAutoSave(): void {
+  if (autoSaveInterval !== null) {
+    clearInterval(autoSaveInterval);
+    autoSaveInterval = null;
+  }
 }
 
 /**

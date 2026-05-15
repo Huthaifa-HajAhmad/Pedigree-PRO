@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import type { PedigreeNode, PedigreeEdge } from "@/features/pedigree-editor/canvas/types";
 
 export function ContextMenu({
@@ -42,6 +43,31 @@ export function ContextMenu({
   const ax = position.x + menuW > window.innerWidth  ? position.x - menuW : position.x;
   const ay = position.y + menuH > window.innerHeight ? position.y - menuH : position.y;
 
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const menu = menuRef.current;
+    if (!menu) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      const items = Array.from(menu.querySelectorAll<HTMLElement>('[role="menuitem"]:not([class*="opacity-40"])'));
+      const currentIndex = items.indexOf(document.activeElement as HTMLElement);
+      if (e.key === "ArrowDown" || e.key === "ArrowRight") {
+        e.preventDefault();
+        const next = currentIndex < items.length - 1 ? items[currentIndex + 1] : items[0];
+        next?.focus();
+      } else if (e.key === "ArrowUp" || e.key === "ArrowLeft") {
+        e.preventDefault();
+        const prev = currentIndex > 0 ? items[currentIndex - 1] : items[items.length - 1];
+        prev?.focus();
+      } else if (e.key === "Escape") {
+        e.preventDefault();
+        onClose();
+      }
+    };
+    menu.addEventListener("keydown", onKeyDown);
+    return () => menu.removeEventListener("keydown", onKeyDown);
+  }, [onClose]);
+
   const btn  = "w-full text-left px-3 py-1.5 text-xs hover:bg-accent transition-colors flex items-center gap-2";
   const abtn = btn + " text-primary font-medium";
   const dbtn = btn + " text-red-400 hover:text-red-300";
@@ -65,8 +91,10 @@ export function ContextMenu({
   return (
     <>
       <div className="fixed inset-0 z-40" onClick={onClose}
-        onContextMenu={(e) => { e.preventDefault(); onClose(); }} />
+        onContextMenu={(e) => { e.preventDefault(); onClose(); }} role="presentation" />
       <div className="fixed z-50 min-w-[220px] border border-border rounded-lg shadow-2xl overflow-hidden"
+        ref={menuRef}
+        role="menu" aria-label="Node context menu"
         style={{ left: ax, top: ay, background: "hsl(var(--popover))" }}>
 
         {/* Header */}
@@ -86,58 +114,58 @@ export function ContextMenu({
 
         {/* Set Type */}
         {grp("Set Type")}
-        {ctxNode.type !== "male"     && <button className={btn} onClick={() => { onSetNodeType(ctxNode.id, "male");     onClose(); }}>□ Male</button>}
-        {ctxNode.type !== "female"   && <button className={btn} onClick={() => { onSetNodeType(ctxNode.id, "female");   onClose(); }}>○ Female</button>}
-        {ctxNode.type !== "unknown"  && <button className={btn} onClick={() => { onSetNodeType(ctxNode.id, "unknown");  onClose(); }}>◇ Unknown sex</button>}
+        {ctxNode.type !== "male"     && <button role="menuitem" className={btn} onClick={() => { onSetNodeType(ctxNode.id, "male");     onClose(); }}>□ Male</button>}
+        {ctxNode.type !== "female"   && <button role="menuitem" className={btn} onClick={() => { onSetNodeType(ctxNode.id, "female");   onClose(); }}>○ Female</button>}
+        {ctxNode.type !== "unknown"  && <button role="menuitem" className={btn} onClick={() => { onSetNodeType(ctxNode.id, "unknown");  onClose(); }}>◇ Unknown sex</button>}
         {ctxNode.type !== "pregnancy" && !isMale && !isSab && (
-          <button className={btn} onClick={() => { onSetNodeType(ctxNode.id, "pregnancy"); onClose(); }}>◈ Pregnancy</button>
+          <button role="menuitem" className={btn} onClick={() => { onSetNodeType(ctxNode.id, "pregnancy"); onClose(); }}>◈ Pregnancy</button>
         )}
         {isMale && (
-          <button className={mbtn} title="Males cannot carry a pregnancy">◈ Pregnancy <span className="ml-auto text-[9px]">N/A</span></button>
+          <button role="menuitem" className={mbtn} title="Males cannot carry a pregnancy">◈ Pregnancy <span className="ml-auto text-[9px]">N/A</span></button>
         )}
         {ctxNode.type !== "sab" && !isPregnancy && (
-          <button className={btn} onClick={() => { onSetNodeType(ctxNode.id, "sab"); onClose(); }}>△ SAB / Stillbirth</button>
+          <button role="menuitem" className={btn} onClick={() => { onSetNodeType(ctxNode.id, "sab"); onClose(); }}>△ SAB / Stillbirth</button>
         )}
         {isPregnancy && (
-          <button className={btn} onClick={() => { onSetNodeType(ctxNode.id, "sab"); onClose(); }}>△ Mark as Loss (SAB)</button>
+          <button role="menuitem" className={btn} onClick={() => { onSetNodeType(ctxNode.id, "sab"); onClose(); }}>△ Mark as Loss (SAB)</button>
         )}
 
         {sep}
 
         {/* Status */}
         {grp("Status")}
-        <button className={ctxNode.affected ? abtn : btn} onClick={() => { onToggleNodeProp(ctxNode.id, "affected"); onClose(); }}>
+        <button role="menuitem" className={ctxNode.affected ? abtn : btn} onClick={() => { onToggleNodeProp(ctxNode.id, "affected"); onClose(); }}>
           <span className="w-3">{ctxNode.affected ? "✓" : "○"}</span>
           {ctxNode.affected ? "Unmark Affected" : "Mark Affected"}
         </button>
         {!isSab ? (
-          <button className={ctxNode.carrier ? abtn : btn} onClick={() => { onToggleNodeProp(ctxNode.id, "carrier"); onClose(); }}>
+          <button role="menuitem" className={ctxNode.carrier ? abtn : btn} onClick={() => { onToggleNodeProp(ctxNode.id, "carrier"); onClose(); }}>
             <span className="w-3">{ctxNode.carrier ? "✓" : "○"}</span>
             {ctxNode.carrier ? "Unmark Carrier" : "Mark Carrier"}
           </button>
         ) : (
-          <button className={mbtn} title="SABs are not marked as carriers">
+          <button role="menuitem" className={mbtn} title="SABs are not marked as carriers">
             <span className="w-3">○</span>Carrier <span className="ml-auto text-[9px]">N/A</span>
           </button>
         )}
         {!isEndpoint ? (
-          <button className={ctxNode.deceased ? abtn : btn} onClick={() => { onToggleNodeProp(ctxNode.id, "deceased"); onClose(); }}>
+          <button role="menuitem" className={ctxNode.deceased ? abtn : btn} onClick={() => { onToggleNodeProp(ctxNode.id, "deceased"); onClose(); }}>
             <span className="w-3">{ctxNode.deceased ? "✓" : "○"}</span>
             {ctxNode.deceased ? "Unmark Deceased" : "Mark Deceased"}
           </button>
         ) : (
-          <button className={mbtn} title={isPregnancy ? "Deceased pregnancy should be SAB" : "SAB implies deceased"}>
+          <button role="menuitem" className={mbtn} title={isPregnancy ? "Deceased pregnancy should be SAB" : "SAB implies deceased"}>
             <span className="w-3">○</span>Deceased
             <span className="ml-auto text-[9px]">{isPregnancy ? "→ use SAB" : "implicit"}</span>
           </button>
         )}
         {!isSab ? (
-          <button className={ctxNode.proband ? abtn : btn} onClick={() => { onToggleNodeProp(ctxNode.id, "proband"); onClose(); }}>
+          <button role="menuitem" className={ctxNode.proband ? abtn : btn} onClick={() => { onToggleNodeProp(ctxNode.id, "proband"); onClose(); }}>
             <span className="w-3">{ctxNode.proband ? "✓" : "○"}</span>
             {ctxNode.proband ? "Remove Proband" : otherProband ? "Set Proband (replace)" : "Set as Proband"}
           </button>
         ) : (
-          <button className={mbtn}><span className="w-3">○</span>Proband <span className="ml-auto text-[9px]">N/A</span></button>
+          <button role="menuitem" className={mbtn}><span className="w-3">○</span>Proband <span className="ml-auto text-[9px]">N/A</span></button>
         )}
 
         {sep}
@@ -145,25 +173,25 @@ export function ContextMenu({
         {/* Add Related */}
         {grp("Add Related")}
         {!isEndpoint ? (
-          <button className={btn} onClick={() => { onAddContextNode("child"); onClose(); }}>
+          <button role="menuitem" className={btn} onClick={() => { onAddContextNode("child"); onClose(); }}>
             ↓ Add Child <span className="ml-auto text-muted-foreground text-[9px]">C</span>
           </button>
         ) : (
-          <button className={mbtn} title={`${ctxNode.type}s cannot parent children`}>
+          <button role="menuitem" className={mbtn} title={`${ctxNode.type}s cannot parent children`}>
             ↓ Add Child <span className="ml-auto text-[9px]">N/A</span>
           </button>
         )}
         {!isEndpoint ? (
-          <button className={btn} onClick={() => { onAddContextNode("partner"); onClose(); }}>
+          <button role="menuitem" className={btn} onClick={() => { onAddContextNode("partner"); onClose(); }}>
             → {hasPartner ? "Add Another Partner" : "Add Partner"}
             <span className="ml-auto text-muted-foreground text-[9px]">R</span>
           </button>
         ) : (
-          <button className={mbtn} title={`${ctxNode.type}s don't form couple links`}>
+          <button role="menuitem" className={mbtn} title={`${ctxNode.type}s don't form couple links`}>
             → Add Partner <span className="ml-auto text-[9px]">N/A</span>
           </button>
         )}
-        <button className={btn} onClick={() => { onAddContextNode("sibling"); onClose(); }}>
+        <button role="menuitem" className={btn} onClick={() => { onAddContextNode("sibling"); onClose(); }}>
           ↔ Add Sibling
           {!hasParents && <span className="ml-1 text-[9px] text-muted-foreground">(no parents yet)</span>}
           <span className="ml-auto text-muted-foreground text-[9px]">B</span>
@@ -174,32 +202,32 @@ export function ContextMenu({
         {/* Connect */}
         {grp("Connect", isEndpoint ? "limited" : undefined)}
         {!isEndpoint ? (
-          <button className={btn} onClick={() => { onSetLinkMode("couple", ctxNode.id); onClose(); }}>
+          <button role="menuitem" className={btn} onClick={() => { onSetLinkMode("couple", ctxNode.id); onClose(); }}>
             ⬡ Couple link to…
           </button>
         ) : (
-          <button className={mbtn}>⬡ Couple link <span className="ml-auto text-[9px]">N/A</span></button>
+          <button role="menuitem" className={mbtn}>⬡ Couple link <span className="ml-auto text-[9px]">N/A</span></button>
         )}
         {!isEndpoint ? (
-          <button className={btn} onClick={() => { onSetLinkMode("parent-child", ctxNode.id); onClose(); }}>
+          <button role="menuitem" className={btn} onClick={() => { onSetLinkMode("parent-child", ctxNode.id); onClose(); }}>
             ↓ Parent→Child from here
           </button>
         ) : (
-          <button className={mbtn}>↓ Parent→Child <span className="ml-auto text-[9px]">N/A</span></button>
+          <button role="menuitem" className={mbtn}>↓ Parent→Child <span className="ml-auto text-[9px]">N/A</span></button>
         )}
         {!isEndpoint ? (
-          <button className={btn} onClick={() => { onSetLinkMode("consanguinity", ctxNode.id); onClose(); }}>
+          <button role="menuitem" className={btn} onClick={() => { onSetLinkMode("consanguinity", ctxNode.id); onClose(); }}>
             ⇌ Consanguinity to…
           </button>
         ) : (
-          <button className={mbtn}>⇌ Consanguinity <span className="ml-auto text-[9px]">N/A</span></button>
+          <button role="menuitem" className={mbtn}>⇌ Consanguinity <span className="ml-auto text-[9px]">N/A</span></button>
         )}
 
         {sep}
 
         {/* Danger */}
-        <button className={dbtn} onClick={() => { onClose(); onDeleteSelected(); }}>
-          ✕ Delete {hasChildren || hasPartner ? `& ${[hasChildren && "children links", hasPartner && "couple link"].filter(Boolean).join(", ")}` : "Node"}
+        <button role="menuitem" className={dbtn} onClick={() => { onClose(); onDeleteSelected(); }}>
+          ✕ Delete {hasChildren || hasPartner ? [hasChildren && "children links", hasPartner && "couple link"].filter(Boolean).join(" & ") : "Node"}
         </button>
       </div>
     </>

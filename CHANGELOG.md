@@ -31,19 +31,19 @@ All notable changes to the HaploClinical project.
 #### Infrastructure & Distribution (ADR-004)
 - Tauri desktop application (Windows, macOS, Linux)
 - Cloudflare Workers zero-knowledge relay (free tier)
-- `.hpcl` export format with cryptographic provenance
+- `.ppro` export format with cryptographic provenance
 - GitHub Actions CI/CD for multi-platform builds
 
 #### Rust Backend (37 Tauri Commands)
 - Full CRUD: profiles, patients, pedigrees, versions
 - Dashboard stats + recent activity with computed `node_count`
-- Encrypted export/import (.hpcl + legacy HaploPainter .db)
+- Encrypted export/import (.ppro + legacy HaploPainter .db)
 - Async relay client (HTTP POST/GET/DELETE)
 - Database management: backup, restore, key rotation
 - Activity logging for all mutations (profile create/switch/delete, pedigree CRUD)
 
 #### Two-Path Import Architecture
-- **Path A (Native):** `.hpcl` import with Ed25519 signature verification
+- **Path A (Native):** `.ppro` import with Ed25519 signature verification
 - **Path B (Legacy):** HaploPainter SQLite migration with dual-write, user name preservation, content hashing
 
 #### Frontend (React + TypeScript)
@@ -51,7 +51,7 @@ All notable changes to the HaploClinical project.
 - 27 adapter-based React Query hooks with auto-invalidation
 - Profile Manager page (create/list/delete local profiles)
 - Dashboard with adapter hooks, activity log, profile count
-- Import Dialog supporting three modes: PED/CSV, HaploClinical .hpcl, legacy .db
+- Import Dialog supporting three modes: PED/CSV, HaploClinical .ppro, legacy .db
 - Share Modal with zero-knowledge relay integration
 - Navigation updated: Profiles replaces deprecated Users
 

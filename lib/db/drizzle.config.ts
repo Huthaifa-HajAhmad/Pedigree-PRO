@@ -8,7 +8,9 @@ if (!process.env.DATABASE_URL) {
 const isSqlite = process.env.DATABASE_URL?.startsWith("sqlite:");
 
 export default defineConfig({
-  schema: path.join(__dirname, "./src/schema/index.ts"),
+  schema: isSqlite
+    ? path.join(__dirname, "./src/schema_sqlite_index.ts")
+    : path.join(__dirname, "./src/schema/index.ts"),
   dialect: isSqlite ? "sqlite" : "postgresql",
   dbCredentials: isSqlite
     ? { url: process.env.DATABASE_URL! }

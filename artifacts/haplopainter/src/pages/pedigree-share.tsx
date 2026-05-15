@@ -1,12 +1,14 @@
 import { useParams, Link } from "wouter";
+import { memo } from "react";
 import { useGetSharedPedigree } from "@workspace/api-client-react";
 
 interface PedigreeNode {
   id: string;
-  type: "male" | "female" | "unknown";
+  type: "male" | "female" | "unknown" | "pregnancy" | "sab";
   affected: boolean;
   deceased: boolean;
   proband: boolean;
+  carrier?: boolean;
   label: string;
   age: string;
   x: number;
@@ -15,7 +17,7 @@ interface PedigreeNode {
 
 interface PedigreeEdge {
   id: string;
-  type: "couple" | "parent-child";
+  type: "couple" | "parent-child" | "consanguinity";
   sourceId: string;
   targetId: string;
 }
@@ -38,7 +40,7 @@ function parseCanvas(raw: string | null | undefined): CanvasData {
 const NODE_SIZE = 44;
 const NEON = "hsl(235 75% 62%)";
 
-function EdgeLine({ edge, nodes }: { edge: PedigreeEdge; nodes: PedigreeNode[] }) {
+const EdgeLine = memo(({ edge, nodes }: { edge: PedigreeEdge; nodes: PedigreeNode[] }) => {
   const src = nodes.find((n) => n.id === edge.sourceId);
   const tgt = nodes.find((n) => n.id === edge.targetId);
   if (!src || !tgt) return null;
@@ -47,7 +49,7 @@ function EdgeLine({ edge, nodes }: { edge: PedigreeEdge; nodes: PedigreeNode[] }
     return <line x1={src.x} y1={src.y} x2={tgt.x} y2={tgt.y} stroke="rgba(255,255,255,0.35)" strokeWidth={1.5} />;
   }
 
-  if ((edge.type as string) === "consanguinity") {
+  if (edge.type === "consanguinity") {
     const x1 = src.x + NODE_SIZE / 2, y1 = src.y;
     const x2 = tgt.x - NODE_SIZE / 2, y2 = tgt.y;
     const dx = x2 - x1, dy = y2 - y1;
@@ -70,9 +72,9 @@ function EdgeLine({ edge, nodes }: { edge: PedigreeEdge; nodes: PedigreeNode[] }
       <line x1={tgt.x} y1={dropY} x2={tgt.x} y2={tgt.y - NODE_SIZE / 2} />
     </g>
   );
-}
+});
 
-function NodeShape({ node }: { node: PedigreeNode }) {
+const NodeShape = memo(({ node }: { node: PedigreeNode }) => {
   const stroke = node.affected ? NEON : "rgba(255,255,255,0.45)";
   const fill = node.affected ? "rgba(57,255,20,0.22)" : "rgba(30,30,30,0.85)";
 
@@ -93,7 +95,7 @@ function NodeShape({ node }: { node: PedigreeNode }) {
           fill={fill} stroke={stroke} strokeWidth={node.affected ? 2 : 1.5}
           style={node.affected ? { filter: `drop-shadow(0 0 6px ${NEON})` } : {}} />
       )}
-      {(node.type as string) === "sab" && (
+      {node.type === "sab" && (
         <polygon
           points={`0,${NODE_SIZE * 0.36} ${-NODE_SIZE * 0.38},${-NODE_SIZE * 0.26} ${NODE_SIZE * 0.38},${-NODE_SIZE * 0.26}`}
           fill={node.affected ? "rgba(57,255,20,0.22)" : "rgba(200,200,200,0.22)"}
@@ -123,7 +125,7 @@ function NodeShape({ node }: { node: PedigreeNode }) {
       )}
     </g>
   );
-}
+});
 
 export default function PedigreeShare() {
   const { token } = useParams<{ token: string }>();
@@ -145,7 +147,7 @@ export default function PedigreeShare() {
         <div className="text-muted-foreground text-sm font-mono">This share link is invalid or has expired.</div>
         <Link href="/">
           <button className="mt-4 px-4 py-2 rounded border border-border text-xs text-muted-foreground hover:border-primary hover:text-primary transition-colors font-mono">
-            ← Back to HaploClinical
+            ← Back to Pedigree PRO
           </button>
         </Link>
       </div>
@@ -169,7 +171,7 @@ export default function PedigreeShare() {
       <div className="flex items-center justify-between px-5 py-3 border-b flex-shrink-0"
         style={{ borderColor: "#1f1f1f", background: "#111" }}>
         <div className="flex items-center gap-3">
-          <span className="text-xs font-bold tracking-widest text-primary">HAPLOCLINICAL</span>
+          <span className="text-xs font-bold tracking-widest text-primary">PEDIGREE PRO</span>
           <span className="text-muted-foreground text-xs">•</span>
           <span className="text-sm font-semibold">{pedigree.title}</span>
           <span className="px-1.5 py-0.5 rounded text-xs font-mono border text-primary border-primary/25 bg-primary/10">
@@ -235,7 +237,7 @@ export default function PedigreeShare() {
           </div>
         ))}
         <span className="ml-auto text-xs text-muted-foreground opacity-50">
-          View-only · Shared via HaploClinical
+          View-only · Shared via Pedigree PRO
         </span>
       </div>
     </div>

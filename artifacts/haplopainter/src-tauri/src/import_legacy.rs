@@ -1,15 +1,15 @@
-// HaploClinical — Legacy HaploPainter SQLite Import
+// Pedigree PRO — Legacy SQLite Import
 //
 // Migrates data from the original HaploPainter open-source tool
-// (https://github.com/twogee/haplopainter) into HaploClinical's
+// (https://github.com/twogee/haplopainter) into Pedigree PRO's
 // re-engineered schema (ADR-002).
 //
 // Key migration challenges:
 //   1. HaploPainter uses `users.id` (INTEGER FK) for provenance;
-//      HaploClinical uses Ed25519 public key strings.
+//   9: Pedigree PRO uses Ed25519 public key strings.
 //   2. HaploPainter has no content hashing; we compute canvas_hash on import.
 //   3. HaploPainter has no clinical annotation tables.
-//   4. HaploPainter stores share tokens in the DB (deprecated in HaploClinical).
+//   4. HaploPainter stores share tokens in the DB (deprecated in Pedigree PRO).
 //   5. Legacy databases are UNENCRYPTED (no SQLCipher).
 //
 // Migration strategy:
@@ -113,10 +113,10 @@ pub struct LegacyImportSummary {
 // Legacy Import Pipeline
 // =============================================================================
 
-/// Imports an entire HaploPainter SQLite database into HaploClinical.
+/// Imports an entire legacy SQLite database into Pedigree PRO.
 ///
 /// # Arguments
-/// * `db` - The HaploClinical SQLCipher database (write target).
+/// * `db` - The Pedigree PRO SQLCipher database (write target).
 /// * `legacy_path` - Filesystem path to the legacy HaploPainter .db file.
 ///
 /// # Returns
@@ -157,7 +157,7 @@ pub fn import_legacy_database(
     let activities = read_legacy_activities(&legacy_conn)?;
     let activity_count = activities.len() as i64;
 
-    // ── Step 7: Write everything to the HaploClinical database ──
+    // ── Step 7: Write everything to the Pedigree PRO database ──
     let conn = db.lock().map_err(|e| e.to_string())?;
 
     // 7a: Insert patients with dual-write

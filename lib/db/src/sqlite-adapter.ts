@@ -1,5 +1,6 @@
-// Create a SQLite-backed Drizzle DB.
-// Preference order: better-sqlite3 (native, primary) -> @sqlite.org/sqlcipher-wasm (WASM)
+// Create a SQLite-backed Drizzle DB for Node.js/desktop environments.
+// Requires better-sqlite3 (native driver, used by Tauri backend).
+// For browser mode, sql.js is used via @workspace/browser-backend instead.
 
 let Database: any;
 let driverName = 'none';
@@ -35,7 +36,7 @@ try {
 }
 
 const filename = (process.env.DATABASE_URL && process.env.DATABASE_URL.startsWith('sqlite:'))
-  ? process.env.DATABASE_URL.replace('sqlite:', '')
+  ? process.env.DATABASE_URL.replace(/^sqlite:/, '')
   : (process.env.SQLITE_FILE || './data/db.sqlite');
 
 // Instantiate database. Both @vercel/sqlite.Database and better-sqlite3 accept a filename in their constructors.

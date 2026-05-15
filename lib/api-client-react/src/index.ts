@@ -1,4 +1,4 @@
-// HaploClinical — Unified API Client (React Query Hooks + Direct Functions)
+// Pedigree PRO — Unified API Client (React Query Hooks + Direct Functions)
 
 // Unified API adapter (Tauri desktop + browser standalone)
 export { apiCall, detectApiMode } from "./adapter";
@@ -53,7 +53,7 @@ export type {
   LegacyImportSummary,
 } from "./backend-client";
 
-// React Query hooks — canonical API for HaploClinical data access
+// React Query hooks — canonical API for Pedigree PRO data access
 export {
   useListProfiles,
   useCreateProfile,

@@ -4,6 +4,7 @@ import { Share2, QrCode, Link2, Copy, Check, X, AlertTriangle } from "lucide-rea
 interface LanShareProps {
   pedigreeData: string; // JSON string of the pedigree to share
   onClose: () => void;
+  onPedigreeReceived?: (data: unknown) => void;
 }
 
 /**
@@ -13,10 +14,11 @@ interface LanShareProps {
  * No signaling server. No internet required.
  *
  * Note: This is a convenience feature. If WebRTC is unavailable,
- * the user falls back to manual .hpcl export/import.
+ * the user falls back to manual .ppro export/import.
  */
-export function LanShare({ pedigreeData, onClose }: LanShareProps) {
+export function LanShare({ pedigreeData, onClose, onPedigreeReceived }: LanShareProps) {
   const [mode, setMode] = useState<"host" | "join" | null>(null);
+  const modeRef = useRef<"host" | "join" | null>(null);
   const [offer, setOffer] = useState("");
   const [answer, setAnswer] = useState("");
   const [status, setStatus] = useState<"idle" | "connecting" | "connected" | "error">("idle");
@@ -26,10 +28,11 @@ export function LanShare({ pedigreeData, onClose }: LanShareProps) {
   const dcRef = useRef<RTCDataChannel | null>(null);
 
   const cleanup = useCallback(() => {
-    dcRef.current?.close();
-    pcRef.current?.close();
+    try { dcRef.current?.close(); } catch {}
+    try { pcRef.current?.close(); } catch {}
     dcRef.current = null;
     pcRef.current = null;
+    modeRef.current = null;
   }, []);
 
   useEffect(() => {
@@ -43,10 +46,10 @@ export function LanShare({ pedigreeData, onClose }: LanShareProps) {
 
     pc.onicecandidate = (event) => {
       if (event.candidate === null) {
-        // ICE gathering complete, SDP is ready
-        if (mode === "host") {
+        const currentMode = modeRef.current;
+        if (currentMode === "host") {
           setOffer(btoa(JSON.stringify(pc.localDescription)));
-        } else if (mode === "join") {
+        } else if (currentMode === "join") {
           setAnswer(btoa(JSON.stringify(pc.localDescription)));
         }
       }
@@ -62,14 +65,27 @@ export function LanShare({ pedigreeData, onClose }: LanShareProps) {
     };
 
     return pc;
-  }, [mode]);
+  }, []);
 
   const startHost = useCallback(async () => {
     setMode("host");
+    modeRef.current = "host";
     setStatus("connecting");
     try {
       const pc = createPeerConnection();
       pcRef.current = pc;
+
+      // Timeout: if ICE gathering takes >30s, show error
+      const iceTimeout = setTimeout(() => {
+        if (status !== "connected") {
+          setStatus("error");
+          setError("ICE gathering timed out. Check network connectivity.");
+        }
+      }, 30_000);
+
+      pc.onicegatheringstatechange = () => {
+        if (pc.iceGatheringState === "complete") clearTimeout(iceTimeout);
+      };
 
       const dc = pc.createDataChannel("pedigree-share", {
         ordered: true,
@@ -82,7 +98,6 @@ export function LanShare({ pedigreeData, onClose }: LanShareProps) {
       };
 
       dc.onmessage = (event) => {
-        // Acknowledgment from guest
         console.log("Guest received:", event.data);
       };
 
@@ -92,10 +107,11 @@ export function LanShare({ pedigreeData, onClose }: LanShareProps) {
       setStatus("error");
       setError(e instanceof Error ? e.message : "Failed to create host connection");
     }
-  }, [createPeerConnection, pedigreeData]);
+  }, [pedigreeData]);
 
   const joinSession = useCallback(async () => {
     setMode("join");
+    modeRef.current = "join";
     setStatus("connecting");
     try {
       if (!offer) {
@@ -109,13 +125,9 @@ export function LanShare({ pedigreeData, onClose }: LanShareProps) {
         const dc = event.channel;
         dcRef.current = dc;
         dc.onmessage = (e) => {
-          // Received pedigree data
           try {
             const data = JSON.parse(e.data);
-            // Trigger import with the received data
-            window.dispatchEvent(
-              new CustomEvent("pedigree-received", { detail: data })
-            );
+            onPedigreeReceived?.(data);
             setStatus("connected");
           } catch {
             setError("Invalid data received");
@@ -131,7 +143,7 @@ export function LanShare({ pedigreeData, onClose }: LanShareProps) {
       setStatus("error");
       setError(e instanceof Error ? e.message : "Failed to join session");
     }
-  }, [createPeerConnection, offer]);
+  }, [offer, onPedigreeReceived]);
 
   const completeHostConnection = useCallback(async () => {
     if (!answer || !pcRef.current) return;
@@ -141,12 +153,24 @@ export function LanShare({ pedigreeData, onClose }: LanShareProps) {
     } catch (e) {
       setError("Invalid answer");
     }
-  }, [answer]);
+  }, []);
 
   const handleCopy = useCallback(async (text: string) => {
-    await navigator.clipboard.writeText(text);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    try {
+      if (!navigator.clipboard) throw new Error("Clipboard not available");
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // Fallback: select and copy via textarea
+      const ta = document.createElement("textarea");
+      ta.value = text;
+      ta.style.position = "fixed"; ta.style.opacity = "0";
+      document.body.appendChild(ta);
+      ta.select();
+      try { document.execCommand("copy"); setCopied(true); setTimeout(() => setCopied(false), 2000); } catch {}
+      document.body.removeChild(ta);
+    }
   }, []);
 
   return (
@@ -277,7 +301,7 @@ export function LanShare({ pedigreeData, onClose }: LanShareProps) {
             <div>
               <p className="text-xs text-destructive">{error}</p>
               <p className="text-[10px] text-muted-foreground mt-0.5">
-                Use File → Export → .hpcl and share the file manually.
+                Use File → Export → .ppro and share the file manually.
               </p>
             </div>
           </div>

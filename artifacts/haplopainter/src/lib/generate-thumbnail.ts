@@ -145,10 +145,5 @@ export function generateThumbnail(canvas: Canvas): string {
 
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">${parts.join("")}</svg>`;
 
-  // btoa is safe since SVG only contains ASCII characters here
-  try {
-    return `data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(svg)))}`;
-  } catch {
-    return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
-  }
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
 }

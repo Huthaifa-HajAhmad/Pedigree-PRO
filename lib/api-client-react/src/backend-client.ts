@@ -1,5 +1,5 @@
 /**
- * HaploClinical — Backend Client
+ * Pedigree PRO — Backend Client
  *
  * Type-safe wrappers around the unified API adapter.
  * Each function corresponds to a command handler in either:
@@ -268,10 +268,10 @@ export function importShared(shareToken: string): Promise<Pedigree> {
 }
 
 // =============================================================================
-// Import (Native .hpcl + Legacy HaploPainter)
+// Import (Native .ppro + Legacy)
 // =============================================================================
 
-/** Summary returned by legacy HaploPainter database import. */
+/** Summary returned by legacy database import. */
 export interface LegacyImportSummary {
   patients_imported: number;
   pedigrees_imported: number;
@@ -282,10 +282,10 @@ export interface LegacyImportSummary {
 }
 
 /**
- * Imports a pedigree from a native .hpcl JSON file.
- * Path A: Current program files produced by HaploClinical export.
+ * Imports a pedigree from a native .ppro JSON file.
+ * Path A: Current program files produced by Pedigree PRO export.
  *
- * @param path Filesystem path to the .hpcl file
+ * @param path Filesystem path to the .ppro file
  * @param importerKey The importer's Ed25519 public key
  */
 export function importPedigreeNative(path: string, importerKey: string): Promise<Pedigree> {
@@ -293,10 +293,10 @@ export function importPedigreeNative(path: string, importerKey: string): Promise
 }
 
 /**
- * Imports an entire legacy HaploPainter SQLite database.
+ * Imports an entire legacy SQLite database.
  * Path B: Migration from the original HaploPainter tool.
  *
- * @param path Filesystem path to the legacy HaploPainter .db file
+ * @param path Filesystem path to the legacy .db file
  * @returns Summary with counts of all imported records and the migration profile key
  */
 export function importPedigreeLegacy(path: string): Promise<LegacyImportSummary> {

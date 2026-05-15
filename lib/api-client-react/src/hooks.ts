@@ -1,5 +1,5 @@
 /**
- * HaploClinical — React Query Hooks (Adapter-Based)
+ * Pedigree PRO — React Query Hooks (Adapter-Based)
  *
  * These hooks wrap the unified API adapter (backend-client.ts) in React Query
  * useQuery/useMutation calls, replacing the auto-generated OpenAPI hooks
@@ -261,7 +261,8 @@ export function useGetDashboardStats() {
   return useQuery({
     queryKey: queryKeys.dashboardStats,
     queryFn: () => getDashboardStats(),
-    refetchInterval: 30_000, // Refresh every 30 seconds
+    refetchInterval: 30_000,
+    refetchIntervalInBackground: false,
   });
 }
 
@@ -270,6 +271,7 @@ export function useGetRecentActivity(limit?: number) {
     queryKey: [...queryKeys.recentActivity, limit],
     queryFn: () => getRecentActivity(limit),
     refetchInterval: 15_000,
+    refetchIntervalInBackground: false,
   });
 }
 

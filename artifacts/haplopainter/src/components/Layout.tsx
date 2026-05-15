@@ -75,7 +75,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
             </div>
             <div>
               <div className="font-bold text-base leading-tight tracking-tight" style={{ color: theme.accent }}>
-                HaploClinical
+                Pedigree PRO
               </div>
               <div className="text-[10px] text-muted-foreground leading-tight mt-0.5 tracking-widest uppercase">Clinical v2.0</div>
             </div>
@@ -83,7 +83,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
         </div>
         <nav className="flex-1 p-3 space-y-0.5">
           {navItems.map(({ path, label, icon: Icon }) => {
-            const isActive = path === "/" ? location === "/" : location.startsWith(path);
+            const isActive = path === "/" ? location === "/" : location === path || location.startsWith(path + "/");
             return (
               <Link key={path} href={path}>
                 <div
@@ -180,8 +180,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
           <ThemePicker />
           <div className="text-xs text-muted-foreground">
             <div className="flex items-center gap-2 mb-1">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-              <span>System Online</span>
+              <span className={`w-1.5 h-1.5 rounded-full ${isOnline ? "bg-emerald-500 animate-pulse" : "bg-amber-500"} ${isOnline ? "" : "animate-pulse"}`} />
+              <span>{isOnline ? "System Online" : "Working Offline"}</span>
             </div>
             <div className="opacity-40 text-[10px]">HIPAA Compliant</div>
           </div>
@@ -190,7 +190,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
       {!isOnline && (
         <div className="fixed top-0 left-0 right-0 z-50 flex items-center justify-center gap-2 px-4 py-1.5 text-xs font-medium bg-amber-500/90 text-amber-950 border-b border-amber-400" aria-live="polite">
           <WifiOff className="w-3 h-3" aria-hidden="true" />
-          <span>You are offline — HaploClinical works locally. All data is saved on this device.</span>
+          <span>You are offline — Pedigree PRO works locally. All data is saved on this device.</span>
         </div>
       )}
       <main className="flex-1 overflow-auto">

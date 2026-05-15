@@ -394,7 +394,7 @@ fn main() {
 ### C.5 — Export/Import Logic
 
 **File: `src-tauri/src/export.rs`**
-- `.hpcl` JSON format per ADR-004 §4.3
+- `.ppro` JSON format per ADR-004 §4.3
 - File dialog via Tauri dialog plugin
 - Export: serialize pedigree + annotations + versions → sign → write to file
 - Import: read file → verify signatures → insert into local DB

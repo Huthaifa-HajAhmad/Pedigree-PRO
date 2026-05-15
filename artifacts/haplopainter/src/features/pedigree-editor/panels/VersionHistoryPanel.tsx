@@ -29,7 +29,7 @@ export function VersionHistoryPanel({
       </div>
       <div className="divide-y divide-border">
         {versionsLoading ? (
-          [...Array(3)].map((_, i) => <div key={i} className="p-3 animate-pulse h-14 bg-muted/20 rounded m-2" />)
+          Array.from({ length: 3 }, (_, i) => <div key={i} className="p-3 animate-pulse h-14 bg-muted/20 rounded m-2" />)
         ) : versions?.length === 0 ? (
           <div className="p-6 text-center">
             <Save className="w-6 h-6 mx-auto mb-2 text-muted-foreground/40" />
@@ -69,7 +69,7 @@ export function VersionHistoryPanel({
                   <div className="text-[10px] text-muted-foreground mt-0.5 flex items-center gap-1">
                     <span>v{v.version_number}</span>
                     <span className="opacity-30">·</span>
-                    <span>{new Date(v.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "2-digit" })}</span>
+                    <span>{(() => { try { return new Date(v.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "2-digit" }); } catch { return "—"; } })()}</span>
                   </div>
                 </div>
               </div>

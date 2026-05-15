@@ -59,7 +59,7 @@ ADRs 001–003 define a local-first architecture: encrypted SQLite via SQLCipher
 │  │  • ~/.haploclinical/data.db       (SQLCipher-encrypted)      │ │
 │  │  • ~/.haploclinical/exports/      (Encrypted export packages) │ │
 │  │  • OS Keychain (private keys)                                 │ │
-│  │  • File associations (.hpcl files)                            │ │
+│  │  • File associations (.ppro files)                            │ │
 │  └──────────────────────────────────────────────────────────────┘ │
 └──────────────────────────────────────────────────────────────────┘
 ```
@@ -117,7 +117,7 @@ For locked-down hospital workstations where software installation is prohibited:
 - No native OS integration → user creates a passphrase on first launch
 - Private key encrypted with passphrase-derived key, stored in IndexedDB
 - All crypto ops in JavaScript (libsodium.js + Web Crypto API)
-- Export files via browser download dialog (`.hpcl` format)
+- Export files via browser download dialog (`.ppro` format)
 - Share via relay service (Cloudflare Workers)
 
 ### 2.3 Tertiary: On-Premises Server Mode
@@ -312,12 +312,12 @@ HaploClinical is designed as a **medical device component** (pedigree visualizat
 |---|---|
 | **Data minimization** | Only fields necessary for pedigree analysis are stored. Free-text fields are clinician-controlled. |
 | **Storage limitation** | Data lives on clinician's device. No cloud database. Backups are clinician-managed. |
-| **Right of access** | Clinician exports full database snapshot (encrypted). Patient data export produces a structured `.hpcl` file. |
+| **Right of access** | Clinician exports full database snapshot (encrypted). Patient data export produces a structured `.ppro` file. |
 | **Right to erasure** | Delete pedigree/patient → `activity_log` records deletion event. Physical deletion from SQLite (`DELETE` + `VACUUM`). |
-| **Data portability** | `.hpcl` format is documented JSON with cryptographic provenance. Open standard — no vendor lock-in. |
+| **Data portability** | `.ppro` format is documented JSON with cryptographic provenance. Open standard — no vendor lock-in. |
 | **Privacy by design** | Default: no data leaves the device. Sharing requires explicit clinician action. Relay is zero-knowledge. |
 
-### 4.3 Data Export Format (.hpcl)
+### 4.3 Data Export Format (.ppro)
 
 ```json
 {
@@ -343,7 +343,7 @@ HaploClinical is designed as a **medical device component** (pedigree visualizat
 ```
 
 **File Association:**
-- Extension: `.hpcl` (HaploClinical Pedigree Link)
+- Extension: `.ppro` (HaploClinical Pedigree Link)
 - MIME type: `application/vnd.haploclinical.pedigree+json`
 - Registered with OS on Tauri installation → double-click opens in HaploClinical
 
@@ -454,6 +454,6 @@ pnpm tauri build         # Produces .msi/.dmg/.AppImage
 | **Frontend codebase** | Single unified React app in `artifacts/haplopainter/` — Tauri mode and web mode share the same UI code |
 | **Relay service** | Cloudflare Worker (zero-knowledge, stores only ciphertext) |
 | **Compliance** | HIPAA Technical Safeguards mapped; GDPR data minimization by design |
-| **Data export format** | `.hpcl` — documented JSON with cryptographic provenance |
+| **Data export format** | `.ppro` — documented JSON with cryptographic provenance |
 | **Auto-update** | GitHub Releases + Tauri updater plugin, Ed25519-signed update metadata |
 | **Total infrastructure cost** | $0.00/month (all components within free tiers) |
