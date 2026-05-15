@@ -1,5 +1,5 @@
-import { computeRisk } from "./risk-calculator";
-import { validatePedigree } from "./validate-pedigree";
+import { computeRisk } from "@/lib/risk-calculator";
+import { validatePedigree } from "@/lib/validate-pedigree";
 
 export interface ExportNode {
   id: string;
@@ -99,7 +99,7 @@ function makeMapper(nodes: ExportNode[], targetW: number, targetH: number, padX 
 // ---------------------------------------------------------------------------
 export function exportJSON(info: ExportInfo, canvas: ExportCanvas) {
   const payload = {
-    format: "haplopainter-v1",
+    format: "pedigree-pro-v1",
     exportedAt: new Date().toISOString(),
     pedigree: { title: info.title, patientId: info.patientId ?? null, notes: info.notes ?? null },
     canvas,

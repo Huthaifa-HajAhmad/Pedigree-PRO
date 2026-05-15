@@ -7,14 +7,15 @@
  */
 
 import initSqlJs from "sql.js";
+import type { Database as SqlJsDatabase } from "sql.js";
 import { get, set, createStore } from "idb-keyval";
 import { getOrCreateDbKey, encryptDbBlob, decryptDbBlob } from "./crypto-store";
 
-const DB_STORE = createStore("haploclinical-db", "database");
+const DB_STORE = createStore("pedigree-pro-db", "database");
 const DB_KEY = "sqlcipher-data";
 
 // In-memory database instance
-let db: any = null;
+let db: SqlJsDatabase | null = null;
 let dbKey: CryptoKey | null = null;
 let autoSaveInterval: ReturnType<typeof setInterval> | null = null;
 

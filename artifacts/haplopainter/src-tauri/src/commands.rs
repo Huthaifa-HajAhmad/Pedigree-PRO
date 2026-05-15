@@ -909,7 +909,7 @@ pub async fn share_pedigree(
     recipient_key: String,
 ) -> Result<ShareResult, String> {
     // 1. Export the pedigree to .ppro JSON
-    let _hpcl_json = crate::export::export_pedigree_hpcl(&state.db, pedigree_id, &recipient_key)?;
+    let _ppro_json = crate::export::export_pedigree_ppro(&state.db, pedigree_id, &recipient_key)?;
 
     // 2. The frontend handles symmetric encryption and sealed box creation
     Err(
@@ -928,7 +928,7 @@ pub async fn import_shared(
         crate::relay::fetch_shared_payload(&share_token).await?;
 
     let new_id =
-        crate::import_native::import_pedigree_hpcl(&state.db, &ciphertext, &importer_key)?;
+        crate::import_native::import_pedigree_ppro(&state.db, &ciphertext, &importer_key)?;
 
     get_pedigree(state, new_id)
 }
@@ -983,11 +983,11 @@ pub fn import_pedigree_native(
     path: String,
     importer_key: String,
 ) -> Result<Pedigree, String> {
-    let hpcl_json = std::fs::read_to_string(&path)
+    let ppro_json = std::fs::read_to_string(&path)
         .map_err(|e| format!("Failed to read file '{}': {}", path, e))?;
 
     let new_id =
-        crate::import_native::import_pedigree_hpcl(&state.db, &hpcl_json, &importer_key)?;
+        crate::import_native::import_pedigree_ppro(&state.db, &ppro_json, &importer_key)?;
 
     get_pedigree(state, new_id)
 }

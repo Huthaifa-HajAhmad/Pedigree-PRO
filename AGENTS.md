@@ -1,8 +1,8 @@
-# HaploClinical — Agent Guide
+# Pedigree PRO — Agent Guide
 
 ## Architecture
 
-HaploClinical is a zero-server clinical pedigree editor. It runs in two modes:
+Pedigree PRO is a zero-server clinical pedigree editor. It runs in two modes:
 
 1. **Tauri desktop** (`tauri`): Rust backend + SQLCipher SQLite (local filesystem)
 2. **Browser standalone** (`browser`): sql.js WASM SQLite + IndexedDB persistence + Web Crypto API

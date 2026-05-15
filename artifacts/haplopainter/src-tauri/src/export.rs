@@ -17,26 +17,26 @@ use std::sync::Mutex;
 // =============================================================================
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct HpclExport {
+pub struct PproExport {
     pub format_version: String,
     pub export_type: String, // "pedigree" | "patient" | "profile"
-    pub pedigree: Option<HpclPedigreeData>,
-    pub provenance: HpclProvenance,
+    pub pedigree: Option<PproPedigreeData>,
+    pub provenance: PproProvenance,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct HpclPedigreeData {
+pub struct PproPedigreeData {
     pub title: String,
     pub canvas_data: Option<serde_json::Value>,
     pub canvas_hash: Option<String>,
     pub notes: Option<String>,
     pub node_annotations: Vec<serde_json::Value>,
     pub phenotypes: Vec<serde_json::Value>,
-    pub version_history: Vec<HpclVersionEntry>,
+    pub version_history: Vec<PproVersionEntry>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct HpclVersionEntry {
+pub struct PproVersionEntry {
     pub version_number: i64,
     pub label: Option<String>,
     pub canvas_data: String,
@@ -47,7 +47,7 @@ pub struct HpclVersionEntry {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct HpclProvenance {
+pub struct PproProvenance {
     pub creator_key: String,
     pub creator_signature: Option<String>,
     pub exported_at: String,
@@ -63,7 +63,7 @@ pub struct HpclProvenance {
 ///
 /// Serializes the pedigree record, its version history, clinical annotations,
 /// and phenotypes into a structured JSON document with cryptographic provenance.
-pub fn export_pedigree_hpcl(
+pub fn export_pedigree_ppro(
     db: &Mutex<rusqlite::Connection>,
     pedigree_id: i64,
     exporter_key: &str,
@@ -106,9 +106,9 @@ pub fn export_pedigree_hpcl(
         )
         .map_err(|e| format!("Failed to query versions: {}", e))?;
 
-    let version_history: Vec<HpclVersionEntry> = ver_stmt
+    let version_history: Vec<PproVersionEntry> = ver_stmt
         .query_map(params![pedigree_id], |row| {
-            Ok(HpclVersionEntry {
+            Ok(PproVersionEntry {
                 version_number: row.get(0)?,
                 label: row.get(1)?,
                 canvas_data: row.get(2)?,
@@ -191,10 +191,10 @@ pub fn export_pedigree_hpcl(
     let exported_at = chrono::Utc::now().to_rfc3339();
 
     // Build the export document
-    let export = HpclExport {
+    let export = PproExport {
         format_version: "1.0".to_string(),
         export_type: "pedigree".to_string(),
-        pedigree: Some(HpclPedigreeData {
+        pedigree: Some(PproPedigreeData {
             title,
             canvas_data,
             canvas_hash,
@@ -203,7 +203,7 @@ pub fn export_pedigree_hpcl(
             phenotypes,
             version_history,
         }),
-        provenance: HpclProvenance {
+        provenance: PproProvenance {
             creator_key: creator_key.unwrap_or_default(),
             creator_signature,
             exported_at,

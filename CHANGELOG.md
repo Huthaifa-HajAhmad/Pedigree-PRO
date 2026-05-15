@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to the HaploClinical project.
+All notable changes to the Pedigree PRO project.
 
 ---
 

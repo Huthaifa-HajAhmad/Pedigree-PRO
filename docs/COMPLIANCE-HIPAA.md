@@ -1,4 +1,4 @@
-# HIPAA Technical Safeguards — HaploClinical Compliance Mapping
+# HIPAA Technical Safeguards — Pedigree PRO Compliance Mapping
 
 **Document Version:** 1.0  
 **Date:** 2026-05-03  
@@ -9,7 +9,7 @@
 
 ## 1. Scope
 
-HaploClinical is designed as a **medical device component** for clinical genetics workflows (pedigree visualization and risk calculation). While not a Covered Entity itself, it must demonstrate HIPAA Technical Safeguards (§164.312) for institutions that deploy it with Protected Health Information (PHI).
+Pedigree PRO is designed as a **medical device component** for clinical genetics workflows (pedigree visualization and risk calculation). While not a Covered Entity itself, it must demonstrate HIPAA Technical Safeguards (§164.312) for institutions that deploy it with Protected Health Information (PHI).
 
 ---
 
