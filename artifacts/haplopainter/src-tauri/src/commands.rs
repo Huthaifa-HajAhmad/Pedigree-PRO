@@ -1,4 +1,4 @@
-// HaploClinical — Tauri Command Handlers
+// Pedigree PRO — Tauri Command Handlers
 //
 // Each command mirrors the existing Express API route logic from
 // artifacts/api-server/src/routes/, adapted for local SQLite access.
@@ -908,13 +908,13 @@ pub async fn share_pedigree(
     pedigree_id: i64,
     recipient_key: String,
 ) -> Result<ShareResult, String> {
-    // 1. Export the pedigree to .hpcl JSON
+    // 1. Export the pedigree to .ppro JSON
     let _hpcl_json = crate::export::export_pedigree_hpcl(&state.db, pedigree_id, &recipient_key)?;
 
     // 2. The frontend handles symmetric encryption and sealed box creation
     Err(
-        "Share via relay: frontend must encrypt .hpcl with libsodium sealed box then POST to relay. \
-         The .hpcl export is ready but client-side encryption must be implemented in the frontend.".to_string()
+        "Share via relay: frontend must encrypt .ppro with libsodium sealed box then POST to relay. \
+         The .ppro export is ready but client-side encryption must be implemented in the frontend.".to_string()
     )
 }
 
@@ -934,7 +934,7 @@ pub async fn import_shared(
 }
 
 // =============================================================================
-// Import Commands (Native .hpcl + Legacy HaploPainter)
+// Import Commands (Native .ppro + Legacy)
 // =============================================================================
 
 // =============================================================================
@@ -967,15 +967,15 @@ pub fn rotate_key(app: tauri::AppHandle, state: State<AppState>) -> Result<(), S
 }
 
 // =============================================================================
-// Import Commands (Native .hpcl + Legacy HaploPainter)
+// Import Commands (Native .ppro + Legacy)
 // =============================================================================
 
-/// Imports a pedigree from a native .hpcl JSON file.
+/// Imports a pedigree from a native .ppro JSON file.
 ///
-/// This is the standard import path for files produced by HaploClinical's
+/// This is the standard import path for files produced by Pedigree PRO's
 /// export feature, or received via encrypted sharing (colleague-to-colleague).
 ///
-/// The .hpcl content is read from the file at `path` and imported with full
+/// The .ppro content is read from the file at `path` and imported with full
 /// cryptographic provenance verification.
 #[tauri::command]
 pub fn import_pedigree_native(
@@ -995,7 +995,7 @@ pub fn import_pedigree_native(
 /// Imports an entire legacy HaploPainter SQLite database.
 ///
 /// Reads all tables (patients, pedigrees, pedigree_versions, activity_log, users)
-/// from the legacy database file at `path` and migrates them into the HaploClinical
+/// from the legacy database file at `path` and migrates them into the Pedigree PRO
 /// schema with dual-write (both legacy `*ById` columns and new `*_key` columns).
 ///
 /// Returns a structured summary with counts of imported records and the

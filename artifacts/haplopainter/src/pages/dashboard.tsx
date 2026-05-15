@@ -20,9 +20,68 @@ const quickActions = [
   { label: "Import PED",   icon: Upload,   href: "/pedigrees", testId: "quick-import"        },
 ];
 
+function formatDateSafe(dateStr: string): string {
+  try { return new Date(dateStr).toLocaleDateString(); } catch { return "—"; }
+}
+
+function formatTimeSafe(dateStr: string): string {
+  try { return new Date(dateStr).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }); } catch { return "—"; }
+}
+
 export default function Dashboard() {
   const { data: stats, isLoading: statsLoading } = useGetDashboardStats();
   const { data: recent, isLoading: recentLoading } = useGetRecentActivity(20);
+
+  const renderActivitySkeleton = (count: number) => [...Array(count)].map((_, i) => (
+    <div key={i} className="px-5 py-3.5 flex items-center gap-4 animate-pulse">
+      <div className="w-8 h-8 bg-muted rounded-lg flex-shrink-0" />
+      <div className="flex-1 space-y-2">
+        <div className="h-3 bg-muted rounded w-48" />
+        <div className="h-2 bg-muted rounded w-32" />
+      </div>
+      <div className="h-2 bg-muted rounded w-16" />
+    </div>
+  ));
+
+  const renderActivityItems = (items: typeof recent, max: number) => items?.length === 0 ? (
+    <div className="px-5 py-8 text-center text-muted-foreground text-sm">No activity yet.</div>
+  ) : items?.slice(0, max).map((a) => (
+    <div key={a.id} data-testid={`activity-${a.id}`} className="px-5 py-3.5 flex items-center gap-4">
+      <div className="w-8 h-8 border border-border rounded-lg flex items-center justify-center flex-shrink-0">
+        <Activity className="w-4 h-4 text-primary" />
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="text-sm font-medium truncate">{a.subject}</div>
+        <div className="text-xs text-muted-foreground mt-0.5">
+          <span className="text-primary font-medium">{a.action}</span>
+        </div>
+      </div>
+      <div className="text-xs text-muted-foreground flex-shrink-0 flex items-center gap-1.5">
+        <Clock className="w-3 h-3" />
+        {formatDateSafe(a.timestamp)}
+      </div>
+    </div>
+  ));
+
+  const renderLogSkeleton = (count: number) => [...Array(count)].map((_, i) => (
+    <div key={i} className="px-5 py-3.5 animate-pulse">
+      <div className="h-2.5 bg-muted rounded w-3/4 mb-1.5" />
+      <div className="h-2 bg-muted rounded w-1/2" />
+    </div>
+  ));
+
+  const renderLogItems = (items: typeof recent, max: number) => items?.length === 0 ? (
+    <div className="px-5 py-8 text-xs text-muted-foreground text-center">No activity yet</div>
+  ) : items?.slice(0, max).map((a) => (
+    <div key={a.id} data-testid={`activity-${a.id}`} className="px-5 py-3.5">
+      <div className="text-xs text-foreground leading-snug">
+        <span className="text-primary font-medium">{a.action}</span> — {a.subject}
+      </div>
+      <div className="text-xs text-muted-foreground mt-0.5">
+        {a.actor_key ? (a.actor_key.length > 12 ? `${a.actor_key.slice(0,12)}...` : a.actor_key) : "System"} · {formatTimeSafe(a.timestamp)}
+      </div>
+    </div>
+  ));
 
   return (
     <div className="p-6 max-w-7xl mx-auto flex flex-col h-screen">
@@ -65,37 +124,7 @@ export default function Dashboard() {
           </div>
 
           <ScrollFade>
-            {recentLoading
-              ? [...Array(5)].map((_, i) => (
-                  <div key={i} className="px-5 py-3.5 flex items-center gap-4 animate-pulse">
-                    <div className="w-8 h-8 bg-muted rounded-lg flex-shrink-0" />
-                    <div className="flex-1 space-y-2">
-                      <div className="h-3 bg-muted rounded w-48" />
-                      <div className="h-2 bg-muted rounded w-32" />
-                    </div>
-                    <div className="h-2 bg-muted rounded w-16" />
-                  </div>
-                ))
-              : recent?.length === 0
-              ? <div className="px-5 py-8 text-center text-muted-foreground text-sm">No activity yet.</div>
-              : recent?.slice(0, 10).map((a) => (
-                  <div key={a.id} data-testid={`activity-${a.id}`} className="px-5 py-3.5 flex items-center gap-4">
-                    <div className="w-8 h-8 border border-border rounded-lg flex items-center justify-center flex-shrink-0">
-                      <Activity className="w-4 h-4 text-primary" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="text-sm font-medium truncate">{a.subject}</div>
-                      <div className="text-xs text-muted-foreground mt-0.5">
-                        <span className="text-primary font-medium">{a.action}</span>
-                      </div>
-                    </div>
-                    <div className="text-xs text-muted-foreground flex-shrink-0 flex items-center gap-1.5">
-                      <Clock className="w-3 h-3" />
-                      {new Date(a.timestamp).toLocaleDateString()}
-                    </div>
-                  </div>
-                ))
-            }
+            {recentLoading ? renderActivitySkeleton(5) : renderActivityItems(recent, 10)}
           </ScrollFade>
         </div>
 
@@ -109,26 +138,7 @@ export default function Dashboard() {
             </div>
 
             <ScrollFade>
-              {statsLoading
-                ? [...Array(5)].map((_, i) => (
-                    <div key={i} className="px-5 py-3.5 animate-pulse">
-                      <div className="h-2.5 bg-muted rounded w-3/4 mb-1.5" />
-                      <div className="h-2 bg-muted rounded w-1/2" />
-                    </div>
-                  ))
-                : recent?.length === 0
-                ? <div className="px-5 py-8 text-xs text-muted-foreground text-center">No activity yet</div>
-                : recent?.slice(0, 14).map((a) => (
-                    <div key={a.id} data-testid={`activity-${a.id}`} className="px-5 py-3.5">
-                      <div className="text-xs text-foreground leading-snug">
-                        <span className="text-primary font-medium">{a.action}</span> — {a.subject}
-                      </div>
-                      <div className="text-xs text-muted-foreground mt-0.5">
-                        {a.actor_key ? a.actor_key.slice(0, 12) + "..." : "System"} · {new Date(a.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                      </div>
-                    </div>
-                  ))
-              }
+              {statsLoading ? renderLogSkeleton(5) : renderLogItems(recent, 14)}
             </ScrollFade>
           </div>
 

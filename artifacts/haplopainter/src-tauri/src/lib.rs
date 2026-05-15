@@ -1,14 +1,13 @@
-// HaploClinical — Library Root
+// Pedigree PRO — Library Root
 //
-// Initializes the Tauri application with plugins, database, and command handlers.
-// Modules:
-//   db.rs             — SQLCipher database initialization and migrations
-//   commands.rs       — Tauri command handlers (the API surface)
-//   signatures.rs     — Ed25519 signing/verification and SHA-256 hashing
-//   export.rs         — .hpcl export (.hpcl format)
-//   import_common.rs  — Shared DB insertion helpers
-//   import_native.rs  — Native .hpcl import (current program files)
-//   import_legacy.rs  — Legacy HaploPainter SQLite migration
+// ─── Tauri Command Registration ───────────────────────────────────
+//   db.rs             — SQLCipher Database Engine (libsqlcipher-sys)
+//   commands.rs       — Tauri IPC Command Handlers
+//   export.rs         — Encrypted Export (Ed25519 + AES-256-GCM)
+//   signatures.rs     — Ed25519 Keypair Generation & Signature Verification
+//   relay.rs          — Zero-Knowledge Relay Client (libsodium sealed box)
+//   import_native.rs  — Native .ppro Import (same format as export)
+//   import_legacy.rs  — Legacy SQLite migration
 //   relay.rs          — Zero-knowledge relay client for encrypted sharing
 
 mod commands;
@@ -66,7 +65,7 @@ pub fn run() {
             commands::list_versions,
             commands::save_version,
             commands::restore_version,
-            // ─── Import (Native .hpcl) ────────────────────────
+            // ─── Import (Native .ppro) ────────────────────────
             commands::import_pedigree_native,
             // ─── Import (Legacy HaploPainter) ─────────────────
             commands::import_pedigree_legacy,
@@ -85,5 +84,5 @@ pub fn run() {
             commands::save_preferences,
         ])
         .run(tauri::generate_context!())
-        .expect("error while running HaploClinical");
+        .expect("error while running Pedigree PRO");
 }

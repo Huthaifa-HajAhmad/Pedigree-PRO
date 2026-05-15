@@ -1,5 +1,5 @@
 /**
- * HaploClinical — Unified API Adapter
+ * Pedigree PRO — Unified API Adapter
  *
  * Routes all data operations through the appropriate backend:
  * - Tauri desktop: invoke() Rust commands via IPC

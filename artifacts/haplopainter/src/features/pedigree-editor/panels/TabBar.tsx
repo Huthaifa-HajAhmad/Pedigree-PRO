@@ -1,6 +1,6 @@
 import { Dna, Plus, X } from "lucide-react";
 import { TabPickerPopover } from "@/features/pedigree-editor/panels/TabPickerPopover";
-import { CANVAS_PRIMARY } from "@/lib/canvas-theme";
+
 
 interface TabEntry {
   id: number;
@@ -33,7 +33,7 @@ export function TabBar({
     >
       {/* Brand chip */}
       <div className="flex items-center pr-2 border-r border-border flex-shrink-0 self-stretch">
-        <Dna className="w-3.5 h-3.5 my-auto" style={{ color: CANVAS_PRIMARY }} />
+        <Dna className="w-3.5 h-3.5 my-auto" style={{ color: "hsl(var(--primary))" }} />
       </div>
 
       {/* Tabs */}
@@ -62,7 +62,7 @@ export function TabBar({
             {isActive && (
               <span
                 className="w-1.5 h-1.5 rounded-full flex-shrink-0"
-                style={{ background: CANVAS_PRIMARY }}
+                style={{ background: "hsl(var(--primary))" }}
               />
             )}
             <span className="text-xs truncate" style={{ maxWidth: "130px" }}>

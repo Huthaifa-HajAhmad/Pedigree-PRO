@@ -1,8 +1,8 @@
 {
   "$schema": "https://raw.githubusercontent.com/nicedoc/schemas/main/alpha/tauri-conf.schema.json",
-  "productName": "HaploClinical",
+  "productName": "Pedigree PRO",
   "version": "0.1.0",
-  "identifier": "org.haploclinical.app",
+  "identifier": "org.pedigreepro.app",
   "build": {
     "beforeDevCommand": "pnpm dev",
     "devUrl": "http://localhost:5173",
@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "HaploClinical",
+        "title": "Pedigree PRO",
         "width": 1400,
         "height": 900,
         "minWidth": 1024,

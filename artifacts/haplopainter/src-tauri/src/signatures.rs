@@ -1,4 +1,4 @@
-// HaploClinical — Cryptographic Primitives
+// Pedigree PRO — Cryptographic Primitives
 //
 // Provides Ed25519 signing/verification and SHA-256 content hashing
 // for cryptographic provenance (ADR-001) and content integrity (ADR-002).

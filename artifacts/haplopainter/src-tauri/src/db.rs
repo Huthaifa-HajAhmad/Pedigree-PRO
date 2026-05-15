@@ -1,4 +1,4 @@
-// HaploClinical — Database Initialization (SQLCipher)
+// Pedigree PRO — Database Initialization (SQLCipher)
 use rusqlite::Connection;
 use sha2::Sha256;
 use std::fs;

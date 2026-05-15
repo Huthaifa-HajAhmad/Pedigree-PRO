@@ -1,5 +1,5 @@
 /**
- * HaploClinical — Visual Diff Engine
+ * Pedigree PRO — Visual Diff Engine
  *
  * Computes structural differences between two pedigree canvas states.
  * Used by the version timeline and import review to highlight changes.
@@ -17,7 +17,7 @@ export interface NodeDiff {
 
 export interface EdgeDiff {
   id: string;
-  status: "added" | "removed" | "unchanged";
+  status: "added" | "removed" | "changed" | "unchanged";
   before?: PedigreeEdge;
   after?: PedigreeEdge;
 }
@@ -30,6 +30,7 @@ export interface CanvasDiff {
   changedNodes: NodeDiff[];
   addedEdges: PedigreeEdge[];
   removedEdges: PedigreeEdge[];
+  changedEdges: PedigreeEdge[];
 }
 
 /**
@@ -43,6 +44,7 @@ export function computeCanvasDiff(before: CanvasData, after: CanvasData): Canvas
   const changedNodes: NodeDiff[] = [];
   const addedEdges: PedigreeEdge[] = [];
   const removedEdges: PedigreeEdge[] = [];
+  const changedEdges: PedigreeEdge[] = [];
 
   // Index nodes by ID
   const beforeNodes = new Map(before.nodes.map((n) => [n.id, n]));
@@ -84,14 +86,16 @@ export function computeCanvasDiff(before: CanvasData, after: CanvasData): Canvas
   const beforeEdges = new Map(before.edges.map((e) => [e.id, e]));
   const afterEdges = new Map(after.edges.map((e) => [e.id, e]));
 
-  // Find added edges
+  // Find added and changed edges
   for (const afterEdge of after.edges) {
     const beforeEdge = beforeEdges.get(afterEdge.id);
     if (!beforeEdge) {
       edgeDiffs.push({ id: afterEdge.id, status: "added", after: afterEdge });
       addedEdges.push(afterEdge);
     } else {
-      edgeDiffs.push({ id: afterEdge.id, status: "unchanged", before: beforeEdge, after: afterEdge });
+      const changed = beforeEdge.type !== afterEdge.type;
+      edgeDiffs.push({ id: afterEdge.id, status: changed ? "changed" : "unchanged", before: beforeEdge, after: afterEdge });
+      if (changed) changedEdges.push(afterEdge);
     }
   }
 
@@ -111,20 +115,23 @@ export function computeCanvasDiff(before: CanvasData, after: CanvasData): Canvas
     changedNodes,
     addedEdges,
     removedEdges,
+    changedEdges,
   };
 }
+
+const COMPARABLE_PROPS: Array<keyof PedigreeNode> = [
+  "type", "x", "y", "affected", "carrier", "deceased", "proband",
+  "label", "age", "dob", "pinned", "condition",
+];
 
 function compareNodeProperties(
   before: PedigreeNode,
   after: PedigreeNode
 ): Array<{ property: string; from: unknown; to: unknown }> {
   const changes: Array<{ property: string; from: unknown; to: unknown }> = [];
-  const keys = new Set([...Object.keys(before), ...Object.keys(after)]);
-  for (const key of keys) {
-    const beforeVal = (before as unknown as Record<string, unknown>)[key];
-    const afterVal = (after as unknown as Record<string, unknown>)[key];
-    if (JSON.stringify(beforeVal) !== JSON.stringify(afterVal)) {
-      changes.push({ property: key, from: beforeVal, to: afterVal });
+  for (const key of COMPARABLE_PROPS) {
+    if (before[key] !== after[key]) {
+      changes.push({ property: key, from: before[key], to: after[key] });
     }
   }
   return changes;
@@ -152,6 +159,7 @@ export function diffSummary(diff: CanvasDiff): string {
   if (diff.changedNodes.length) parts.push(`~${diff.changedNodes.length} nodes`);
   if (diff.addedEdges.length) parts.push(`+${diff.addedEdges.length} edges`);
   if (diff.removedEdges.length) parts.push(`-${diff.removedEdges.length} edges`);
+  if (diff.changedEdges.length) parts.push(`~${diff.changedEdges.length} edges`);
   if (parts.length === 0) return "No changes";
   return parts.join(", ");
 }

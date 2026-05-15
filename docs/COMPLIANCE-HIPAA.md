@@ -29,7 +29,7 @@ HaploClinical is designed as a **medical device component** for clinical genetic
 |---|---|---|
 | Record and examine PHI activity | `activity_log` table with cryptographic signatures on every mutation | ADR-002 §2.1.5: `actor_key`, `actor_signature`, `action`, `subject`, `timestamp` |
 | Tamper evidence | `canvas_hash` (SHA-256) on every pedigree version; Ed25519 signatures verify provenance | `signatures.rs`: `hash_sha256()`, `verify()` |
-| Audit export | `.hpcl` format exports full pedigree with version history and provenance | `export.rs`: `export_pedigree_hpcl()` |
+| Audit export | `.ppro` format exports full pedigree with version history and provenance | `export.rs`: `export_pedigree_hpcl()` |
 
 ---
 
@@ -106,5 +106,5 @@ All HIPAA-relevant events are recorded in `activity_log`:
 - Database is encrypted at rest → lost/stolen device does not expose PHI
 - Sharing payloads are end-to-end encrypted → relay compromise does not expose PHI
 - Audit log enables identification of affected records
-- Export format (.hpcl) enables patient data access requests
+- Export format (.ppro) enables patient data access requests
 - `DELETE` + `VACUUM` enables right to erasure

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useListProfiles, useCreateProfile, useDeleteProfile } from "@workspace/api-client-react";
+import { useListProfiles, useCreateProfile, useDeleteProfile, apiCall } from "@workspace/api-client-react";
 import { Plus, Trash2, UserCircle, Shield, Clock, Download, Upload } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useForm } from "react-hook-form";
@@ -24,13 +24,16 @@ export default function Profiles() {
   const [confirmProps, setConfirmProps] = useState<{ title: string; message: string; onConfirm: () => void } | null>(null);
   const [exportOpen, setExportOpen] = useState(false);
   const [exportPassphrase, setExportPassphrase] = useState("");
-  const [exportOutput, setExportOutput] = useState("");
+  const [exportOutput, setExportOutput] = useState<string | null>(null);
+  const [exportBlobUrl, setExportBlobUrl] = useState<string | null>(null);
   const [exportError, setExportError] = useState("");
+  const [isExporting, setIsExporting] = useState(false);
 
   const [importOpen, setImportOpen] = useState(false);
   const [importPassphrase, setImportPassphrase] = useState("");
   const [importInput, setImportInput] = useState("");
   const [importError, setImportError] = useState("");
+  const [isImporting, setIsImporting] = useState(false);
 
   const { data: profiles, isLoading } = useListProfiles();
   const createProfile = useCreateProfile();
@@ -66,6 +69,7 @@ export default function Profiles() {
   const handleExportProfile = async () => {
     setExportError("");
     setExportOutput("");
+    setIsExporting(true);
     try {
       const { deriveKeyFromPassphrase, encryptAesGcm } = await import("@workspace/crypto");
       const { derivedKey } = await deriveKeyFromPassphrase(exportPassphrase);
@@ -79,15 +83,23 @@ export default function Profiles() {
       const profile = profiles[0]; // most recently used
       const payload = JSON.stringify({ profile, exported_at: new Date().toISOString() });
       const { ciphertext, nonce } = await encryptAesGcm(payload, key);
-      setExportOutput(JSON.stringify({ ciphertext, nonce, version: 1 }));
+      const json = JSON.stringify({ ciphertext, nonce, version: 1 });
+      const blob = new Blob([json], { type: "application/json" });
+      if (exportBlobUrl) URL.revokeObjectURL(exportBlobUrl);
+      const url = URL.createObjectURL(blob);
+      setExportBlobUrl(url);
+      setExportOutput(json);
     } catch (err) {
       setExportError(err instanceof Error ? err.message : "Export failed");
+    } finally {
+      setIsExporting(false);
     }
   };
 
   // ── Profile Import (client-side decryption) ───────────────────────────
   const handleImportProfile = async () => {
     setImportError("");
+    setIsImporting(true);
     try {
       const { deriveKeyFromPassphrase, decryptAesGcm } = await import("@workspace/crypto");
       const envelope = JSON.parse(importInput);
@@ -99,15 +111,26 @@ export default function Profiles() {
       const key = Uint8Array.from(atob(derivedKey), (c) => c.charCodeAt(0));
       const decrypted = await decryptAesGcm(envelope.ciphertext, envelope.nonce, key);
       const { profile } = JSON.parse(decrypted);
+      if (!profile?.display_name || !profile?.role_label) {
+        setImportError("Imported profile data is incomplete.");
+        return;
+      }
+      await apiCall("create_profile", {
+        display_name: profile.display_name,
+        role_label: profile.role_label,
+        public_key: profile.public_key ?? "",
+      });
       toast({
-        title: "Profile Decrypted",
-        description: `"${profile.display_name}" (${profile.role_label}) — ready to import. Public key: ${profile.public_key.slice(0, 20)}...`,
+        title: "Profile Imported",
+        description: `"${profile.display_name}" (${profile.role_label}) has been imported.`,
       });
       setImportOpen(false);
       setImportInput("");
       setImportPassphrase("");
     } catch (err) {
       setImportError(err instanceof Error ? err.message : "Import failed");
+    } finally {
+      setIsImporting(false);
     }
   };
 
@@ -148,6 +171,7 @@ export default function Profiles() {
                     data-testid="input-export-passphrase"
                   />
                   {exportError && <p className="text-xs text-destructive">{exportError}</p>}
+                  {isExporting && <div className="flex items-center justify-center py-4"><div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin" /></div>}
                   {exportOutput ? (
                     <div className="space-y-2">
                       <textarea
@@ -156,20 +180,31 @@ export default function Profiles() {
                         className="w-full bg-muted border border-border rounded px-3 py-2 text-xs font-mono outline-none h-32 resize-none"
                         data-testid="textarea-export-output"
                       />
-                      <button
-                        onClick={() => {
-                          navigator.clipboard.writeText(exportOutput);
-                          toast({ title: "Copied to clipboard", description: "Encrypted profile data copied." });
-                        }}
-                        className="w-full py-2 rounded text-sm font-semibold bg-primary text-primary-foreground hover:opacity-90"
-                      >
-                        Copy Encrypted Data
-                      </button>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => {
+                            navigator.clipboard.writeText(exportOutput);
+                            toast({ title: "Copied to clipboard", description: "Encrypted profile data copied." });
+                          }}
+                          className="flex-1 py-2 rounded text-sm font-semibold bg-primary text-primary-foreground hover:opacity-90"
+                        >
+                          Copy
+                        </button>
+                        {exportBlobUrl && (
+                          <a
+                            href={exportBlobUrl}
+                            download="profile-export.json"
+                            className="flex-1 py-2 rounded text-sm font-semibold text-center border border-primary text-primary hover:bg-primary/10 transition-colors"
+                          >
+                            Download
+                          </a>
+                        )}
+                      </div>
                     </div>
                   ) : (
                     <button
                       onClick={handleExportProfile}
-                      disabled={!exportPassphrase.trim()}
+                      disabled={!exportPassphrase.trim() || isExporting}
                       className="w-full py-2 rounded text-sm font-semibold bg-primary text-primary-foreground hover:opacity-90 disabled:opacity-40"
                     >
                       Encrypt & Export
@@ -217,9 +252,10 @@ export default function Profiles() {
                     data-testid="input-import-passphrase"
                   />
                   {importError && <p className="text-xs text-destructive">{importError}</p>}
+                  {isImporting && <div className="flex items-center justify-center py-4"><div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin" /></div>}
                   <button
                     onClick={handleImportProfile}
-                    disabled={!importInput.trim() || !importPassphrase.trim()}
+                    disabled={!importInput.trim() || !importPassphrase.trim() || isImporting}
                     className="w-full py-2 rounded text-sm font-semibold bg-primary text-primary-foreground hover:opacity-90 disabled:opacity-40"
                   >
                     Decrypt & Import

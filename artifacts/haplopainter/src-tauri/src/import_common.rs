@@ -1,6 +1,6 @@
-// HaploClinical — Shared Import Helpers
+// Pedigree PRO — Shared Import Helpers
 //
-// Common database insertion functions used by both native .hpcl import
+// Common database insertion functions used by both native .ppro import
 // and legacy HaploPainter SQLite migration.
 //
 // Each helper performs a single INSERT and returns the new row ID.

@@ -89,7 +89,7 @@ export function FollowMode({ versions, currentIndex, onChangeIndex, onPreview, o
             {currentVersion.label ?? `Version ${currentVersion.version_number}`}
           </div>
           <div className="text-[10px] text-muted-foreground">
-            {new Date(currentVersion.created_at).toLocaleString()}
+            {(() => { try { return new Date(currentVersion.created_at).toLocaleString(); } catch { return "—"; } })()}
             {currentVersion.saver_key && (
               <span className="ml-2 font-mono">by {currentVersion.saver_key.slice(0, 8)}...</span>
             )}

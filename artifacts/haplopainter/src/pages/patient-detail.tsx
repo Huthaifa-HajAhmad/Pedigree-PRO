@@ -17,11 +17,12 @@ type FormData = z.infer<typeof schema>;
 export default function PatientDetail() {
   const params = useParams<{ id: string }>();
   const id = parseInt(params.id, 10);
+  const validId = Number.isFinite(id) && id > 0 ? id : 0;
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
 
-  const { data: patient, isLoading } = useGetPatient(id);
-  const { data: pedigrees, isLoading: pedLoading } = useListPedigrees({ patientId: id });
+  const { data: patient, isLoading } = useGetPatient(validId);
+  const { data: pedigrees, isLoading: pedLoading } = useListPedigrees({ patientId: validId });
   const createPedigree = useCreatePedigree();
 
   const form = useForm<FormData>({ resolver: zodResolver(schema), defaultValues: { title: "", notes: "" } });
@@ -36,7 +37,7 @@ export default function PatientDetail() {
       },
       {
         onSuccess: () => {
-          queryClient.invalidateQueries({ queryKey: queryKeys.pedigrees });
+          queryClient.invalidateQueries({ queryKey: [...queryKeys.pedigrees, { patientId: validId }] });
           form.reset();
           setOpen(false);
         },
@@ -79,7 +80,7 @@ export default function PatientDetail() {
               <Detail label="Date of Birth" value={patient.date_of_birth} />
               <Detail label="Sex" value={patient.sex} />
               <Detail label="Ethnicity" value={patient.ethnicity} />
-              <Detail label="Registered" value={new Date(patient.created_at).toLocaleDateString()} />
+              <Detail label="Registered" value={(() => { try { return new Date(patient.created_at).toLocaleDateString(); } catch { return "—"; } })()} />
             </div>
 
             <div className="lg:col-span-2 border border-border rounded bg-card">
@@ -127,7 +128,7 @@ export default function PatientDetail() {
               </div>
               <div className="divide-y divide-border">
                 {pedLoading ? (
-                  [...Array(3)].map((_, i) => <div key={i} className="p-4 h-16 animate-pulse bg-muted" />)
+                  Array.from({ length: 3 }, (_, i) => <div key={i} className="p-4 h-16 animate-pulse bg-muted" />)
                 ) : pedigrees?.length === 0 ? (
                   <div className="p-8 text-center text-sm text-muted-foreground">No pedigrees for this patient yet</div>
                 ) : (
@@ -137,7 +138,7 @@ export default function PatientDetail() {
                         <Dna className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors" />
                         <div className="flex-1 min-w-0">
                           <div className="text-sm font-medium">{p.title}</div>
-                          <div className="text-xs text-muted-foreground">{p.version_count} version{p.version_count !== 1 ? "s" : ""} · Updated {new Date(p.updated_at).toLocaleDateString()}</div>
+                          <div className="text-xs text-muted-foreground">{p.version_count} version{p.version_count !== 1 ? "s" : ""} · Updated {(() => { try { return new Date(p.updated_at).toLocaleDateString(); } catch { return "—"; } })()}</div>
                         </div>
                         <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors" />
                       </div>

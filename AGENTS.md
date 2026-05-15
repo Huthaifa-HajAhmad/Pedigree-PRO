@@ -91,8 +91,106 @@ pnpm --filter @workspace/haplopainter run test
 - **Do not add `/api` proxies to Vite config.** The project is serverless.
 - Keep `lib/db/src/index.ts` top-level await pattern for conditional Postgres/SQLite loading, but verify bundler compatibility before changing.
 
+## Development Server
+
+```bash
+# Start frontend (browser mode)
+pnpm --filter @workspace/haplopainter run dev
+# → http://localhost:4173
+
+# Start frontend in background (Windows PowerShell)
+cmd /c "start /b pnpm --filter @workspace/haplopainter run dev"
+```
+
+**Port conflicts:** Kill existing process on 4173 before starting:
+```powershell
+Get-NetTCPConnection -LocalPort 4173 | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force }
+```
+
+**esbuild issues:** Missing `@esbuild/win32-x64` binary requires explicit install:
+```bash
+pnpm add -D @esbuild/win32-x64@0.27.3 --filter @workspace/haplopainter --ignore-scripts
+```
+This is needed because `pnpm install --ignore-scripts` skips optional binary installation.
+
+## Browser Testing with Integrated Browser MCP
+
+The `integrated-browser-mcp` extension (by thimo) exposes VS Code's embedded browser via HTTP API on `localhost:3788` and MCP stdio. It shares your session cookies, localhost access, and DevTools.
+
+### Key endpoints
+```bash
+# Check status
+Invoke-WebRequest -Uri "http://127.0.0.1:3788/status" -UseBasicParsing
+
+# Navigate
+Invoke-WebRequest -Uri "http://127.0.0.1:3788/navigate" -Method POST -Body '{"url":"http://localhost:4173"}' -ContentType "application/json" -UseBasicParsing
+
+# Screenshot (returns base64 PNG in data field)
+Invoke-WebRequest -Uri "http://127.0.0.1:3788/screenshot?fullPage=true&waitMs=2000" -UseBasicParsing
+
+# Evaluate JS
+Invoke-WebRequest -Uri "http://127.0.0.1:3788/eval" -Method POST -Body '{"expression":"document.title"}' -ContentType "application/json" -UseBasicParsing
+
+# Console output
+Invoke-WebRequest -Uri "http://127.0.0.1:3788/console?limit=20" -UseBasicParsing
+```
+
+### Testing workflow
+1. Start dev server: `pnpm --filter @workspace/haplopainter run dev`
+2. Navigate browser: `POST /navigate {"url":"http://localhost:4173"}`
+3. Take screenshot: `GET /screenshot?waitMs=2000`
+4. Check console: `GET /console`
+5. Evaluate interactively: `POST /eval {"expression":"..."}`
+
+## Future Work
+
+### Deferred from Codebase Audit (May 2026)
+
+**L23 — Enable `noUnusedLocals` in tsconfig.base.json:**
+Setting `noUnusedLocals: true` surfaces ~15 pre-existing unused imports across 8 files. A dedicated cleanup pass is needed before enabling this flag permanently. Files affected:
+- `lib/crypto/src/index.ts` — unused `sha512`, `hexToBytes`
+- `lib/browser-backend/src/commands.ts` — unused `getProfilePrivateKey`
+- `lib/api-client-react/src/hooks.ts` — unused type imports (`LocalProfile`, `Patient`, etc.)
+- `artifacts/haplopainter/src/components/ThemePicker.tsx` — unused `ThemeId`
+- `artifacts/haplopainter/src/features/collaboration/FollowMode.tsx` — unused `CanvasData`
+- `artifacts/haplopainter/src/features/collaboration/ImportReviewModal.tsx` — unused `diffSummary`
+- `artifacts/haplopainter/src/features/pedigree-editor/overlay/ContextMenu.tsx` — unused `isFemale`
+- `artifacts/haplopainter/src/features/pedigree-editor/utils/templates.ts` — unused `PedigreeEdge`
+- `artifacts/haplopainter/src/lib/import-pedigree.ts` — unused `gen` variable
+
+**L8 — Thumbnail virtualization for 50+ versions:**
+`VersionTimeline.tsx` currently uses `loading="lazy"` on `<img>` tags but does not virtualize the version list. For pedigrees with 50+ saved versions, all thumbnails remain in DOM. Implement `react-window` or `useVirtualizer` with fixed item height of ~90px.
+
+**UX5 extended — ContextMenu keyboard navigation polish:**
+Arrow key handlers were added but these items remain:
+- Tab-to-focus on the menu container itself
+- Focus trap (tab/shift+tab cycles within menu)
+- Home/End keys to jump to first/last menu item
+
+**UX8 — LAN sharing ICE timeout UX:**
+`LanShare.tsx` has a 30s ICE timeout but no visible progress spinner during the connecting phase. Add `Loader2` icon animation when `status === "connecting"`.
+
+**L3 extended — Dynamic import loading indicator:**
+Spinners added for export/import in `profiles.tsx`. Consider extracting a reusable `<DynamicImportSpinner>` component for `export-pedigree.ts` PDF/PPTX exports and `ShareModal.tsx`.
+
+### Known Workarounds
+
+**preinstall.js failure:** `pnpm install` fails because `scripts/preinstall.js` checks `npm_config_user_agent` and exits with code 1 for non-pnpm managers. Workaround:
+```bash
+pnpm install --ignore-scripts
+```
+Then build libs before typechecking:
+```bash
+pnpm --filter @workspace/api-client-react exec tsc --build
+```
+
+**TS6305 warnings:** "Output file has not been built from source" — pre-existing. Resolve by building lib packages first via `tsc --build`.
+
 ## Migration Notes
 
 - `lib/api-spec/` and `lib/api-zod/` were deleted. No OpenAPI or Zod generation remains.
 - `pnpm-workspace.yaml` no longer includes `services/*`.
 - The `mockup-sandbox` artifact was deleted.
+- `canvas-theme.ts` was deleted (May 2026) — use `"hsl(var(--primary))"` directly instead of importing `CANVAS_PRIMARY`.
+- `useVersionManagement.ts` was deleted (dead code, never referenced).
+- All `.hpcl` references rebranded to `.ppro` across source files (Rust, TypeScript, docs). Internal draft key prefixes (`haplopainter_draft_*`) retained as they are localStorage keys, not user-facing.

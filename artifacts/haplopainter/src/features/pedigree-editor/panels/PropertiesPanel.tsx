@@ -4,7 +4,7 @@ import type { InheritanceMode } from "@/lib/risk-calculator";
 import { computeRisk } from "@/lib/risk-calculator";
 import { AnnotationEditorPanel } from "@/features/pedigree-editor/panels/AnnotationEditorPanel";
 import { RiskCalculatorPanel } from "@/features/pedigree-editor/panels/RiskCalculatorPanel";
-import { CANVAS_PRIMARY } from "@/lib/canvas-theme";
+
 
 export function PropertiesPanel({
   selectedIds, canvasNodes, canvasEdges, canvasAnnotations,
@@ -49,7 +49,7 @@ export function PropertiesPanel({
           <div className="flex items-center justify-between">
             <div>
               <div className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">{selectedIds.size} Nodes</div>
-              <div className="text-xs mt-0.5" style={{ color: CANVAS_PRIMARY }}>Multi-selected</div>
+              <div className="text-xs mt-0.5" style={{ color: "hsl(var(--primary))" }}>Multi-selected</div>
             </div>
             <Users className="w-4 h-4 text-muted-foreground" />
           </div>
@@ -120,7 +120,7 @@ export function PropertiesPanel({
         <>
           <div className="p-4 border-b border-border">
             <div className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-1">Node Properties</div>
-            <div className="text-xs capitalize" style={{ color: CANVAS_PRIMARY }}>{singleSelected.type}</div>
+            <div className="text-xs capitalize" style={{ color: "hsl(var(--primary))" }}>{singleSelected.type}</div>
           </div>
           <div className="p-4 space-y-4">
             {/* Pin status */}
@@ -194,7 +194,7 @@ export function PropertiesPanel({
                   <span className="text-xs text-muted-foreground group-hover:text-foreground transition-colors uppercase tracking-wider">{label}</span>
                   <button data-testid={`toggle-${key}`} onClick={() => onUpdateSelectedNode({ [key]: !singleSelected[key] })}
                     className={`w-9 h-5 rounded-full border transition-all relative ${singleSelected[key] ? "border-primary" : "border-border"}`}
-                    style={singleSelected[key] ? { background: CANVAS_PRIMARY } : { background: "hsl(var(--muted))" }}>
+                    style={singleSelected[key] ? { background: "hsl(var(--primary))" } : { background: "hsl(var(--muted))" }}>
                     <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-background transition-transform ${singleSelected[key] ? "translate-x-4" : "translate-x-0.5"}`} />
                   </button>
                 </label>

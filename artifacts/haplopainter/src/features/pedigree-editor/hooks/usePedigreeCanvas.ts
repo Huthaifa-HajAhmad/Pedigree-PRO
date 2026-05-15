@@ -7,6 +7,7 @@ export interface UsePedigreeCanvasParams {
   svgRef: React.RefObject<SVGSVGElement | null>;
   canvasNodes: PedigreeNode[];
   canvasAnnotations: CanvasData["annotations"];
+  canvasEdges: CanvasData["edges"];
   selectedIds: Set<string>;
   setSelectedIds: Dispatch<SetStateAction<Set<string>>>;
   setCanvas: Dispatch<SetStateAction<CanvasData>>;
@@ -43,68 +44,69 @@ export interface UsePedigreeCanvasParams {
 }
 
 export function usePedigreeCanvas(params: UsePedigreeCanvasParams) {
-  const {
-    svgRef, canvasNodes, canvasAnnotations,
-    selectedIds, setSelectedIds,
-    setCanvas, viewBox, setViewBox,
-    panning, setPanning,
-    snapEnabled, snapRows, setSnapRows,
-    annDragging, linkMode, lassoRef, isLassoingRef,
-    lassoRectRef, spaceHeldRef, setLassoVisible,
-    preDragCanvasRef, rafRef, W, H,
-    setHistory, setFuture, updateCanvas, autoSave,
-    canvasRef, draftEnabledRef, draftKeyRef,
-    setAnnDragging,
-  } = params;
+  const paramsRef = useRef(params);
+  paramsRef.current = params;
+
+  const svgRef = params.svgRef;
+  const rafRef = params.rafRef;
+  const preDragCanvasRef = params.preDragCanvasRef;
+  const lassoRef = params.lassoRef;
+  const isLassoingRef = params.isLassoingRef;
+  const lassoRectRef = params.lassoRectRef;
+  const spaceHeldRef = params.spaceHeldRef;
+  const W = params.W;
+  const H = params.H;
 
   const draggingRef = useRef(params.dragging);
   draggingRef.current = params.dragging;
   const isDraggingRef = useRef(params.isDragging);
   isDraggingRef.current = params.isDragging;
 
-  const getSVGCoords = useCallback((e: React.MouseEvent) => {
+  const getSVGCoords = useCallback((e: { clientX: number; clientY: number }): { x: number; y: number } | null => {
     const svg = svgRef.current;
-    if (!svg) return { x: 0, y: 0 };
+    if (!svg) return null;
     const pt = svg.createSVGPoint();
     pt.x = e.clientX; pt.y = e.clientY;
     const ctm = svg.getScreenCTM();
-    if (!ctm) return { x: 0, y: 0 };
+    if (!ctm) return null;
     const svgPt = pt.matrixTransform(ctm.inverse());
     return { x: svgPt.x, y: svgPt.y };
   }, []);
 
   const handleDragStart = useCallback((e: React.MouseEvent, nodeId: string) => {
-    if (linkMode) return;
+    const p = paramsRef.current;
+    if (p.linkMode) return;
     const coords = getSVGCoords(e);
-    const node = canvasNodes.find((n) => n.id === nodeId);
-    if (!node) return;
-    const movingIds = selectedIds.has(nodeId) ? selectedIds : new Set([nodeId]);
-    if (!selectedIds.has(nodeId)) setSelectedIds(new Set([nodeId]));
-    const rows = computeSnapRows(canvasNodes, movingIds);
-    setSnapRows(rows);
+    if (!coords) return;
+    const movingIds = p.selectedIds.has(nodeId) ? p.selectedIds : new Set([nodeId]);
+    if (!p.selectedIds.has(nodeId)) p.setSelectedIds(new Set([nodeId]));
+    const rows = computeSnapRows(p.canvasNodes, movingIds);
+    p.setSnapRows(rows);
     const initialPositions: Record<string, { x: number; y: number }> = {};
-    for (const n of canvasNodes) {
+    for (const n of p.canvasNodes) {
       if (movingIds.has(n.id)) initialPositions[n.id] = { x: n.x, y: n.y };
     }
     preDragCanvasRef.current = {
-      nodes: canvasNodes,
-      edges: [],
-      annotations: canvasAnnotations as any,
+      nodes: p.canvasNodes,
+      edges: p.canvasEdges,
+      annotations: JSON.parse(JSON.stringify(p.canvasAnnotations)),
     };
-    params.setDragging({ primaryNodeId: nodeId, startSVG: coords, initialPositions });
-    params.setIsDragging(false);
-  }, [linkMode, getSVGCoords, canvasNodes, selectedIds]);
+    p.setDragging({ primaryNodeId: nodeId, startSVG: coords, initialPositions });
+    p.setIsDragging(false);
+  }, [getSVGCoords]);
 
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
-    if (annDragging) {
+    const p = paramsRef.current;
+    if (p.annDragging) {
       const coords = getSVGCoords(e);
-      const dx = coords.x - annDragging.startSVG.x;
-      const dy = coords.y - annDragging.startSVG.y;
-      setCanvas((prev) => ({
+      if (!coords) return;
+      const dx = coords.x - p.annDragging.startSVG.x;
+      const dy = coords.y - p.annDragging.startSVG.y;
+      p.setCanvas((prev) => ({
         ...prev,
         annotations: prev.annotations.map((a) =>
-          a.id === annDragging.annId
-            ? { ...a, offsetX: annDragging.initOffset.x + dx, offsetY: annDragging.initOffset.y + dy }
+          a.id === p.annDragging!.annId
+            ? { ...a, offsetX: p.annDragging!.initOffset.x + dx, offsetY: p.annDragging!.initOffset.y + dy }
             : a
         ),
       }));
@@ -113,37 +115,39 @@ export function usePedigreeCanvas(params: UsePedigreeCanvasParams) {
     const d = draggingRef.current;
     if (d) {
       const coords = getSVGCoords(e);
+      if (!coords) return;
       const dx = coords.x - d.startSVG.x;
       const dy = coords.y - d.startSVG.y;
-      if (!isDraggingRef.current && (Math.abs(dx) > 3 || Math.abs(dy) > 3)) params.setIsDragging(true);
+      if (!isDraggingRef.current && (Math.abs(dx) > 3 || Math.abs(dy) > 3)) p.setIsDragging(true);
       if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
       rafRef.current = requestAnimationFrame(() => {
         rafRef.current = null;
-        setCanvas((prev) => ({
+        p.setCanvas((prev) => ({
           ...prev,
           nodes: prev.nodes.map((n) => {
             const init = d.initialPositions[n.id];
             if (!init) return n;
             const rawY = init.y + dy;
-            const newY = snapEnabled ? snapToNearestRow(rawY, snapRows) : rawY;
+            const newY = p.snapEnabled ? snapToNearestRow(rawY, p.snapRows) : rawY;
             return { ...n, x: init.x + dx, y: newY };
           }),
         }));
       });
       return;
     }
-    if (panning) {
-      const dx = (e.clientX - panning.startX) * viewBox.zoom;
-      const dy = (e.clientY - panning.startY) * viewBox.zoom;
-      setViewBox((prev) => ({ ...prev, x: panning.vbX - dx, y: panning.vbY - dy }));
+    if (p.panning) {
+      const dx = (e.clientX - p.panning.startX) * p.viewBox.zoom;
+      const dy = (e.clientY - p.panning.startY) * p.viewBox.zoom;
+      p.setViewBox((prev) => ({ ...prev, x: p.panning!.vbX - dx, y: p.panning!.vbY - dy }));
     }
     if (lassoRef.current) {
       const coords = getSVGCoords(e);
+      if (!coords) return;
       lassoRef.current.curSVG = coords;
       const dx = coords.x - lassoRef.current.startSVG.x;
       const dy = coords.y - lassoRef.current.startSVG.y;
       if (!isLassoingRef.current && (Math.abs(dx) > 6 || Math.abs(dy) > 6)) {
-        isLassoingRef.current = true; setLassoVisible(true);
+        isLassoingRef.current = true; p.setLassoVisible(true);
       }
       if (isLassoingRef.current && lassoRectRef.current) {
         const x1 = Math.min(lassoRef.current.startSVG.x, coords.x);
@@ -157,19 +161,20 @@ export function usePedigreeCanvas(params: UsePedigreeCanvasParams) {
         lassoRectRef.current.style.display = "";
       }
     }
-  }, [annDragging, params]);
+  }, [getSVGCoords]);
 
   const handleMouseUp = useCallback(() => {
+    const p = paramsRef.current;
     if (rafRef.current !== null) { cancelAnimationFrame(rafRef.current); rafRef.current = null; }
     if (draggingRef.current && isDraggingRef.current) {
       const movedIds = new Set(Object.keys(draggingRef.current.initialPositions));
       const preDrag = preDragCanvasRef.current;
       preDragCanvasRef.current = null;
-      updateCanvas((prev) => ({
+      p.updateCanvas((prev) => ({
         ...prev,
         nodes: prev.nodes.map((n) => movedIds.has(n.id) ? { ...n, pinned: true } : n),
       }), { skipHistory: !!preDrag });
-      if (preDrag) { setHistory((h) => [...h.slice(-49), preDrag]); setFuture([]); }
+      if (preDrag) { p.setHistory((h) => [...h.slice(-49), preDrag]); p.setFuture([]); }
     }
     if (lassoRef.current) {
       if (isLassoingRef.current) {
@@ -177,38 +182,41 @@ export function usePedigreeCanvas(params: UsePedigreeCanvasParams) {
         const x1 = Math.min(startSVG.x, curSVG.x), x2 = Math.max(startSVG.x, curSVG.x);
         const y1 = Math.min(startSVG.y, curSVG.y), y2 = Math.max(startSVG.y, curSVG.y);
         const half = NODE_SIZE / 2;
-        const enclosed = canvasNodes.filter(
+        const enclosed = p.canvasNodes.filter(
           (n) => n.x + half >= x1 && n.x - half <= x2 && n.y + half >= y1 && n.y - half <= y2
         );
-        setSelectedIds(new Set(enclosed.map((n) => n.id)));
-      } else { setSelectedIds(new Set()); }
+        p.setSelectedIds(new Set(enclosed.map((n) => n.id)));
+      } else { p.setSelectedIds(new Set()); }
     }
-    lassoRef.current = null; isLassoingRef.current = false; setLassoVisible(false);
+    lassoRef.current = null; isLassoingRef.current = false; p.setLassoVisible(false);
     if (lassoRectRef.current) lassoRectRef.current.style.display = "none";
-    params.setDragging(null); params.setIsDragging(false); setSnapRows([]); setPanning(null);
-    if (annDragging) {
+    p.setDragging(null); p.setIsDragging(false); p.setSnapRows([]); p.setPanning(null);
+    if (p.annDragging) {
       const preDrag = preDragCanvasRef.current; preDragCanvasRef.current = null;
-      if (preDrag) { setHistory((h) => [...h.slice(-49), preDrag]); setFuture([]); }
-      autoSave(canvasRef.current!);
-      if (draftEnabledRef.current) {
-        try { localStorage.setItem(draftKeyRef.current, JSON.stringify({ canvas: canvasRef.current, at: Date.now() })); } catch {}
+      if (preDrag) { p.setHistory((h) => [...h.slice(-49), preDrag]); p.setFuture([]); }
+      if (p.canvasRef.current) {
+        if (p.draftEnabledRef.current) {
+          try { localStorage.setItem(p.draftKeyRef.current, JSON.stringify({ canvas: p.canvasRef.current, at: Date.now() })); } catch {}
+        }
       }
     }
-    setAnnDragging(null);
-  }, [params, annDragging]);
+    p.setAnnDragging(null);
+  }, []);
 
   const handleSVGMouseDown = useCallback((e: React.MouseEvent) => {
+    const p = paramsRef.current;
     if (e.target !== svgRef.current) return;
     if (e.button === 1 || e.button === 2 || e.altKey || spaceHeldRef.current) {
       e.preventDefault();
-      setPanning({ startX: e.clientX, startY: e.clientY, vbX: viewBox.x, vbY: viewBox.y });
+      p.setPanning({ startX: e.clientX, startY: e.clientY, vbX: p.viewBox.x, vbY: p.viewBox.y });
       return;
     }
     const coords = getSVGCoords(e);
+    if (!coords) return;
     lassoRef.current = { startSVG: coords, curSVG: coords };
-    isLassoingRef.current = false; setLassoVisible(false);
+    isLassoingRef.current = false; p.setLassoVisible(false);
     if (lassoRectRef.current) lassoRectRef.current.style.display = "none";
-  }, [viewBox, getSVGCoords]);
+  }, [getSVGCoords]);
 
   const handleWheel = useCallback((e: React.WheelEvent) => {
     e.preventDefault();
@@ -217,7 +225,7 @@ export function usePedigreeCanvas(params: UsePedigreeCanvasParams) {
     const px = e.clientX - rect.left, py = e.clientY - rect.top;
     const svgW = rect.width, svgH = rect.height;
     const zoomAt = (factor: number) => {
-      setViewBox((prev) => {
+      paramsRef.current.setViewBox((prev: { x: number; y: number; zoom: number }) => {
         const newZoom = Math.min(4, Math.max(0.25, prev.zoom * factor));
         const vbW = 1400 * prev.zoom, vbH = 900 * prev.zoom;
         const newVbW = 1400 * newZoom, newVbH = 900 * newZoom;
@@ -227,11 +235,11 @@ export function usePedigreeCanvas(params: UsePedigreeCanvasParams) {
       });
     };
     if (e.ctrlKey) { zoomAt(Math.pow(0.992, e.deltaY)); return; }
-    if (e.shiftKey) { setViewBox((prev) => ({ ...prev, x: prev.x + e.deltaY * prev.zoom * 0.6 })); return; }
+    if (e.shiftKey) { paramsRef.current.setViewBox((prev: { x: number; y: number; zoom: number }) => ({ ...prev, x: prev.x + e.deltaY * prev.zoom * 0.6 })); return; }
     const hasHoriz = Math.abs(e.deltaX) > 1;
     const isSmooth = e.deltaMode === 0 && Math.abs(e.deltaY) < 50;
     if (hasHoriz || isSmooth) {
-      setViewBox((prev) => ({
+      paramsRef.current.setViewBox((prev: { x: number; y: number; zoom: number }) => ({
         ...prev,
         x: prev.x + e.deltaX * prev.zoom * 0.8,
         y: prev.y + e.deltaY * prev.zoom * 0.8,
@@ -242,16 +250,17 @@ export function usePedigreeCanvas(params: UsePedigreeCanvasParams) {
   }, []);
 
   const fitToScreen = useCallback(() => {
-    if (canvasNodes.length === 0) return;
+    const p = paramsRef.current;
+    if (p.canvasNodes.length === 0) return;
     const pad = NODE_SIZE * 3;
-    const xs = canvasNodes.map((n) => n.x), ys = canvasNodes.map((n) => n.y);
+    const xs = p.canvasNodes.map((n) => n.x), ys = p.canvasNodes.map((n) => n.y);
     const minX = Math.min(...xs) - pad, maxX = Math.max(...xs) + pad + NODE_SIZE;
     const minY = Math.min(...ys) - pad, maxY = Math.max(...ys) + pad + NODE_SIZE;
     const spanX = maxX - minX, spanY = maxY - minY;
     const zoom = Math.max(0.2, Math.min(Math.max(spanX / W, spanY / H), 1.5));
     const cx = (minX + maxX) / 2, cy = (minY + maxY) / 2;
-    setViewBox({ x: cx - (W * zoom) / 2, y: cy - (H * zoom) / 2, zoom });
-  }, [canvasNodes]);
+    p.setViewBox({ x: cx - (W * zoom) / 2, y: cy - (H * zoom) / 2, zoom });
+  }, []);
 
   return {
     getSVGCoords,

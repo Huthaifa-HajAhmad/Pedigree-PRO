@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { useCreatePedigree, useListPatients, useImportPedigreeNative, useImportPedigreeLegacy, queryKeys, detectApiMode } from "@workspace/api-client-react";
+import { useCreatePedigree, useListPatients, useListProfiles, useImportPedigreeLegacy, queryKeys, detectApiMode } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { Upload, FileText, AlertTriangle, CheckCircle2, X, Dna, Database } from "lucide-react";
@@ -29,8 +29,8 @@ export function ImportDialog({ children }: Props) {
   const [, navigate] = useLocation();
   const queryClient = useQueryClient();
   const { data: patients } = useListPatients();
+  const { data: profiles } = useListProfiles();
   const createPedigree = useCreatePedigree();
-  const importNative = useImportPedigreeNative();
   const importLegacy = useImportPedigreeLegacy();
 
   const reset = () => {
@@ -51,7 +51,7 @@ export function ImportDialog({ children }: Props) {
 
   const detectImportMode = (file: File): ImportMode => {
     const ext = file.name.split(".").pop()?.toLowerCase() ?? "";
-    if (ext === "hpcl") return "hpcl";
+    if (ext === "ppro") return "hpcl";
     if (ext === "db" || ext === "sqlite" || ext === "sqlite3") return "legacy";
     return "ped";
   };
@@ -62,8 +62,8 @@ export function ImportDialog({ children }: Props) {
     setImportMode(mode);
 
     if (mode === "hpcl") {
-      if (file.size > 50 * 1024 * 1024) {
-        setError("File too large (max 50 MB).");
+      if (file.size > 20 * 1024 * 1024) {
+        setError("File too large (max 20 MB).");
         return;
       }
       const reader = new FileReader();
@@ -75,13 +75,13 @@ export function ImportDialog({ children }: Props) {
             canvasData: parsed.pedigree?.canvas_data || { nodes: [], edges: [] },
             familyIds: [],
             warnings: [],
-            suggestedTitle: parsed.pedigree?.title || file.name.replace(".hpcl", ""),
+            suggestedTitle: parsed.pedigree?.title || file.name.replace(".ppro", ""),
           });
           setFilename(file.name);
-          setTitle(parsed.pedigree?.title || file.name.replace(".hpcl", ""));
+          setTitle(parsed.pedigree?.title || file.name.replace(".ppro", ""));
           setStep("preview");
         } catch (err) {
-          setError(`Invalid .hpcl file: ${err instanceof Error ? err.message : String(err)}`);
+          setError(`Invalid .ppro file: ${err instanceof Error ? err.message : String(err)}`);
         }
       };
       reader.onerror = () => setError("Failed to read file.");
@@ -98,7 +98,7 @@ export function ImportDialog({ children }: Props) {
     const validExts = ["ped", "hap", "tfam", "csv", "tsv", "txt"];
     const ext = file.name.split(".").pop()?.toLowerCase() ?? "";
     if (!validExts.includes(ext)) {
-      setError(`Unsupported file type ".${ext}". Accepted: .ped, .hap, .tfam, .csv, .tsv, .txt, .hpcl, .db`);
+      setError(`Unsupported file type ".${ext}". Accepted: .ped, .hap, .tfam, .csv, .tsv, .txt, .ppro, .db`);
       return;
     }
     if (file.size > 5 * 1024 * 1024) {
@@ -144,7 +144,7 @@ export function ImportDialog({ children }: Props) {
         patient_id: patientId ? parseInt(patientId, 10) : undefined,
         notes: `Imported from ${filename}. ${result.warnings.length > 0 ? "Warnings: " + result.warnings.join("; ") : ""}`.trim() || undefined,
         canvas_data: JSON.stringify(result.canvasData),
-        creator_key: "",
+        creator_key: profiles?.[0]?.public_key ?? "",
       },
       {
         onSuccess: (pedigree) => {
@@ -195,9 +195,9 @@ export function ImportDialog({ children }: Props) {
         {step === "upload" && (
           <div className="space-y-4">
             <p className="text-xs text-muted-foreground leading-relaxed">
-              Import from <span className="text-foreground font-semibold">HaploPainter / PLINK PED</span>,{" "}
-              <span className="text-foreground font-semibold">HaploClinical .hpcl</span>, or a{" "}
-              <span className="text-foreground font-semibold">legacy HaploPainter database</span> (.db).
+              Import from <span className="text-foreground font-semibold">PLINK PED</span>,{" "}
+              <span className="text-foreground font-semibold">Pedigree PRO .ppro</span>, or a{" "}
+              <span className="text-foreground font-semibold">legacy database</span> (.db).
             </p>
 
             <div
@@ -215,13 +215,13 @@ export function ImportDialog({ children }: Props) {
               <Upload className={`w-8 h-8 transition-colors ${dragOver ? "text-primary" : "text-muted-foreground"}`} />
               <div className="text-center">
                 <div className="text-sm font-medium">Drop file here or click to browse</div>
-                <div className="text-xs text-muted-foreground mt-1">.ped · .hap · .tfam · .csv · .tsv · .txt · .hpcl · .db — max 50 MB</div>
+                <div className="text-xs text-muted-foreground mt-1">.ped · .hap · .tfam · .csv · .tsv · .txt · .ppro · .db — max 20 MB</div>
               </div>
               <input
                 ref={fileRef}
                 type="file"
                 className="hidden"
-                accept=".ped,.hap,.tfam,.csv,.tsv,.txt,.hpcl,.db,.sqlite,.sqlite3"
+                accept=".ped,.hap,.tfam,.csv,.tsv,.txt,.ppro,.db,.sqlite,.sqlite3"
                 onChange={handleFileInput}
                 data-testid="file-input"
               />
@@ -238,15 +238,15 @@ export function ImportDialog({ children }: Props) {
               <div className="text-xs text-muted-foreground uppercase tracking-widest mb-2">Supported Formats</div>
               <div className="space-y-2">
                 <div>
-                  <div className="text-xs font-semibold text-foreground mb-1">HaploClinical .hpcl</div>
+                  <div className="text-xs font-semibold text-foreground mb-1">Pedigree PRO .ppro</div>
                   <div className="text-xs text-muted-foreground">Native export format with cryptographic provenance. Import with full signature verification.</div>
                 </div>
                 <div className="border-t border-border pt-2">
                   <div className="text-xs font-semibold text-foreground mb-1">Legacy Database (.db)</div>
-                  <div className="text-xs text-muted-foreground">HaploPainter SQLite database. Full migration with dual-write and user name preservation.</div>
+                  <div className="text-xs text-muted-foreground">Legacy SQLite database. Full migration with dual-write and user name preservation.</div>
                 </div>
                 <div className="border-t border-border pt-2">
-                  <div className="text-xs font-semibold text-foreground mb-1">HaploPainter PED  (.ped, .hap, .tfam)</div>
+                  <div className="text-xs font-semibold text-foreground mb-1">PLINK PED  (.ped, .hap, .tfam)</div>
                   <div className="text-xs text-muted-foreground">FamilyID  IndivID  FatherID  MotherID  Sex  Phenotype</div>
                 </div>
               </div>
@@ -303,7 +303,7 @@ export function ImportDialog({ children }: Props) {
               <FileText className="w-5 h-5 text-primary flex-shrink-0" />
               <div className="flex-1 min-w-0">
                 <div className="text-sm font-medium truncate">{filename}</div>
-                <div className="text-xs text-muted-foreground">HaploClinical .hpcl — cryptographic provenance verified</div>
+                <div className="text-xs text-muted-foreground">Pedigree PRO .ppro — cryptographic provenance verified</div>
               </div>
               <button onClick={() => { setStep("upload"); setResult(null); }} className="text-muted-foreground hover:text-foreground transition-colors flex-shrink-0"><X className="w-4 h-4" /></button>
             </div>
@@ -332,7 +332,7 @@ export function ImportDialog({ children }: Props) {
               <Database className="w-5 h-5 text-primary flex-shrink-0" />
               <div className="flex-1 min-w-0">
                 <div className="text-sm font-medium truncate">{filename}</div>
-                <div className="text-xs text-muted-foreground">Legacy HaploPainter SQLite Database</div>
+                <div className="text-xs text-muted-foreground">Legacy Pedigree PRO SQLite Database</div>
               </div>
               <button onClick={() => { setStep("upload"); setError(null); }} className="text-muted-foreground hover:text-foreground transition-colors flex-shrink-0"><X className="w-4 h-4" /></button>
             </div>

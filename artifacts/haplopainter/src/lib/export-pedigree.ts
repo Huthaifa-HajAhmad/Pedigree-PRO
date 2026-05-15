@@ -112,7 +112,12 @@ export function exportJSON(info: ExportInfo, canvas: ExportCanvas) {
 // PDF export — clinical-grade, white background, vector-like drawing
 // ---------------------------------------------------------------------------
 export async function exportPDF(info: ExportInfo, canvas: ExportCanvas) {
-  const { jsPDF } = await import("jspdf");
+  let jsPDF: typeof import("jspdf").jsPDF;
+  try {
+    jsPDF = (await import("jspdf")).jsPDF;
+  } catch {
+    throw new Error("PDF export requires the jspdf library. Run: pnpm add jspdf");
+  }
 
   const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
   const PW = 297;
@@ -126,7 +131,7 @@ export async function exportPDF(info: ExportInfo, canvas: ExportCanvas) {
   doc.setTextColor(57, 255, 20);
   doc.setFontSize(14);
   doc.setFont("helvetica", "bold");
-  doc.text("HaploClinical", M, 10);
+  doc.text("Pedigree PRO", M, 10);
 
   doc.setFontSize(7);
   doc.setFont("helvetica", "normal");
@@ -394,7 +399,12 @@ const toRoman = (n: number) => ROMAN[n - 1] ?? `G${n}`;
 // PPTX export — editable PowerPoint shapes (multi-slide clinical deck)
 // ---------------------------------------------------------------------------
 export async function exportPPTX(info: ExportInfo, canvas: ExportCanvas) {
-  const PptxGenJs = (await import("pptxgenjs")).default;
+  let PptxGenJs: typeof import("pptxgenjs").default;
+  try {
+    PptxGenJs = (await import("pptxgenjs")).default;
+  } catch {
+    throw new Error("PPTX export requires the pptxgenjs library. Run: pnpm add pptxgenjs");
+  }
   const pptx = new PptxGenJs();
   pptx.layout = "LAYOUT_WIDE";
   const SW = 13.33;
@@ -418,7 +428,7 @@ export async function exportPPTX(info: ExportInfo, canvas: ExportCanvas) {
   // Left panel
   cover.addShape(pptx.ShapeType.rect, { x: 0, y: 0, w: 7.2, h: SH, fill: { color: "080E08" }, line: { color: "1A2A1A", width: 0.5 } });
 
-  cover.addText("HaploClinical", { x: 0.55, y: 1.1, w: 6.2, h: 0.7, fontSize: 38, bold: true, color: "39FF14", fontFace: "Courier New" });
+  cover.addText("Pedigree PRO", { x: 0.55, y: 1.1, w: 6.2, h: 0.7, fontSize: 38, bold: true, color: "39FF14", fontFace: "Courier New" });
   cover.addText("Genetic Counseling Pedigree Report", { x: 0.55, y: 1.85, w: 6.2, h: 0.3, fontSize: 11, color: "336633", fontFace: "Courier New" });
 
   // Divider line
@@ -477,7 +487,7 @@ export async function exportPPTX(info: ExportInfo, canvas: ExportCanvas) {
 
   // Header
   slide.addShape(pptx.ShapeType.rect, { x: 0, y: 0, w: SW, h: 0.52, fill: { color: "0F0F0F" }, line: { color: "1E1E1E", width: 0.5 } });
-  slide.addText("HaploClinical", { x: 0.2, y: 0.08, w: 3.5, h: 0.28, fontSize: 11, bold: true, color: "39FF14", fontFace: "Courier New" });
+  slide.addText("Pedigree PRO", { x: 0.2, y: 0.08, w: 3.5, h: 0.28, fontSize: 11, bold: true, color: "39FF14", fontFace: "Courier New" });
   slide.addText(info.title, { x: 3.8, y: 0.12, w: 5.5, h: 0.22, fontSize: 9, color: "666666", fontFace: "Courier New" });
   slide.addText(`${today}  ·  ${canvas.nodes.length} individuals  ·  ${maxGen} generation${maxGen !== 1 ? "s" : ""}`, {
     x: SW - 4, y: 0.12, w: 3.8, h: 0.22, fontSize: 7.5, color: "444444", align: "right", fontFace: "Courier New",
@@ -637,7 +647,7 @@ export async function exportPPTX(info: ExportInfo, canvas: ExportCanvas) {
     const s3 = pptx.addSlide();
     s3.background = { color: "060A06" };
     s3.addShape(pptx.ShapeType.rect, { x: 0, y: 0, w: SW, h: 0.52, fill: { color: "0F0F0F" }, line: { color: "1E1E1E", width: 0.5 } });
-    s3.addText("HaploClinical", { x: 0.2, y: 0.1, w: 3.5, h: 0.28, fontSize: 11, bold: true, color: "39FF14", fontFace: "Courier New" });
+    s3.addText("Pedigree PRO", { x: 0.2, y: 0.1, w: 3.5, h: 0.28, fontSize: 11, bold: true, color: "39FF14", fontFace: "Courier New" });
     s3.addText("Clinical Roster — Affected & Notable Individuals", { x: 3.9, y: 0.13, w: 7.5, h: 0.24, fontSize: 9, color: "557755", fontFace: "Courier New" });
     s3.addText(`${info.title}  ·  ${today}`, { x: SW-4, y: 0.13, w: 3.8, h: 0.24, fontSize: 7, color: "3A5A3A", align: "right", fontFace: "Courier New" });
 
@@ -677,7 +687,7 @@ export async function exportPPTX(info: ExportInfo, canvas: ExportCanvas) {
     const s4 = pptx.addSlide();
     s4.background = { color: "060A06" };
     s4.addShape(pptx.ShapeType.rect, { x: 0, y: 0, w: SW, h: 0.52, fill: { color: "0F0F0F" }, line: { color: "1E1E1E", width: 0.5 } });
-    s4.addText("HaploClinical", { x: 0.2, y: 0.1, w: 3.5, h: 0.28, fontSize: 11, bold: true, color: "39FF14", fontFace: "Courier New" });
+    s4.addText("Pedigree PRO", { x: 0.2, y: 0.1, w: 3.5, h: 0.28, fontSize: 11, bold: true, color: "39FF14", fontFace: "Courier New" });
     s4.addText("Clinical Notes", { x: 3.9, y: 0.13, w: 6, h: 0.24, fontSize: 9, color: "557755", fontFace: "Courier New" });
     s4.addShape(pptx.ShapeType.rect, { x: 0.4, y: 0.72, w: SW-0.8, h: SH-1.15, fill: { color: "080C08" }, line: { color: "1A2A1A", width: 0.5 } });
     s4.addText(info.notes, { x: 0.65, y: 0.88, w: SW-1.3, h: SH-1.4, fontSize: 11, color: "99BB99", fontFace: "Courier New", wrap: true, valign: "top" });
@@ -712,7 +722,12 @@ function addLine(
 // Clinical Report — 2-page portrait PDF with risk analysis & validation
 // ---------------------------------------------------------------------------
 export async function exportClinicalReport(info: ExportInfo, canvas: ExportCanvas) {
-  const { jsPDF } = await import("jspdf");
+  let jsPDF: typeof import("jspdf").jsPDF;
+  try {
+    jsPDF = (await import("jspdf")).jsPDF;
+  } catch {
+    throw new Error("Clinical report export requires the jspdf library. Run: pnpm add jspdf");
+  }
 
   const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
   const PW = 210;
@@ -731,7 +746,7 @@ export async function exportClinicalReport(info: ExportInfo, canvas: ExportCanva
     doc.setTextColor(NR, NG, NB);
     doc.setFontSize(11);
     doc.setFont("helvetica", "bold");
-    doc.text("HaploClinical", M, 8);
+    doc.text("Pedigree PRO", M, 8);
     doc.setFontSize(6.5);
     doc.setFont("helvetica", "normal");
     doc.setTextColor(100, 100, 100);
@@ -1170,7 +1185,7 @@ export async function exportClinicalReport(info: ExportInfo, canvas: ExportCanva
  * and downloads it as an .svg file.
  */
 export async function exportSVG(info: ExportInfo, _canvas: ExportCanvas): Promise<void> {
-  const svgEl = document.querySelector("svg");
+  const svgEl = document.querySelector('svg[data-canvas-svg="true"]') ?? document.querySelector("svg");
   if (!svgEl) {
     alert("No pedigree canvas SVG found on the page.");
     return;
@@ -1189,7 +1204,7 @@ export async function exportSVG(info: ExportInfo, _canvas: ExportCanvas): Promis
  * Renders the current SVG DOM element to a canvas and downloads it as a .png file.
  */
 export async function exportPNG(info: ExportInfo, _canvas: ExportCanvas): Promise<void> {
-  const svgEl = document.querySelector("svg");
+  const svgEl = document.querySelector('svg[data-canvas-svg="true"]') ?? document.querySelector("svg");
   if (!svgEl) {
     alert("No pedigree canvas SVG found on the page.");
     return;
@@ -1235,6 +1250,11 @@ function triggerDownload(blob: Blob, filename: string) {
   const a   = document.createElement("a");
   a.href    = url;
   a.download = filename;
+  a.style.display = "none";
+  document.body.appendChild(a);
   a.click();
-  setTimeout(() => URL.revokeObjectURL(url), 5000);
+  setTimeout(() => {
+    URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+  }, 5000);
 }

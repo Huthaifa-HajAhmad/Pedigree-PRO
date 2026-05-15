@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { useListVersions, useRestoreVersion, queryKeys } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Clock, RotateCcw, GitBranch, ChevronLeft, ChevronRight, Play, Pause } from "lucide-react";
@@ -26,7 +26,17 @@ export function VersionTimeline({ pedigreeId, currentCanvas, onRestore, onPrevie
   const queryClient = useQueryClient();
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [playInterval, setPlayInterval] = useState<ReturnType<typeof setInterval> | null>(null);
+  const playIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Cleanup interval on unmount
+  useEffect(() => {
+    return () => {
+      if (playIntervalRef.current !== null) {
+        clearInterval(playIntervalRef.current);
+        playIntervalRef.current = null;
+      }
+    };
+  }, []);
 
   const handleSelect = useCallback((index: number, version: PedigreeVersion) => {
     setSelectedIndex(index);
@@ -60,16 +70,16 @@ export function VersionTimeline({ pedigreeId, currentCanvas, onRestore, onPrevie
         onPreview(versions[idx].canvas_data);
       }
     }, 2000);
-    setPlayInterval(interval);
+    playIntervalRef.current = interval;
   }, [versions, selectedIndex, onPreview]);
 
   const handlePause = useCallback(() => {
     setIsPlaying(false);
-    if (playInterval) {
-      clearInterval(playInterval);
-      setPlayInterval(null);
+    if (playIntervalRef.current !== null) {
+      clearInterval(playIntervalRef.current);
+      playIntervalRef.current = null;
     }
-  }, [playInterval]);
+  }, []);
 
   if (isLoading) {
     return (
@@ -121,8 +131,8 @@ export function VersionTimeline({ pedigreeId, currentCanvas, onRestore, onPrevie
       <div className="flex items-center gap-1 overflow-x-auto pb-1 scrollbar-thin">
         {versions.map((version, index) => {
           const isSelected = selectedIndex === index;
-          const date = new Date(version.created_at).toLocaleDateString();
-          const time = new Date(version.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+          const date = (() => { try { return new Date(version.created_at).toLocaleDateString(); } catch { return "—"; } })();
+          const time = (() => { try { return new Date(version.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }); } catch { return "—"; } })();
 
           return (
             <div
@@ -138,11 +148,12 @@ export function VersionTimeline({ pedigreeId, currentCanvas, onRestore, onPrevie
             >
               {/* Thumbnail */}
               <div className="h-14 bg-muted/50 rounded-t flex items-center justify-center overflow-hidden">
-                {version.thumbnail ? (
+                  {version.thumbnail ? (
                   <img
                     src={version.thumbnail}
                     alt={`Version ${version.version_number}`}
                     className="w-full h-full object-contain"
+                    onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
                   />
                 ) : (
                   <Clock className="w-4 h-4 text-muted-foreground/40" />
@@ -175,7 +186,7 @@ export function VersionTimeline({ pedigreeId, currentCanvas, onRestore, onPrevie
           <div className="text-[10px] text-muted-foreground">
             {versions[selectedIndex].label ?? `Version ${versions[selectedIndex].version_number}`}
             {" "}·{" "}
-            {new Date(versions[selectedIndex].created_at).toLocaleString()}
+            {(() => { try { return new Date(versions[selectedIndex].created_at).toLocaleString(); } catch { return "—"; } })()}
           </div>
           <div className="flex items-center gap-1">
             <button

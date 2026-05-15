@@ -8,7 +8,7 @@ export default function NotFound() {
         <div className="flex items-center justify-center gap-3 mb-6">
           <Dna className="w-8 h-8 text-primary" />
           <span className="text-2xl font-bold tracking-tight text-primary">
-            HaploClinical
+            Pedigree PRO
           </span>
         </div>
         <div className="text-6xl font-bold text-muted-foreground">404</div>

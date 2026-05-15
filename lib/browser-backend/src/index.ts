@@ -1,5 +1,5 @@
 /**
- * HaploClinical — Browser Backend
+ * Pedigree PRO — Browser Backend
  *
  * sql.js WASM SQLite + IndexedDB persistence + Web Crypto API.
  * Re-implements the Rust command surface in TypeScript for browser standalone mode.
@@ -7,7 +7,7 @@
  * No server. No Tauri. Works entirely in the browser.
  */
 
-export { initDb, saveDb } from "./db";
+export { initDb, saveDb, stopAutoSave } from "./db";
 export {
   getOrCreateDbKey,
   storeProfilePrivateKey,

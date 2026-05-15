@@ -1,4 +1,4 @@
-// HaploClinical — Zero-Knowledge Relay Client
+// Pedigree PRO — Zero-Knowledge Relay Client
 //
 // Implements the client side of the encrypted sharing protocol (ADR-001 §3.3).
 // The relay service (Cloudflare Worker) stores only ciphertext — it cannot

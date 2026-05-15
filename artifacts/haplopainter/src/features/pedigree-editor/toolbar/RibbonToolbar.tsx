@@ -10,7 +10,7 @@ import {
 } from "lucide-react";
 import { NodeIcon } from "@/features/pedigree-editor/toolbar/NodeIcon";
 import type { PedigreeNode, CanvasData } from "@/features/pedigree-editor/canvas/types";
-import { CANVAS_PRIMARY } from "@/lib/canvas-theme";
+
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
 
 interface TemplateOption {
@@ -342,7 +342,7 @@ export function RibbonToolbar(props: RibbonToolbarProps) {
                   </button>
                   <button onClick={() => { props.runAutoLayout(true); props.setShowLayoutMenu(false); }}
                     className="w-full flex items-start gap-3 px-3 py-2.5 hover:bg-accent transition-colors text-left border-t border-border">
-                    <LayoutGrid className="w-4 h-4 mt-0.5 flex-shrink-0" style={{ color: CANVAS_PRIMARY }} />
+                    <LayoutGrid className="w-4 h-4 mt-0.5 flex-shrink-0" style={{ color: "hsl(var(--primary))" }} />
                     <div>
                       <div className="text-xs font-medium">Auto-arrange <span className="text-muted-foreground font-normal">(L)</span></div>
                       <div className="text-xs text-muted-foreground">Arrange unpinned nodes; pinned stay</div>
@@ -384,7 +384,7 @@ export function RibbonToolbar(props: RibbonToolbarProps) {
                 </button>
                 <button onClick={props.bakeEmptyLabels} disabled={props.canvasNodes.length === 0}
                   className="w-full flex items-start gap-3 px-3 py-2.5 hover:bg-accent transition-colors text-left border-t border-border disabled:opacity-40">
-                  <Hash className="w-4 h-4 mt-0.5 flex-shrink-0" style={{ color: CANVAS_PRIMARY }} />
+                  <Hash className="w-4 h-4 mt-0.5 flex-shrink-0" style={{ color: "hsl(var(--primary))" }} />
                   <div>
                     <div className="text-xs font-medium text-foreground">Fill unlabeled nodes</div>
                     <div className="text-xs text-muted-foreground mt-0.5">Write I:1, II:3 … into nodes without a name</div>
@@ -461,7 +461,7 @@ export function RibbonToolbar(props: RibbonToolbarProps) {
                       });
                     }}
                     className="w-full flex items-start gap-3 px-3 py-2.5 hover:bg-accent transition-colors text-left border-t border-border first:border-0">
-                    <LayoutTemplate className="w-4 h-4 mt-0.5 flex-shrink-0" style={{ color: CANVAS_PRIMARY }} />
+                    <LayoutTemplate className="w-4 h-4 mt-0.5 flex-shrink-0" style={{ color: "hsl(var(--primary))" }} />
                     <div>
                       <div className="text-xs font-medium">{tpl.name}</div>
                       <div className="text-xs text-muted-foreground">{tpl.desc}</div>
@@ -523,9 +523,9 @@ export function RibbonToolbar(props: RibbonToolbarProps) {
           </span>
         )}
         {!props.linkMode && props.saveStatus === "saving" && <span className="text-xs text-muted-foreground" aria-hidden="true">Saving…</span>}
-        {!props.linkMode && props.saveStatus === "saved" && <span className="text-xs font-medium" style={{ color: CANVAS_PRIMARY }} aria-hidden="true">Saved ✓</span>}
+        {!props.linkMode && props.saveStatus === "saved" && <span className="text-xs font-medium" style={{ color: "hsl(var(--primary))" }} aria-hidden="true">Saved ✓</span>}
         {!props.linkMode && props.saveStatus !== "saving" && props.saveStatus !== "saved" && props.selectedCount > 1 && (
-          <span className="text-xs" style={{ color: CANVAS_PRIMARY }}>{props.selectedCount} selected</span>
+          <span className="text-xs" style={{ color: "hsl(var(--primary))" }}>{props.selectedCount} selected</span>
         )}
       </div>
 

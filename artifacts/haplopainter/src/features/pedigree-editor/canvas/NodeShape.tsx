@@ -1,7 +1,7 @@
 import { memo } from "react";
 import type { PedigreeNode } from "./types";
 import { NODE_SIZE } from "./types";
-import { CANVAS_PRIMARY } from "@/lib/canvas-theme";
+
 
 interface NodeShapeProps {
   node: PedigreeNode;
@@ -20,7 +20,7 @@ export const NodeShape = memo(function NodeShape({
   node, selected, isLinkSource, invalid, autoLabel, onClick, onDragStart, onContextMenu, onDoubleClick, animated = true,
 }: NodeShapeProps) {
   const ERR = "#FF4040";
-  const highlight = isLinkSource ? "#00BFFF" : CANVAS_PRIMARY;
+  const highlight = isLinkSource ? "#00BFFF" : "hsl(var(--primary))";
   const stroke = invalid
     ? ERR
     : selected || isLinkSource
@@ -77,9 +77,9 @@ export const NodeShape = memo(function NodeShape({
       )}
       {node.type === "sab" && (
         <polygon points={`0,${S * 0.36} ${-S * 0.38},${-S * 0.26} ${S * 0.38},${-S * 0.26}`}
-          fill={invalid ? "rgba(255,64,64,0.07)" : node.affected ? "hsl(var(--foreground))" : "hsl(var(--card))"} stroke={stroke} strokeWidth={strokeWidth} style={glow} />
+          fill={invalid ? "rgba(255,64,64,0.07)" : node.affected ? "hsl(var(--foreground))" : node.carrier ? "hsl(var(--primary) / 0.08)" : "hsl(var(--card))"} stroke={stroke} strokeWidth={strokeWidth} style={glow} />
       )}
-      {node.carrier && !node.affected && <circle cx={0} cy={0} r={5} fill={CANVAS_PRIMARY} opacity={0.85} />}
+      {node.carrier && !node.affected && <circle cx={0} cy={0} r={5} fill={"hsl(var(--primary))"} opacity={0.85} />}
       {node.deceased && (
         <line x1={-S / 2 - 8} y1={S / 2 + 8} x2={S / 2 + 8} y2={-S / 2 - 8} stroke="hsl(var(--foreground) / 0.6)" strokeWidth={1.5} />
       )}
@@ -93,7 +93,7 @@ export const NodeShape = memo(function NodeShape({
       {autoLabel && <text x={0} y={S / 2 + 13} textAnchor="middle" fontSize={8} fill="hsl(var(--foreground) / 0.45)" style={{ userSelect: "none", fontFamily: "JetBrains Mono, monospace", letterSpacing: "0.05em" }}>{autoLabel}</text>}
       {node.label && <text x={0} y={autoLabel ? S / 2 + 24 : S / 2 + 14} textAnchor="middle" fontSize={9} fill="hsl(var(--foreground))" style={{ userSelect: "none", fontFamily: "JetBrains Mono, monospace" }}>{node.label}</text>}
       {node.age && <text x={0} y={(autoLabel ? S / 2 + 24 : S / 2 + 14) + (node.label ? 11 : 0)} textAnchor="middle" fontSize={8} fill="hsl(var(--foreground) / 0.55)" style={{ userSelect: "none", fontFamily: "JetBrains Mono, monospace" }}>{node.age}y</text>}
-      {node.dob && !node.age && <text x={0} y={(autoLabel ? S / 2 + 24 : S / 2 + 14) + (node.label ? 11 : 0)} textAnchor="middle" fontSize={8} fill="hsl(var(--foreground) / 0.5)" style={{ userSelect: "none", fontFamily: "JetBrains Mono, monospace" }}>b.{node.dob.slice(0, 4)}</text>}
+      {node.dob && !node.age && <text x={0} y={(autoLabel ? S / 2 + 24 : S / 2 + 14) + (node.label ? 11 : 0)} textAnchor="middle" fontSize={8} fill="hsl(var(--foreground) / 0.5)" style={{ userSelect: "none", fontFamily: "JetBrains Mono, monospace" }}>{node.dob.length >= 4 ? `b.${node.dob.slice(0, 4)}` : node.dob}</text>}
       {node.condition && (
         <text x={0} y={(autoLabel ? S / 2 + 24 : S / 2 + 14) + (node.label ? 11 : 0) + ((node.age || node.dob) ? 11 : 0) + 11}
           textAnchor="middle" fontSize={8} fill="hsl(var(--foreground) / 0.65)" style={{ userSelect: "none", fontFamily: "JetBrains Mono, monospace", fontStyle: "italic" }}>

@@ -2,7 +2,7 @@ import { TrendingUp, X } from "lucide-react";
 import { useState, useMemo } from "react";
 import type { PedigreeNode, PedigreeEdge } from "@/features/pedigree-editor/canvas/types";
 import { computeRisk, type InheritanceMode, type RiskResult } from "@/lib/risk-calculator";
-import { CANVAS_PRIMARY } from "@/lib/canvas-theme";
+
 
 export const MODES: { id: InheritanceMode; label: string; title: string }[] = [
   { id: "AD",  label: "AD",  title: "Autosomal Dominant"   },
@@ -132,7 +132,7 @@ export function RiskPanelSidebar({
       {/* Header */}
       <div className="p-3 border-b border-border flex items-center justify-between flex-shrink-0">
         <div className="flex items-center gap-2">
-          <TrendingUp className="w-4 h-4" style={{ color: CANVAS_PRIMARY }} />
+          <TrendingUp className="w-4 h-4" style={{ color: "hsl(var(--primary))" }} />
           <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Risk Calculator</span>
         </div>
         <button onClick={onClose} className="text-muted-foreground hover:text-foreground transition-colors">
@@ -165,7 +165,7 @@ export function RiskPanelSidebar({
               { label: "Total",    value: summary.total,    color: undefined  },
               { label: "Affected", value: summary.affected, color: "#FF4040"  },
               { label: "Carriers", value: summary.carriers, color: "#FACC15"  },
-              { label: "Proband",  value: summary.proband,  color: CANVAS_PRIMARY       },
+              { label: "Proband",  value: summary.proband,  color: "hsl(var(--primary))"       },
             ] as const).map(({ label, value, color }) => (
               <div key={label} className="border border-border rounded p-2 text-center">
                 <div className="text-xl font-bold" style={{ color: color ?? "inherit" }}>{value}</div>
@@ -199,7 +199,7 @@ export function RiskPanelSidebar({
                 <div className="space-y-2">
                   <div className="text-xs font-medium">
                     {focusNode.label || focusNode.type}
-                    {focusNode.proband && <span className="ml-1" style={{ color: CANVAS_PRIMARY }}>★ proband</span>}
+                    {focusNode.proband && <span className="ml-1" style={{ color: "hsl(var(--primary))" }}>★ proband</span>}
                   </div>
                   {focusResult.entries.map((e, i) => {
                     const colors = TIER_COLORS[e.tier];

@@ -122,7 +122,13 @@ export default function PedigreeCanvas() {
   const onRestoreDraft = useCallback(() => handleRestoreDraft(setCanvas, setHistory, setFuture), [handleRestoreDraft]);
 
   // ── API sync + tab registration ─────────────────────────────────────────
-  useEffect(() => { if (pedigree?.canvas_data !== undefined) setCanvas(parseCanvas(pedigree.canvas_data)); }, [pedigree?.canvas_data]);
+  const initialSyncDoneRef = useRef(false);
+  useEffect(() => {
+    if (pedigree?.canvas_data !== undefined && !initialSyncDoneRef.current) {
+      setCanvas(parseCanvas(pedigree.canvas_data));
+      initialSyncDoneRef.current = true;
+    }
+  }, [pedigree?.canvas_data]);
   useEffect(() => { if (pedigree?.title && id) openTab(id, pedigree.title); }, [pedigree?.title, id, openTab]);
 
   // ── Derived data ────────────────────────────────────────────────────────
@@ -164,21 +170,42 @@ export default function PedigreeCanvas() {
   }, [canvas]);
 
   // ── Auto-save ───────────────────────────────────────────────────────────
+  const autoSaveRef = useRef<(newCanvas: CanvasData) => void>(() => {});
   const autoSave = useCallback((newCanvas: CanvasData) => {
     setSaveStatus("saving");
     updatePedigree.mutate({ id, input: { canvas_data: JSON.stringify(newCanvas) } }, {
-      onSuccess: () => { queryClient.invalidateQueries({ queryKey: queryKeys.pedigree(id) }); setSaveStatus("saved"); setTimeout(() => setSaveStatus("idle"), 2000); try { localStorage.removeItem(`haplopainter_draft_${id}`); } catch {} },
+      onSuccess: () => {
+        queryClient.setQueryData(queryKeys.pedigree(id), (old: any) => old ? { ...old, canvas_data: JSON.stringify(newCanvas), canvas_hash: undefined } : old);
+        setSaveStatus("saved");
+        setTimeout(() => setSaveStatus("idle"), 2000);
+        try { localStorage.removeItem(`haplopainter_draft_${id}`); } catch {}
+      },
       onError: () => setSaveStatus("idle"),
     });
   }, [id, updatePedigree, queryClient]);
+  autoSaveRef.current = autoSave;
+
+  const saveDraft = useCallback((data: CanvasData) => {
+    if (draftEnabledRef.current) {
+      try { localStorage.setItem(draftKeyRef.current, JSON.stringify({ canvas: data, at: Date.now() })); } catch {}
+    }
+  }, []);
 
   const updateCanvas = useCallback((updater: (prev: CanvasData) => CanvasData, opts?: { skipHistory?: boolean }) => {
-    setCanvas((prev) => { const next = updater(prev); if (!opts?.skipHistory) { setHistory((h) => [...h.slice(-49), prev]); setFuture([]); } autoSave(next); if (draftEnabledRef.current) { try { localStorage.setItem(draftKeyRef.current, JSON.stringify({ canvas: next, at: Date.now() })); } catch {} } return next; });
-  }, [autoSave]);
+    setCanvas((prev) => { const next = updater(prev); if (!opts?.skipHistory) { setHistory((h) => [...h.slice(-49), prev]); setFuture([]); } saveDraft(next); return next; });
+  }, [saveDraft]);
+
+  // Auto-save on canvas change (debounced, outside state updater)
+  const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (autoSaveTimerRef.current !== null) clearTimeout(autoSaveTimerRef.current);
+    autoSaveTimerRef.current = setTimeout(() => autoSaveRef.current(canvas), 500);
+    return () => { if (autoSaveTimerRef.current !== null) clearTimeout(autoSaveTimerRef.current); };
+  }, [canvas]);
 
   // ── Business operations ─────────────────────────────────────────────────
-  const undo = useCallback(() => setHistory((h) => { if (!h.length) return h; const t = h[h.length - 1]; setCanvas((c) => { setFuture((f) => [...f.slice(-49), c]); autoSave(t); return t; }); return h.slice(0, -1); }), [autoSave]);
-  const redo = useCallback(() => setFuture((f) => { if (!f.length) return f; const t = f[f.length - 1]; setCanvas((c) => { setHistory((h) => [...h.slice(-49), c]); autoSave(t); return t; }); return f.slice(0, -1); }), [autoSave]);
+  const undo = useCallback(() => setHistory((h) => { if (!h.length) return h; const t = h[h.length - 1]; setCanvas((c) => { setFuture((f) => [...f.slice(-49), c]); saveDraft(t); return t; }); return h.slice(0, -1); }), [saveDraft]);
+  const redo = useCallback(() => setFuture((f) => { if (!f.length) return f; const t = f[f.length - 1]; setCanvas((c) => { setHistory((h) => [...h.slice(-49), c]); saveDraft(t); return t; }); return f.slice(0, -1); }), [saveDraft]);
 
   const addNode = useCallback((type: PedigreeNode["type"]) => {
     const en = canvasRef.current!.nodes;
@@ -192,8 +219,9 @@ export default function PedigreeCanvas() {
       return { x: viewBox.x + vbW / 2, y: Math.max(...en.map((n) => n.y)) + GEN_GRID };
     };
     const { x, y } = fp();
-    updateCanvas((p) => ({ ...p, nodes: [...p.nodes, { id: `n${Date.now()}`, type, affected: false, carrier: false, deceased: false, proband: false, label: "", age: "", x, y }] }));
-    setSelectedIds(new Set([`n${Date.now() - 1}`]));
+    const nid = `n${Date.now()}`;
+    updateCanvas((p) => ({ ...p, nodes: [...p.nodes, { id: nid, type, affected: false, carrier: false, deceased: false, proband: false, label: "", age: "", x, y }] }));
+    setSelectedIds(new Set([nid]));
   }, [updateCanvas, viewBox]);
 
   const addContextNode = useCallback((rel: "child" | "sibling" | "partner") => {
@@ -212,7 +240,7 @@ export default function PedigreeCanvas() {
     setSelectedIds(new Set([nid]));
   }, [selectedIds, updateCanvas]);
 
-  const toggleNodeProp = useCallback((nid: string, prop: "affected" | "carrier" | "deceased" | "proband") => { updateCanvas((p) => ({ ...p, nodes: p.nodes.map((n) => n.id === nid ? { ...n, [prop]: !n[prop] } : n) })); setContextMenu(null); }, [updateCanvas]);
+  const toggleNodeProp = useCallback((nid: string, prop: "affected" | "carrier" | "deceased" | "proband") => { updateCanvas((p) => ({ ...p, nodes: p.nodes.map((n) => n.id === nid ? { ...n, [prop]: typeof n[prop] === 'boolean' ? !n[prop] : true } : n) })); setContextMenu(null); }, [updateCanvas]);
   const setNodeType = useCallback((nid: string, type: PedigreeNode["type"]) => { updateCanvas((p) => ({ ...p, nodes: p.nodes.map((n) => n.id === nid ? { ...n, type } : n) })); setContextMenu(null); }, [updateCanvas]);
   const handleNodeContextMenu = useCallback((nid: string, e: React.MouseEvent) => { e.preventDefault(); e.stopPropagation(); setSelectedIds(new Set([nid])); setContextMenu({ nodeId: nid, x: e.clientX, y: e.clientY }); }, []);
   const handleNodeDoubleClick = useCallback((nid: string, e: React.MouseEvent) => { e.stopPropagation(); setSelectedIds(new Set([nid])); setEditModalNodeId(nid); }, []);
@@ -257,7 +285,7 @@ export default function PedigreeCanvas() {
 
   // ── Canvas interaction (extracted hook) ─────────────────────────────────
   const { getSVGCoords, handleDragStart, handleMouseMove, handleMouseUp, handleSVGMouseDown, handleWheel, fitToScreen } = usePedigreeCanvas({
-    svgRef, canvasNodes: canvas.nodes, canvasAnnotations: canvas.annotations,
+    svgRef, canvasNodes: canvas.nodes, canvasAnnotations: canvas.annotations, canvasEdges: canvas.edges,
     selectedIds, setSelectedIds, setCanvas, dragging, setDragging, isDragging, setIsDragging,
     viewBox, setViewBox, panning, setPanning, snapEnabled, snapRows, setSnapRows,
     annDragging, setAnnDragging, linkMode,
@@ -277,7 +305,7 @@ export default function PedigreeCanvas() {
   };
   const handleRestoreVersion = (vid: number) => {
     openConfirm("Restore Version", "Restore this version? Current canvas will be replaced.", () => {
-      restoreVersion.mutate({ pedigreeId: id, versionId: vid }, { onSuccess: (d: any) => { setCanvas(parseCanvas(d.canvas_data)); queryClient.invalidateQueries({ queryKey: queryKeys.pedigree(id) }); setShowVersions(false); } });
+      restoreVersion.mutate({ pedigreeId: id, versionId: vid }, { onSuccess: (d: any) => { setCanvas(parseCanvas(d.canvas_data)); initialSyncDoneRef.current = true; queryClient.setQueryData(queryKeys.pedigree(id), d); setShowVersions(false); } });
     });
   };
 
@@ -286,8 +314,14 @@ export default function PedigreeCanvas() {
   const he = (fn: Function, fmt: string) => async () => { setShowExportMenu(false); setExportingFormat(fmt); try { await fn(getExportInfo(), canvas); } finally { setExportingFormat(null); } };
 
   const vbW = W * viewBox.zoom, vbH = H * viewBox.zoom, MM_W = 180, MM_H = Math.round(MM_W * H / W);
-  const visibleGenRows: number[] = [];
-  if (isDragging && snapEnabled) for (const r of snapRows) { if (r >= viewBox.y - 40 && r <= viewBox.y + vbH + 40) visibleGenRows.push(r); }
+  const visibleGenRows = useMemo(() => {
+    if (!isDragging || !snapEnabled) return [];
+    const result: number[] = [];
+    for (const r of snapRows) {
+      if (r >= viewBox.y - 40 && r <= viewBox.y + vbH + 40) result.push(r);
+    }
+    return result;
+  }, [isDragging, snapEnabled, snapRows, viewBox.y, vbH]);
 
   if (isLoading) return <div className="flex items-center justify-center h-screen" role="status" aria-live="polite"><div className="text-primary animate-pulse tracking-widest">LOADING...</div></div>;
 
@@ -428,7 +462,7 @@ export default function PedigreeCanvas() {
         showRiskPanel={showRiskPanel}
         setShowRiskPanel={setShowRiskPanel}
         showVersions={showVersions}
-        versions={versions}
+        versions={versions ?? undefined}
         versionsLoading={versionsLoading}
         handleSaveVersion={handleSaveVersion}
         handleRestoreVersion={handleRestoreVersion}
@@ -439,7 +473,7 @@ export default function PedigreeCanvas() {
         setShowValidation={setShowValidation}
         showShareModal={showShareModal}
         setShowShareModal={setShowShareModal}
-        pedigree={pedigree as any}
+        pedigree={pedigree ?? undefined}
       />
 
       {/* ── Collaboration overlays ──────────────────────────────────────────── */}
@@ -466,6 +500,10 @@ export default function PedigreeCanvas() {
         <LanShare
           pedigreeData={JSON.stringify(canvas)}
           onClose={() => setShowLanShare(false)}
+          onPedigreeReceived={(data) => {
+            setCanvas(typeof data === 'string' ? parseCanvas(data) : data as CanvasData);
+            initialSyncDoneRef.current = true;
+          }}
         />
       )}
 

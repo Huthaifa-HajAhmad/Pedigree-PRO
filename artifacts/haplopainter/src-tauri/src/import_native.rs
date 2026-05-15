@@ -1,13 +1,13 @@
-// HaploClinical — Native .hpcl Import
+// Pedigree PRO — Native .ppro Import
 //
-// Imports pedigree data from HaploClinical's own .hpcl export format.
+// Imports pedigree data from Pedigree PRO's own .ppro export format.
 // This is the primary import path for colleague-to-colleague sharing
-// and data portability between HaploClinical instances.
+// and data portability between Pedigree PRO instances.
 //
-// The .hpcl format includes cryptographic provenance (Ed25519 signatures,
+// The .ppro format includes cryptographic provenance (Ed25519 signatures,
 // SHA-256 content hashes) which are verified on import.
 //
-// Per ADR-004 §4.3: .hpcl is a documented JSON format with:
+// Per ADR-004 §4.3: .ppro is a documented JSON format with:
 //   - Pedigree data (title, canvas_data, notes)
 //   - Version history
 //   - Clinical annotations (node_annotations, phenotypes)
@@ -63,13 +63,13 @@ pub struct HpclProvenance {
 }
 
 // =============================================================================
-// Native .hpcl Import
+// Native .ppro Import
 // =============================================================================
 
-/// Imports a pedigree from .hpcl JSON format into the local database.
+/// Imports a pedigree from .ppro JSON format into the local database.
 ///
 /// Steps:
-/// 1. Parse and validate the .hpcl JSON
+/// 1. Parse and validate the .ppro JSON
 /// 2. Verify the export signature (if present) against the claimed exporter key
 /// 3. Compute canvas_hash for the imported canvas_data
 /// 4. Insert the pedigree row
@@ -84,12 +84,12 @@ pub fn import_pedigree_hpcl(
     importer_key: &str,
 ) -> Result<i64, String> {
     let export: HpclExport =
-        serde_json::from_str(hpcl_json).map_err(|e| format!("Invalid .hpcl file: {}", e))?;
+        serde_json::from_str(hpcl_json).map_err(|e| format!("Invalid .ppro file: {}", e))?;
 
     // Validate format
     if export.format_version != "1.0" {
         return Err(format!(
-            "Unsupported .hpcl format version: {} (expected '1.0')",
+            "Unsupported .ppro format version: {} (expected '1.0')",
             export.format_version
         ));
     }
@@ -120,7 +120,7 @@ pub fn import_pedigree_hpcl(
         )?;
         if !valid {
             return Err(
-                "Export signature verification failed: the .hpcl file may have been tampered with"
+                "Export signature verification failed: the .ppro file may have been tampered with"
                     .to_string(),
             );
         }
@@ -212,7 +212,7 @@ pub fn import_pedigree_hpcl(
     import_common::log_activity(
         &conn,
         "imported",
-        &format!("{} (from .hpcl)", pedigree.title),
+        &format!("{} (from .ppro)", pedigree.title),
         Some(importer_key),
         None,
     )?;

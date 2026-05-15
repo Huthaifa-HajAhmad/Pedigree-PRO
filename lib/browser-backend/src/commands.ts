@@ -1,5 +1,5 @@
 /**
- * HaploClinical — Browser Backend Commands
+ * Pedigree PRO — Browser Backend Commands
  *
  * TypeScript port of the Rust command handlers from commands.rs.
  * Uses sql.js (WASM SQLite) via the db.ts module.
@@ -550,7 +550,7 @@ export interface ShareResult {
   share_url: string;
 }
 
-// Browser sharing: encrypt and export as .hpcl file for manual transfer
+// Browser sharing: encrypt and export as .ppro file for manual transfer
 export async function share_pedigree(args: {
   pedigree_id: number;
   recipient_key: string;
@@ -605,7 +605,7 @@ export async function import_shared(args: { share_token: string }): Promise<Pedi
 }
 
 // =============================================================================
-// Import (Native .hpcl + Legacy HaploPainter)
+// Import (Native .ppro + Legacy)
 // =============================================================================
 
 export interface LegacyImportSummary {
@@ -633,7 +633,7 @@ export function import_pedigree_native(args: {
       creator_key: args.importer_key,
     });
   } catch (e) {
-    throw new Error("Invalid .hpcl import data");
+    throw new Error("Invalid .ppro import data");
   }
 }
 
