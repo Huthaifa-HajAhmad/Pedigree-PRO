@@ -19,6 +19,7 @@ let db: any = null;
 let dbKey: CryptoKey | null = null;
 let autoSaveInterval: ReturnType<typeof setInterval> | null = null;
 let dirty = false;
+let initializing = false;
 
 /**
  * Initializes the sql.js database.
@@ -29,62 +30,57 @@ let dirty = false;
  */
 export async function initDb(): Promise<void> {
   if (db) return; // Already initialized
+  if (initializing) throw new Error("Database initialization already in progress");
 
-  let wasmPath = "/sql-wasm-browser.wasm";
-  
-  // Try multiple WASM loading strategies
-  const SQL = await initSqlJs({
-    locateFile: (file: string) => {
-      // In Vite dev server, serve from our custom middleware
-      wasmPath = file.includes("sql-wasm") ? "/sql-wasm-browser.wasm" : `/${file}`;
-      return wasmPath;
-    },
-  }).catch(async (e: unknown) => {
-    console.warn("Failed to load WASM from /sql-wasm-browser.wasm, trying alternative path...", e);
-    // Fallback: try loading from node_modules via Vite's /@fs/ prefix
-    return initSqlJs({
-      locateFile: (file: string) => `/node_modules/sql.js/dist/${file}`,
+  initializing = true;
+  try {
+    const SQL = await initSqlJs({
+      locateFile: (file: string) => {
+        return file.includes("sql-wasm") ? "/sql-wasm-browser.wasm" : `/${file}`;
+      },
     });
-  });
 
-  dbKey = await getOrCreateDbKey();
+    dbKey = await getOrCreateDbKey();
 
-  // Try to load existing encrypted database from IndexedDB
-  const stored = await get<{ ciphertext: Uint8Array; iv: Uint8Array } | null>(
-    DB_KEY,
-    DB_STORE
-  );
+    // Try to load existing encrypted database from IndexedDB
+    const stored = await get<{ ciphertext: Uint8Array; iv: Uint8Array } | null>(
+      DB_KEY,
+      DB_STORE
+    );
 
-  if (stored) {
-    try {
-      const decrypted = await decryptDbBlob(
-        stored.ciphertext,
-        stored.iv,
-        dbKey
-      );
-      db = new SQL.Database(decrypted);
-    } catch (e) {
-      console.error("Failed to decrypt database, starting fresh:", e);
+    if (stored) {
+      try {
+        const decrypted = await decryptDbBlob(
+          stored.ciphertext,
+          stored.iv,
+          dbKey
+        );
+        db = new SQL.Database(decrypted);
+      } catch (e) {
+        console.error("Failed to decrypt database, starting fresh:", e);
+        db = new SQL.Database();
+      }
+    } else {
       db = new SQL.Database();
     }
-  } else {
-    db = new SQL.Database();
+
+    // Enable foreign key enforcement (matches Rust backend)
+    exec("PRAGMA foreign_keys = ON;");
+
+    // Run migrations
+    await runMigrations();
+
+    // Auto-save on page unload (synchronous best-effort via navigator.sendBeacon)
+    window.addEventListener("beforeunload", handleBeforeUnload);
+
+    // Also use visibilitychange for mobile/tab switching
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    // Periodic auto-save every 3 seconds to minimize data loss on abrupt close
+    autoSaveInterval = setInterval(saveIfDirty, 3_000);
+  } finally {
+    initializing = false;
   }
-
-  // Enable foreign key enforcement (matches Rust backend)
-  exec("PRAGMA foreign_keys = ON;");
-
-  // Run migrations
-  await runMigrations();
-
-  // Auto-save on page unload (synchronous best-effort via navigator.sendBeacon)
-  window.addEventListener("beforeunload", handleBeforeUnload);
-
-  // Also use visibilitychange for mobile/tab switching
-  document.addEventListener("visibilitychange", handleVisibilityChange);
-
-  // Periodic auto-save every 10 seconds (reduced from 30s to minimize data loss)
-  autoSaveInterval = setInterval(saveIfDirty, 10_000);
 }
 
 /**
@@ -96,15 +92,13 @@ export function markDirty(): void {
 }
 
 /**
- * Synchronous beforeunload handler.
- * Uses navigator.sendBeacon as a best-effort fallback. The primary
- * defense is the 10-second periodic auto-save, which limits data loss
- * to at most 10 seconds of work.
+ * Best-effort save on beforeunload.
+ * beforeunload cannot await async operations, so we fire saveDb()
+ * and rely on the periodic auto-save (3s interval) as the primary
+ * durability mechanism. Data loss is limited to at most 3 seconds.
  */
 function handleBeforeUnload(): void {
   if (!db || !dbKey || !dirty) return;
-  // Synchronous save attempt — beforeunload doesn't await promises
-  // but the periodic save ensures at most 10s of data loss
   saveDb().catch(() => { /* best effort */ });
 }
 
@@ -136,6 +130,28 @@ export function stopAutoSave(): void {
   }
   window.removeEventListener("beforeunload", handleBeforeUnload);
   document.removeEventListener("visibilitychange", handleVisibilityChange);
+}
+
+/**
+ * Exports the current database as a Uint8Array.
+ */
+export async function exportDb(): Promise<Uint8Array> {
+  if (!db) throw new Error("Database not initialized");
+  return new Uint8Array(db.export());
+}
+
+/**
+ * Imports a database from a Uint8Array, replacing the current one.
+ */
+export async function importDb(data: Uint8Array): Promise<void> {
+  if (!db) throw new Error("Database not initialized");
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const DbCtor = (db as any).constructor;
+  db.close();
+  db = new DbCtor(data);
+  dirty = true;
+  await runMigrations();
+  await saveDb();
 }
 
 /**
@@ -192,7 +208,7 @@ export function queryOne<T = Record<string, unknown>>(
   params?: unknown[]
 ): T | null {
   const rows = query<T>(sql, params);
-  return rows.length > 0 ? rows[0] : null;
+  return rows.length > 0 ? rows[0]! : null;
 }
 
 /**
@@ -230,7 +246,7 @@ async function runMigrations(): Promise<void> {
   for (const [version, name, sql] of migrations) {
     if (appliedSet.has(version)) continue;
     exec(sql);
-    exec(`INSERT INTO _migrations (version, name) VALUES (${version}, '${name}');`);
+    exec("INSERT INTO _migrations (version, name) VALUES (?, ?)", [version, name]);
   }
 }
 
@@ -301,8 +317,14 @@ CREATE TABLE IF NOT EXISTS local_profiles (
 );
 
 CREATE INDEX IF NOT EXISTS idx_patients_mrn ON patients(mrn);
-CREATE INDEX IF NOT EXISTS idx_pedigrees_patient ON pedigrees(patient_id);
-CREATE INDEX IF NOT EXISTS idx_versions_pedigree ON pedigree_versions(pedigree_id);
+CREATE INDEX IF NOT EXISTS idx_patients_name ON patients(last_name, first_name);
+CREATE INDEX IF NOT EXISTS idx_pedigrees_patient_id ON pedigrees(patient_id);
+CREATE INDEX IF NOT EXISTS idx_pedigrees_creator_key ON pedigrees(creator_key);
+CREATE INDEX IF NOT EXISTS idx_pedigrees_updated_at ON pedigrees(updated_at);
+CREATE INDEX IF NOT EXISTS idx_pedigree_versions_pedigree_id ON pedigree_versions(pedigree_id, version_number);
+CREATE INDEX IF NOT EXISTS idx_pedigree_versions_saver_key ON pedigree_versions(saver_key);
+CREATE INDEX IF NOT EXISTS idx_activity_log_timestamp ON activity_log(timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_activity_log_actor_key ON activity_log(actor_key);
 `;
 
 // Inlined migration 002 (clinical annotations)

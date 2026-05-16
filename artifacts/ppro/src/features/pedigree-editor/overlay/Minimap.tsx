@@ -25,8 +25,8 @@ export function Minimap({
 
   return (
     <div
-      className="absolute bottom-10 right-3 z-20 rounded border border-border/70 overflow-hidden cursor-crosshair select-none"
-      style={{ width: mmW, height: mmH, background: "rgba(8,8,8,0.82)", backdropFilter: "blur(6px)" }}
+      className="absolute bottom-4 right-4 z-20 rounded-lg border border-border/50 overflow-hidden cursor-crosshair select-none bg-popover/95 backdrop-blur-sm shadow-lg"
+      style={{ width: mmW, height: mmH }}
       title="Click to pan"
       onClick={(e) => {
         const rect = e.currentTarget.getBoundingClientRect();
@@ -46,8 +46,8 @@ export function Minimap({
               n.affected
                 ? "hsl(var(--primary))"
                 : n.carrier
-                ? "#FACC15"
-                : "rgba(255,255,255,0.4)"
+                ? "hsl(var(--primary))"
+                : "hsl(var(--foreground) / 0.4)"
             }
             opacity={0.9}
           />
@@ -61,7 +61,7 @@ export function Minimap({
               key={edge.id}
               x1={src.x} y1={src.y}
               x2={tgt.x} y2={tgt.y}
-              stroke="rgba(255,255,255,0.18)"
+              stroke="hsl(var(--foreground) / 0.18)"
               strokeWidth={2}
             />
           );

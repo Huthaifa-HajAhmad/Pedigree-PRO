@@ -85,6 +85,11 @@ fn get_or_create_master_secret(key_path: &PathBuf) -> Result<Vec<u8>, String> {
         rand::rngs::OsRng.fill_bytes(&mut secret);
     }
 
+    // SECURITY NOTE: The SQLCipher master secret is written to disk as base64 plaintext.
+    // This is an obfuscation-only measure — the file is NOT encrypted at rest.
+    // For production, replace this with OS keychain integration (e.g. keyring crate on
+    // macOS Keychain, Windows Credential Manager, Linux Secret Service) so the secret
+    // never touches the filesystem unencrypted.
     let secret_b64 = base64::engine::general_purpose::STANDARD.encode(&secret);
     fs::write(key_path, &secret_b64)
         .map_err(|e| format!("Failed to write key file: {}", e))?;
@@ -239,6 +244,11 @@ fn run_migrations(conn: &Connection) -> Result<(), String> {
             2,
             "002_clinical_annotations",
             include_str!("../../../../lib/db/migrations/002_clinical_annotations.sql"),
+        ),
+        (
+            3,
+            "003_drop_deprecated_columns",
+            include_str!("../../../../lib/db/migrations/003_drop_deprecated_columns.sql"),
         ),
     ];
 

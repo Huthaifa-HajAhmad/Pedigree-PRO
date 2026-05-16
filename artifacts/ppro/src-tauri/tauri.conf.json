@@ -7,7 +7,7 @@
     "beforeDevCommand": "pnpm dev",
     "devUrl": "http://localhost:5173",
     "beforeBuildCommand": "pnpm build",
-    "frontendDist": "../dist"
+    "frontendDist": "../dist/public"
   },
   "app": {
     "windows": [
@@ -22,7 +22,7 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self'; connect-src 'self'; img-src 'self' data: blob:"
+      "csp": "default-src 'self'; connect-src 'self'; img-src 'self' data: blob:; font-src 'self'; style-src 'self' 'unsafe-inline'"
     }
   },
   "bundle": {
@@ -50,12 +50,5 @@
       }
     }
   },
-  "plugins": {
-    "updater": {
-      "endpoints": [
-        "https://github.com/your-org/pedigree-pro/releases/latest/download/latest.json"
-      ],
-      "pubkey": "PLACEHOLDER_ED25519_PUBLIC_KEY_FOR_UPDATE_SIGNING"
-    }
-  }
+  "plugins": {}
 }

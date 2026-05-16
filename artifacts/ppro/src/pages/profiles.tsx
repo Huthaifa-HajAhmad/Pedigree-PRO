@@ -125,7 +125,7 @@ export default function Profiles() {
       />
 
       <div className="border border-border rounded overflow-hidden bg-card">
-        <div className="grid grid-cols-5 gap-4 px-4 py-3 border-b border-border text-xs text-muted-foreground uppercase tracking-widest">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4 px-4 py-3 border-b border-border text-xs text-muted-foreground uppercase tracking-widest">
           <div className="col-span-2">Profile</div>
           <div>Role</div>
           <div>Last Used</div>
@@ -140,7 +140,7 @@ export default function Profiles() {
             </div>
           ) : (
             profiles?.map((p) => (
-              <div key={p.id} data-testid={`row-profile-${p.id}`} className="grid grid-cols-5 gap-4 px-4 py-3 text-sm hover:bg-accent transition-colors items-center">
+              <div key={p.id} data-testid={`row-profile-${p.id}`} className="grid grid-cols-2 md:grid-cols-5 gap-4 px-4 py-3 text-sm hover:bg-accent transition-colors items-center">
                 <div className="col-span-2 flex items-center gap-2">
                   <Shield className="w-3.5 h-3.5 text-primary flex-shrink-0" />
                   <span className="font-medium truncate">{p.display_name}</span>
@@ -152,10 +152,12 @@ export default function Profiles() {
                 </div>
                 <div className="flex items-center gap-1">
                   <button
+                    type="button"
                     data-testid={`button-delete-profile-${p.id}`}
                     onClick={() => handleDelete(p.id, p.display_name)}
                     className="text-muted-foreground hover:text-destructive transition-colors p-1 rounded hover:bg-destructive/10"
                     title="Delete profile"
+                    aria-label={`Delete profile ${p.display_name}`}
                   >
                     <Trash2 className="w-4 h-4" />
                   </button>

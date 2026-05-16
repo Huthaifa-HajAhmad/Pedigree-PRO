@@ -1,5 +1,13 @@
 import { AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 interface ConfirmDialogProps {
   open: boolean;
@@ -22,29 +30,24 @@ export function ConfirmDialog({
   onConfirm,
   onCancel,
 }: ConfirmDialogProps) {
-  if (!open) return null;
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onCancel} />
-      <div className="relative z-10 w-full max-w-sm border border-border rounded-xl shadow-2xl p-6" style={{ background: "hsl(var(--card))" }}>
-        <div className="flex items-start gap-3 mb-4">
+    <Dialog open={open} onOpenChange={(v) => { if (!v) onCancel(); }}>
+      <DialogContent className="sm:max-w-sm gap-0 p-6">
+        <DialogHeader className="flex flex-row items-start gap-3 mb-4 space-y-0">
           <div className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 ${
             variant === "destructive" ? "bg-destructive/10" : "bg-primary/10"
           }`}>
             <AlertTriangle className={`w-4 h-4 ${variant === "destructive" ? "text-destructive" : "text-primary"}`} />
           </div>
-          <div>
-            <h3 className="text-sm font-semibold text-foreground">{title}</h3>
-            <p className="text-xs text-muted-foreground mt-1 leading-relaxed">{message}</p>
+          <div className="space-y-1">
+            <DialogTitle className="text-sm font-semibold">{title}</DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground leading-relaxed">
+              {message}
+            </DialogDescription>
           </div>
-        </div>
-        <div className="flex gap-2 justify-end">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={onCancel}
-          >
+        </DialogHeader>
+        <DialogFooter className="flex gap-2 justify-end sm:justify-end">
+          <Button variant="outline" size="sm" onClick={onCancel}>
             {cancelLabel}
           </Button>
           <Button
@@ -54,8 +57,8 @@ export function ConfirmDialog({
           >
             {confirmLabel}
           </Button>
-        </div>
-      </div>
-    </div>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

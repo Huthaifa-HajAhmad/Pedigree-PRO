@@ -20,6 +20,7 @@ export default tseslint.config(
       "jsx-a11y/aria-props": "warn",
       "jsx-a11y/aria-role": "warn",
       "jsx-a11y/aria-unsupported-elements": "warn",
+      "jsx-a11y/button-has-type": "warn",
       "jsx-a11y/heading-has-content": "warn",
       "jsx-a11y/html-has-lang": "warn",
       "jsx-a11y/iframe-has-title": "warn",
@@ -50,6 +51,7 @@ export default tseslint.config(
           alphabetize: { order: "asc" },
         },
       ],
+      "@typescript-eslint/no-explicit-any": "warn",
       "@typescript-eslint/no-unused-vars": "off",
     },
   }

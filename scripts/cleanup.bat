@@ -29,11 +29,8 @@ for /r %%f in (*.sqlite) do (
   del /q "%%f" && echo Removed sqlite: %%f
 )
 necho Removing artifact build directories (if exist)...
-if exist "artifacts\haplopainter\dist" (
-  rmdir /s /q "artifacts\haplopainter\dist" && echo Removed artifacts\haplopainter\dist
-)
-if exist "artifacts\mockup-sandbox\dist" (
-  rmdir /s /q "artifacts\mockup-sandbox\dist" && echo Removed artifacts\mockup-sandbox\dist
+if exist "artifacts\ppro\dist" (
+  rmdir /s /q "artifacts\ppro\dist" && echo Removed artifacts\ppro\dist
 )
 necho Cleanup complete.
 popd

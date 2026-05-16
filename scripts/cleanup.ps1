@@ -27,8 +27,7 @@ Get-ChildItem -Path $root -Recurse -Filter '*.sqlite' -ErrorAction SilentlyConti
 }
 
 $distDirs = @(
-    Join-Path $root 'artifacts\haplopainter\dist'
-    Join-Path $root 'artifacts\mockup-sandbox\dist'
+    Join-Path $root 'artifacts\ppro\dist'
 )
 
 foreach ($d in $distDirs) {

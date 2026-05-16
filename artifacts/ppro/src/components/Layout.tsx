@@ -65,10 +65,11 @@ export function Layout({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <div className="flex min-h-screen bg-background">
+    <div className="flex min-h-dvh bg-background">
       <SkipToContent />
       {isMobile && (
         <button
+          type="button"
           aria-label={sidebarOpen ? "Close navigation" : "Open navigation"}
           onClick={() => setSidebarOpen((v) => !v)}
           className="fixed top-3 left-3 z-50 p-2 rounded-lg border border-border bg-card shadow-lg"
@@ -94,7 +95,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
               <div className="font-bold text-base leading-tight tracking-tight" style={{ color: theme.accent }}>
                 Pedigree PRO
               </div>
-              <div className="text-[10px] text-muted-foreground leading-tight mt-0.5 tracking-widest uppercase">Clinical v2.0</div>
+              <div className="text-xs text-muted-foreground leading-tight mt-0.5 tracking-widest uppercase">Pedigree PRO</div>
             </div>
           </div>
         </div>
@@ -111,8 +112,6 @@ export function Layout({ children }: { children: React.ReactNode }) {
                       : "text-muted-foreground hover:text-foreground hover:bg-accent/50"
                   }`}
                   style={isActive ? { background: `${theme.accent}20`, color: theme.accent } : {}}
-                  tabIndex={0}
-                  role="link"
                   aria-current={isActive ? "page" : undefined}
                   onClick={() => isMobile && setSidebarOpen(false)}
                 >
@@ -131,6 +130,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
           {activeProfile ? (
             <div className="relative" ref={profileDropdownRef}>
               <button
+                type="button"
                 data-testid="active-profile-indicator"
                 onClick={() => setProfileMenuOpen((v) => !v)}
                 aria-expanded={profileMenuOpen}
@@ -142,7 +142,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="text-xs font-medium text-foreground truncate">{activeProfile.display_name}</div>
-                  <div className="text-[10px] text-muted-foreground truncate">{activeProfile.role_label}</div>
+                  <div className="text-xs text-muted-foreground truncate">{activeProfile.role_label}</div>
                 </div>
                 <ChevronRight className={`w-3.5 h-3.5 flex-shrink-0 transition-all ${profileMenuOpen ? "rotate-90 text-primary" : "text-muted-foreground group-hover:text-primary"}`} />
               </button>
@@ -153,12 +153,13 @@ export function Layout({ children }: { children: React.ReactNode }) {
                   style={{ background: "hsl(var(--popover))" }}
                   role="menu"
                 >
-                  <div className="px-3 py-2.5 border-b border-border text-[10px] text-muted-foreground uppercase tracking-widest font-medium">
+                  <div className="px-3 py-2.5 border-b border-border text-xs text-muted-foreground uppercase tracking-widest font-medium">
                     Switch Profile
                   </div>
                   <div className="max-h-48 overflow-y-auto p-1">
                     {profiles?.map((p) => (
                       <button
+                        type="button"
                         key={p.id}
                         data-testid={`profile-option-${p.id}`}
                         onClick={() => handleSwitchProfile(p.id)}
@@ -170,10 +171,10 @@ export function Layout({ children }: { children: React.ReactNode }) {
                         <Shield className={`w-3.5 h-3.5 flex-shrink-0 ${p.id === activeProfile.id ? "text-primary" : "text-muted-foreground"}`} />
                         <div className="flex-1 min-w-0">
                           <div className="font-medium truncate">{p.display_name}</div>
-                          <div className="text-[10px] text-muted-foreground truncate">{p.role_label}</div>
+                          <div className="text-xs text-muted-foreground truncate">{p.role_label}</div>
                         </div>
                         {p.id === activeProfile.id && (
-                          <span className="text-[9px] text-primary font-semibold flex-shrink-0">Active</span>
+                          <span className="text-xs text-primary font-semibold flex-shrink-0">Active</span>
                         )}
                       </button>
                     ))}
@@ -182,7 +183,6 @@ export function Layout({ children }: { children: React.ReactNode }) {
                     <div
                       className="w-full flex items-center gap-2 px-3 py-2.5 text-xs text-muted-foreground hover:bg-accent transition-colors border-t border-border cursor-pointer"
                       onClick={() => setProfileMenuOpen(false)}
-                      role="menuitem"
                     >
                       <LogOut className="w-3.5 h-3.5" />
                       <span className="font-medium">Manage Profiles</span>
@@ -192,7 +192,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
               )}
             </div>
           ) : (
-            <Link href="/profiles">
+            <Link href="/profiles" className="block">
               <div
                 data-testid="no-profile-indicator"
                 className="w-full flex items-center gap-2 p-2.5 rounded-lg border border-dashed border-border hover:border-primary/50 hover:bg-primary/5 transition-all cursor-pointer"
@@ -216,9 +216,9 @@ export function Layout({ children }: { children: React.ReactNode }) {
           <div className="px-1">
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
               <span className={`w-2 h-2 rounded-full flex-shrink-0 ${isOnline ? "bg-emerald-500" : "bg-amber-500"} ${isOnline ? "animate-pulse" : ""}`} />
-              <span className="text-[11px]">{isOnline ? "Online" : "Offline"}</span>
+              <span className="text-xs">{isOnline ? "Online" : "Offline"}</span>
             </div>
-            <div className="text-[10px] text-muted-foreground/40 mt-0.5">HIPAA Compliant</div>
+            <div className="text-xs text-muted-foreground/40 mt-0.5">HIPAA Compliant</div>
           </div>
         </div>
       </aside>

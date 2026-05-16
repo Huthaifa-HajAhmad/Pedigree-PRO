@@ -1,3 +1,4 @@
+import { useCallback } from "react";
 import { useGetDashboardStats, useGetRecentActivity, useListPedigrees } from "@workspace/api-client-react";
 import { Link } from "wouter";
 import { UserCircle, Activity, TrendingUp, Clock, ChevronRight, Dna, Plus, Upload, UserPlus, Calendar } from "lucide-react";
@@ -29,7 +30,7 @@ export default function Dashboard() {
   const { data: recent, isLoading: recentLoading } = useGetRecentActivity(20);
   const { data: pedigrees, isLoading: pedigreesLoading } = useListPedigrees();
 
-  const renderActivitySkeleton = (count: number) => [...Array(count)].map((_, i) => (
+  const renderActivitySkeleton = useCallback((count: number) => [...Array(count)].map((_, i) => (
     <div key={i} className="px-5 py-3.5 flex items-center gap-4 animate-pulse">
       <div className="w-8 h-8 bg-muted rounded-lg flex-shrink-0" />
       <div className="flex-1 space-y-2">
@@ -38,9 +39,9 @@ export default function Dashboard() {
       </div>
       <div className="h-2 bg-muted rounded w-16" />
     </div>
-  ));
+  )), []);
 
-  const renderActivityItems = (items: typeof recent, max: number) => items?.length === 0 ? (
+  const renderActivityItems = useCallback((items: typeof recent, max: number) => items?.length === 0 ? (
     <div className="px-5 py-8 text-center text-muted-foreground text-sm">No activity yet.</div>
   ) : items?.slice(0, max).map((a) => (
     <div key={a.id} data-testid={`activity-${a.id}`} className="px-5 py-3.5 flex items-center gap-4">
@@ -58,9 +59,9 @@ export default function Dashboard() {
         {formatDateSafe(a.timestamp)}
       </div>
     </div>
-  ));
+  )), []);
 
-  const renderRecentPedigreesSkeleton = (count: number) => [...Array(count)].map((_, i) => (
+  const renderRecentPedigreesSkeleton = useCallback((count: number) => [...Array(count)].map((_, i) => (
     <div key={i} className="px-5 py-3.5 flex items-center gap-3 animate-pulse">
       <div className="w-8 h-8 bg-muted rounded-lg flex-shrink-0" />
       <div className="flex-1 space-y-2">
@@ -68,17 +69,15 @@ export default function Dashboard() {
         <div className="h-2 bg-muted rounded w-20" />
       </div>
     </div>
-  ));
+  )), []);
 
-  const renderRecentPedigrees = () => {
+  const renderRecentPedigrees = useCallback(() => {
     if (!pedigrees || pedigrees.length === 0) {
       return <div className="px-5 py-8 text-xs text-muted-foreground text-center">No pedigrees yet</div>;
     }
-    // Sort by updated_at descending and take top 10
     const recentPedigrees = [...pedigrees]
       .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())
       .slice(0, 10);
-    
     return recentPedigrees.map((p) => (
       <Link key={p.id} href={`/pedigrees/${p.id}`}>
         <div data-testid={`recent-pedigree-${p.id}`} className="px-5 py-3.5 flex items-center gap-3 hover:bg-accent/50 cursor-pointer transition-colors group">
@@ -96,10 +95,10 @@ export default function Dashboard() {
         </div>
       </Link>
     ));
-  };
+  }, [pedigrees]);
 
   return (
-    <section className="p-6 max-w-7xl mx-auto flex flex-col h-screen">
+    <section className="p-6 max-w-7xl mx-auto flex flex-col h-dvh">
       {/* Header */}
       <div className="mb-6 flex-shrink-0">
         <div className="flex items-center gap-3 mb-1.5">
@@ -146,10 +145,10 @@ export default function Dashboard() {
         {/* Right column */}
         <div className="flex flex-col gap-4 min-h-0">
 
-          {/* Recently Opened Pedigrees */}
+          {/* Recently Modified Pedigrees */}
           <div className="border border-border rounded-xl bg-card flex flex-col flex-1 min-h-0 overflow-hidden">
             <div className="px-5 py-3.5 border-b border-border flex items-center justify-between flex-shrink-0">
-              <span className="text-sm font-medium text-foreground">Recently Opened</span>
+              <span className="text-sm font-medium text-foreground">Recently Modified</span>
               <Link href="/pedigrees">
                 <span className="text-xs flex items-center gap-1 cursor-pointer text-primary hover:opacity-80 transition-opacity">
                   All <ChevronRight className="w-3 h-3" />

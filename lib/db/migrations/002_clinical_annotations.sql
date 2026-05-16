@@ -1,4 +1,4 @@
--- HaploClinical — Clinical Annotation Extension Tables (Phase 0-B)
+-- Pedigree PRO — Clinical Annotation Extension Tables (Phase 0-B)
 -- SQLite-compatible. Optional tables for phenotype/genotype tracking.
 -- Per ADR-002: Clinical annotation extension points.
 

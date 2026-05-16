@@ -136,6 +136,10 @@ export async function getOrCreateDbKey(
   }
 
   // No passphrase: wrap the DB key with a randomly generated wrapping key before storing
+  // SECURITY NOTE: When no passphrase is set, both the wrapping key and the wrapped DB key
+  // are stored side-by-side in IndexedDB. This provides at-rest obfuscation only, NOT
+  // confidentiality. An attacker with IndexedDB access can trivially unwrap the key.
+  // For real protection, require a passphrase or use WebAuthn-derived keys.
   const stored = await get<{ wrappedKey: Uint8Array; wrappingKey: Uint8Array } | null>(
     DB_KEY_NAME,
     KEY_STORE

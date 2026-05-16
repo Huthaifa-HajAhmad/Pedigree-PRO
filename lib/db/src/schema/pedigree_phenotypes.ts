@@ -1,4 +1,5 @@
 import { pgTable, text, serial, timestamp, integer } from "drizzle-orm/pg-core";
+import { pedigreesTable } from "./pedigrees";
 
 /**
  * Aggregate pedigree-level phenotype data.
@@ -6,10 +7,7 @@ import { pgTable, text, serial, timestamp, integer } from "drizzle-orm/pg-core";
  */
 export const pedigreePhenotypesTable = pgTable("pedigree_phenotypes", {
   id: serial("id").primaryKey(),
-  pedigreeId: integer("pedigree_id").notNull().references(() => {
-    const { pedigreesTable } = require("./pedigrees");
-    return pedigreesTable.id;
-  }),
+  pedigreeId: integer("pedigree_id").notNull().references(() => pedigreesTable.id),
   conditionName: text("condition_name").notNull(),              // e.g., "Huntington Disease"
   omimId: text("omim_id"),                                     // OMIM phenotype ID
   hpoTerms: text("hpo_terms"),                                 // JSON array of representative HPO terms

@@ -32,12 +32,12 @@ export class PedigreeCanvasErrorBoundary extends Component<Props, State> {
   override render() {
     if (this.state.hasError) {
       return (
-        <div className="flex items-center justify-center min-h-screen bg-background">
+        <div className="flex items-center justify-center min-h-dvh bg-background">
           <div className="max-w-md mx-auto p-8 text-center space-y-4">
             <div className="w-14 h-14 rounded-2xl bg-destructive/10 flex items-center justify-center mx-auto">
               <AlertTriangle className="w-7 h-7 text-destructive" />
             </div>
-            <h2 className="text-lg font-semibold text-foreground">Canvas rendering error</h2>
+            <h1 className="text-lg font-semibold text-foreground">Canvas rendering error</h1>
             <p className="text-sm text-muted-foreground">
               The pedigree canvas encountered an unexpected error. Your drafts have been preserved in local storage.
             </p>

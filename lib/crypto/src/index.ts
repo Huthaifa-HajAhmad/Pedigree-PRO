@@ -289,7 +289,7 @@ async function importSealBoxDeps() {
  * Uses HKDF-SHA256 with the ephemeral public key as salt and a fixed info string.
  */
 function ensureArrayBuffer(data: Uint8Array): ArrayBuffer {
-  return new Uint8Array(data).buffer;
+  return data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength) as ArrayBuffer;
 }
 
 async function deriveSealboxKey(
@@ -312,7 +312,7 @@ async function deriveSealboxKey(
   );
 
   const hmacKey = await crypto.subtle.importKey("raw", prk, { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
-  const okm = await crypto.subtle.sign("HMAC", hmacKey, info);
+  const okm = await crypto.subtle.sign("HMAC", hmacKey, new Uint8Array([...info, 0x01]));
   return new Uint8Array(okm);
 }
 
@@ -326,7 +326,7 @@ async function deriveSealboxKey(
 function bytesToBase64url(bytes: Uint8Array): string {
   let binary = "";
   for (let i = 0; i < bytes.length; i++) {
-    binary += String.fromCharCode(bytes[i]);
+    binary += String.fromCharCode(bytes[i]!);
   }
   return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }

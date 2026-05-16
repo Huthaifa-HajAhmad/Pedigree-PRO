@@ -44,9 +44,12 @@ export {
   import_shared,
   import_pedigree_native,
   import_pedigree_legacy,
+  export_pedigree_ppro,
   backup_database,
   restore_database,
   rotate_key,
+  relay_share,
+  relay_receive,
 } from "./commands";
 
 export type {

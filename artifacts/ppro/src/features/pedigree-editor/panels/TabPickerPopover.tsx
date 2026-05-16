@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import { useListPedigrees } from "@workspace/api-client-react";
 import { Dna } from "lucide-react";
 
@@ -12,17 +13,34 @@ export function TabPickerPopover({
   onOpen: (id: number, title: string) => void;
 }) {
   const [search, setSearch] = useState("");
-  const { data: pedigrees } = useListPedigrees({ search: search || undefined });
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(search), 200);
+    return () => clearTimeout(timer);
+  }, [search]);
+  const { data: pedigrees } = useListPedigrees({ search: debouncedSearch || undefined });
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const mountedRef = useRef(true);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+
+  useEffect(() => {
+    const trigger = document.querySelector<HTMLElement>("[data-tab-picker-trigger]");
+    if (trigger) {
+      const rect = trigger.getBoundingClientRect();
+      setPos({ top: rect.bottom + 4, left: Math.min(rect.left, window.innerWidth - 272) });
+    }
+  }, []);
 
   useEffect(() => {
     mountedRef.current = true;
     const handler = (e: MouseEvent) => {
       const target = e.target as Element;
-      if (!target.closest("[data-tab-picker]")) onCloseRef.current();
+      if (panelRef.current && !panelRef.current.contains(target) && !target.closest("[data-tab-picker-trigger]")) {
+        onCloseRef.current();
+      }
     };
     timeoutRef.current = setTimeout(() => {
       if (mountedRef.current) {
@@ -39,8 +57,13 @@ export function TabPickerPopover({
     };
   }, []);
 
-  return (
-    <div data-tab-picker className="absolute top-full left-0 mt-1 w-64 bg-card border border-border rounded shadow-xl z-50" style={{ background: "hsl(var(--card))" }}>
+  return createPortal(
+    <div
+      ref={panelRef}
+      data-tab-picker
+      className="fixed z-50 bg-card border border-border rounded shadow-xl w-64"
+      style={pos ? { top: pos.top, left: pos.left } : { display: "none" }}
+    >
       <div className="p-2 border-b border-border">
         <input
           autoFocus
@@ -56,6 +79,7 @@ export function TabPickerPopover({
         ) : (
           pedigrees.map((p) => (
             <button
+              type="button"
               key={p.id}
               onClick={() => p.id !== currentId && onOpen(p.id, p.title)}
               className={`w-full flex items-center gap-2 px-3 py-2 text-left text-xs transition-colors ${
@@ -69,6 +93,7 @@ export function TabPickerPopover({
           ))
         )}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

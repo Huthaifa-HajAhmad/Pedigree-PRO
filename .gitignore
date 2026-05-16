@@ -51,8 +51,8 @@ replit.md
 **/.replit-artifact/
 
 # Build artifacts
-artifacts/haplopainter/src-tauri/target/
-artifacts/haplopainter/dist/
+artifacts/ppro/src-tauri/target/
+artifacts/ppro/dist/
 artifacts/*/node_modules/
 
 # Logs & temp

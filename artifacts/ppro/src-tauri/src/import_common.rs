@@ -16,15 +16,11 @@ pub fn insert_pedigree(
     notes: &Option<String>,
     creator_key: &Option<String>,
     creator_signature: &Option<String>,
-    // Legacy columns (populated during migration, NULL for native import)
-    created_by_id: Option<i64>,
-    share_token: Option<String>,
 ) -> Result<i64, String> {
     conn.execute(
         "INSERT INTO pedigrees (title, canvas_data, canvas_hash, notes,
-         creator_key, creator_signature, created_by_id, share_token,
-         created_at, updated_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, datetime('now'), datetime('now'))",
+         creator_key, creator_signature, created_at, updated_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, datetime('now'), datetime('now'))",
         params![
             title,
             canvas_data,
@@ -32,8 +28,6 @@ pub fn insert_pedigree(
             notes,
             creator_key,
             creator_signature,
-            created_by_id,
-            share_token,
         ],
     )
     .map_err(|e| format!("Failed to insert pedigree: {}", e))?;
@@ -52,13 +46,11 @@ pub fn insert_version(
     saver_key: &Option<String>,
     saver_signature: &Option<String>,
     created_at: &str,
-    // Legacy column
-    saved_by_id: Option<i64>,
 ) -> Result<i64, String> {
     conn.execute(
         "INSERT INTO pedigree_versions (pedigree_id, version_number, label, canvas_data,
-         canvas_hash, saver_key, saver_signature, saved_by_id, created_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+         canvas_hash, saver_key, saver_signature, created_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
         params![
             pedigree_id,
             version_number,
@@ -67,7 +59,6 @@ pub fn insert_version(
             canvas_hash,
             saver_key,
             saver_signature,
-            saved_by_id,
             created_at,
         ],
     )
@@ -143,13 +134,11 @@ pub fn insert_patient(
     ethnicity: &Option<String>,
     referral_reason: &Option<String>,
     clinician_key: &Option<String>,
-    // Legacy column
-    clinician_id: Option<i64>,
 ) -> Result<i64, String> {
     conn.execute(
         "INSERT INTO patients (mrn, first_name, last_name, date_of_birth, sex, ethnicity,
-         referral_reason, clinician_key, clinician_id, created_at, updated_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, datetime('now'), datetime('now'))",
+         referral_reason, clinician_key, created_at, updated_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, datetime('now'), datetime('now'))",
         params![
             mrn,
             first_name,
@@ -159,7 +148,6 @@ pub fn insert_patient(
             ethnicity,
             referral_reason,
             clinician_key,
-            clinician_id,
         ],
     )
     .map_err(|e| format!("Failed to insert patient: {}", e))?;
@@ -167,19 +155,17 @@ pub fn insert_patient(
     Ok(conn.last_insert_rowid())
 }
 
-/// Logs an activity entry (dual-write compatible).
+/// Logs an activity entry.
 pub fn log_activity(
     conn: &Connection,
     action: &str,
     subject: &str,
     actor_key: Option<&str>,
-    // Legacy column
-    user_id: Option<i64>,
 ) -> Result<(), String> {
     conn.execute(
-        "INSERT INTO activity_log (action, subject, actor_key, user_id, timestamp)
-         VALUES (?1, ?2, ?3, ?4, datetime('now'))",
-        params![action, subject, actor_key, user_id],
+        "INSERT INTO activity_log (action, subject, actor_key, timestamp)
+         VALUES (?1, ?2, ?3, datetime('now'))",
+        params![action, subject, actor_key],
     )
     .map_err(|e| format!("Failed to log activity: {}", e))?;
 

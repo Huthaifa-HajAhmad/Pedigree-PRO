@@ -29,6 +29,9 @@ export {
   savePreferences,
   sharePedigree,
   importShared,
+  importPedigreeFromJson,
+  relayShare,
+  relayReceive,
   exportPedigreePpro,
   importPedigreeNative,
   importPedigreeLegacy,
@@ -51,6 +54,7 @@ export type {
   ActivityItem,
   Preferences,
   ShareResult,
+  RelayPayload,
   LegacyImportSummary,
 } from "./backend-client";
 
@@ -79,6 +83,8 @@ export {
   useSavePreferences,
   useSharePedigree,
   useImportShared,
+  useRelayShare,
+  useRelayReceive,
   useExportPedigreePpro,
   useImportPedigreeNative,
   useImportPedigreeLegacy,

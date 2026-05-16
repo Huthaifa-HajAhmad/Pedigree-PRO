@@ -131,7 +131,7 @@ export default function Patients() {
               </Button>
             }
           >
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <FormField control={form.control} name="firstName" render={({ field }) => (
                 <FormItem>
                   <FormLabel className="text-xs text-muted-foreground uppercase tracking-wider">First Name</FormLabel>
@@ -147,7 +147,7 @@ export default function Patients() {
                 </FormItem>
               )} />
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <FormField control={form.control} name="dateOfBirth" render={({ field }) => (
                 <FormItem>
                   <FormLabel className="text-xs text-muted-foreground uppercase tracking-wider">Date of Birth</FormLabel>
@@ -190,7 +190,7 @@ export default function Patients() {
       />
 
       <div className="border border-border rounded overflow-hidden bg-card">
-        <div className="grid grid-cols-5 gap-4 px-4 py-3 border-b border-border text-xs text-muted-foreground uppercase tracking-widest">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4 px-4 py-3 border-b border-border text-xs text-muted-foreground uppercase tracking-widest">
           <div className="col-span-2">Name</div>
           <div>MRN</div>
           <div>Details</div>
@@ -203,25 +203,29 @@ export default function Patients() {
             <EmptyState icon={Activity} title="No patients found" description="Create your first patient record." />
           ) : (
             patients?.map((p) => (
-              <div key={p.id} data-testid={`row-patient-${p.id}`} className="grid grid-cols-5 gap-4 px-4 py-3 text-sm hover:bg-accent transition-colors items-center">
+              <div key={p.id} data-testid={`row-patient-${p.id}`} className="grid grid-cols-2 md:grid-cols-5 gap-4 px-4 py-3 text-sm hover:bg-accent transition-colors items-center">
                 <div className="col-span-2 font-medium">{p.last_name}, {p.first_name}</div>
                 <div className="text-muted-foreground font-mono text-xs">{p.mrn}</div>
                 <div className="text-muted-foreground text-xs">{p.date_of_birth ?? "—"} <span className="mx-1">·</span> {sexBadge(p.sex)}</div>
                 <div className="flex items-center gap-1">
                   <Link href={`/patients/${p.id}`}>
                     <button
+                      type="button"
                       data-testid={`button-view-patient-${p.id}`}
                       className="text-muted-foreground hover:text-primary transition-colors p-1 rounded hover:bg-primary/10"
                       title="View patient details"
+                      aria-label={`View patient ${p.first_name} ${p.last_name}`}
                     >
                        <Eye className="w-4 h-4" />
                     </button>
                   </Link>
                   <button
+                    type="button"
                     data-testid={`button-delete-patient-${p.id}`}
                     onClick={() => handleDelete(p.id, `${p.first_name} ${p.last_name}`)}
                     className="text-muted-foreground hover:text-destructive transition-colors p-1 rounded hover:bg-destructive/10"
                     title="Delete patient"
+                    aria-label={`Delete patient ${p.first_name} ${p.last_name}`}
                   >
                     <Trash2 className="w-4 h-4" />
                   </button>

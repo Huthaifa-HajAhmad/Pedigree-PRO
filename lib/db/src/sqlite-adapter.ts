@@ -2,28 +2,19 @@
 // Requires better-sqlite3 (native driver, used by Tauri backend).
 // For browser mode, sql.js is used via @workspace/browser-backend instead.
 
-declare function require(id: string): unknown;
-
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let Database: any;
 let driverName = 'none';
 
-function isCommonJS(): boolean {
-  return typeof require === 'function';
-}
-
-// Try native driver first (better-sqlite3)
+// Load better-sqlite3 (ESM dynamic import only)
 try {
-  const mod = isCommonJS()
-    ? require('better-sqlite3')
-    : await import('better-sqlite3');
+  const mod = await import('better-sqlite3');
   Database = (mod as { default?: unknown }).default ?? mod;
   driverName = 'better-sqlite3';
 } catch (_e1) {
   throw new Error(
-    "No SQLite driver available. Install 'better-sqlite3' (native, recommended for Tauri) or '@sqlite.org/sqlcipher-wasm' (WASM).\n" +
-    "Run: pnpm --filter @workspace/db add better-sqlite3\n" +
-    "Or: pnpm --filter @workspace/db add @sqlite.org/sqlcipher-wasm"
+    "No SQLite driver available. Install 'better-sqlite3' (native, recommended for Tauri).\n" +
+    "Run: pnpm --filter @workspace/db add better-sqlite3"
   );
 }
 
@@ -31,10 +22,8 @@ try {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let drizzleFn: (sqlite: any) => any;
 try {
-  const mod = isCommonJS()
-    ? require('drizzle-orm/better-sqlite3')
-    : await import('drizzle-orm/better-sqlite3');
-  drizzleFn = (mod as { drizzle?: typeof drizzleFn }).drizzle ?? (mod as typeof drizzleFn);
+  const mod = await import('drizzle-orm/better-sqlite3');
+  drizzleFn = ((mod as unknown as Record<string, unknown>).drizzle ?? mod) as typeof drizzleFn;
 } catch (err) {
   throw new Error("Unable to load 'drizzle-orm/better-sqlite3'. Ensure it's installed in the workspace (pnpm install).\nOriginal error: " + String(err));
 }
@@ -43,7 +32,7 @@ const filename = (process.env.DATABASE_URL && process.env.DATABASE_URL.startsWit
   ? process.env.DATABASE_URL.replace(/^sqlite:/, '')
   : (process.env.SQLITE_FILE || './data/db.sqlite');
 
-// Instantiate database. Both @vercel/sqlite.Database and better-sqlite3 accept a filename in their constructors.
+// Instantiate database
 const sqlite = new Database(filename);
 
 // Log driver selection for easier debugging

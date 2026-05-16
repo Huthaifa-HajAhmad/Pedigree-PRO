@@ -20,27 +20,17 @@ if (await fs.promises.stat(dbPath).then(() => true).catch(() => false)) {
   db = new Database();
 }
 
-// Create tables (full schema synced with SQLite Drizzle definitions)
+// Create tables (post-migration-003 schema — no deprecated columns)
 db.exec(`
-CREATE TABLE IF NOT EXISTS users (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  name TEXT NOT NULL,
-  email TEXT NOT NULL,
-  role TEXT NOT NULL DEFAULT 'counselor',
-  department TEXT,
-  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
-
 CREATE TABLE IF NOT EXISTS patients (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   mrn TEXT NOT NULL UNIQUE,
   first_name TEXT NOT NULL,
   last_name TEXT NOT NULL,
   date_of_birth TEXT,
-  sex TEXT,
+  sex TEXT DEFAULT 'unknown',
   ethnicity TEXT,
   referral_reason TEXT,
-  clinician_id INTEGER,
   clinician_key TEXT,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -49,27 +39,24 @@ CREATE TABLE IF NOT EXISTS patients (
 CREATE TABLE IF NOT EXISTS pedigrees (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   title TEXT NOT NULL,
-  patient_id INTEGER,
+  patient_id INTEGER REFERENCES patients(id),
   canvas_data TEXT,
   canvas_hash TEXT,
   notes TEXT,
-  created_by_id INTEGER,
   creator_key TEXT,
   creator_signature TEXT,
-  share_token TEXT,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS pedigree_versions (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
-  pedigree_id INTEGER NOT NULL,
+  pedigree_id INTEGER NOT NULL REFERENCES pedigrees(id),
   version_number INTEGER NOT NULL DEFAULT 1,
   label TEXT,
   canvas_data TEXT NOT NULL,
   canvas_hash TEXT,
   thumbnail TEXT,
-  saved_by_id INTEGER,
   saver_key TEXT,
   saver_signature TEXT,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -79,7 +66,6 @@ CREATE TABLE IF NOT EXISTS activity_log (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   action TEXT NOT NULL,
   subject TEXT NOT NULL,
-  user_id INTEGER,
   actor_key TEXT,
   actor_signature TEXT,
   timestamp TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -102,7 +88,7 @@ CREATE TABLE IF NOT EXISTS local_profiles (
 
 CREATE TABLE IF NOT EXISTS pedigree_node_annotations (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
-  pedigree_id INTEGER NOT NULL,
+  pedigree_id INTEGER NOT NULL REFERENCES pedigrees(id) ON DELETE CASCADE,
   node_id TEXT NOT NULL,
   hpo_terms TEXT,
   omim_ids TEXT,
@@ -117,7 +103,7 @@ CREATE TABLE IF NOT EXISTS pedigree_node_annotations (
 
 CREATE TABLE IF NOT EXISTS pedigree_phenotypes (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
-  pedigree_id INTEGER NOT NULL,
+  pedigree_id INTEGER NOT NULL REFERENCES pedigrees(id) ON DELETE CASCADE,
   condition_name TEXT NOT NULL,
   omim_id TEXT,
   hpo_terms TEXT,

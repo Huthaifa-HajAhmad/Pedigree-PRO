@@ -1,4 +1,5 @@
 import { pgTable, text, serial, timestamp, integer } from "drizzle-orm/pg-core";
+import { pedigreesTable } from "./pedigrees";
 
 /**
  * Links structured clinical data to individual nodes in the pedigree canvas.
@@ -6,10 +7,7 @@ import { pgTable, text, serial, timestamp, integer } from "drizzle-orm/pg-core";
  */
 export const pedigreeNodeAnnotationsTable = pgTable("pedigree_node_annotations", {
   id: serial("id").primaryKey(),
-  pedigreeId: integer("pedigree_id").notNull().references(() => {
-    const { pedigreesTable } = require("./pedigrees");
-    return pedigreesTable.id;
-  }),
+  pedigreeId: integer("pedigree_id").notNull().references(() => pedigreesTable.id),
   nodeId: text("node_id").notNull(),                         // References nodes[] in canvasData JSON
   hpoTerms: text("hpo_terms"),                               // JSON array of HPO IDs
   omimIds: text("omim_ids"),                                 // JSON array of OMIM IDs

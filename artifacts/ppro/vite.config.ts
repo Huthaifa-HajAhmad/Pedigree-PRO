@@ -53,6 +53,7 @@ export default defineConfig({
       "@": path.resolve(import.meta.dirname, "src"),
       "@assets": path.resolve(import.meta.dirname, "..", "..", "attached_assets"),
       "@workspace/crypto": path.resolve(import.meta.dirname, "..", "..", "lib", "crypto", "src", "index.ts"),
+      "@workspace/browser-backend": path.resolve(import.meta.dirname, "..", "..", "lib", "browser-backend", "src", "index.ts"),
     },
     dedupe: ["react", "react-dom"],
   },

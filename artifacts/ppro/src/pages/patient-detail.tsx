@@ -12,6 +12,8 @@ import { Button } from "@/components/ui/button";
 import { FormLayout } from "@/components/shared/FormLayout";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { TableSkeleton } from "@/components/shared/Skeleton";
+import { signData, computeHash, getPublicKeyFromPrivate } from "@workspace/crypto";
+import { listProfilePrivateKeys } from "@workspace/browser-backend";
 
 
 const schema = z.object({ title: z.string().min(1, "Title required"), notes: z.string().optional() });
@@ -30,13 +32,22 @@ export default function PatientDetail() {
 
   const form = useForm<FormData>({ resolver: zodResolver(schema), defaultValues: { title: "", notes: "" } });
 
-  const onSubmit = (data: FormData) => {
+  const onSubmit = async (data: FormData) => {
+    const canvasData = JSON.stringify({ nodes: [], edges: [] });
+    const canvasHash = computeHash(canvasData);
+    const keys = await listProfilePrivateKeys();
+    const activeKey = keys.length > 0 ? keys[0] : null;
+    const creatorKey = activeKey ? await getPublicKeyFromPrivate(activeKey.privateKey) : "";
+    const creatorSignature = activeKey ? await signData(canvasHash, activeKey.privateKey) : null;
     createPedigree.mutate(
       {
         title: data.title,
         patient_id: id,
         notes: data.notes ?? undefined,
-        creator_key: "",
+        canvas_data: canvasData,
+        canvas_hash: canvasHash,
+        creator_key: creatorKey,
+        creator_signature: creatorSignature,
       },
       {
         onSuccess: () => {

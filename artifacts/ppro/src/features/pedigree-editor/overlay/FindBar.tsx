@@ -73,6 +73,8 @@ export function FindBar({
         <ChevronDown className="w-3.5 h-3.5" />
       </Button>
       <button
+        type="button"
+        aria-label="Close find bar"
         onClick={onClose}
         title="Close (Esc)"
         className="text-muted-foreground hover:text-primary transition-colors ml-1"

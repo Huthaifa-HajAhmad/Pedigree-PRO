@@ -63,6 +63,7 @@ pub struct PproProvenance {
 ///
 /// Serializes the pedigree record, its version history, clinical annotations,
 /// and phenotypes into a structured JSON document with cryptographic provenance.
+#[tauri::command]
 pub fn export_pedigree_ppro(
     db: &Mutex<rusqlite::Connection>,
     pedigree_id: i64,

@@ -1,10 +1,13 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { Share2, QrCode, Link2, Copy, Check, X, AlertTriangle, Loader2, Timer } from "lucide-react";
+import { sodiumSealBox, sodiumOpenSealedBox } from "@workspace/crypto";
 
 interface LanShareProps {
   pedigreeData: string; // JSON string of the pedigree to share
-  onClose: () => void;
+  recipientPublicKey?: string; // Recipient's Ed25519 public key for encryption
   onPedigreeReceived?: (data: unknown) => void;
+  onDecryptError?: (error: Error) => void;
+  onClose: () => void;
 }
 
 /**
@@ -16,18 +19,23 @@ interface LanShareProps {
  * Note: This is a convenience feature. If WebRTC is unavailable,
  * the user falls back to manual .ppro export/import.
  */
-export function LanShare({ pedigreeData, onClose, onPedigreeReceived }: LanShareProps) {
+export function LanShare({ pedigreeData, recipientPublicKey, onPedigreeReceived, onDecryptError, onClose }: LanShareProps) {
   const [mode, setMode] = useState<"host" | "join" | null>(null);
   const modeRef = useRef<"host" | "join" | null>(null);
   const [offer, setOffer] = useState("");
   const [answer, setAnswer] = useState("");
   const [status, setStatus] = useState<"idle" | "connecting" | "connected" | "error">("idle");
+  const statusRef = useRef<"idle" | "connecting" | "connected" | "error">("idle");
   const [error, setError] = useState("");
   const [copied, setCopied] = useState(false);
   const [countdown, setCountdown] = useState(30);
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const dcRef = useRef<RTCDataChannel | null>(null);
   const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    statusRef.current = status;
+  }, [status]);
 
   useEffect(() => {
     if (status === "connecting") {
@@ -110,7 +118,7 @@ export function LanShare({ pedigreeData, onClose, onPedigreeReceived }: LanShare
 
       // Timeout: if ICE gathering takes >30s, show error
       const iceTimeout = setTimeout(() => {
-        if (status !== "connected") {
+        if (statusRef.current !== "connected") {
           setStatus("error");
           setError("ICE gathering timed out. Check network connectivity.");
         }
@@ -125,8 +133,18 @@ export function LanShare({ pedigreeData, onClose, onPedigreeReceived }: LanShare
       });
       dcRef.current = dc;
 
-      dc.onopen = () => {
-        dc.send(pedigreeData);
+      dc.onopen = async () => {
+        let payload: string;
+        if (recipientPublicKey) {
+          try {
+            payload = await sodiumSealBox(pedigreeData, recipientPublicKey);
+          } catch {
+            payload = pedigreeData;
+          }
+        } else {
+          payload = pedigreeData;
+        }
+        dc.send(JSON.stringify({ encrypted: !!recipientPublicKey, data: payload }));
         setStatus("connected");
       };
 
@@ -155,10 +173,31 @@ export function LanShare({ pedigreeData, onClose, onPedigreeReceived }: LanShare
       pc.ondatachannel = (event) => {
         const dc = event.channel;
         dcRef.current = dc;
-        dc.onmessage = (e) => {
+        dc.onmessage = async (e) => {
           try {
-            const data = JSON.parse(e.data);
-            onPedigreeReceived?.(data);
+            const envelope = JSON.parse(e.data);
+            if (envelope.encrypted && envelope.data) {
+              const { listProfilePrivateKeys } = await import("@workspace/browser-backend");
+              const privateKeys = await listProfilePrivateKeys();
+              let decrypted: string | null = null;
+              for (const { privateKey } of privateKeys) {
+                try {
+                  decrypted = await sodiumOpenSealedBox(envelope.data, privateKey);
+                  break;
+                } catch {
+                  // Key mismatch — try next
+                }
+              }
+              if (decrypted) {
+                const data = JSON.parse(decrypted);
+                onPedigreeReceived?.(data);
+              } else {
+                onDecryptError?.(new Error("Could not decrypt share: no matching private key"));
+              }
+            } else {
+              const data = typeof envelope === "object" && envelope.data ? JSON.parse(envelope.data) : envelope;
+              onPedigreeReceived?.(data);
+            }
             setStatus("connected");
           } catch {
             setError("Invalid data received");
@@ -213,7 +252,7 @@ export function LanShare({ pedigreeData, onClose, onPedigreeReceived }: LanShare
             <Share2 className="w-4 h-4 text-primary" />
             <span className="font-semibold text-sm">LAN Share</span>
           </div>
-          <button onClick={onClose} className="text-muted-foreground hover:text-foreground transition-colors">
+          <button type="button" aria-label="Close LAN share" onClick={onClose} className="text-muted-foreground hover:text-foreground transition-colors">
             <X className="w-4 h-4" />
           </button>
         </div>
@@ -226,20 +265,22 @@ export function LanShare({ pedigreeData, onClose, onPedigreeReceived }: LanShare
         {!mode && (
           <div className="grid grid-cols-2 gap-2">
             <button
+              type="button"
               onClick={startHost}
               className="flex flex-col items-center gap-1.5 p-4 rounded border border-border hover:border-primary/30 hover:bg-accent transition-colors"
             >
               <QrCode className="w-5 h-5 text-primary" />
               <span className="text-xs font-medium">Host Session</span>
-              <span className="text-[10px] text-muted-foreground">Share this pedigree</span>
+              <span className="text-xs text-muted-foreground">Share this pedigree</span>
             </button>
             <button
+              type="button"
               onClick={() => setMode("join")}
               className="flex flex-col items-center gap-1.5 p-4 rounded border border-border hover:border-primary/30 hover:bg-accent transition-colors"
             >
               <Link2 className="w-5 h-5 text-primary" />
               <span className="text-xs font-medium">Join Session</span>
-              <span className="text-[10px] text-muted-foreground">Receive a pedigree</span>
+              <span className="text-xs text-muted-foreground">Receive a pedigree</span>
             </button>
           </div>
         )}
@@ -252,7 +293,7 @@ export function LanShare({ pedigreeData, onClose, onPedigreeReceived }: LanShare
                   <Loader2 className="w-4 h-4 animate-spin text-primary" />
                   <span>Establishing connection...</span>
                 </div>
-                <div className="flex items-center gap-1 text-[10px]">
+                <div className="flex items-center gap-1 text-xs">
                   <Timer className="w-3 h-3" />
                   <span>ICE timeout in {countdown}s</span>
                 </div>
@@ -263,10 +304,13 @@ export function LanShare({ pedigreeData, onClose, onPedigreeReceived }: LanShare
               <div className="flex gap-2">
                 <textarea
                   readOnly
+                  aria-label="WebRTC offer to send to guest"
                   value={offer}
-                  className="flex-1 h-20 px-2 py-1.5 text-[10px] font-mono bg-muted border border-border rounded resize-none focus:outline-none"
+                  className="flex-1 h-20 px-2 py-1.5 text-xs font-mono bg-muted border border-border rounded resize-none focus:outline-none"
                 />
                 <button
+                  type="button"
+                  aria-label="Copy offer"
                   onClick={() => handleCopy(offer)}
                   className="self-start p-2 rounded hover:bg-accent text-muted-foreground transition-colors"
                   title="Copy offer"
@@ -281,12 +325,14 @@ export function LanShare({ pedigreeData, onClose, onPedigreeReceived }: LanShare
               <textarea
                 value={answer}
                 onChange={(e) => setAnswer(e.target.value)}
+                aria-label="Paste guest's WebRTC answer"
                 placeholder="Paste answer from guest..."
-                className="w-full h-20 px-2 py-1.5 text-[10px] font-mono bg-background border border-border rounded resize-none focus:outline-none focus:border-primary"
+                className="w-full h-20 px-2 py-1.5 text-xs font-mono bg-background border border-border rounded resize-none focus:outline-none focus:border-primary"
               />
             </div>
 
             <button
+              type="button"
               onClick={completeHostConnection}
               disabled={!answer || status === "connected"}
               className="w-full py-2 text-xs font-medium rounded bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
@@ -303,8 +349,9 @@ export function LanShare({ pedigreeData, onClose, onPedigreeReceived }: LanShare
               <textarea
                 value={offer}
                 onChange={(e) => setOffer(e.target.value)}
+                aria-label="Paste host's WebRTC offer"
                 placeholder="Paste offer from host..."
-                className="w-full h-20 px-2 py-1.5 text-[10px] font-mono bg-background border border-border rounded resize-none focus:outline-none focus:border-primary"
+                className="w-full h-20 px-2 py-1.5 text-xs font-mono bg-background border border-border rounded resize-none focus:outline-none focus:border-primary"
               />
             </div>
 
@@ -319,7 +366,7 @@ export function LanShare({ pedigreeData, onClose, onPedigreeReceived }: LanShare
                     <Loader2 className="w-3.5 h-3.5 animate-spin" />
                     Connecting...
                   </span>
-                  <span className="flex items-center gap-1 text-[10px] text-primary/70">
+                  <span className="flex items-center gap-1 text-xs text-primary/70">
                     <Timer className="w-2.5 h-2.5" />
                     ICE timeout in {countdown}s
                   </span>
@@ -333,8 +380,9 @@ export function LanShare({ pedigreeData, onClose, onPedigreeReceived }: LanShare
                 <div className="flex gap-2">
                   <textarea
                     readOnly
+                    aria-label="Your WebRTC answer to send to host"
                     value={answer}
-                    className="flex-1 h-20 px-2 py-1.5 text-[10px] font-mono bg-muted border border-border rounded resize-none focus:outline-none"
+                  className="flex-1 h-20 px-2 py-1.5 text-xs font-mono bg-muted border border-border rounded resize-none focus:outline-none"
                   />
                   <button
                     onClick={() => handleCopy(answer)}
@@ -354,7 +402,7 @@ export function LanShare({ pedigreeData, onClose, onPedigreeReceived }: LanShare
             <AlertTriangle className="w-3.5 h-3.5 text-destructive mt-0.5" />
             <div>
               <p className="text-xs text-destructive">{error}</p>
-              <p className="text-[10px] text-muted-foreground mt-0.5">
+              <p className="text-xs text-muted-foreground mt-0.5">
                 Use File → Export → .ppro and share the file manually.
               </p>
             </div>

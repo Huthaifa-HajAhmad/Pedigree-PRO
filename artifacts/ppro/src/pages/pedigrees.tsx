@@ -18,6 +18,8 @@ import { FormLayout } from "@/components/shared/FormLayout";
 import { TableSkeleton } from "@/components/shared/Skeleton";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { ErrorDialog } from "@/components/shared/ErrorDialog";
+import { signData, computeHash } from "@workspace/crypto";
+import { listProfilePrivateKeys } from "@workspace/browser-backend";
 
 const schema = z.object({
   title: z.string().min(1, "Title required"),
@@ -58,14 +60,23 @@ export default function Pedigrees() {
     defaultValues: { title: "", patientId: "", notes: "" },
   });
 
-    const onSubmit = (data: FormData) => {
-      createPedigree.mutate(
-        {
-          title: data.title,
-          patient_id: data.patientId ? parseInt(data.patientId, 10) : null,
-          notes: data.notes ?? null,
-          creator_key: "",
-        },
+    const onSubmit = async (data: FormData) => {
+    const canvasData = JSON.stringify({ nodes: [], edges: [] });
+    const canvasHash = computeHash(canvasData);
+    const keys = await listProfilePrivateKeys();
+    const activeKey = keys.length > 0 ? keys[0] : null;
+    const creatorKey = activeKey ? (await import("@workspace/crypto")).getPublicKeyFromPrivate(activeKey.privateKey) : "";
+    const creatorSignature = activeKey ? await signData(canvasHash, activeKey.privateKey) : null;
+    createPedigree.mutate(
+      {
+        title: data.title,
+        patient_id: data.patientId ? parseInt(data.patientId, 10) : null,
+        notes: data.notes ?? null,
+        canvas_data: canvasData,
+        canvas_hash: canvasHash,
+        creator_key: await creatorKey,
+        creator_signature: creatorSignature,
+      },
         {
           onSuccess: (pedigree) => {
             queryClient.invalidateQueries({ queryKey: queryKeys.pedigrees });
@@ -174,7 +185,7 @@ export default function Pedigrees() {
       />
 
       <div className="border border-border rounded overflow-hidden bg-card">
-        <div className="grid grid-cols-5 gap-4 px-4 py-3 border-b border-border text-xs text-muted-foreground uppercase tracking-widest">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4 px-4 py-3 border-b border-border text-xs text-muted-foreground uppercase tracking-widest">
           <div className="col-span-2">Title</div>
           <div>Patient</div>
           <div>Versions</div>
@@ -187,7 +198,7 @@ export default function Pedigrees() {
             <EmptyState icon={Dna} title="No pedigrees found" description="Create your first pedigree or import one." />
           ) : (
             pedigrees?.map((p) => (
-              <div key={p.id} data-testid={`row-pedigree-${p.id}`} className="grid grid-cols-5 gap-4 px-4 py-3 text-sm hover:bg-accent transition-colors items-center">
+              <div key={p.id} data-testid={`row-pedigree-${p.id}`} className="grid grid-cols-2 md:grid-cols-5 gap-4 px-4 py-3 text-sm hover:bg-accent transition-colors items-center">
                 <div className="col-span-2 flex items-center gap-2">
                   <Dna className="w-3.5 h-3.5 text-primary flex-shrink-0" />
                   <span className="font-medium truncate">{p.title}</span>
@@ -199,18 +210,22 @@ export default function Pedigrees() {
                 <div className="flex items-center justify-end gap-1">
                   <Link href={`/pedigrees/${p.id}`}>
                     <button
+                      type="button"
                       data-testid={`button-open-${p.id}`}
                       className="text-muted-foreground hover:text-primary transition-colors p-1 rounded hover:bg-primary/10"
                       title="Open pedigree editor"
+                      aria-label={`Open pedigree ${p.title}`}
                     >
                       <ArrowUpRight className="w-4 h-4" />
                     </button>
                   </Link>
                   <button
+                    type="button"
                     data-testid={`button-delete-${p.id}`}
                     onClick={() => handleDelete(p.id, p.title)}
                     className="text-muted-foreground hover:text-destructive transition-colors p-1 rounded hover:bg-destructive/10"
                     title="Delete pedigree"
+                    aria-label={`Delete pedigree ${p.title}`}
                   >
                     <Trash2 className="w-4 h-4" />
                   </button>

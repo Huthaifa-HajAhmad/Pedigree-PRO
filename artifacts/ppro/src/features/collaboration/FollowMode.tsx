@@ -76,10 +76,10 @@ export function FollowMode({ versions, currentIndex, onChangeIndex, onPreview, o
           <span className="text-xs font-medium">Follow History</span>
         </div>
         <div className="flex items-center gap-1">
-          <span className="text-[10px] text-muted-foreground">
+          <span className="text-xs text-muted-foreground">
             {currentIndex + 1} / {versions.length}
           </span>
-          <button onClick={onClose} className="p-1 rounded hover:bg-accent text-muted-foreground transition-colors ml-2">
+          <button type="button" aria-label="Close follow mode" onClick={onClose} className="p-1 rounded hover:bg-accent text-muted-foreground transition-colors ml-2">
             <X className="w-3 h-3" />
           </button>
         </div>
@@ -91,7 +91,7 @@ export function FollowMode({ versions, currentIndex, onChangeIndex, onPreview, o
           <div className="text-xs font-medium truncate">
             {currentVersion.label ?? `Version ${currentVersion.version_number}`}
           </div>
-          <div className="text-[10px] text-muted-foreground">
+          <div className="text-xs text-muted-foreground">
             {(() => { try { return new Date(currentVersion.created_at).toLocaleString(); } catch { return "—"; } })()}
             {currentVersion.saver_key && (
               <span className="ml-2 font-mono">by {currentVersion.saver_key.slice(0, 8)}...</span>
@@ -168,7 +168,7 @@ export function FollowMode({ versions, currentIndex, onChangeIndex, onPreview, o
                   setTimeout(() => play(), 50);
                 }
               }}
-              className="text-[10px] h-6 px-1.5"
+              className="text-xs h-6 px-1.5"
             >
               {ms / 1000}s
             </Button>
