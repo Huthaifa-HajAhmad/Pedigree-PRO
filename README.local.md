@@ -7,7 +7,7 @@
    pnpm -r --if-present run build
 
 3. Start the frontend dev server:
-   pnpm --filter @workspace/haplopainter run dev
+   pnpm --filter @workspace/ppro run dev
    → http://localhost:4173
 
 4. Run typechecking:
@@ -19,4 +19,4 @@
 Notes:
 - Browser mode uses sql.js (WASM SQLite) with IndexedDB persistence — no server required.
 - Data is encrypted at rest using AES-256-GCM via Web Crypto API.
-- Desktop mode uses Tauri + SQLCipher; see `artifacts/haplopainter/src-tauri/`.
+- Desktop mode uses Tauri + SQLCipher; see `artifacts/ppro/src-tauri/`.

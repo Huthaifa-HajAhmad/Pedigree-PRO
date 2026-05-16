@@ -6,7 +6,7 @@
  * Users may optionally protect keys with a passphrase.
  */
 
-import { get, set, createStore } from "idb-keyval";
+import { get, set, del, createStore } from "idb-keyval";
 
 const KEY_STORE = createStore("pedigree-pro-keys", "keys");
 const DB_KEY_NAME = "db-encryption-key";
@@ -27,6 +27,16 @@ async function generateAesKey(): Promise<CryptoKey> {
   return crypto.subtle.generateKey({ name: "AES-GCM", length: 256 }, true, [
     "encrypt",
     "decrypt",
+  ]);
+}
+
+/**
+ * Generates a random 256-bit AES key for key wrapping (AES-KW).
+ */
+async function generateWrappingKey(): Promise<CryptoKey> {
+  return crypto.subtle.generateKey({ name: "AES-KW", length: 256 }, true, [
+    "wrapKey",
+    "unwrapKey",
   ]);
 }
 
@@ -68,12 +78,12 @@ async function exportKey(key: CryptoKey): Promise<Uint8Array> {
 }
 
 /**
- * Imports raw bytes to a CryptoKey.
+ * Imports raw bytes to a wrapping CryptoKey (AES-KW).
  */
-async function importKey(raw: Uint8Array): Promise<CryptoKey> {
-  return crypto.subtle.importKey("raw", toArrayBuffer(raw), "AES-GCM", true, [
-    "encrypt",
-    "decrypt",
+async function importWrappingKey(raw: Uint8Array): Promise<CryptoKey> {
+  return crypto.subtle.importKey("raw", toArrayBuffer(raw), "AES-KW", true, [
+    "wrapKey",
+    "unwrapKey",
   ]);
 }
 
@@ -131,12 +141,19 @@ export async function getOrCreateDbKey(
     KEY_STORE
   );
   if (stored) {
-    const wrappingKey = await importKey(stored.wrappingKey);
-    return unwrapKey(stored.wrappedKey, wrappingKey);
+    try {
+      const wrappingKey = await importWrappingKey(stored.wrappingKey);
+      return unwrapKey(stored.wrappedKey, wrappingKey);
+    } catch {
+      // Old key was stored with wrong algorithm (AES-GCM instead of AES-KW).
+      // Clear it and generate a new one.
+      console.warn("Clearing corrupted wrapping key, generating new one...");
+      await del(DB_KEY_NAME, KEY_STORE);
+    }
   }
 
   const dbKey = await generateAesKey();
-  const wrappingKey = await generateAesKey();
+  const wrappingKey = await generateWrappingKey();
   const wrappedKey = await wrapKey(dbKey, wrappingKey);
   const exportedWrappingKey = await exportKey(wrappingKey);
   await set(DB_KEY_NAME, { wrappedKey, wrappingKey: exportedWrappingKey }, KEY_STORE);

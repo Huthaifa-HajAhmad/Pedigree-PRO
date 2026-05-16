@@ -1,7 +1,7 @@
 // Pedigree PRO — Unified API Client (React Query Hooks + Direct Functions)
 
 // Unified API adapter (Tauri desktop + browser standalone)
-export { apiCall, detectApiMode } from "./adapter";
+export { apiCall, detectApiMode, getBackendInitError } from "./adapter";
 export type { ApiMode } from "./adapter";
 
 // Direct API functions (for imperative calls, not React Query)

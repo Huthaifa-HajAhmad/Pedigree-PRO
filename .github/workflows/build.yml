@@ -45,7 +45,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - uses: tauri-apps/tauri-action@v0
         with:
-          projectPath: artifacts/haplopainter
+          projectPath: artifacts/ppro
           tagName: ${{ github.ref_name }}
           releaseName: 'Pedigree PRO v__VERSION__ (Windows)'
           releaseBody: 'See CHANGELOG.md for details.'
@@ -69,7 +69,7 @@ jobs:
       - run: rustup target add aarch64-apple-darwin
       - uses: tauri-apps/tauri-action@v0
         with:
-          projectPath: artifacts/haplopainter
+          projectPath: artifacts/ppro
           tagName: ${{ github.ref_name }}
           releaseName: 'Pedigree PRO v__VERSION__ (macOS)'
           args: '--target universal-apple-darwin'
@@ -95,7 +95,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - uses: tauri-apps/tauri-action@v0
         with:
-          projectPath: artifacts/haplopainter
+          projectPath: artifacts/ppro
           tagName: ${{ github.ref_name }}
           releaseName: 'Pedigree PRO v__VERSION__ (Linux)'
           includeUpdaterJson: true
@@ -115,10 +115,10 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: '22', cache: 'pnpm' }
       - run: pnpm install --frozen-lockfile
-      - run: pnpm --filter @workspace/haplopainter build
+      - run: pnpm --filter @workspace/ppro build
       - uses: cloudflare/pages-action@v1
         with:
           apiToken: ${{ secrets.CF_API_TOKEN }}
           accountId: ${{ secrets.CF_ACCOUNT_ID }}
           projectName: pedigree-pro-web
-          directory: artifacts/haplopainter/dist
+          directory: artifacts/ppro/dist
