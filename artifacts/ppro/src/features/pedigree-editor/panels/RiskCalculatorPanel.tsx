@@ -13,8 +13,8 @@ export const MODES: { id: InheritanceMode; label: string; title: string }[] = [
 
 export const TIER_COLORS = {
   low:      { bar: "hsl(var(--primary))", text: "hsl(var(--primary))" },
-  moderate: { bar: "#FACC15", text: "#FACC15" },
-  high:     { bar: "#FF4040", text: "#FF4040" },
+  moderate: { bar: "hsl(var(--warning))", text: "hsl(var(--warning))" },
+  high:     { bar: "hsl(var(--destructive))", text: "hsl(var(--destructive))" },
 };
 
 export function RiskCalculatorPanel({
@@ -25,7 +25,7 @@ export function RiskCalculatorPanel({
   onModeChange: (m: InheritanceMode) => void;
 }) {
   const confidenceLabel = result.confidence === "strong" ? "● verified" : result.confidence === "inferred" ? "◐ inferred" : "○ assumed";
-  const confidenceColor = result.confidence === "strong" ? "hsl(var(--primary))" : result.confidence === "inferred" ? "#FACC15" : "#888";
+  const confidenceColor = result.confidence === "strong" ? "hsl(var(--primary))" : result.confidence === "inferred" ? "hsl(var(--warning))" : "hsl(var(--muted-foreground))"
 
   return (
     <div className="space-y-3">
@@ -33,6 +33,7 @@ export function RiskCalculatorPanel({
       <div className="grid grid-cols-4 gap-1">
         {MODES.map((m) => (
           <button
+            type="button"
             key={m.id}
             onClick={() => onModeChange(m.id)}
             title={m.title}
@@ -52,7 +53,7 @@ export function RiskCalculatorPanel({
         {result.entries.map((e, i) => {
           const colors = TIER_COLORS[e.tier];
           return (
-            <div key={i}>
+            <div key={`${e.label}-${i}`}>
               <div className="flex justify-between items-baseline mb-0.5">
                 <span className="text-xs text-muted-foreground leading-tight pr-2">{e.label}</span>
                 <span className="text-xs font-semibold flex-shrink-0" style={{ color: colors.text }}>
@@ -73,7 +74,7 @@ export function RiskCalculatorPanel({
       {/* Basis notes */}
       <div className="border border-border/50 rounded p-2 space-y-1">
         {result.basis.map((b, i) => (
-          <p key={i} className="text-xs text-muted-foreground leading-snug">{b}</p>
+          <p key={`${b.substring(0, 24)}-${i}`} className="text-xs text-muted-foreground leading-snug">{b}</p>
         ))}
         <p className="text-xs mt-1" style={{ color: confidenceColor }}>{confidenceLabel}</p>
       </div>
@@ -121,7 +122,7 @@ export function RiskPanelSidebar({
   ), [canvas.nodes, canvas.edges, mode]);
 
   const confidenceColor = focusResult?.confidence === "strong" ? "hsl(var(--primary))"
-    : focusResult?.confidence === "inferred" ? "#FACC15" : "#888";
+    : focusResult?.confidence === "inferred" ? "hsl(var(--warning))" : "hsl(var(--muted-foreground))"
   const confidenceLabel = focusResult?.confidence === "strong" ? "● verified"
     : focusResult?.confidence === "inferred" ? "◐ inferred" : "○ assumed";
 
@@ -135,7 +136,7 @@ export function RiskPanelSidebar({
           <TrendingUp className="w-4 h-4" style={{ color: "hsl(var(--primary))" }} />
           <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Risk Calculator</span>
         </div>
-        <button onClick={onClose} className="text-muted-foreground hover:text-foreground transition-colors">
+        <button type="button" aria-label="Close risk calculator" onClick={onClose} className="text-muted-foreground hover:text-foreground transition-colors">
           <X className="w-3.5 h-3.5" />
         </button>
       </div>
@@ -146,7 +147,7 @@ export function RiskPanelSidebar({
           <div className="text-xs text-muted-foreground uppercase tracking-wider mb-1.5">Inheritance Mode</div>
           <div className="grid grid-cols-4 gap-1">
             {MODES.map((m) => (
-              <button key={m.id} onClick={() => onModeChange(m.id)} title={m.title}
+              <button type="button" key={m.id} onClick={() => onModeChange(m.id)} title={m.title}
                 className={`py-1 rounded text-xs border transition-all ${
                   mode === m.id ? "border-primary text-primary bg-primary/10" : "border-border text-muted-foreground hover:border-primary"
                 }`}
@@ -163,8 +164,8 @@ export function RiskPanelSidebar({
           <div className="grid grid-cols-2 gap-1.5">
             {([
               { label: "Total",    value: summary.total,    color: undefined  },
-              { label: "Affected", value: summary.affected, color: "#FF4040"  },
-              { label: "Carriers", value: summary.carriers, color: "#FACC15"  },
+              { label: "Affected", value: summary.affected, color: "hsl(var(--destructive))"  },
+              { label: "Carriers", value: summary.carriers, color: "hsl(var(--warning))"  },
               { label: "Proband",  value: summary.proband,  color: "hsl(var(--primary))"       },
             ] as const).map(({ label, value, color }) => (
               <div key={label} className="border border-border rounded p-2 text-center">
@@ -205,7 +206,7 @@ export function RiskPanelSidebar({
                   {focusResult.entries.map((e, i) => {
                     const colors = TIER_COLORS[e.tier];
                     return (
-                      <div key={i}>
+                      <div key={`${e.label}-${i}`}>
                         <div className="flex justify-between items-baseline mb-0.5">
                           <span className="text-xs text-muted-foreground leading-tight pr-2">{e.label}</span>
                           <span className="text-xs font-semibold flex-shrink-0" style={{ color: colors.text }}>{e.percent}</span>
@@ -219,7 +220,7 @@ export function RiskPanelSidebar({
                   })}
                   <div className="border border-border/50 rounded p-2 space-y-1">
                     {focusResult.basis.map((b, i) => (
-                      <p key={i} className="text-xs text-muted-foreground leading-snug">{b}</p>
+                      <p key={`${b.substring(0, 24)}-${i}`} className="text-xs text-muted-foreground leading-snug">{b}</p>
                     ))}
                     <p className="text-xs mt-1" style={{ color: confidenceColor }}>{confidenceLabel}</p>
                   </div>
@@ -241,7 +242,7 @@ export function RiskPanelSidebar({
             </div>
             <div className="space-y-1">
               {memberRisks.map(({ node, topEntry }) => (
-                <button key={node.id} onClick={() => setFocusId(node.id)}
+                <button type="button" key={node.id} onClick={() => setFocusId(node.id)}
                   className={`w-full flex items-center justify-between px-2 py-1.5 rounded border transition-colors text-left ${
                     node.id === effectiveFocusId ? "border-primary bg-primary/10" : "border-border hover:border-primary/50"
                   }`}
@@ -251,13 +252,13 @@ export function RiskPanelSidebar({
                       {node.label || node.type}{node.proband ? " ★" : ""}
                     </div>
                     {(node.affected || node.carrier) && (
-                      <div className="text-xs" style={{ color: node.affected ? "#FF4040" : "#FACC15" }}>
+                      <div className="text-xs" style={{ color: node.affected ? "hsl(var(--destructive))" : "hsl(var(--warning))" }}>
                         {node.affected ? "affected" : "carrier"}
                       </div>
                     )}
                   </div>
                   <span className="text-xs font-semibold flex-shrink-0 ml-2"
-                    style={{ color: topEntry ? TIER_COLORS[topEntry.tier].text : "#888" }}>
+                    style={{ color: topEntry ? TIER_COLORS[topEntry.tier].text : "hsl(var(--muted-foreground))" }}>
                     {topEntry?.percent ?? "—"}
                   </span>
                 </button>

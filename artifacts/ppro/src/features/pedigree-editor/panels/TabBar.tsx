@@ -28,12 +28,11 @@ export function TabBar({
 }: TabBarProps) {
   return (
     <div
-      className="tabs-bar flex items-center gap-1 px-2 border-b border-border bg-background flex-shrink-0 overflow-x-auto"
-      style={{ height: "44px", minHeight: "44px" }}
+      className="tabs-bar flex items-center gap-1 px-2 border-b border-border bg-background flex-shrink-0 overflow-hidden h-11"
     >
       {/* Brand chip */}
       <div className="flex items-center pr-2 border-r border-border flex-shrink-0 self-stretch">
-        <Dna className="w-3.5 h-3.5 my-auto" style={{ color: "hsl(var(--primary))" }} />
+        <Dna className="w-3.5 h-3.5 my-auto text-primary" />
       </div>
 
       {/* Tabs */}
@@ -44,32 +43,22 @@ export function TabBar({
             key={tab.id}
             className={`flex items-center gap-1.5 px-2.5 min-h-[36px] rounded-md flex-shrink-0 group cursor-pointer transition-all select-none ${
               isActive
-                ? "text-foreground font-semibold"
+                ? "bg-primary/15 outline outline-1 outline-primary/35 text-foreground font-semibold"
                 : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
             }`}
-            style={
-              isActive
-                ? {
-                    background: `hsl(var(--primary) / 0.15)`,
-                    outline: `1px solid hsl(var(--primary) / 0.35)`,
-                  }
-                : {}
-            }
             onClick={() => {
               if (!isActive) onNavigate(`/pedigrees/${tab.id}`);
             }}
           >
             {isActive && (
-              <span
-                className="w-1.5 h-1.5 rounded-full flex-shrink-0"
-                style={{ background: "hsl(var(--primary))" }}
-              />
+              <span className="w-1.5 h-1.5 rounded-full flex-shrink-0 bg-primary" />
             )}
-            <span className="text-xs truncate" style={{ maxWidth: "130px" }}>
+            <span className="text-xs truncate max-w-[130px]">
               {tab.title}
             </span>
             <button
-              className="opacity-0 group-hover:opacity-60 hover:!opacity-100 text-muted-foreground transition-opacity flex-shrink-0 min-w-[44px] min-h-[44px] flex items-center justify-center rounded"
+              type="button"
+              className="opacity-0 group-hover:opacity-60 hover:!opacity-100 text-muted-foreground transition-opacity flex-shrink-0 w-5 h-5 flex items-center justify-center rounded hover:bg-muted"
               onClick={(e) => {
                 e.stopPropagation();
                 onCloseTab(tab.id);
@@ -84,8 +73,10 @@ export function TabBar({
       })}
 
       {/* Open another pedigree */}
-      <div className="relative flex-shrink-0 flex items-center">
+      <div className="flex-shrink-0 flex items-center">
         <button
+          type="button"
+          data-tab-picker-trigger
           onClick={onToggleTabPicker}
           title="Open another pedigree in a tab"
           aria-label="Open another pedigree in a tab"

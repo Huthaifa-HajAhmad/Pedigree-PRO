@@ -1,5 +1,6 @@
 import { sqliteTable, text, integer } from "drizzle-orm/sqlite-core";
 import { sql } from "drizzle-orm";
+import { pedigreesTable } from "./schema_sqlite_pedigrees";
 
 /**
  * Aggregate pedigree-level phenotype data.
@@ -11,11 +12,7 @@ import { sql } from "drizzle-orm";
  */
 export const pedigreePhenotypesTable = sqliteTable("pedigree_phenotypes", {
   id: integer("id").primaryKey({ autoIncrement: true }),
-  pedigreeId: integer("pedigree_id").notNull().references(() => {
-    // Lazy import to avoid circular dependency
-    const { pedigreesTable } = require("./schema_sqlite_pedigrees");
-    return pedigreesTable.id;
-  }),
+  pedigreeId: integer("pedigree_id").notNull().references(() => pedigreesTable.id),
   conditionName: text("condition_name").notNull(),              // e.g., "Huntington Disease"
   omimId: text("omim_id"),                                     // OMIM phenotype ID
   hpoTerms: text("hpo_terms"),                                 // JSON array of representative HPO terms

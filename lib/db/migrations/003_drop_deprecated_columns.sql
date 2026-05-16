@@ -1,4 +1,4 @@
--- Migration 003: Drop deprecated Phase 0-D columns and tables.
+-- Pedigree PRO — Migration 003: Drop deprecated Phase 0-D columns and tables.
 -- The *ById columns and share_token have been replaced by *_key/*_signature
 -- and zero-knowledge relay tokens respectively. The `users` table has been
 -- replaced by `local_profiles`.

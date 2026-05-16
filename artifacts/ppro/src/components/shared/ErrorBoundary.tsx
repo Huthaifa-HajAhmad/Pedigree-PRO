@@ -35,12 +35,12 @@ export class ErrorBoundary extends Component<Props, State> {
       if (this.props.fallback) return this.props.fallback;
 
       return (
-        <div className="flex items-center justify-center h-screen bg-background">
+        <div className="flex items-center justify-center h-dvh bg-background">
           <div className="max-w-md text-center p-8">
             <div className="w-14 h-14 rounded-2xl bg-destructive/10 flex items-center justify-center mx-auto mb-5">
               <AlertTriangle className="w-7 h-7 text-destructive" />
             </div>
-            <h2 className="text-lg font-semibold text-foreground mb-2">Something went wrong</h2>
+            <h1 className="text-lg font-semibold text-foreground mb-2">Something went wrong</h1>
             <p className="text-sm text-muted-foreground mb-6 leading-relaxed">
               An unexpected error occurred. Any previously auto-saved drafts have been
               retained in local storage. Reload the app to continue.

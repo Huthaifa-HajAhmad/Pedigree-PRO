@@ -7,16 +7,18 @@
   "main": "./src/index.ts",
   "types": "./src/index.ts",
   "exports": {
-    ".": "./src/index.ts"
+    ".": {
+      "types": "./src/index.ts",
+      "import": "./src/index.ts",
+      "default": "./src/index.ts"
+    }
   },
   "dependencies": {
     "@noble/curves": "^2.2.0",
     "@noble/ed25519": "^1.7.3",
-    "@noble/hashes": "^1.4.0",
-    "libsodium-wrappers": "^0.8.4"
+    "@noble/hashes": "^1.4.0"
   },
   "devDependencies": {
-    "@types/libsodium-wrappers": "^0.8.2",
     "typescript": "~5.9.2"
   }
 }

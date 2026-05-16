@@ -160,13 +160,8 @@ pub fn import_legacy_database(
     // ── Step 7: Write everything to the Pedigree PRO database ──
     let conn = db.lock().map_err(|e| e.to_string())?;
 
-    // 7a: Insert patients with dual-write
+    // 7a: Insert patients
     for p in &patients {
-        let _clinician_name = p
-            .clinician_id
-            .and_then(|cid| user_map.get(&cid))
-            .cloned();
-
         import_common::insert_patient(
             &conn,
             &p.mrn,
@@ -176,12 +171,11 @@ pub fn import_legacy_database(
             &p.sex,
             &p.ethnicity,
             &p.referral_reason,
-            &Some(migration_pk.clone()), // New: migration profile key
-            p.clinician_id,              // Legacy: original clinician ID
+            &Some(migration_pk.clone()),
         )?;
     }
 
-    // 7b: Insert pedigrees with dual-write and canvas_hash
+    // 7b: Insert pedigrees with canvas_hash
     for p in &pedigrees {
         let canvas_hash = p
             .canvas_data
@@ -208,14 +202,12 @@ pub fn import_legacy_database(
             &p.canvas_data,
             &canvas_hash,
             &enriched_notes,
-            &Some(migration_pk.clone()), // New: migration profile key
-            &None,                        // No signature (legacy data)
-            p.created_by_id,              // Legacy: original creator ID
-            None,                         // Skip legacy share_token
+            &Some(migration_pk.clone()),
+            &None, // No signature (legacy data)
         )?;
     }
 
-    // 7c: Insert versions with dual-write and canvas_hash
+    // 7c: Insert versions with canvas_hash
     for v in &versions {
         let canvas_hash = signatures::hash_sha256(v.canvas_data.as_bytes());
 
@@ -226,14 +218,13 @@ pub fn import_legacy_database(
             &v.label,
             &v.canvas_data,
             &Some(canvas_hash),
-            &Some(migration_pk.clone()), // New: migration profile key
-            &None,                        // No signature (legacy data)
+            &Some(migration_pk.clone()),
+            &None, // No signature (legacy data)
             &v.created_at,
-            v.saved_by_id,               // Legacy: original saver ID
         )?;
     }
 
-    // 7d: Insert activity log with dual-write
+    // 7d: Insert activity log
     for a in &activities {
         // Preserve legacy actor name in the subject
         let actor_name = a
@@ -248,8 +239,7 @@ pub fn import_legacy_database(
             &conn,
             &a.action,
             &enriched_subject,
-            Some(&migration_pk), // New: migration profile key
-            a.user_id,           // Legacy: original user ID
+            Some(&migration_pk),
         )?;
     }
 

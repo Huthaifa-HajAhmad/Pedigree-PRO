@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useRef, useState, createElement } from "react";
+import { getPreferences, savePreferences as savePreferencesApi } from "@workspace/api-client-react";
 
 export type ThemeId = "terminal" | "clinical" | "midnight" | "amber" | "rose" | "arctic";
 
@@ -22,29 +23,8 @@ export const THEMES: Theme[] = [
 ];
 
 const THEME_IDS = new Set(THEMES.map((t) => t.id));
-const DEVICE_KEY  = "ppro_device_id";
 const STORAGE_KEY = "ppro_theme";
-const LEGACY_DEVICE_KEY  = "pedigree-pro-device-id";
 const LEGACY_STORAGE_KEY = "pedigree-pro-theme";
-
-// ── Device ID ─────────────────────────────────────────────────────────────────
-function getOrCreateDeviceId(): string {
-  try {
-    const existing = localStorage.getItem(DEVICE_KEY);
-    if (existing) return existing;
-    const legacy = localStorage.getItem(LEGACY_DEVICE_KEY);
-    if (legacy) {
-      localStorage.setItem(DEVICE_KEY, legacy);
-      localStorage.removeItem(LEGACY_DEVICE_KEY);
-      return legacy;
-    }
-    const id = crypto.randomUUID();
-    localStorage.setItem(DEVICE_KEY, id);
-    return id;
-  } catch {
-    return "local";
-  }
-}
 
 // ── Local helpers ─────────────────────────────────────────────────────────────
 export function getStoredTheme(): ThemeId {
@@ -77,29 +57,6 @@ export function getAccentHex(): string {
   return "#6475F7";
 }
 
-// ── API helpers ───────────────────────────────────────────────────────────────
-const BASE = import.meta.env.BASE_URL?.replace(/\/$/, "") ?? "";
-
-async function fetchThemeFromApi(deviceId: string): Promise<ThemeId | null> {
-  try {
-    const res = await fetch(`${BASE}/api/preferences/${encodeURIComponent(deviceId)}`);
-    if (!res.ok) return null;
-    const data = await res.json() as { theme?: string };
-    if (data.theme && THEME_IDS.has(data.theme as ThemeId)) return data.theme as ThemeId;
-  } catch {}
-  return null;
-}
-
-async function saveThemeToApi(deviceId: string, theme: ThemeId): Promise<void> {
-  try {
-    await fetch(`${BASE}/api/preferences/${encodeURIComponent(deviceId)}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ theme }),
-    });
-  } catch {}
-}
-
 // ── Context ───────────────────────────────────────────────────────────────────
 export interface ThemeContextValue {
   themeId: ThemeId;
@@ -118,7 +75,6 @@ export const ThemeContext = createContext<ThemeContextValue>({
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [themeId, setThemeId] = useState<ThemeId>(getStoredTheme);
   const [synced, setSynced] = useState(false);
-  const deviceId = useRef(getOrCreateDeviceId());
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Apply CSS on every theme change
@@ -126,12 +82,14 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     applyTheme(themeId);
   }, [themeId]);
 
-  // On mount: fetch saved theme from API and apply if found
+  // On mount: fetch saved theme from backend and apply if found
   useEffect(() => {
-    fetchThemeFromApi(deviceId.current).then((remote) => {
-      if (remote && remote !== themeId) {
-        setThemeId(remote);
+    getPreferences().then((prefs) => {
+      if (prefs?.theme && THEME_IDS.has(prefs.theme as ThemeId) && prefs.theme !== themeId) {
+        setThemeId(prefs.theme as ThemeId);
       }
+      setSynced(true);
+    }).catch(() => {
       setSynced(true);
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -140,10 +98,10 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const setTheme = (id: ThemeId) => {
     setThemeId(id);
     applyTheme(id);
-    // Debounce API save by 600ms to avoid hammering during quick switching
+    // Debounce backend save by 600ms to avoid hammering during quick switching
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(() => {
-      saveThemeToApi(deviceId.current, id);
+      savePreferencesApi(id).catch(() => { /* silent */ });
     }, 600);
   };
 

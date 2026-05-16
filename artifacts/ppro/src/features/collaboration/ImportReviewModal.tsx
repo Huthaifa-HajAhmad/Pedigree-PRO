@@ -55,18 +55,18 @@ export function ImportReviewModal({
             <ShieldCheck className={`w-4 h-4 ${isVerified ? "text-green-400" : "text-yellow-400"}`} />
             <span className="font-semibold text-sm">Review Import</span>
           </div>
-          <button onClick={onReject} className="text-muted-foreground hover:text-foreground transition-colors">
+          <button type="button" aria-label="Close import review" onClick={onReject} className="text-muted-foreground hover:text-foreground transition-colors">
             <X className="w-4 h-4" />
           </button>
         </div>
 
         {/* Provenance */}
         <div className="mb-4 px-3 py-2 rounded border border-border bg-muted/30">
-          <div className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">Provenance</div>
+          <div className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Provenance</div>
           <div className="text-xs font-mono text-foreground/80">
             Creator: {incomingProvenance.creator_key.slice(0, 16)}...
           </div>
-          <div className="text-[10px] text-muted-foreground">
+          <div className="text-xs text-muted-foreground">
             {new Date(incomingProvenance.timestamp).toLocaleString()}
             {isVerified ? " · Signature verified" : " · No signature"}
           </div>
@@ -75,7 +75,7 @@ export function ImportReviewModal({
         {/* Diff summary */}
         {diff && (
           <div className="mb-4 px-3 py-2 rounded border border-border bg-muted/30">
-            <div className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">Changes</div>
+            <div className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Changes</div>
             <div className="text-xs">
               <span className="text-green-400 font-medium">+{diff.addedNodes.length} nodes</span>
               {diff.removedNodes.length > 0 && (
@@ -95,7 +95,7 @@ export function ImportReviewModal({
               {diff.nodeDiffs.filter((d) => d.status !== "unchanged").map((nodeDiff) => (
                 <span
                   key={nodeDiff.id}
-                  className="text-[10px] px-1.5 py-0.5 rounded border"
+                  className="text-xs px-1.5 py-0.5 rounded border"
                   style={{
                     borderColor: diffColor(nodeDiff.status),
                     color: diffColor(nodeDiff.status),
@@ -127,7 +127,7 @@ export function ImportReviewModal({
           >
             <GitMerge className="w-4 h-4" />
             <span className="text-xs font-medium">Merge</span>
-            <span className="text-[10px] text-muted-foreground">Apply changes to current</span>
+            <span className="text-xs text-muted-foreground">Apply changes to current</span>
           </Button>
 
           <Button
@@ -137,7 +137,7 @@ export function ImportReviewModal({
           >
             <GitBranch className="w-4 h-4" />
             <span className="text-xs font-medium">Branch</span>
-            <span className="text-[10px] text-muted-foreground">Create new pedigree</span>
+            <span className="text-xs text-muted-foreground">Create new pedigree</span>
           </Button>
 
           <Button
@@ -147,15 +147,16 @@ export function ImportReviewModal({
           >
             <Trash2 className="w-4 h-4" />
             <span className="text-xs font-medium">Reject</span>
-            <span className="text-[10px] text-muted-foreground">Discard import</span>
+            <span className="text-xs text-muted-foreground">Discard import</span>
           </Button>
         </div>
 
         {/* Branch name input */}
         {decision === "branch" && (
           <div className="mb-4">
-            <label className="text-xs text-muted-foreground block mb-1">New pedigree title</label>
+            <label htmlFor="branch-title" className="text-xs text-muted-foreground block mb-1">New pedigree title</label>
             <input
+              id="branch-title"
               value={newTitle}
               onChange={(e) => setNewTitle(e.target.value)}
               className="w-full px-2 py-1.5 text-xs bg-background border border-border rounded focus:outline-none focus:border-primary"

@@ -54,8 +54,7 @@ export function ShareModal({ pedigreeId, pedigreeTitle, onClose }: ShareModalPro
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
       <div
-        className="relative z-10 w-full max-w-md border border-border rounded-lg shadow-2xl p-6"
-        style={{ background: "hsl(var(--card))" }}
+        className="relative z-10 w-full max-w-md border border-border rounded-lg shadow-2xl p-6 bg-card"
       >
         {/* Header */}
         <div className="flex items-center justify-between mb-5">
@@ -63,7 +62,7 @@ export function ShareModal({ pedigreeId, pedigreeTitle, onClose }: ShareModalPro
             <Share2 className="w-4 h-4 text-primary" />
             <span className="font-semibold text-sm tracking-wide">Share Pedigree</span>
           </div>
-          <button onClick={onClose} aria-label="Close share modal" className="text-muted-foreground hover:text-foreground transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center rounded">
+          <button type="button" onClick={onClose} aria-label="Close share modal" className="text-muted-foreground hover:text-foreground transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center rounded">
             <X className="w-4 h-4" />
           </button>
         </div>
@@ -86,11 +85,12 @@ export function ShareModal({ pedigreeId, pedigreeTitle, onClose }: ShareModalPro
         {/* Recipient public key (optional) */}
         {!shareData && (
           <div className="mb-5">
-            <label className="text-xs text-muted-foreground uppercase tracking-wider block mb-1">
+            <label htmlFor="share-recipient-key" className="text-xs text-muted-foreground uppercase tracking-wider block mb-1">
               <Key className="w-3 h-3 inline mr-1" />
               Recipient Public Key (optional)
             </label>
             <input
+              id="share-recipient-key"
               value={recipientKey}
               onChange={(e) => setRecipientKey(e.target.value)}
               placeholder="Paste colleague's Ed25519 public key..."
@@ -182,7 +182,7 @@ export function ShareModal({ pedigreeId, pedigreeTitle, onClose }: ShareModalPro
             <AlertTriangle className="w-3.5 h-3.5 text-destructive mt-0.5" />
             <div>
               <p className="text-xs text-destructive">{shareMutation.error?.message ?? "Sharing requires the relay service."}</p>
-              <p className="text-[10px] text-muted-foreground mt-1">Encrypted sharing will be available in v0.2. Use File → Export → .ppro for manual transfer.</p>
+              <p className="text-xs text-muted-foreground mt-1">Encrypted sharing will be available in v0.2. Use File → Export → .ppro for manual transfer.</p>
             </div>
           </div>
         )}

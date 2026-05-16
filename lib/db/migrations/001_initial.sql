@@ -1,8 +1,9 @@
--- HaploClinical — Initial Schema (Phase 0-B)
+-- Pedigree PRO — Initial Schema (Phase 0-B)
 -- SQLite-compatible (run by Rust migration runner at app startup)
 --
--- All tables use dual columns: old INTEGER *ById (DEPRECATED) +
--- new TEXT *Key + *Signature (ADR-002).
+-- All tables use Ed25519 *_key + *_signature columns for provenance
+-- (ADR-002). The deprecated *ById columns and share_token are removed
+-- in migration 003.
 
 -- ============================================================================
 -- patients

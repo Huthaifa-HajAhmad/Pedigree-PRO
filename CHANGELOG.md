@@ -37,21 +37,21 @@ All notable changes to the Pedigree PRO project.
 #### Rust Backend (37 Tauri Commands)
 - Full CRUD: profiles, patients, pedigrees, versions
 - Dashboard stats + recent activity with computed `node_count`
-- Encrypted export/import (.ppro + legacy HaploPainter .db)
+- Encrypted export/import (.ppro + legacy .db)
 - Async relay client (HTTP POST/GET/DELETE)
 - Database management: backup, restore, key rotation
 - Activity logging for all mutations (profile create/switch/delete, pedigree CRUD)
 
 #### Two-Path Import Architecture
 - **Path A (Native):** `.ppro` import with Ed25519 signature verification
-- **Path B (Legacy):** HaploPainter SQLite migration with dual-write, user name preservation, content hashing
+- **Path B (Legacy):** Legacy SQLite migration with dual-write, user name preservation, content hashing
 
 #### Frontend (React + TypeScript)
 - Unified API adapter (Tauri `invoke()` vs web `fetch()` mode detection)
 - 27 adapter-based React Query hooks with auto-invalidation
 - Profile Manager page (create/list/delete local profiles)
 - Dashboard with adapter hooks, activity log, profile count
-- Import Dialog supporting three modes: PED/CSV, HaploClinical .ppro, legacy .db
+- Import Dialog supporting three modes: PED/CSV, Pedigree PRO .ppro, legacy .db
 - Share Modal with zero-knowledge relay integration
 - Navigation updated: Profiles replaces deprecated Users
 

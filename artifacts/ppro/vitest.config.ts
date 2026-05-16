@@ -7,6 +7,8 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
+      "@workspace/crypto": path.resolve(__dirname, "..", "..", "lib", "crypto", "src", "index.ts"),
+      "@workspace/browser-backend": path.resolve(__dirname, "..", "..", "lib", "browser-backend", "src", "index.ts"),
     },
   },
   test: {

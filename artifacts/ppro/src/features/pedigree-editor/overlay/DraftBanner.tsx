@@ -8,7 +8,7 @@ export function DraftBanner({
   onDismiss: () => void;
 }) {
   return (
-    <div className="flex items-center justify-between px-4 py-2 border-b border-amber-500/30 flex-shrink-0" style={{ background: "rgba(120,70,0,0.25)" }}>
+    <div className="flex items-center justify-between px-4 py-2 border-b border-amber-500/30 flex-shrink-0 bg-amber-500/10">
       <div className="flex items-center gap-2">
         <Clock className="w-3.5 h-3.5 text-amber-400 flex-shrink-0" />
         <span className="text-xs text-amber-200">

@@ -39,6 +39,9 @@ import {
   savePreferences,
   sharePedigree,
   importShared,
+  importPedigreeFromJson,
+  relayShare,
+  relayReceive,
   exportPedigreePpro,
   importPedigreeNative,
   importPedigreeLegacy,
@@ -86,7 +89,10 @@ export function useCreateProfile() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (input: CreateProfileInput) => createProfile(input),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.profiles }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.profiles });
+      queryClient.invalidateQueries({ queryKey: queryKeys.recentActivity });
+    },
     onError: (error) => {
       console.error("[useCreateProfile] Error:", error);
     },
@@ -97,7 +103,10 @@ export function useDeleteProfile() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (profileId: string) => deleteProfile(profileId),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.profiles }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.profiles });
+      queryClient.invalidateQueries({ queryKey: queryKeys.recentActivity });
+    },
   });
 }
 
@@ -105,7 +114,10 @@ export function useSwitchProfile() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (profileId: string) => switchProfile(profileId),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.profiles }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.profiles });
+      queryClient.invalidateQueries({ queryKey: queryKeys.recentActivity });
+    },
   });
 }
 
@@ -132,7 +144,11 @@ export function useCreatePatient() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (input: CreatePatientInput) => createPatient(input),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.patients }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.patients });
+      queryClient.invalidateQueries({ queryKey: queryKeys.dashboardStats });
+      queryClient.invalidateQueries({ queryKey: queryKeys.recentActivity });
+    },
     onError: (error) => {
       console.error("[useCreatePatient] Error:", error);
     },
@@ -147,6 +163,7 @@ export function useUpdatePatient() {
     onSuccess: (_, { id }) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.patients });
       queryClient.invalidateQueries({ queryKey: queryKeys.patient(id) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.recentActivity });
     },
   });
 }
@@ -155,7 +172,11 @@ export function useDeletePatient() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (id: number) => deletePatient(id),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.patients }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.patients });
+      queryClient.invalidateQueries({ queryKey: queryKeys.dashboardStats });
+      queryClient.invalidateQueries({ queryKey: queryKeys.recentActivity });
+    },
   });
 }
 
@@ -182,7 +203,11 @@ export function useCreatePedigree() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (input: CreatePedigreeInput) => createPedigree(input),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.pedigrees }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.pedigrees });
+      queryClient.invalidateQueries({ queryKey: queryKeys.dashboardStats });
+      queryClient.invalidateQueries({ queryKey: queryKeys.recentActivity });
+    },
     onError: (error) => {
       console.error("[useCreatePedigree] Error:", error);
     },
@@ -197,6 +222,7 @@ export function useUpdatePedigree() {
     onSuccess: (_, { id }) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.pedigrees });
       queryClient.invalidateQueries({ queryKey: queryKeys.pedigree(id) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.recentActivity });
     },
   });
 }
@@ -205,7 +231,11 @@ export function useDeletePedigree() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (id: number) => deletePedigree(id),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.pedigrees }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.pedigrees });
+      queryClient.invalidateQueries({ queryKey: queryKeys.dashboardStats });
+      queryClient.invalidateQueries({ queryKey: queryKeys.recentActivity });
+    },
   });
 }
 
@@ -233,6 +263,9 @@ export function useSaveVersion() {
     }) => saveVersion(pedigreeId, input),
     onSuccess: (_, { pedigreeId }) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.versions(pedigreeId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.pedigree(pedigreeId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.pedigrees });
+      queryClient.invalidateQueries({ queryKey: queryKeys.recentActivity });
     },
   });
 }
@@ -313,8 +346,50 @@ export function useSharePedigree() {
 export function useImportShared() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (shareToken: string) => importShared(shareToken),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.pedigrees }),
+    mutationFn: async (shareToken: string) => {
+      const { detectApiMode } = await import("./adapter");
+      const mode = detectApiMode();
+
+      if (mode === "browser") {
+        const { import_shared } = await import("@workspace/browser-backend");
+        return import_shared({ share_token: shareToken });
+      }
+
+      // Tauri mode: fetch encrypted payload, decrypt client-side, then import
+      const payload = await importShared(shareToken);
+      const sealedEnvelope = atob(payload.ciphertext);
+      const { sodiumOpenSealedBox } = await import("@workspace/crypto");
+      const { listProfilePrivateKeys } = await import("@workspace/browser-backend");
+
+      let lastError: Error | null = null;
+      for (const { privateKey } of await listProfilePrivateKeys()) {
+        try {
+          const decrypted = await sodiumOpenSealedBox(sealedEnvelope, privateKey);
+          return importPedigreeFromJson(decrypted, "imported");
+        } catch (e) {
+          lastError = e instanceof Error ? e : new Error(String(e));
+        }
+      }
+      throw lastError ?? new Error("No matching private key found");
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.pedigrees });
+      queryClient.invalidateQueries({ queryKey: queryKeys.dashboardStats });
+      queryClient.invalidateQueries({ queryKey: queryKeys.recentActivity });
+    },
+  });
+}
+
+export function useRelayShare() {
+  return useMutation({
+    mutationFn: ({ ciphertext, encryptedKey, ttlHours }: { ciphertext: string; encryptedKey: string; ttlHours?: number }) =>
+      relayShare(ciphertext, encryptedKey, ttlHours),
+  });
+}
+
+export function useRelayReceive() {
+  return useMutation({
+    mutationFn: (shareToken: string) => relayReceive(shareToken),
   });
 }
 
@@ -334,7 +409,11 @@ export function useImportPedigreeNative() {
   return useMutation({
     mutationFn: ({ path, importerKey }: { path: string; importerKey: string }) =>
       importPedigreeNative(path, importerKey),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.pedigrees }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.pedigrees });
+      queryClient.invalidateQueries({ queryKey: queryKeys.dashboardStats });
+      queryClient.invalidateQueries({ queryKey: queryKeys.recentActivity });
+    },
   });
 }
 
@@ -342,7 +421,11 @@ export function useImportPedigreeLegacy() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (path: string) => importPedigreeLegacy(path),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.pedigrees }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.pedigrees });
+      queryClient.invalidateQueries({ queryKey: queryKeys.dashboardStats });
+      queryClient.invalidateQueries({ queryKey: queryKeys.recentActivity });
+    },
   });
 }
 
@@ -375,7 +458,32 @@ export function useRotateKey() {
 export function useGetSharedPedigree(token: string) {
   return useQuery({
     queryKey: ["shared", token],
-    queryFn: () => importShared(token),
+    queryFn: async () => {
+      const { detectApiMode } = await import("./adapter");
+      const mode = detectApiMode();
+
+      if (mode === "browser") {
+        const { import_shared } = await import("@workspace/browser-backend");
+        return import_shared({ share_token: token });
+      }
+
+      // Tauri mode: fetch encrypted payload, decrypt client-side, then import
+      const payload = await importShared(token);
+      const sealedEnvelope = atob(payload.ciphertext);
+      const { sodiumOpenSealedBox } = await import("@workspace/crypto");
+      const { listProfilePrivateKeys } = await import("@workspace/browser-backend");
+
+      let lastError: Error | null = null;
+      for (const { privateKey } of await listProfilePrivateKeys()) {
+        try {
+          const decrypted = await sodiumOpenSealedBox(sealedEnvelope, privateKey);
+          return importPedigreeFromJson(decrypted, "imported");
+        } catch (e) {
+          lastError = e instanceof Error ? e : new Error(String(e));
+        }
+      }
+      throw lastError ?? new Error("No matching private key found");
+    },
     enabled: !!token,
   });
 }

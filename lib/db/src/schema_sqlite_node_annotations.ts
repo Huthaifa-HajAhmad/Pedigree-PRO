@@ -1,5 +1,6 @@
 import { sqliteTable, text, integer } from "drizzle-orm/sqlite-core";
 import { sql } from "drizzle-orm";
+import { pedigreesTable } from "./schema_sqlite_pedigrees";
 
 /**
  * Links structured clinical data to individual nodes in the pedigree canvas.
@@ -12,11 +13,7 @@ import { sql } from "drizzle-orm";
  */
 export const pedigreeNodeAnnotationsTable = sqliteTable("pedigree_node_annotations", {
   id: integer("id").primaryKey({ autoIncrement: true }),
-  pedigreeId: integer("pedigree_id").notNull().references(() => {
-    // Lazy import to avoid circular dependency
-    const { pedigreesTable } = require("./schema_sqlite_pedigrees");
-    return pedigreesTable.id;
-  }),
+  pedigreeId: integer("pedigree_id").notNull().references(() => pedigreesTable.id),
   nodeId: text("node_id").notNull(),                         // References nodes[] in canvasData JSON
   hpoTerms: text("hpo_terms"),                               // JSON array of HPO IDs: ["HP:0001250","HP:0001263"]
   omimIds: text("omim_ids"),                                 // JSON array of OMIM phenotype IDs: ["OMIM:143100"]

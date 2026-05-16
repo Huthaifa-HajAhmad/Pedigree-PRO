@@ -150,9 +150,6 @@ pub fn import_pedigree_ppro(
         &pedigree.notes,
         &Some(export.provenance.creator_key.clone()),
         &export.provenance.creator_signature,
-        // No legacy columns for native import
-        None,
-        None,
     )?;
 
     // Insert version history
@@ -170,7 +167,6 @@ pub fn import_pedigree_ppro(
             &ver.saver_key,
             &ver.saver_signature,
             &ver.created_at,
-            None, // No legacy column
         )?;
     }
 
@@ -214,7 +210,6 @@ pub fn import_pedigree_ppro(
         "imported",
         &format!("{} (from .ppro)", pedigree.title),
         Some(importer_key),
-        None,
     )?;
 
     Ok(new_pedigree_id)

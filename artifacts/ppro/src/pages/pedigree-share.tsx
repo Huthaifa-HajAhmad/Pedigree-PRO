@@ -115,7 +115,7 @@ export default function PedigreeShare() {
 
   if (isLoading) {
     return (
-      <div className="flex flex-col items-center justify-center h-screen gap-3" style={{ background: "#0a0a0a" }}>
+      <div className="flex flex-col items-center justify-center h-dvh gap-3 bg-background">
         <div className="text-primary animate-pulse tracking-widest text-sm font-mono">LOADING...</div>
       </div>
     );
@@ -123,7 +123,7 @@ export default function PedigreeShare() {
 
   if (isError || !pedigree) {
     return (
-      <div className="flex flex-col items-center justify-center h-screen gap-4" style={{ background: "#0a0a0a" }}>
+      <div className="flex flex-col items-center justify-center h-dvh gap-4 bg-background">
         <div className="text-5xl font-mono" style={{ color: NEON }}>404</div>
         <div className="text-muted-foreground text-sm font-mono">This share link is invalid or has expired.</div>
         <Link href="/">
@@ -135,7 +135,7 @@ export default function PedigreeShare() {
     );
   }
 
-  const canvas = parseCanvas((pedigree as any).canvas_data);
+  const canvas = parseCanvas((pedigree as { canvas_data?: string }).canvas_data);
 
   const xs = canvas.nodes.map((n) => n.x);
   const ys = canvas.nodes.map((n) => n.y);
@@ -147,10 +147,9 @@ export default function PedigreeShare() {
   const vbH = maxY - minY;
 
   return (
-    <div className="flex flex-col h-screen overflow-hidden" style={{ background: "#0a0a0a", fontFamily: "'JetBrains Mono', monospace" }}>
+    <div className="flex flex-col h-dvh overflow-hidden bg-background">
       {/* Header */}
-      <div className="flex items-center justify-between px-5 py-3 border-b flex-shrink-0"
-        style={{ borderColor: "#1f1f1f", background: "#111" }}>
+      <div className="flex items-center justify-between px-5 py-3 border-b flex-shrink-0 bg-card">
         <div className="flex items-center gap-3">
           <span className="text-xs font-bold tracking-widest text-primary">PEDIGREE PRO</span>
           <span className="text-muted-foreground text-xs">•</span>
@@ -160,15 +159,16 @@ export default function PedigreeShare() {
           </span>
         </div>
         <div className="text-xs text-muted-foreground">
-          Last updated {new Date((pedigree as any).updated_at).toLocaleDateString()}
+          Last updated {new Date((pedigree as { updated_at?: string }).updated_at ?? Date.now()).toLocaleDateString()}
         </div>
       </div>
 
       {/* Canvas */}
-      <div className="flex-1 overflow-hidden relative" style={{
-        backgroundImage: "radial-gradient(circle, #1a1a1a 1px, transparent 1px)",
-        backgroundSize: "28px 28px",
-      }}>
+      <div className="flex-1 overflow-hidden relative bg-background"
+        style={{
+          backgroundImage: "radial-gradient(circle, hsl(var(--muted-foreground) / 0.15) 1px, transparent 1px)",
+          backgroundSize: "28px 28px",
+        }}>
         {canvas.nodes.length === 0 ? (
           <div className="flex items-center justify-center h-full">
             <span className="text-muted-foreground text-sm font-mono">No pedigree data in this canvas.</span>
@@ -191,16 +191,14 @@ export default function PedigreeShare() {
 
       {/* Notes footer */}
       {pedigree.notes && (
-        <div className="px-5 py-3 border-t flex-shrink-0"
-          style={{ borderColor: "#1f1f1f", background: "#111" }}>
+        <div className="px-5 py-3 border-t flex-shrink-0 bg-card">
           <span className="text-xs text-muted-foreground mr-2 uppercase tracking-widest">Notes:</span>
-          <span className="text-xs" style={{ color: "rgba(255,255,255,0.65)" }}>{pedigree.notes}</span>
+          <span className="text-xs text-foreground/70">{pedigree.notes}</span>
         </div>
       )}
 
       {/* Legend */}
-      <div className="flex items-center gap-6 px-5 py-2 border-t flex-shrink-0"
-        style={{ borderColor: "#1f1f1f", background: "#0d0d0d" }}>
+      <div className="flex items-center gap-6 px-5 py-2 border-t flex-shrink-0 bg-card">
         {[
           { shape: "square", label: "Male" },
           { shape: "circle", label: "Female" },

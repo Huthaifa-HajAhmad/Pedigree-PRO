@@ -8,7 +8,6 @@
 //   relay.rs          — Zero-Knowledge Relay Client (libsodium sealed box)
 //   import_native.rs  — Native .ppro Import (same format as export)
 //   import_legacy.rs  — Legacy SQLite migration
-//   relay.rs          — Zero-knowledge relay client for encrypted sharing
 
 mod commands;
 mod db;
@@ -67,14 +66,19 @@ pub fn run() {
             commands::restore_version,
             // ─── Import (Native .ppro) ────────────────────────
             commands::import_pedigree_native,
+            commands::import_pedigree_from_json,
             // ─── Import (Legacy HaploPainter) ─────────────────
             commands::import_pedigree_legacy,
+            // ─── Export ────────────────────────────────────────
+            commands::export_pedigree_ppro,
             // ─── Database Management ──────────────────────────
             commands::backup_database,
             commands::restore_database,
             commands::rotate_key,
             // ─── Sharing ──────────────────────────────────────
             commands::share_pedigree,
+            commands::relay_share,
+            commands::relay_receive,
             commands::import_shared,
             // ─── Dashboard ────────────────────────────────────
             commands::get_dashboard_stats,

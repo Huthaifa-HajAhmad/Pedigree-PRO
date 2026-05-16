@@ -1,12 +1,11 @@
-import { type Dispatch, type SetStateAction, type RefObject, useEffect } from "react";
+import { useMemo, useCallback, useEffect } from "react";
 import { NodeShape } from "@/features/pedigree-editor/canvas/NodeShape";
 import { EdgeLine } from "@/features/pedigree-editor/canvas/EdgeLine";
 import { SibshipGroup } from "@/features/pedigree-editor/canvas/SibshipGroup";
 import { AnnotationShape } from "@/features/pedigree-editor/canvas/AnnotationShape";
-import { Minimap } from "@/features/pedigree-editor/overlay/Minimap";
+import { CanvasOverlayManager } from "@/features/pedigree-editor/overlay/CanvasOverlayManager";
 import { FindBar } from "@/features/pedigree-editor/overlay/FindBar";
-import { KeyboardShortcutHint } from "@/features/pedigree-editor/overlay/KeyboardShortcutHint";
-import { LegendPanel } from "@/features/pedigree-editor/overlay/LegendPanel";
+import { useCanvasTouch } from "@/features/pedigree-editor/hooks/use-canvas-touch";
 import { NodeEditModal } from "@/features/pedigree-editor/modals/NodeEditModal";
 import { ContextMenu } from "@/features/pedigree-editor/overlay/ContextMenu";
 import { PropertiesPanel } from "@/features/pedigree-editor/panels/PropertiesPanel";
@@ -14,127 +13,155 @@ import { RiskPanelSidebar } from "@/features/pedigree-editor/panels/RiskCalculat
 import { VersionHistoryPanel } from "@/features/pedigree-editor/panels/VersionHistoryPanel";
 import { ValidationPanelWrapper } from "@/features/pedigree-editor/panels/ValidationPanelWrapper";
 import { ShareModal } from "@/components/ShareModal";
+import { usePedigreeEditor } from "@/features/pedigree-editor/context/usePedigreeEditor";
 import type { PedigreeNode, CanvasData } from "@/features/pedigree-editor/canvas/types";
 import { NODE_SIZE } from "@/features/pedigree-editor/canvas/types";
-import { type InheritanceMode } from "@/lib/risk-calculator";
 
-
-export interface PedigreeCanvasBodyProps {
-  svgRef: RefObject<SVGSVGElement | null>;
-  canvas: CanvasData;
-  selectedIds: Set<string>;
-  linkSource: string | null;
-  showAutoLabels: boolean;
-  autoLabels: Map<string, string>;
-  validation: ReturnType<typeof import("@/lib/validate-pedigree").validatePedigree>;
-  viewBox: { x: number; y: number; zoom: number };
-  vbW: number;
-  vbH: number;
-  W: number;
-  H: number;
-  MM_W: number;
-  MM_H: number;
-  panning: { startX: number; startY: number; vbX: number; vbY: number } | null;
-  spaceHeld: boolean;
-  lassoVisible: boolean;
-  isDragging: boolean;
-  annDragging: { annId: string; startSVG: { x: number; y: number }; initOffset: { x: number; y: number } } | null;
-  lassoRectRef: RefObject<SVGRectElement | null>;
-  visibleGenRows: number[];
-  generationRailEntries: Array<{ roman: string; y: number }>;
-  searchMatches: string[];
-  searchMatchIndex: number;
-  handleMouseMove: (e: React.MouseEvent) => void;
-  handleMouseUp: () => void;
-  handleSVGMouseDown: (e: React.MouseEvent) => void;
-  handleWheel: (e: React.WheelEvent) => void;
-  handleNodeClick: (nodeId: string, e: React.MouseEvent) => void;
-  handleDragStart: (e: React.MouseEvent, nodeId: string) => void;
-  handleNodeContextMenu: (nodeId: string, e: React.MouseEvent) => void;
-  handleNodeDoubleClick: (nodeId: string, e: React.MouseEvent) => void;
-  getSVGCoords: (e: { clientX: number; clientY: number }) => { x: number; y: number } | null;
-  setSelectedIds: Dispatch<SetStateAction<Set<string>>>;
-  setSelectedAnnotationId: Dispatch<SetStateAction<string | null>>;
-  setAnnDragging: Dispatch<SetStateAction<{ annId: string; startSVG: { x: number; y: number }; initOffset: { x: number; y: number } } | null>>;
-  preDragCanvasRef: React.MutableRefObject<CanvasData | null>;
-  showSearch: boolean;
-  searchQuery: string;
-  setSearchQuery: Dispatch<SetStateAction<string>>;
-  setSearchMatchIndex: Dispatch<SetStateAction<number>>;
-  setShowSearch: Dispatch<SetStateAction<boolean>>;
-  searchInputRef: RefObject<HTMLInputElement | null>;
-  showMinimap: boolean;
-  setViewBox: Dispatch<SetStateAction<{ x: number; y: number; zoom: number }>>;
-  showGrid: boolean;
-  showLegend: boolean;
-  legendEntries: Array<{ key: string; label: string }>;
-  editModalNodeId: string | null;
-  setEditModalNodeId: Dispatch<SetStateAction<string | null>>;
-  updateCanvas: (updater: (prev: CanvasData) => CanvasData, opts?: { skipHistory?: boolean }) => void;
-  addAnnotation: (nodeId: string) => void;
-  updateAnnotation: (annId: string, updates: Partial<import("@/features/pedigree-editor/canvas/types").PedigreeAnnotation>) => void;
-  deleteAnnotation: (annId: string) => void;
-  contextMenu: { nodeId: string; x: number; y: number } | null;
-  setContextMenu: Dispatch<SetStateAction<{ nodeId: string; x: number; y: number } | null>>;
-  setNodeType: (nodeId: string, type: PedigreeNode["type"]) => void;
-  toggleNodeProp: (nodeId: string, prop: "affected" | "carrier" | "deceased" | "proband") => void;
-  addContextNode: (rel: "child" | "sibling" | "partner") => void;
-  deleteSelected: () => void;
-  setLinkMode: Dispatch<SetStateAction<"couple" | "parent-child" | "consanguinity" | null>>;
-  setLinkSource: Dispatch<SetStateAction<string | null>>;
-  anySelected: boolean;
+function AnnotationLayer({
+  annotations, nodes, selectedAnnotationId, canvas,
+  onAnnotationClick, onAnnotationDragStart,
+}: {
+  annotations: CanvasData["annotations"];
+  nodes: PedigreeNode[];
   selectedAnnotationId: string | null;
-  riskMode: InheritanceMode;
-  showRiskCalc: boolean;
-  setShowRiskCalc: Dispatch<SetStateAction<boolean>>;
-  setRiskMode: Dispatch<SetStateAction<InheritanceMode>>;
-  updateSelectedNode: (updates: Partial<PedigreeNode>) => void;
-  bulkUpdate: (updates: Partial<PedigreeNode>) => void;
-  alignSelected: (axis: "x" | "y") => void;
-  showRiskPanel: boolean;
-  setShowRiskPanel: Dispatch<SetStateAction<boolean>>;
-  showVersions: boolean;
-  versions: Array<{ id: number; canvas_data: string; label: string | null; version_number: number; created_at: string; thumbnail: string | null; saver_key?: string | null }> | undefined;
-  versionsLoading: boolean;
-  handleSaveVersion: () => void;
-  handleRestoreVersion: (versionId: number) => void;
-  handleDeleteVersion: (versionId: number) => void;
-  showValidation: boolean;
-  expandedIssueId: string | null;
-  setExpandedIssueId: Dispatch<SetStateAction<string | null>>;
-  setShowValidation: Dispatch<SetStateAction<boolean>>;
-  showShareModal: boolean;
-  setShowShareModal: Dispatch<SetStateAction<boolean>>;
-  pedigree: { id: number; title: string } | undefined;
+  canvas: CanvasData;
+  onAnnotationClick: (annId: string, nodeId: string) => void;
+  onAnnotationDragStart: (annId: string, e: React.MouseEvent) => void;
+}) {
+  const nodeById = useMemo(() => {
+    const map = new Map<string, PedigreeNode>();
+    for (const n of nodes) map.set(n.id, n);
+    return map;
+  }, [nodes]);
+
+  const stackIndexById = useMemo(() => {
+    const map = new Map<string, number>();
+    const grouped = new Map<string, string[]>();
+    for (const a of annotations) {
+      const key = `${a.nodeId}|${a.position}`;
+      if (!grouped.has(key)) grouped.set(key, []);
+      grouped.get(key)!.push(a.id);
+    }
+    for (const ids of grouped.values()) {
+      ids.forEach((id, idx) => map.set(id, idx));
+    }
+    return map;
+  }, [annotations]);
+
+  return (
+    <g>
+      {annotations.map((ann) => {
+        const node = nodeById.get(ann.nodeId);
+        if (!node) return null;
+        const stackIndex = stackIndexById.get(ann.id) ?? 0;
+        return (
+          <AnnotationShape key={ann.id} ann={ann}
+            nodeX={node.x} nodeY={node.y} stackIndex={stackIndex}
+            isSelected={selectedAnnotationId === ann.id}
+            onClick={() => onAnnotationClick(ann.id, ann.nodeId)}
+            onDragStart={(e) => onAnnotationDragStart(ann.id, e)}
+          />
+        );
+      })}
+    </g>
+  );
 }
 
-export function PedigreeCanvasBody(props: PedigreeCanvasBodyProps) {
+function SibshipLayer({ edges, nodes, invalidEdgeIds }: {
+  edges: CanvasData["edges"];
+  nodes: PedigreeNode[];
+  invalidEdgeIds: Set<string>;
+}) {
+  const groups = useMemo(() => {
+    const pcEdges = edges.filter((e) => e.type === "parent-child");
+    const childParents = new Map<string, string[]>();
+    for (const e of pcEdges) {
+      if (!childParents.has(e.targetId)) childParents.set(e.targetId, []);
+      childParents.get(e.targetId)!.push(e.sourceId);
+    }
+    const families = new Map<string, { parentIds: string[]; childIds: string[] }>();
+    for (const [childId, pIds] of childParents) {
+      const key = [...pIds].sort().join("|");
+      if (!families.has(key)) families.set(key, { parentIds: [...pIds].sort(), childIds: [] });
+      families.get(key)!.childIds.push(childId);
+    }
+    return [...families.entries()].map(([key, { parentIds, childIds }]) => {
+      const allEdges = pcEdges.filter(
+        (e) => parentIds.includes(e.sourceId) && childIds.includes(e.targetId)
+      );
+      return {
+        key: `family-${key}`,
+        parentIds,
+        childIds,
+        nodes,
+        invalid: allEdges.some((e) => invalidEdgeIds.has(e.id)),
+      };
+    });
+  }, [edges, nodes, invalidEdgeIds]);
+
+  return (
+    <g>
+      {groups.map((g) => (
+        <SibshipGroup
+          key={g.key}
+          parentIds={g.parentIds}
+          childIds={g.childIds}
+          nodes={g.nodes}
+          invalid={g.invalid}
+        />
+      ))}
+    </g>
+  );
+}
+
+export function PedigreeCanvasBody() {
+  const { state, ops, memo, refs, dispatch, pedigree, versions, versionsLoading } = usePedigreeEditor();
+
   const {
-    svgRef, canvas, selectedIds, linkSource, showAutoLabels, autoLabels,
-    validation, viewBox, vbW, vbH, W, H, MM_W, MM_H,
+    canvas, selectedIds, linkSource, showAutoLabels, viewBox,
     panning, spaceHeld, lassoVisible, isDragging, annDragging,
-    lassoRectRef, visibleGenRows, generationRailEntries,
-    searchMatches, searchMatchIndex,
+    editModalNodeId, showSearch, searchQuery, searchMatchIndex,
+    showMinimap, showGrid, showLegend, contextMenu,
+    selectedAnnotationId, riskMode, showRiskCalc,
+    showRiskPanel, showVersions, showValidation, expandedIssueId,
+    showShareModal,
+  } = state;
+
+  const {
+    updateCanvas, addAnnotation, updateAnnotation, deleteAnnotation,
+    setNodeType, toggleNodeProp, addContextNode, deleteSelected,
+    updateSelectedNode, bulkUpdate, alignSelected,
+    handleNodeClick, handleNodeDoubleClick, handleNodeContextMenu, handleDragStart,
     handleMouseMove, handleMouseUp, handleSVGMouseDown, handleWheel,
-    handleNodeClick, handleDragStart, handleNodeContextMenu, handleNodeDoubleClick,
-    getSVGCoords, setSelectedIds, setSelectedAnnotationId, setAnnDragging,
-    preDragCanvasRef,
-    showSearch, searchQuery, setSearchQuery, setSearchMatchIndex,
-    setShowSearch, searchInputRef,
-    showMinimap, setViewBox, showGrid, showLegend, legendEntries,
-    editModalNodeId, setEditModalNodeId, updateCanvas,
-    addAnnotation, updateAnnotation, deleteAnnotation,
-    contextMenu, setContextMenu, setNodeType, toggleNodeProp,
-    addContextNode, deleteSelected, setLinkMode, setLinkSource,
-    anySelected, selectedAnnotationId, riskMode, showRiskCalc,
-    setShowRiskCalc, setRiskMode, updateSelectedNode, bulkUpdate,
-    alignSelected,
-    showRiskPanel, setShowRiskPanel,
-    showVersions, versions, versionsLoading,
-    handleSaveVersion, handleRestoreVersion, handleDeleteVersion,
-    showValidation, expandedIssueId, setExpandedIssueId, setShowValidation,
-    showShareModal, setShowShareModal, pedigree,
-  } = props;
+    getSVGCoords, handleSaveVersion, handleRestoreVersion, handleDeleteVersion,
+  } = ops;
+
+  const {
+    autoLabels, validation, searchMatches, generationRailEntries, legendEntries,
+    visibleGenRows, vbW, vbH, MM_W, MM_H, anySelected,
+  } = memo;
+
+  const {
+    svgRef, preDragCanvasRef, lassoRectRef, searchInputRef,
+  } = refs;
+
+  const fakeMouseEvent = useCallback((clientX: number, clientY: number): React.MouseEvent => ({
+    clientX, clientY,
+    metaKey: false, ctrlKey: false, altKey: false, shiftKey: false, button: 0,
+    preventDefault: () => {}, stopPropagation: () => {},
+  } as unknown as React.MouseEvent), []);
+
+  const { onTouchStart, onTouchMove, onTouchEnd } = useCanvasTouch({
+    getSVGCoords,
+    setViewBox: (vb) => dispatch({ type: "SET_STATE", patch: { viewBox: typeof vb === "function" ? vb(viewBox) : vb } }),
+    viewBox,
+    W: 1400,
+    H: 900,
+    canvasNodes: canvas.nodes,
+    onNodeTap: useCallback((nid: string) => { handleNodeClick(nid, fakeMouseEvent(0, 0)); }, [handleNodeClick, fakeMouseEvent]),
+    onNodeDoubleTap: useCallback((nid: string) => { handleNodeDoubleClick(nid, fakeMouseEvent(0, 0)); }, [handleNodeDoubleClick, fakeMouseEvent]),
+    onNodeContextMenu: useCallback((nid: string, clientX: number, clientY: number) => { handleNodeContextMenu(nid, fakeMouseEvent(clientX, clientY)); }, [handleNodeContextMenu, fakeMouseEvent]),
+  });
 
   useEffect(() => {
     const el = svgRef.current;
@@ -143,6 +170,18 @@ export function PedigreeCanvasBody(props: PedigreeCanvasBodyProps) {
     el.addEventListener("wheel", handler, { passive: false });
     return () => el.removeEventListener("wheel", handler);
   }, [handleWheel, svgRef]);
+
+  const handleAnnotationClick = useCallback((annId: string, nodeId: string) => {
+    dispatch({ type: "SET_STATE", patch: { selectedAnnotationId: selectedAnnotationId === annId ? null : annId, selectedIds: new Set([nodeId]) } });
+  }, [selectedAnnotationId]);
+
+  const handleAnnotationDragStart = useCallback((annId: string, e: React.MouseEvent) => {
+    const coords = getSVGCoords(e);
+    if (!coords) return;
+    dispatch({ type: "SET_STATE", patch: { selectedAnnotationId: annId } });
+    preDragCanvasRef.current = canvas;
+    dispatch({ type: "SET_STATE", patch: { annDragging: { annId, startSVG: coords, initOffset: { x: canvas.annotations.find((a) => a.id === annId)?.offsetX ?? 0, y: canvas.annotations.find((a) => a.id === annId)?.offsetY ?? 0 } } } });
+  }, [getSVGCoords, canvas, preDragCanvasRef]);
 
   return (
     <div className="flex flex-1 overflow-hidden" data-print-area>
@@ -155,6 +194,7 @@ export function PedigreeCanvasBody(props: PedigreeCanvasBodyProps) {
           viewBox={`${viewBox.x} ${viewBox.y} ${vbW} ${vbH}`}
           onMouseMove={handleMouseMove} onMouseUp={handleMouseUp}
           onMouseDown={handleSVGMouseDown}
+          onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd}
           style={{ cursor: panning ? "grabbing" : spaceHeld ? "grab" : lassoVisible ? "crosshair" : "default" }}
         >
           {visibleGenRows.map((row) => (
@@ -204,33 +244,7 @@ export function PedigreeCanvasBody(props: PedigreeCanvasBodyProps) {
             ))}
           </g>
 
-          <g>
-            {(() => {
-              const pcEdges = canvas.edges.filter((e) => e.type === "parent-child");
-              const childParents = new Map<string, string[]>();
-              for (const e of pcEdges) {
-                if (!childParents.has(e.targetId)) childParents.set(e.targetId, []);
-                childParents.get(e.targetId)!.push(e.sourceId);
-              }
-              const families = new Map<string, { parentIds: string[]; childIds: string[] }>();
-              for (const [childId, pIds] of childParents) {
-                const key = [...pIds].sort().join("|");
-                if (!families.has(key)) families.set(key, { parentIds: [...pIds].sort(), childIds: [] });
-                families.get(key)!.childIds.push(childId);
-              }
-              return [...families.entries()].map(([key, { parentIds, childIds }]) => {
-                const allEdges = pcEdges.filter(
-                  (e) => parentIds.includes(e.sourceId) && childIds.includes(e.targetId)
-                );
-                return (
-                  <SibshipGroup key={`family-${key}`}
-                    parentIds={parentIds} childIds={childIds} nodes={canvas.nodes}
-                    invalid={allEdges.some((e) => validation.invalidEdgeIds.has(e.id))}
-                  />
-                );
-              });
-            })()}
-          </g>
+          <SibshipLayer edges={canvas.edges} nodes={canvas.nodes} invalidEdgeIds={validation.invalidEdgeIds} />
 
           <g>
             {canvas.nodes.map((node) => (
@@ -247,36 +261,14 @@ export function PedigreeCanvasBody(props: PedigreeCanvasBodyProps) {
             ))}
           </g>
 
-          <g>
-            {canvas.annotations.map((ann) => {
-              const node = canvas.nodes.find((n) => n.id === ann.nodeId);
-              if (!node) return null;
-              const siblings = canvas.annotations.filter(
-                (a) => a.nodeId === ann.nodeId && a.position === ann.position
-              );
-              const stackIndex = siblings.findIndex((a) => a.id === ann.id);
-              return (
-                <AnnotationShape key={ann.id} ann={ann}
-                  nodeX={node.x} nodeY={node.y} stackIndex={stackIndex}
-                  isSelected={selectedAnnotationId === ann.id}
-                  onClick={() => {
-                    setSelectedAnnotationId((prev) => prev === ann.id ? null : ann.id);
-                    setSelectedIds(new Set([ann.nodeId]));
-                  }}
-                  onDragStart={(e) => {
-                    const coords = getSVGCoords(e);
-                    if (!coords) return;
-                    setSelectedAnnotationId(ann.id);
-                    preDragCanvasRef.current = canvas;
-                    setAnnDragging({
-                      annId: ann.id, startSVG: coords,
-                      initOffset: { x: ann.offsetX ?? 0, y: ann.offsetY ?? 0 },
-                    });
-                  }}
-                />
-              );
-            })}
-          </g>
+          <AnnotationLayer
+            annotations={canvas.annotations}
+            nodes={canvas.nodes}
+            selectedAnnotationId={selectedAnnotationId}
+            canvas={canvas}
+            onAnnotationClick={handleAnnotationClick}
+            onAnnotationDragStart={handleAnnotationDragStart}
+          />
 
           {canvas.nodes.length === 0 && (
             <text x={viewBox.x + vbW / 2} y={viewBox.y + vbH / 2} textAnchor="middle"
@@ -290,33 +282,32 @@ export function PedigreeCanvasBody(props: PedigreeCanvasBodyProps) {
         {showSearch && (
           <FindBar
             searchQuery={searchQuery}
-            onSearchQueryChange={(q) => { setSearchQuery(q); setSearchMatchIndex(0); }}
+            onSearchQueryChange={(q) => { dispatch({ type: "SET_STATE", patch: { searchQuery: q, searchMatchIndex: 0 } }); }}
             searchMatchesCount={searchMatches.length} searchMatchIndex={searchMatchIndex}
-            onPrevMatch={() => searchMatches.length > 0 && setSearchMatchIndex((i) => (i - 1 + searchMatches.length) % searchMatches.length)}
-            onNextMatch={() => searchMatches.length > 0 && setSearchMatchIndex((i) => (i + 1) % searchMatches.length)}
-            onClose={() => { setShowSearch(false); setSearchQuery(""); }}
+            onPrevMatch={() => searchMatches.length > 0 && dispatch({ type: "SET_STATE", patch: { searchMatchIndex: (searchMatchIndex - 1 + searchMatches.length) % searchMatches.length } })}
+            onNextMatch={() => searchMatches.length > 0 && dispatch({ type: "SET_STATE", patch: { searchMatchIndex: (searchMatchIndex + 1) % searchMatches.length } })}
+            onClose={() => { dispatch({ type: "SET_STATE", patch: { showSearch: false, searchQuery: "" } }); }}
             inputRef={searchInputRef}
             onEnterKey={(shiftKey) => {
               if (searchMatches.length === 0) return;
-              if (shiftKey) setSearchMatchIndex((i) => (i - 1 + searchMatches.length) % searchMatches.length);
-              else setSearchMatchIndex((i) => (i + 1) % searchMatches.length);
+              if (shiftKey) dispatch({ type: "SET_STATE", patch: { searchMatchIndex: (searchMatchIndex - 1 + searchMatches.length) % searchMatches.length } });
+              else dispatch({ type: "SET_STATE", patch: { searchMatchIndex: (searchMatchIndex + 1) % searchMatches.length } });
             }}
           />
         )}
 
-        {showMinimap && canvas.nodes.length > 0 && (
-          <Minimap nodes={canvas.nodes} edges={canvas.edges}
-            viewBox={{ x: viewBox.x, y: viewBox.y }} vbW={vbW} vbH={vbH}
-            mmW={MM_W} mmH={MM_H}
-            onPan={(fx, fy) => setViewBox((prev) => ({
-              ...prev, x: fx * W - vbW / 2, y: fy * H - vbH / 2,
-            }))}
-          />
-        )}
-
-        <KeyboardShortcutHint singleSelected={selectedIds.size === 1} />
-
-        {showLegend && <LegendPanel entries={legendEntries} />}
+        <CanvasOverlayManager
+          showMinimap={showMinimap}
+          minimapNodes={canvas.nodes}
+          minimapEdges={canvas.edges}
+          viewBox={{ x: viewBox.x, y: viewBox.y }}
+          vbW={vbW} vbH={vbH} mmW={MM_W} mmH={MM_H}
+          nodeCount={canvas.nodes.length}
+          onMinimapPan={(fx, fy) => dispatch({ type: "SET_STATE", patch: { viewBox: { ...viewBox, x: fx * 1400 - vbW / 2, y: fy * 900 - vbH / 2 } } })}
+          showLegend={showLegend}
+          legendEntries={legendEntries}
+          singleSelected={selectedIds.size === 1}
+        />
 
         {editModalNodeId && (() => {
           const editNode = canvas.nodes.find((n) => n.id === editModalNodeId);
@@ -326,7 +317,7 @@ export function PedigreeCanvasBody(props: PedigreeCanvasBodyProps) {
           return (
             <NodeEditModal key={editModalNodeId}
               node={editNode} autoLabel={nodeAutoLabel} annotations={nodeAnnotations}
-              onClose={() => setEditModalNodeId(null)}
+              onClose={() => dispatch({ type: "SET_STATE", patch: { editModalNodeId: null } })}
               onUpdateNode={(updates) => updateCanvas((prev) => ({
                 ...prev,
                 nodes: prev.nodes.map((n) => n.id === editModalNodeId ? { ...n, ...updates } : n),
@@ -345,10 +336,10 @@ export function PedigreeCanvasBody(props: PedigreeCanvasBodyProps) {
             <ContextMenu ctxNode={ctxNode}
               canvasEdges={canvas.edges} canvasNodes={canvas.nodes}
               position={{ x: contextMenu.x, y: contextMenu.y }}
-              onClose={() => setContextMenu(null)}
+              onClose={() => dispatch({ type: "SET_STATE", patch: { contextMenu: null } })}
               onSetNodeType={setNodeType} onToggleNodeProp={toggleNodeProp}
               onAddContextNode={addContextNode} onDeleteSelected={deleteSelected}
-              onSetLinkMode={(mode, sourceId) => { setLinkMode(mode); setLinkSource(sourceId); }}
+              onSetLinkMode={(mode, sourceId) => { dispatch({ type: "SET_STATE", patch: { linkMode: mode, linkSource: sourceId } }); }}
             />
           );
         })()}
@@ -360,12 +351,13 @@ export function PedigreeCanvasBody(props: PedigreeCanvasBodyProps) {
             canvasAnnotations={canvas.annotations}
             selectedAnnotationId={selectedAnnotationId}
             riskMode={riskMode} showRiskCalc={showRiskCalc}
-            onShowRiskCalc={setShowRiskCalc} onRiskModeChange={setRiskMode}
+            onShowRiskCalc={(v) => dispatch({ type: "SET_STATE", patch: { showRiskCalc: v } })}
+            onRiskModeChange={(m) => dispatch({ type: "SET_STATE", patch: { riskMode: m } })}
             onUpdateSelectedNode={updateSelectedNode} onBulkUpdate={bulkUpdate}
             onDeleteSelected={deleteSelected}
             onAddAnnotation={addAnnotation} onUpdateAnnotation={updateAnnotation}
             onDeleteAnnotation={deleteAnnotation}
-            onSelectAnnotation={(annId: string | null) => setSelectedAnnotationId(annId)}
+            onSelectAnnotation={(annId: string | null) => dispatch({ type: "SET_STATE", patch: { selectedAnnotationId: annId } })}
             onAlignSelected={alignSelected}
           />
         )}
@@ -373,13 +365,14 @@ export function PedigreeCanvasBody(props: PedigreeCanvasBodyProps) {
 
       {showRiskPanel && (
         <RiskPanelSidebar canvas={canvas} mode={riskMode}
-          onModeChange={setRiskMode} onClose={() => setShowRiskPanel(false)}
+          onModeChange={(m) => dispatch({ type: "SET_STATE", patch: { riskMode: m } })}
+          onClose={() => dispatch({ type: "SET_STATE", patch: { showRiskPanel: false } })}
         />
       )}
 
       {showVersions && (
         <VersionHistoryPanel
-          versions={(versions as any) ?? []} versionsLoading={versionsLoading}
+          versions={versions ?? []} versionsLoading={versionsLoading}
           onSave={handleSaveVersion} onRestore={handleRestoreVersion}
           onDelete={handleDeleteVersion}
         />
@@ -388,9 +381,9 @@ export function PedigreeCanvasBody(props: PedigreeCanvasBodyProps) {
       {showValidation && (
         <ValidationPanelWrapper
           validation={validation} expandedIssueId={expandedIssueId}
-          onToggleIssue={(id) => setExpandedIssueId(expandedIssueId === id ? null : id)}
+          onToggleIssue={(id) => dispatch({ type: "SET_STATE", patch: { expandedIssueId: expandedIssueId === id ? null : id } })}
           onFocusIssue={(nodeIds) => {
-            if (nodeIds.length > 0) { setSelectedIds(new Set(nodeIds)); setShowValidation(true); }
+            if (nodeIds.length > 0) { dispatch({ type: "SET_STATE", patch: { selectedIds: new Set(nodeIds), showValidation: true } }); }
           }}
           nodes={canvas.nodes}
         />
@@ -398,7 +391,7 @@ export function PedigreeCanvasBody(props: PedigreeCanvasBodyProps) {
 
       {showShareModal && pedigree && (
         <ShareModal pedigreeId={pedigree.id} pedigreeTitle={pedigree.title}
-          onClose={() => setShowShareModal(false)}
+          onClose={() => dispatch({ type: "SET_STATE", patch: { showShareModal: false } })}
         />
       )}
     </div>

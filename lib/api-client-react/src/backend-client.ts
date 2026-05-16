@@ -20,6 +20,7 @@ export interface LocalProfile {
   display_name: string;
   role_label: string;
   public_key: string;
+  private_key?: string;
   created_at: string;
   last_used_at: string;
 }
@@ -47,7 +48,11 @@ export async function createProfile(input: CreateProfileInput): Promise<LocalPro
     await storeProfilePrivateKey(result.id, privateKey);
     return result;
   }
-  return apiCall<LocalProfile>("create_profile", input as unknown as Record<string, unknown>);
+  // Tauri mode: backend returns profile + private_key; store private key in IndexedDB
+  const result = await apiCall<{ profile: LocalProfile; private_key: string }>("create_profile", input as unknown as Record<string, unknown>);
+  const { storeProfilePrivateKey } = await import("@workspace/browser-backend");
+  await storeProfilePrivateKey(result.profile.id, result.private_key);
+  return result.profile;
 }
 
 export function switchProfile(profileId: string): Promise<LocalProfile> {
@@ -139,8 +144,10 @@ export interface CreatePedigreeInput {
   title: string;
   patient_id?: number | null;
   canvas_data?: string | null;
+  canvas_hash?: string | null;
   notes?: string | null;
   creator_key: string;
+  creator_signature?: string | null;
 }
 
 export function listPedigrees(patientId?: number, search?: string): Promise<PedigreeSummary[]> {
@@ -186,8 +193,10 @@ export interface PedigreeVersion {
 export interface SaveVersionInput {
   label?: string | null;
   canvas_data: string;
+  canvas_hash?: string | null;
   thumbnail?: string | null;
   saver_key: string;
+  saver_signature?: string | null;
 }
 
 export function listVersions(pedigreeId: number): Promise<PedigreeVersion[]> {
@@ -261,8 +270,12 @@ export function sharePedigree(pedigreeId: number, recipientKey: string): Promise
   return apiCall<ShareResult>("share_pedigree", { pedigree_id: pedigreeId, recipient_key: recipientKey });
 }
 
-export function importShared(shareToken: string): Promise<Pedigree> {
-  return apiCall<Pedigree>("import_shared", { share_token: shareToken });
+export function importShared(shareToken: string, importerKey?: string): Promise<RelayPayload> {
+  return apiCall<RelayPayload>("import_shared", { share_token: shareToken });
+}
+
+export function importPedigreeFromJson(jsonContent: string, importerKey: string): Promise<Pedigree> {
+  return apiCall<Pedigree>("import_pedigree_from_json", { json_content: jsonContent, importer_key: importerKey });
 }
 
 // =============================================================================
@@ -282,6 +295,19 @@ export interface LegacyImportSummary {
  * Exports a pedigree in .ppro format (JSON with provenance, version history, annotations).
  * Returns the JSON string suitable for saving to a .ppro file.
  */
+export interface RelayPayload {
+  ciphertext: string;
+  encrypted_key: string;
+}
+
+export function relayShare(ciphertext: string, encryptedKey: string, ttlHours?: number): Promise<ShareResult> {
+  return apiCall<ShareResult>("relay_share", { ciphertext, encrypted_key: encryptedKey, ttl_hours: ttlHours });
+}
+
+export function relayReceive(shareToken: string): Promise<RelayPayload> {
+  return apiCall<RelayPayload>("relay_receive", { share_token: shareToken });
+}
+
 export function exportPedigreePpro(pedigreeId: number, exporterKey: string): Promise<string> {
   return apiCall<string>("export_pedigree_ppro", { pedigree_id: pedigreeId, exporter_key: exporterKey });
 }
@@ -314,19 +340,22 @@ export function importPedigreeLegacy(path: string): Promise<LegacyImportSummary>
 
 /**
  * Creates a timestamped backup of the encrypted database file.
- * Returns the filesystem path to the backup file.
+ * Returns the filesystem path (Tauri) or base64-encoded backup (browser).
  */
 export function backupDatabase(): Promise<string> {
   return apiCall<string>("backup_database");
 }
 
 /**
- * Restores the database from a backup file.
- * Creates a safety backup of the current database before overwriting.
- * @param backupPath Filesystem path to the backup .db file
+ * Restores the database from a backup.
+ * @param backupPathOrData Filesystem path (Tauri) or base64-encoded backup data (browser)
  */
-export function restoreDatabase(backupPath: string): Promise<void> {
-  return apiCall<void>("restore_database", { backup_path: backupPath });
+export function restoreDatabase(backupPathOrData: string): Promise<void> {
+  const mode = detectApiMode();
+  if (mode === "browser") {
+    return apiCall<void>("restore_database", { backup_data: backupPathOrData });
+  }
+  return apiCall<void>("restore_database", { backup_path: backupPathOrData });
 }
 
 /**

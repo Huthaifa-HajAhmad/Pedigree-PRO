@@ -12,7 +12,7 @@ export function ValidationIssueRow({
   nodes: PedigreeNode[];
 }) {
   const isError = issue.severity === "error";
-  const severityColor = isError ? "#FF4040" : "#FACC15";
+  const severityColor = isError ? "hsl(var(--destructive))" : "hsl(var(--warning))";
   const affectedNames = issue.nodeIds
     .map((id) => nodes.find((n) => n.id === id)?.label || id.slice(0, 6))
     .filter(Boolean);
@@ -20,6 +20,7 @@ export function ValidationIssueRow({
   return (
     <div className={`border-l-2 ${isError ? "border-red-500" : "border-yellow-500"}`}>
       <button
+        type="button"
         className="w-full flex items-start gap-2 px-3 py-2.5 text-left hover:bg-accent transition-colors"
         onClick={onToggle}
       >

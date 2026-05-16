@@ -114,7 +114,7 @@ export function VersionTimeline({ pedigreeId, currentCanvas, onRestore, onPrevie
         <div className="flex items-center gap-2">
           <GitBranch className="w-3.5 h-3.5 text-muted-foreground" />
           <span className="text-xs font-medium">Version History</span>
-          <span className="text-[10px] text-muted-foreground">({versions.length} versions)</span>
+          <span className="text-xs text-muted-foreground">({versions.length} versions)</span>
         </div>
         <div className="flex items-center gap-1">
           {isPlaying ? (
@@ -179,15 +179,15 @@ export function VersionTimeline({ pedigreeId, currentCanvas, onRestore, onPrevie
 
                 {/* Info */}
                 <div className="px-2 py-1.5">
-                  <div className="text-[10px] font-medium truncate">
+                  <div className="text-xs font-medium truncate">
                     {version.label ?? `v${version.version_number}`}
                   </div>
-                  <div className="text-[9px] text-muted-foreground flex items-center gap-1">
+                  <div className="text-xs text-muted-foreground flex items-center gap-1">
                     <span>{date}</span>
                     <span>{time}</span>
                   </div>
                   {version.saver_key && (
-                    <div className="text-[9px] text-primary/70 truncate font-mono">
+                    <div className="text-xs text-primary/70 truncate font-mono">
                       {version.saver_key.slice(0, 8)}...
                     </div>
                   )}
@@ -205,7 +205,7 @@ export function VersionTimeline({ pedigreeId, currentCanvas, onRestore, onPrevie
         if (!selVersion) return null;
         return (
         <div className="flex items-center justify-between mt-2 pt-2 border-t border-border/50">
-          <div className="text-[10px] text-muted-foreground">
+          <div className="text-xs text-muted-foreground">
             {selVersion.label ?? `Version ${selVersion.version_number}`}
             {" "}·{" "}
             {(() => { try { return new Date(selVersion.created_at).toLocaleString(); } catch { return "—"; } })()}
@@ -229,7 +229,7 @@ export function VersionTimeline({ pedigreeId, currentCanvas, onRestore, onPrevie
             </button>
             <button
               onClick={() => handleRestore(selVersion)}
-              className="flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+              className="flex items-center gap-1 px-2 py-1 rounded text-xs font-medium bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
             >
               <RotateCcw className="w-3 h-3" />
               Restore

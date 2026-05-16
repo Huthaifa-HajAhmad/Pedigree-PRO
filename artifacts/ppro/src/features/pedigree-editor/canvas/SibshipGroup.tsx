@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import type { PedigreeNode } from "./types";
 import { NODE_SIZE } from "./types";
 
@@ -8,12 +9,17 @@ export function SibshipGroup({ parentIds, childIds, nodes, invalid }: {
   invalid: boolean;
 }) {
   const S = NODE_SIZE;
-  const stroke = invalid ? "#FF4040" : "hsl(var(--foreground) / 0.35)";
+  const stroke = invalid ? "hsl(var(--destructive))" : "hsl(var(--foreground) / 0.35)";
   const sw = invalid ? 2 : 1.5;
   const dash = invalid ? "5 3" : undefined;
 
-  const parents = parentIds.map((id) => nodes.find((n) => n.id === id)).filter((n): n is PedigreeNode => !!n);
-  const children = childIds.map((id) => nodes.find((n) => n.id === id)).filter((n): n is PedigreeNode => !!n);
+  const nodeMap = useMemo(() => {
+    const map = new Map<string, PedigreeNode>();
+    for (const n of nodes) map.set(n.id, n);
+    return map;
+  }, [nodes]);
+  const parents = parentIds.map((id) => nodeMap.get(id)).filter((n): n is PedigreeNode => !!n);
+  const children = childIds.map((id) => nodeMap.get(id)).filter((n): n is PedigreeNode => !!n);
   if (parents.length === 0 || children.length === 0) return null;
 
   const paths: string[] = [];

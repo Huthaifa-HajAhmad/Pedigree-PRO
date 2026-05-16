@@ -22,7 +22,7 @@ def make_png(width: int, height: int, r: int = 100, g: int = 117, b: int = 247) 
     )
 
 # Target directory
-icons_dir = os.path.join("artifacts", "haplopainter", "src-tauri", "icons")
+icons_dir = os.path.join("artifacts", "ppro", "src-tauri", "icons")
 os.makedirs(icons_dir, exist_ok=True)
 
 # Generate 32x32 PNG

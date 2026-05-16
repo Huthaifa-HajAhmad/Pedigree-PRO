@@ -18,10 +18,6 @@
 
 export type ApiMode = "tauri" | "browser";
 
-/**
- * Detects whether we're running inside a Tauri desktop app or a browser.
- * Tauri injects window.__TAURI__ at runtime.
- */
 export function detectApiMode(): ApiMode {
   if (
     typeof window !== "undefined" &&
@@ -33,11 +29,35 @@ export function detectApiMode(): ApiMode {
 }
 
 // =============================================================================
+// Typed Command Names
+// =============================================================================
+
+/**
+ * Command names that the browser backend implements.
+ * Tauri-only commands (e.g. import_pedigree_from_json) will throw at
+ * runtime if called in browser mode.
+ */
+type BrowserCommandName =
+  | "list_profiles" | "create_profile" | "switch_profile" | "delete_profile"
+  | "list_patients" | "get_patient" | "create_patient" | "update_patient" | "delete_patient"
+  | "list_pedigrees" | "get_pedigree" | "create_pedigree" | "update_pedigree" | "delete_pedigree"
+  | "list_versions" | "save_version" | "restore_version"
+  | "get_dashboard_stats" | "get_recent_activity"
+  | "get_preferences" | "save_preferences"
+  | "share_pedigree" | "import_shared"
+  | "import_pedigree_native" | "import_pedigree_legacy"
+  | "export_pedigree_ppro"
+  | "backup_database" | "restore_database" | "rotate_key"
+  | "relay_share" | "relay_receive";
+
+/** All valid command names (browser + Tauri-only). */
+type CommandName = BrowserCommandName | "import_pedigree_from_json";
+
+// =============================================================================
 // Generic API Call
 // =============================================================================
 
 let browserBackend: typeof import("@workspace/browser-backend") | null = null;
-let browserBackendInitializing = false;
 let browserBackendInitError: Error | null = null;
 let initPromise: Promise<typeof import("@workspace/browser-backend")> | null = null;
 
@@ -52,7 +72,6 @@ async function getBrowserBackend() {
 
   if (!browserBackend) {
     if (!initPromise) {
-      browserBackendInitializing = true;
       initPromise = (async () => {
         try {
           browserBackend = await import("@workspace/browser-backend");
@@ -61,8 +80,6 @@ async function getBrowserBackend() {
         } catch (error) {
           browserBackendInitError = error instanceof Error ? error : new Error(String(error));
           throw browserBackendInitError;
-        } finally {
-          browserBackendInitializing = false;
         }
       })();
     }
@@ -77,12 +94,12 @@ export function getBackendInitError(): Error | null {
 
 /**
  * Makes an API call, routing through Tauri invoke() or browser backend based on mode.
- * @param command The Tauri command name (e.g., "list_pedigrees")
+ * @param command The command name (must match a CommandMap key)
  * @param args Optional arguments object
  * @returns Typed response
  */
 export async function apiCall<T>(
-  command: string,
+  command: CommandName,
   args?: Record<string, unknown>
 ): Promise<T> {
   const mode = detectApiMode();
@@ -92,15 +109,14 @@ export async function apiCall<T>(
     return invoke<T>(command, args);
   }
 
-  // Browser mode: route to sql.js backend
+  // Browser mode: route to sql.js backend via typed command map
   const backend = await getBrowserBackend();
-  const fn = (backend as Record<string, unknown>)[command] as
-    | ((args?: Record<string, unknown>) => Promise<T>)
-    | undefined;
+  if (!backend) throw new Error("Browser backend not initialized");
+  const fn = (backend as Record<string, unknown>)[command];
 
-  if (!fn) {
+  if (typeof fn !== "function") {
     throw new Error(`Browser backend does not implement command: ${command}`);
   }
 
-  return fn(args);
+  return fn(args) as Promise<T>;
 }

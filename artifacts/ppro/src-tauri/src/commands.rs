@@ -48,7 +48,6 @@ pub struct Patient {
     pub sex: Option<String>,
     pub ethnicity: Option<String>,
     pub referral_reason: Option<String>,
-    pub clinician_id: Option<i64>,
     pub clinician_key: Option<String>,
     pub created_at: String,
     pub updated_at: String,
@@ -100,7 +99,6 @@ pub struct Pedigree {
     pub notes: Option<String>,
     pub creator_key: Option<String>,
     pub creator_signature: Option<String>,
-    pub share_token: Option<String>,
     pub created_at: String,
     pub updated_at: String,
 }
@@ -173,18 +171,30 @@ pub struct ShareResult {
     pub share_url: String,
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+pub struct RelayPayload {
+    pub ciphertext: String,
+    pub encrypted_key: String,
+}
+
 // =============================================================================
 // Profile Commands
 // =============================================================================
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ProfileWithPrivateKey {
+    pub profile: Profile,
+    pub private_key: String,
+}
 
 #[tauri::command]
 pub fn create_profile(
     state: State<AppState>,
     input: ProfileInput,
-) -> Result<Profile, String> {
+) -> Result<ProfileWithPrivateKey, String> {
     let db = state.db.lock().map_err(|e| e.to_string())?;
     let id = uuid::Uuid::new_v4().to_string();
-    let (public_key, _private_key) = signatures::generate_keypair();
+    let (public_key, private_key) = signatures::generate_keypair();
 
     db.execute(
         "INSERT INTO local_profiles (id, display_name, role_label, public_key, created_at, last_used_at)
@@ -200,13 +210,16 @@ pub fn create_profile(
         params![input.display_name, public_key],
     );
 
-    Ok(Profile {
-        id,
-        display_name: input.display_name,
-        role_label: input.role_label,
-        public_key,
-        created_at: chrono::Utc::now().to_rfc3339(),
-        last_used_at: chrono::Utc::now().to_rfc3339(),
+    Ok(ProfileWithPrivateKey {
+        profile: Profile {
+            id,
+            display_name: input.display_name,
+            role_label: input.role_label,
+            public_key,
+            created_at: chrono::Utc::now().to_rfc3339(),
+            last_used_at: chrono::Utc::now().to_rfc3339(),
+        },
+        private_key,
     })
 }
 
@@ -335,13 +348,13 @@ pub fn list_patients(
 
     let query = if search.is_some() {
         "SELECT id, mrn, first_name, last_name, date_of_birth, sex, ethnicity, referral_reason,
-                clinician_id, clinician_key, created_at, updated_at
+                clinician_key, created_at, updated_at
          FROM patients
          WHERE first_name LIKE ?1 OR last_name LIKE ?1 OR mrn LIKE ?1
          ORDER BY last_name, first_name"
     } else {
         "SELECT id, mrn, first_name, last_name, date_of_birth, sex, ethnicity, referral_reason,
-                clinician_id, clinician_key, created_at, updated_at
+                clinician_key, created_at, updated_at
          FROM patients ORDER BY last_name, first_name"
     };
 
@@ -368,7 +381,7 @@ pub fn get_patient(state: State<AppState>, id: i64) -> Result<Patient, String> {
     let db = state.db.lock().map_err(|e| e.to_string())?;
     db.query_row(
         "SELECT id, mrn, first_name, last_name, date_of_birth, sex, ethnicity, referral_reason,
-                clinician_id, clinician_key, created_at, updated_at
+                clinician_key, created_at, updated_at
          FROM patients WHERE id = ?1",
         params![id],
         map_patient,
@@ -523,7 +536,7 @@ pub fn get_pedigree(state: State<AppState>, id: i64) -> Result<Pedigree, String>
     let db = state.db.lock().map_err(|e| e.to_string())?;
     db.query_row(
         "SELECT id, title, patient_id, canvas_data, canvas_hash, notes,
-                creator_key, creator_signature, share_token, created_at, updated_at
+                creator_key, creator_signature, created_at, updated_at
          FROM pedigrees WHERE id = ?1",
         params![id],
         map_pedigree,
@@ -906,31 +919,39 @@ pub fn save_preferences(state: State<AppState>, theme: String) -> Result<Prefere
 pub async fn share_pedigree(
     state: State<'_, AppState>,
     pedigree_id: i64,
-    recipient_key: String,
-) -> Result<ShareResult, String> {
-    // 1. Export the pedigree to .ppro JSON
-    let _ppro_json = crate::export::export_pedigree_ppro(&state.db, pedigree_id, &recipient_key)?;
+    _recipient_key: String,
+) -> Result<String, String> {
+    let ppro_json = crate::export::export_pedigree_ppro(&state.db, pedigree_id, &_recipient_key)?;
+    Ok(ppro_json)
+}
 
-    // 2. The frontend handles symmetric encryption and sealed box creation
-    Err(
-        "Share via relay: frontend must encrypt .ppro with libsodium sealed box then POST to relay. \
-         The .ppro export is ready but client-side encryption must be implemented in the frontend.".to_string()
-    )
+#[tauri::command]
+pub async fn relay_share(
+    ciphertext: String,
+    encrypted_key: String,
+    ttl_hours: Option<u32>,
+) -> Result<ShareResult, String> {
+    let (share_token, share_url) =
+        crate::relay::share_encrypted_payload(&ciphertext, &encrypted_key, ttl_hours).await?;
+    Ok(ShareResult { share_token, share_url })
+}
+
+#[tauri::command]
+pub async fn relay_receive(
+    share_token: String,
+) -> Result<RelayPayload, String> {
+    let (ciphertext, encrypted_key) =
+        crate::relay::fetch_shared_payload(&share_token).await?;
+    Ok(RelayPayload { ciphertext, encrypted_key })
 }
 
 #[tauri::command]
 pub async fn import_shared(
-    state: State<'_, AppState>,
     share_token: String,
-    importer_key: String,
-) -> Result<Pedigree, String> {
-    let (ciphertext, _encrypted_key) =
+) -> Result<RelayPayload, String> {
+    let (ciphertext, encrypted_key) =
         crate::relay::fetch_shared_payload(&share_token).await?;
-
-    let new_id =
-        crate::import_native::import_pedigree_ppro(&state.db, &ciphertext, &importer_key)?;
-
-    get_pedigree(state, new_id)
+    Ok(RelayPayload { ciphertext, encrypted_key })
 }
 
 // =============================================================================
@@ -979,16 +1000,31 @@ pub fn rotate_key(app: tauri::AppHandle, state: State<AppState>) -> Result<(), S
 /// cryptographic provenance verification.
 #[tauri::command]
 pub fn import_pedigree_native(
+    app: tauri::AppHandle,
     state: State<AppState>,
     path: String,
     importer_key: String,
 ) -> Result<Pedigree, String> {
+    validate_import_path(&app, &path)?;
     let ppro_json = std::fs::read_to_string(&path)
         .map_err(|e| format!("Failed to read file '{}': {}", path, e))?;
 
     let new_id =
         crate::import_native::import_pedigree_ppro(&state.db, &ppro_json, &importer_key)?;
 
+    get_pedigree(state, new_id)
+}
+
+/// Imports a pedigree from raw .ppro JSON content (not a file path).
+/// Used by the frontend after client-side decryption of shared data.
+#[tauri::command]
+pub fn import_pedigree_from_json(
+    state: State<AppState>,
+    json_content: String,
+    importer_key: String,
+) -> Result<Pedigree, String> {
+    let new_id =
+        crate::import_native::import_pedigree_ppro(&state.db, &json_content, &importer_key)?;
     get_pedigree(state, new_id)
 }
 
@@ -1002,11 +1038,38 @@ pub fn import_pedigree_native(
 /// migration profile key.
 #[tauri::command]
 pub fn import_pedigree_legacy(
+    app: tauri::AppHandle,
     state: State<AppState>,
     path: String,
 ) -> Result<crate::import_legacy::LegacyImportSummary, String> {
+    validate_import_path(&app, &path)?;
     crate::import_legacy::import_legacy_database(&state.db, &path)
 }
+// =============================================================================
+// Path Validation
+// =============================================================================
+
+fn validate_import_path(app: &tauri::AppHandle, path: &str) -> Result<(), String> {
+    use std::path::PathBuf;
+    let canonical = PathBuf::from(path).canonicalize()
+        .map_err(|e| format!("Invalid path '{}': {}", path, e))?;
+    let app_data = app.path().app_data_dir()
+        .map_err(|e| format!("Cannot resolve app data dir: {}", e))?;
+    let allowed_dirs = vec![
+        app_data.clone(),
+        PathBuf::from(std::env::var("USERPROFILE").unwrap_or_else(|_| "C:\\".into())),
+        PathBuf::from(std::env::var("HOME").unwrap_or_else(|_| "/".into())),
+    ];
+    let is_allowed = allowed_dirs.iter().any(|dir| {
+        let dir_canonical = dir.canonicalize().unwrap_or_else(|_| dir.clone());
+        canonical.starts_with(&dir_canonical)
+    });
+    if !is_allowed {
+        return Err(format!("Access denied: path '{}' is outside allowed directories", path));
+    }
+    Ok(())
+}
+
 // =============================================================================
 // Row Mapping Helpers
 // =============================================================================
@@ -1021,10 +1084,9 @@ fn map_patient(row: &rusqlite::Row) -> rusqlite::Result<Patient> {
         sex: row.get(5)?,
         ethnicity: row.get(6)?,
         referral_reason: row.get(7)?,
-        clinician_id: row.get(8)?,
-        clinician_key: row.get(9)?,
-        created_at: row.get(10)?,
-        updated_at: row.get(11)?,
+        clinician_key: row.get(8)?,
+        created_at: row.get(9)?,
+        updated_at: row.get(10)?,
     })
 }
 
@@ -1038,9 +1100,8 @@ fn map_pedigree(row: &rusqlite::Row) -> rusqlite::Result<Pedigree> {
         notes: row.get(5)?,
         creator_key: row.get(6)?,
         creator_signature: row.get(7)?,
-        share_token: row.get(8)?,
-        created_at: row.get(9)?,
-        updated_at: row.get(10)?,
+        created_at: row.get(8)?,
+        updated_at: row.get(9)?,
     })
 }
 

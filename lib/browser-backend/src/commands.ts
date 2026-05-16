@@ -553,9 +553,9 @@ export async function share_pedigree(args: {
   pedigree_id: number;
   recipient_key: string;
 }): Promise<ShareResult> {
-  const pedigree = get_pedigree({ id: args.pedigree_id });
+  const pproJson = export_pedigree_ppro({ pedigree_id: args.pedigree_id, exporter_key: args.recipient_key });
   const { sodiumSealBox } = await import("@workspace/crypto");
-  const envelope = await sodiumSealBox(JSON.stringify(pedigree), args.recipient_key);
+  const envelope = await sodiumSealBox(pproJson, args.recipient_key);
   const token = btoa(envelope);
   return {
     share_token: token,
@@ -563,43 +563,22 @@ export async function share_pedigree(args: {
   };
 }
 
-export async function import_shared(args: { share_token: string }): Promise<Pedigree> {
-  // Try to decrypt the token using each stored private key (libsodium sealed box)
-  try {
-    const { sodiumOpenSealedBox } = await import("@workspace/crypto");
-    const privateKeys = await listProfilePrivateKeys();
-    for (const { privateKey } of privateKeys) {
-      try {
-        const decrypted = await sodiumOpenSealedBox(atob(args.share_token), privateKey);
-        const decoded = JSON.parse(decrypted);
-        return create_pedigree({
-          title: decoded.title,
-          patient_id: decoded.patient_id,
-          canvas_data: decoded.canvas_data,
-          notes: decoded.notes,
-          creator_key: decoded.creator_key ?? "imported",
-        });
-      } catch {
-        // Key mismatch — try next key
-      }
+export async function import_shared(args: { share_token: string; importer_key?: string }): Promise<Pedigree> {
+  const { sodiumOpenSealedBox } = await import("@workspace/crypto");
+  const privateKeys = await listProfilePrivateKeys();
+  let lastError: Error | null = null;
+
+  for (const { privateKey } of privateKeys) {
+    try {
+      const decrypted = await sodiumOpenSealedBox(atob(args.share_token), privateKey);
+      return import_pedigree_native({ path: decrypted, importer_key: args.importer_key ?? "imported" });
+    } catch (e) {
+      lastError = e instanceof Error ? e : new Error(String(e));
+      // Key mismatch or parse error — try next key
     }
-  } catch {
-    // Crypto module unavailable — fall through to legacy fallback
   }
 
-  // Fallback: unencrypted base64 JSON (legacy / placeholder shares)
-  try {
-    const decoded = JSON.parse(atob(args.share_token));
-    return create_pedigree({
-      title: decoded.title,
-      patient_id: decoded.patient_id,
-      canvas_data: decoded.canvas_data,
-      notes: decoded.notes,
-      creator_key: decoded.creator_key ?? "imported",
-    });
-  } catch {
-    throw new Error("Invalid share token");
-  }
+  throw lastError ?? new Error("Invalid share token: no matching private key found");
 }
 
 // =============================================================================
@@ -796,15 +775,100 @@ export function import_pedigree_legacy(args: { path: string }): LegacyImportSumm
 // Database Management (Backup, Restore, Key Rotation)
 // =============================================================================
 
-export function backup_database(): string {
-  // Browser mode: export encrypted DB blob as base64 string
-  throw new Error("backup_database not yet implemented in browser mode");
+export async function backup_database(): Promise<string> {
+  const { exportDb } = await import("./db");
+  const data = await exportDb();
+  return btoa(String.fromCharCode(...new Uint8Array(data)));
 }
 
-export function restore_database(args: { backup_path: string }): void {
-  throw new Error("restore_database not yet implemented in browser mode");
+export async function restore_database(args: { backup_data: string }): Promise<void> {
+  const raw = atob(args.backup_data);
+  const bytes = new Uint8Array(raw.length);
+  for (let i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i);
+  const { importDb } = await import("./db");
+  await importDb(bytes);
 }
 
-export function rotate_key(): void {
-  throw new Error("Key rotation not yet implemented in browser mode");
+export async function rotate_key(): Promise<void> {
+  // Key rotation in browser mode regenerates the database encryption key
+  // and re-wraps it with a new wrapping key, then re-saves to IndexedDB.
+  // A full implementation would: generate new AES key -> re-encrypt DB -> re-wrap with new wrapping key
+  throw new Error("Key rotation is not yet fully implemented in browser mode. Use desktop mode for this feature.");
+}
+
+// =============================================================================
+// Relay Sharing (Browser Mode)
+// =============================================================================
+
+const RELAY_BASE_URL = "https://relay.pedigreepro.app";
+
+/**
+ * Posts an encrypted share to the relay service (browser mode).
+ * Returns share token and URL.
+ */
+export async function relay_share(args: {
+  ciphertext: string;
+  encrypted_key: string;
+  ttl_hours?: number;
+}): Promise<ShareResult> {
+  const response = await fetch(`${RELAY_BASE_URL}/api/relay/share`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      ciphertext: args.ciphertext,
+      encrypted_key: args.encrypted_key,
+      ttl_hours: args.ttl_hours ?? null,
+    }),
+  });
+
+  if (!response.ok) {
+    if (response.status === 404 || response.status === 410) {
+      throw new Error("Share token expired or not found");
+    }
+    const errorData = await response.json().catch(() => ({ error: `HTTP ${response.status}` }));
+    throw new Error(`Relay error: ${errorData.error ?? errorData.message ?? response.statusText}`);
+  }
+
+  const result = await response.json() as { share_token: string; expires_at: string };
+  return {
+    share_token: result.share_token,
+    share_url: `${RELAY_BASE_URL}/s/${result.share_token}`,
+  };
+}
+
+/**
+ * Fetches an encrypted share from the relay service by token (browser mode).
+ * Returns ciphertext and encrypted_key for client-side decryption.
+ */
+export async function relay_receive(args: { share_token: string }): Promise<{
+  ciphertext: string;
+  encrypted_key: string;
+}> {
+  const response = await fetch(`${RELAY_BASE_URL}/api/relay/receive/${args.share_token}`);
+
+  if (!response.ok) {
+    if (response.status === 404) {
+      throw new Error("Share token expired or not found");
+    }
+    if (response.status === 410) {
+      throw new Error("Share token already consumed");
+    }
+    const errorData = await response.json().catch(() => ({ error: `HTTP ${response.status}` }));
+    throw new Error(`Relay error: ${errorData.error ?? errorData.message ?? response.statusText}`);
+  }
+
+  return response.json() as Promise<{ ciphertext: string; encrypted_key: string }>;
+}
+
+/**
+ * Revokes a share token on the relay (browser mode).
+ */
+export async function relay_revoke(args: { share_token: string }): Promise<void> {
+  const response = await fetch(`${RELAY_BASE_URL}/api/relay/receive/${args.share_token}`, {
+    method: "DELETE",
+  });
+
+  if (!response.ok && response.status !== 204) {
+    throw new Error(`Failed to revoke share token: HTTP ${response.status}`);
+  }
 }
