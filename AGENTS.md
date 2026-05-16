@@ -13,7 +13,7 @@ The frontend uses a unified adapter (`lib/api-client-react/src/adapter.ts`) that
 
 | Package | Role |
 |---|---|
-| `artifacts/haplopainter` | React + Vite frontend (pedigree canvas, dashboard, patients, profiles) |
+| `artifacts/ppro` | React + Vite frontend (pedigree canvas, dashboard, patients, profiles) |
 | `lib/api-client-react` | Unified adapter + React Query hooks + direct API functions |
 | `lib/browser-backend` | sql.js WASM SQLite, IndexedDB persistence, Web Crypto key management, TypeScript port of Rust commands |
 | `lib/crypto` | Shared Ed25519, SHA-256, AES-GCM, libsodium sealed-box primitives |
@@ -46,12 +46,12 @@ pnpm -r --if-present run build
 
 ### Build Frontend (Browser Mode)
 ```bash
-pnpm --filter @workspace/haplopainter run build
+pnpm --filter @workspace/ppro run build
 ```
 
 ### Build Tauri Desktop
 ```bash
-cd artifacts/haplopainter
+cd artifacts/ppro
 pnpm tauri build
 ```
 
@@ -81,7 +81,7 @@ pnpm tauri build
 
 ```bash
 # Unit tests (browser backend + canvas logic)
-pnpm --filter @workspace/haplopainter run test
+pnpm --filter @workspace/ppro run test
 ```
 
 ## Important Rules
@@ -95,11 +95,11 @@ pnpm --filter @workspace/haplopainter run test
 
 ```bash
 # Start frontend (browser mode)
-pnpm --filter @workspace/haplopainter run dev
+pnpm --filter @workspace/ppro run dev
 # → http://localhost:4173
 
 # Start frontend in background (Windows PowerShell)
-cmd /c "start /b pnpm --filter @workspace/haplopainter run dev"
+cmd /c "start /b pnpm --filter @workspace/ppro run dev"
 ```
 
 **Port conflicts:** Kill existing process on 4173 before starting:
@@ -109,7 +109,7 @@ Get-NetTCPConnection -LocalPort 4173 | ForEach-Object { Stop-Process -Id $_.Owni
 
 **esbuild issues:** Missing `@esbuild/win32-x64` binary requires explicit install:
 ```bash
-pnpm add -D @esbuild/win32-x64@0.27.3 --filter @workspace/haplopainter --ignore-scripts
+pnpm add -D @esbuild/win32-x64@0.27.3 --filter @workspace/ppro --ignore-scripts
 ```
 This is needed because `pnpm install --ignore-scripts` skips optional binary installation.
 
@@ -136,7 +136,7 @@ Invoke-WebRequest -Uri "http://127.0.0.1:3788/console?limit=20" -UseBasicParsing
 ```
 
 ### Testing workflow
-1. Start dev server: `pnpm --filter @workspace/haplopainter run dev`
+1. Start dev server: `pnpm --filter @workspace/ppro run dev`
 2. Navigate browser: `POST /navigate {"url":"http://localhost:4173"}`
 3. Take screenshot: `GET /screenshot?waitMs=2000`
 4. Check console: `GET /console`
@@ -192,7 +192,7 @@ Minimal smoke tests in place. Consider: canvas interaction tests, import/export 
 **P5 — web-vitals monitoring:** Not yet installed. Blocked on CI/CD monitoring infrastructure.
 
 **RB23 — Directory/package rename:**
-`artifacts/haplopainter/` and `@workspace/haplopainter` remain as internal names. Cascading changes across monorepo (tsconfig references, workspace filter commands, import paths). Defer to dedicated rename pass.
+`artifacts/ppro/` and `@workspace/ppro` remain as internal names. Cascading changes across monorepo (tsconfig references, workspace filter commands, import paths). Defer to dedicated rename pass.
 
 ### Known Workarounds
 

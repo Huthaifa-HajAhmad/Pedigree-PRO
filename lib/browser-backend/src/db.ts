@@ -30,8 +30,21 @@ let dirty = false;
 export async function initDb(): Promise<void> {
   if (db) return; // Already initialized
 
+  let wasmPath = "/sql-wasm-browser.wasm";
+  
+  // Try multiple WASM loading strategies
   const SQL = await initSqlJs({
-    locateFile: (file: string) => `/${file}`,
+    locateFile: (file: string) => {
+      // In Vite dev server, serve from our custom middleware
+      wasmPath = file.includes("sql-wasm") ? "/sql-wasm-browser.wasm" : `/${file}`;
+      return wasmPath;
+    },
+  }).catch(async (e: unknown) => {
+    console.warn("Failed to load WASM from /sql-wasm-browser.wasm, trying alternative path...", e);
+    // Fallback: try loading from node_modules via Vite's /@fs/ prefix
+    return initSqlJs({
+      locateFile: (file: string) => `/node_modules/sql.js/dist/${file}`,
+    });
   });
 
   dbKey = await getOrCreateDbKey();
@@ -327,13 +340,8 @@ CREATE INDEX IF NOT EXISTS idx_pedigree_phenotypes_pedigree ON pedigree_phenotyp
 
 // Inlined migration 003: Drop deprecated Phase 0-D columns and tables.
 // For databases created after this migration, these columns won't exist,
-// so we use IF EXISTS to make this idempotent.
+// so we skip DROP COLUMN (not supported in sql.js SQLite < 3.35).
 const MIGRATION_003 = `
-ALTER TABLE patients DROP COLUMN IF EXISTS clinician_id;
-ALTER TABLE pedigrees DROP COLUMN IF EXISTS created_by_id;
-ALTER TABLE pedigrees DROP COLUMN IF EXISTS share_token;
-ALTER TABLE pedigree_versions DROP COLUMN IF EXISTS saved_by_id;
-ALTER TABLE activity_log DROP COLUMN IF EXISTS user_id;
 DROP INDEX IF EXISTS idx_pedigrees_share_token;
 DROP TABLE IF EXISTS users;
 `;

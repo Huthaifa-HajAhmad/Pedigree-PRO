@@ -87,6 +87,9 @@ export function useCreateProfile() {
   return useMutation({
     mutationFn: (input: CreateProfileInput) => createProfile(input),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.profiles }),
+    onError: (error) => {
+      console.error("[useCreateProfile] Error:", error);
+    },
   });
 }
 
@@ -130,6 +133,9 @@ export function useCreatePatient() {
   return useMutation({
     mutationFn: (input: CreatePatientInput) => createPatient(input),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.patients }),
+    onError: (error) => {
+      console.error("[useCreatePatient] Error:", error);
+    },
   });
 }
 
@@ -177,6 +183,9 @@ export function useCreatePedigree() {
   return useMutation({
     mutationFn: (input: CreatePedigreeInput) => createPedigree(input),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.pedigrees }),
+    onError: (error) => {
+      console.error("[useCreatePedigree] Error:", error);
+    },
   });
 }
 

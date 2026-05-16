@@ -37,13 +37,42 @@ export function detectApiMode(): ApiMode {
 // =============================================================================
 
 let browserBackend: typeof import("@workspace/browser-backend") | null = null;
+let browserBackendInitializing = false;
+let browserBackendInitError: Error | null = null;
+let initPromise: Promise<typeof import("@workspace/browser-backend")> | null = null;
 
 async function getBrowserBackend() {
+  if (browserBackendInitError) {
+    throw new Error(
+      `Browser backend failed to initialize: ${browserBackendInitError.message}\n\n` +
+      `This is likely due to sql.js WASM loading failure.\n` +
+      `Check browser console for details.`
+    );
+  }
+
   if (!browserBackend) {
-    browserBackend = await import("@workspace/browser-backend");
-    await browserBackend.initDb();
+    if (!initPromise) {
+      browserBackendInitializing = true;
+      initPromise = (async () => {
+        try {
+          browserBackend = await import("@workspace/browser-backend");
+          await browserBackend.initDb();
+          return browserBackend;
+        } catch (error) {
+          browserBackendInitError = error instanceof Error ? error : new Error(String(error));
+          throw browserBackendInitError;
+        } finally {
+          browserBackendInitializing = false;
+        }
+      })();
+    }
+    await initPromise;
   }
   return browserBackend;
+}
+
+export function getBackendInitError(): Error | null {
+  return browserBackendInitError;
 }
 
 /**

@@ -10,7 +10,7 @@
     "lint": "eslint . --ext .ts,.tsx",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "test": "pnpm --filter @workspace/haplopainter run test"
+    "test": "pnpm --filter @workspace/ppro run test"
   },
   "private": true,
   "devDependencies": {
