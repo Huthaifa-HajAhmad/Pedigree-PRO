@@ -139,7 +139,14 @@ export function LanShare({ pedigreeData, recipientPublicKey, onPedigreeReceived,
           try {
             payload = await sodiumSealBox(pedigreeData, recipientPublicKey);
           } catch {
-            payload = pedigreeData;
+            // M6 fix: warn user instead of silently falling back to plaintext
+            if (window.confirm("Encryption failed. Send data unencrypted instead? (Not recommended for HIPAA-compliance.)")) {
+              payload = pedigreeData;
+            } else {
+              setStatus("error");
+              setError("Sharing cancelled: encryption failed. Check the recipient's public key.");
+              return;
+            }
           }
         } else {
           payload = pedigreeData;
@@ -223,7 +230,7 @@ export function LanShare({ pedigreeData, recipientPublicKey, onPedigreeReceived,
     } catch (e) {
       setError("Invalid answer");
     }
-  }, []);
+  }, [answer]);
 
   const handleCopy = useCallback(async (text: string) => {
     try {

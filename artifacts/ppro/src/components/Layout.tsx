@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { Link, useLocation } from "wouter";
-import { Activity, LayoutDashboard, Dna, ChevronRight, UserCircle, Shield, LogOut, WifiOff, Menu, X } from "lucide-react";
-import { ThemePicker } from "@/components/ThemePicker";
+import { Activity, LayoutDashboard, Dna, ChevronRight, UserCircle, Shield, LogOut, WifiOff, Menu, X, Settings } from "lucide-react";
 import { SkipToContent } from "@/components/SkipToContent";
 import { useTheme } from "@/lib/theme";
 import { useListProfiles, useSwitchProfile } from "@workspace/api-client-react";
@@ -39,6 +38,7 @@ const navItems = [
   { path: "/pedigrees", label: "Pedigrees", icon: Dna },
   { path: "/patients", label: "Patients", icon: Activity },
   { path: "/profiles", label: "Profiles", icon: UserCircle },
+  { path: "/settings", label: "Settings", icon: Settings },
 ];
 
 export function Layout({ children }: { children: React.ReactNode }) {
@@ -82,7 +82,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
       )}
       <aside
         className={`flex-shrink-0 border-r border-border flex flex-col transition-transform duration-200 ${
-          isMobile ? "fixed inset-y-0 left-0 z-50 w-56" : "w-56"
+          isMobile ? "fixed inset-y-0 left-0 z-50 w-60" : "w-60"
         } ${isMobile && !sidebarOpen ? "-translate-x-full" : "translate-x-0"}`}
         style={{ background: "hsl(var(--sidebar))" }}
       >
@@ -95,7 +95,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
               <div className="font-bold text-base leading-tight tracking-tight" style={{ color: theme.accent }}>
                 Pedigree PRO
               </div>
-              <div className="text-xs text-muted-foreground leading-tight mt-0.5 tracking-widest uppercase">Pedigree PRO</div>
+              <div className="text-xs text-muted-foreground leading-tight mt-0.5 tracking-wide">Family Pedigree Editor</div>
             </div>
           </div>
         </div>
@@ -206,8 +206,28 @@ export function Layout({ children }: { children: React.ReactNode }) {
           {/* Divider */}
           <div className="my-2 border-t border-border/50" />
 
-          {/* Theme Picker */}
-          <ThemePicker />
+          {/* Compact Theme Swatch */}
+          <Link href="/settings">
+            <div
+              className="w-full flex items-center gap-2.5 p-2.5 rounded-lg border border-border hover:border-primary/50 hover:bg-primary/5 transition-all cursor-pointer group"
+              onClick={() => isMobile && setSidebarOpen(false)}
+            >
+              <div
+                className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 transition-colors"
+                style={{ background: `${theme.accent}20` }}
+              >
+                <div
+                  className="w-4 h-4 rounded-full"
+                  style={{ background: `radial-gradient(circle at 35% 35%, ${theme.accent}, ${theme.bg})`, boxShadow: `0 0 0 1px ${theme.accent}40` }}
+                />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="text-xs font-medium text-foreground truncate">{theme.name}</div>
+                <div className="text-xs text-muted-foreground truncate">Theme & settings</div>
+              </div>
+              <ChevronRight className="w-3 h-3 flex-shrink-0 text-muted-foreground group-hover:text-primary transition-colors" />
+            </div>
+          </Link>
 
           {/* Divider */}
           <div className="my-2 border-t border-border/50" />

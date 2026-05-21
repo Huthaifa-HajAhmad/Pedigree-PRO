@@ -94,7 +94,7 @@ export function useCreateProfile() {
       queryClient.invalidateQueries({ queryKey: queryKeys.recentActivity });
     },
     onError: (error) => {
-      console.error("[useCreateProfile] Error:", error);
+      console.error("[useCreateProfile] Error:", error instanceof Error ? error.message : String(error));
     },
   });
 }
@@ -150,7 +150,7 @@ export function useCreatePatient() {
       queryClient.invalidateQueries({ queryKey: queryKeys.recentActivity });
     },
     onError: (error) => {
-      console.error("[useCreatePatient] Error:", error);
+      console.error("[useCreatePatient] Error:", error instanceof Error ? error.message : String(error));
     },
   });
 }
@@ -188,6 +188,7 @@ export function useListPedigrees(params?: { patientId?: number; search?: string 
   return useQuery({
     queryKey: [...queryKeys.pedigrees, params?.patientId, params?.search],
     queryFn: () => listPedigrees(params?.patientId, params?.search),
+    refetchOnMount: "always",
   });
 }
 
@@ -209,7 +210,7 @@ export function useCreatePedigree() {
       queryClient.invalidateQueries({ queryKey: queryKeys.recentActivity });
     },
     onError: (error) => {
-      console.error("[useCreatePedigree] Error:", error);
+      console.error("[useCreatePedigree] Error:", error instanceof Error ? error.message : String(error));
     },
   });
 }

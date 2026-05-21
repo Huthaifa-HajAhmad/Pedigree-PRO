@@ -30,7 +30,7 @@ export interface PedigreeEditorState {
   liveLayout: boolean;
   showLegend: boolean;
   selectedAnnotationId: string | null;
-  annDragging: { annId: string; startSVG: { x: number; y: number }; initOffset: { x: number; y: number } } | null;
+  annDragging: { annId: string; startSVG: { x: number; y: number }; initOffset: { x: number; y: number }; hasMoved: boolean } | null;
   showTemplates: boolean;
   riskMode: InheritanceMode;
   showRiskCalc: boolean;
@@ -56,6 +56,9 @@ export interface PedigreeEditorState {
 
   lassoVisible: boolean;
   spaceHeld: boolean;
+  showAddSiblingDialog: boolean;
+  siblingSourceId: string | null;
+  alignGuides: Array<{ axis: "x" | "y"; pos: number; strength: "near" | "snap" }>;
 }
 
 export const INITIAL_STATE: PedigreeEditorState = {
@@ -111,6 +114,9 @@ export const INITIAL_STATE: PedigreeEditorState = {
 
   lassoVisible: false,
   spaceHeld: false,
+  showAddSiblingDialog: false,
+  siblingSourceId: null,
+  alignGuides: [],
 };
 
 export type PedigreeEditorAction =
@@ -126,7 +132,7 @@ export interface PedigreeEditorOps {
   undo: () => void;
   redo: () => void;
   addNode: (type: PedigreeNode["type"]) => void;
-  addContextNode: (rel: "child" | "sibling" | "partner") => void;
+  addContextNode: (rel: "child" | "sibling" | "partner" | "parents") => void;
   toggleNodeProp: (nodeId: string, prop: "affected" | "carrier" | "deceased" | "proband") => void;
   setNodeType: (nodeId: string, type: PedigreeNode["type"]) => void;
   handleNodeContextMenu: (nodeId: string, e: React.MouseEvent) => void;
@@ -145,6 +151,9 @@ export interface PedigreeEditorOps {
   openConfirm: (title: string, message: string, onConfirm: () => void, variant?: "default" | "destructive") => void;
   navigateArrow: (dir: "ArrowUp" | "ArrowDown" | "ArrowLeft" | "ArrowRight") => void;
   handleCloseTab: (tid: number) => void;
+  openTab: (id: number, title: string) => void;
+  reorderTabs: (fromIndex: number, toIndex: number) => void;
+  renameTab: (tabId: number, newTitle: string) => void;
   fitToScreen: () => void;
   getSVGCoords: (e: { clientX: number; clientY: number }) => { x: number; y: number } | null;
   handleDragStart: (e: React.MouseEvent, nodeId: string) => void;
@@ -156,6 +165,9 @@ export interface PedigreeEditorOps {
   commitSaveVersion: () => void;
   handleDeleteVersion: () => void;
   handleRestoreVersion: (vid: number) => void;
+  createConsanguinityEdge: (sourceId: string, targetId: string) => void;
+  addSiblings: (sourceId: string, siblings: Array<{ type: PedigreeNode["type"]; dob: string; annotation: string }>) => void;
+  handleDeletePedigree: (tabId: number, tabTitle: string) => void;
 }
 
 export interface PedigreeEditorMemo {
@@ -202,4 +214,5 @@ export interface PedigreeEditorRefs {
   searchInputRef: React.RefObject<HTMLInputElement | null>;
   draftKeyRef: React.MutableRefObject<string>;
   draftEnabledRef: React.MutableRefObject<boolean>;
+  pendingAnnDragRef: React.MutableRefObject<{ annId: string; startSVG: { x: number; y: number }; initOffset: { x: number; y: number } } | null>;
 }

@@ -1,6 +1,6 @@
 import { memo } from "react";
 import type { PedigreeEdge, PedigreeNode } from "./types";
-import { NODE_SIZE } from "./types";
+import { useCanvasConfig } from "@/features/pedigree-editor/context/CanvasConfigContext";
 
 interface EdgeLineProps {
   edge: PedigreeEdge;
@@ -9,13 +9,14 @@ interface EdgeLineProps {
 }
 
 export const EdgeLine = memo(function EdgeLine({ edge, nodes, invalid }: EdgeLineProps) {
+  const cfg = useCanvasConfig();
   const src = nodes.find((n) => n.id === edge.sourceId);
   const tgt = nodes.find((n) => n.id === edge.targetId);
   if (!src || !tgt) return null;
-  const S = NODE_SIZE;
+  const S = cfg.config.nodeSize;
   const isCoupleLike = edge.type === "couple" || edge.type === "consanguinity";
   const edgeStroke = invalid ? "#FF4040" : isCoupleLike ? "hsl(var(--foreground) / 0.5)" : "hsl(var(--foreground) / 0.35)";
-  const edgeWidth = invalid ? 2 : 1.5;
+  const edgeWidth = invalid ? 2 : cfg.config.edgeWidthNormal;
   const edgeDash = invalid ? "5 3" : undefined;
 
   if (edge.type === "couple") {
@@ -38,6 +39,6 @@ export const EdgeLine = memo(function EdgeLine({ edge, nodes, invalid }: EdgeLin
     );
   }
 
-  const drop = src.y + S / 2 + 40;
+  const drop = src.y + S / 2 + cfg.config.edgeDropOffset;
   return <path d={`M ${src.x} ${src.y + S / 2} L ${src.x} ${drop} L ${tgt.x} ${drop} L ${tgt.x} ${tgt.y - S / 2}`} fill="none" stroke={edgeStroke} strokeWidth={edgeWidth} strokeDasharray={edgeDash} />;
 });

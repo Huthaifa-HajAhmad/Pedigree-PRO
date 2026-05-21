@@ -1,14 +1,19 @@
 import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
-import { useListPedigrees } from "@workspace/api-client-react";
-import { Dna } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
+import { useListPedigrees, useCreatePedigree, queryKeys } from "@workspace/api-client-react";
+import { Dna, Plus } from "lucide-react";
+import { computeHash, signData } from "@workspace/crypto";
+import { listProfilePrivateKeys } from "@workspace/browser-backend";
 
 export function TabPickerPopover({
   currentId,
+  openTabIds,
   onClose,
   onOpen,
 }: {
   currentId: number;
+  openTabIds: Set<number>;
   onClose: () => void;
   onOpen: (id: number, title: string) => void;
 }) {
@@ -19,6 +24,29 @@ export function TabPickerPopover({
     return () => clearTimeout(timer);
   }, [search]);
   const { data: pedigrees } = useListPedigrees({ search: debouncedSearch || undefined });
+  const createPedigree = useCreatePedigree();
+  const queryClient = useQueryClient();
+
+  const handleNewPedigree = async () => {
+    const canvasData = JSON.stringify({ nodes: [], edges: [], annotations: [] });
+    const canvasHash = computeHash(canvasData);
+    const keys = await listProfilePrivateKeys();
+    const activeKey = keys.length > 0 ? keys[0] : null;
+    const creatorKey = activeKey ? await (await import("@workspace/crypto")).getPublicKeyFromPrivate(activeKey.privateKey) : "";
+    const creatorSignature = activeKey ? await signData(canvasHash, activeKey.privateKey) : null;
+    try {
+      const pedigree = await createPedigree.mutateAsync(
+        { title: "New Pedigree", canvas_data: canvasData, canvas_hash: canvasHash, creator_key: creatorKey, creator_signature: creatorSignature },
+      );
+      if (!pedigree?.id) return;
+      queryClient.setQueryData(queryKeys.pedigree(pedigree.id), pedigree);
+      queryClient.invalidateQueries({ queryKey: queryKeys.pedigrees });
+      onOpen(pedigree.id, pedigree.title);
+      onClose();
+    } catch (err) {
+      console.error("Failed to create pedigree:", err);
+    }
+  };
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -61,7 +89,7 @@ export function TabPickerPopover({
     <div
       ref={panelRef}
       data-tab-picker
-      className="fixed z-50 bg-card border border-border rounded shadow-xl w-64"
+      className="fixed z-50 bg-card border border-border rounded shadow-xl w-72"
       style={pos ? { top: pos.top, left: pos.left } : { display: "none" }}
     >
       <div className="p-2 border-b border-border">
@@ -81,17 +109,29 @@ export function TabPickerPopover({
             <button
               type="button"
               key={p.id}
-              onClick={() => p.id !== currentId && onOpen(p.id, p.title)}
+              onClick={() => {
+                if (!openTabIds.has(p.id)) {
+                  onOpen(p.id, p.title);
+                  onClose();
+                }
+              }}
               className={`w-full flex items-center gap-2 px-3 py-2 text-left text-xs transition-colors ${
-                p.id === currentId ? "opacity-40 cursor-not-allowed" : "hover:bg-accent cursor-pointer"
+                openTabIds.has(p.id) ? "opacity-40 cursor-not-allowed" : "hover:bg-accent cursor-pointer"
               }`}
             >
               <Dna className="w-3 h-3 text-primary flex-shrink-0" />
               <span className="truncate flex-1">{p.title}</span>
-              {p.id === currentId && <span className="text-primary text-xs flex-shrink-0">open</span>}
+              {openTabIds.has(p.id) && <span className="text-muted-foreground text-xs flex-shrink-0">open</span>}
             </button>
           ))
         )}
+      </div>
+      <div className="border-t border-border p-1.5">
+        <button type="button" onClick={handleNewPedigree} disabled={createPedigree.isPending}
+          className="w-full flex items-center gap-2 px-3 py-2 text-xs rounded-md hover:bg-accent text-primary font-medium transition-colors disabled:opacity-40">
+          <Plus className="w-3 h-3" />
+          <span>{createPedigree.isPending ? "Creating..." : "New Pedigree"}</span>
+        </button>
       </div>
     </div>,
     document.body

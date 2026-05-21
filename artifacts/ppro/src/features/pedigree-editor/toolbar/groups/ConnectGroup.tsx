@@ -1,27 +1,44 @@
+import { Link2, GitBranch, GitMerge } from "lucide-react";
+import type { PedigreeNode } from "@/features/pedigree-editor/canvas/types";
+
 interface ConnectGroupProps {
   linkMode: "couple" | "parent-child" | "consanguinity" | null;
   setLinkMode: (mode: "couple" | "parent-child" | "consanguinity" | null) => void;
   setLinkSource: (sourceId: string | null) => void;
+  selectedIds: Set<string>;
+  canvasNodes: PedigreeNode[];
+  createConsanguinityEdge: (sourceId: string, targetId: string) => void;
   labelHidden?: boolean;
 }
 
-export function ConnectGroup({ linkMode, setLinkMode, setLinkSource, labelHidden = false }: ConnectGroupProps) {
+export function ConnectGroup({ linkMode, setLinkMode, setLinkSource, selectedIds, canvasNodes, createConsanguinityEdge, labelHidden = false }: ConnectGroupProps) {
+  const handleConsanguinityClick = () => {
+    if (selectedIds.size === 2) {
+      const ids = [...selectedIds];
+      const idA = ids[0]!, idB = ids[1]!;
+      const nA = canvasNodes.find((n) => n.id === idA);
+      const nB = canvasNodes.find((n) => n.id === idB);
+      if (nA && nB && ((nA.type === "male" && nB.type === "female") || (nA.type === "female" && nB.type === "male"))) {
+        createConsanguinityEdge(idA, idB);
+        return;
+      }
+    }
+    setLinkMode(linkMode === "consanguinity" ? null : "consanguinity");
+    setLinkSource(null);
+  };
   return (
-    <div className="flex flex-col justify-between border-r border-border flex-shrink-0 px-2 pt-2 pb-2">
-      <div className="flex items-center gap-1.5">
+    <div className="flex flex-col justify-between h-full border-r border-border flex-shrink-0 px-2 pt-2 pb-2">
+      <div className="flex-1 flex items-center gap-1">
         <button
           type="button"
           data-testid="button-link-couple"
           onClick={() => { setLinkMode(linkMode === "couple" ? null : "couple"); setLinkSource(null); }}
           title="Draw couple link — click two nodes"
           aria-label="Draw couple link"
-          className={`flex flex-col items-center gap-1 min-w-[44px] min-h-[44px] py-1 rounded text-xs leading-none transition-colors ${linkMode === "couple" ? "bg-primary/15 text-primary" : "text-muted-foreground hover:bg-accent hover:text-foreground"}`}
+          aria-pressed={linkMode === "couple"}
+          className={`flex flex-col items-center gap-1.5 min-w-[44px] min-h-[44px] py-1 rounded text-[11px] leading-tight font-medium transition-colors ${linkMode === "couple" ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-accent hover:text-foreground"}`}
         >
-          <svg width="26" height="13" viewBox="0 0 26 13">
-            <rect x="1" y="2.5" width="7.5" height="7.5" rx="3.75" fill="none" stroke="currentColor" strokeWidth="1.1" />
-            <line x1="8.5" y1="6.25" x2="17.5" y2="6.25" stroke="currentColor" strokeWidth="1.1" />
-            <rect x="17.5" y="2.5" width="7.5" height="7.5" fill="none" stroke="currentColor" strokeWidth="1.1" />
-          </svg>
+          <Link2 className="w-5 h-5" />
           <span>Couple</span>
         </button>
         <button
@@ -30,31 +47,26 @@ export function ConnectGroup({ linkMode, setLinkMode, setLinkSource, labelHidden
           onClick={() => { setLinkMode(linkMode === "parent-child" ? null : "parent-child"); setLinkSource(null); }}
           title="Draw parent to child link"
           aria-label="Draw parent to child link"
-          className={`flex flex-col items-center gap-1 min-w-[44px] min-h-[44px] py-1 rounded text-xs leading-none transition-colors ${linkMode === "parent-child" ? "bg-primary/15 text-primary" : "text-muted-foreground hover:bg-accent hover:text-foreground"}`}
+          aria-pressed={linkMode === "parent-child"}
+          className={`flex flex-col items-center gap-1.5 min-w-[44px] min-h-[44px] py-1 rounded text-[11px] leading-tight font-medium transition-colors ${linkMode === "parent-child" ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-accent hover:text-foreground"}`}
         >
-          <svg width="18" height="14" viewBox="0 0 18 14">
-            <circle cx="9" cy="3" r="3" fill="none" stroke="currentColor" strokeWidth="1.1" />
-            <line x1="9" y1="6" x2="9" y2="10" stroke="currentColor" strokeWidth="1.1" />
-            <rect x="5.5" y="10" width="7" height="4" rx="1" fill="none" stroke="currentColor" strokeWidth="1.1" />
-          </svg>
-          <span>P→Child</span>
+          <GitBranch className="w-5 h-5" />
+          <span>Parent-Child</span>
         </button>
         <button
           type="button"
           data-testid="button-link-consanguinity"
-          onClick={() => { setLinkMode(linkMode === "consanguinity" ? null : "consanguinity"); setLinkSource(null); }}
-          title="Draw consanguinity link (double bar) — K"
+          onClick={handleConsanguinityClick}
+          title="Draw consanguinity link — select 2 opposite-gender nodes, or click then pick second node"
           aria-label="Draw consanguinity link"
-          className={`flex flex-col items-center gap-1 min-w-[44px] min-h-[44px] py-1 rounded text-xs leading-none transition-colors ${linkMode === "consanguinity" ? "bg-primary/15 text-primary" : "text-muted-foreground hover:bg-accent hover:text-foreground"}`}
+          aria-pressed={linkMode === "consanguinity"}
+          className={`flex flex-col items-center gap-1.5 min-w-[44px] min-h-[44px] py-1 rounded text-[11px] leading-tight font-medium transition-colors ${linkMode === "consanguinity" ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-accent hover:text-foreground"}`}
         >
-          <svg width="26" height="12" viewBox="0 0 26 12">
-            <line x1="0" y1="3.5" x2="26" y2="3.5" stroke="currentColor" strokeWidth="1.1" />
-            <line x1="0" y1="8.5" x2="26" y2="8.5" stroke="currentColor" strokeWidth="1.1" />
-          </svg>
-          <span>Consang.</span>
+          <GitMerge className="w-5 h-5" />
+          <span>Consanguinity</span>
         </button>
       </div>
-      {!labelHidden && <div className="text-xs text-muted-foreground uppercase tracking-widest text-center border-t border-border/40 pt-0.5">Connect</div>}
+      {!labelHidden && <div className="text-[10px] text-muted-foreground uppercase tracking-wider text-center border-t border-border/40 pt-1">Connect</div>}
     </div>
   );
 }

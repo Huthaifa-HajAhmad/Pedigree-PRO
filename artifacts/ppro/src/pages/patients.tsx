@@ -1,8 +1,8 @@
 import { useState, useRef, useEffect } from "react";
-import { useListPatients, useCreatePatient, useDeletePatient, queryKeys, getBackendInitError } from "@workspace/api-client-react";
+import { useListPatients, useCreatePatient, useUpdatePatient, useDeletePatient, queryKeys, getBackendInitError } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Link } from "wouter";
-import { Plus, Trash2, Eye, Activity } from "lucide-react";
+import { Plus, Trash2, Eye, Activity, Pencil, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -29,9 +29,25 @@ const createPatientSchema = z.object({
 
 type CreatePatientForm = z.infer<typeof createPatientSchema>;
 
+type PatientSortField = "name" | "sex" | "updated";
+type PatientSortDir = "asc" | "desc";
+
+const editPatientSchema = z.object({
+  firstName: z.string().min(1, "First name required"),
+  lastName: z.string().min(1, "Last name required"),
+  dateOfBirth: z.string().optional(),
+  sex: z.enum(["male", "female", "unknown"]).optional(),
+  ethnicity: z.string().optional(),
+});
+type EditPatientForm = z.infer<typeof editPatientSchema>;
+
 export default function Patients() {
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [sortField, setSortField] = useState<PatientSortField>("updated");
+  const [sortDir, setSortDir] = useState<PatientSortDir>("desc");
+  const [editOpen, setEditOpen] = useState(false);
+  const [editPatient, setEditPatient] = useState<{ id: number; firstName: string; lastName: string; dateOfBirth?: string; sex?: string; ethnicity?: string } | null>(null);
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
     if (searchTimerRef.current !== null) clearTimeout(searchTimerRef.current);
@@ -103,10 +119,50 @@ export default function Patients() {
     setConfirmOpen(true);
   };
 
-  const sexBadge = (sex: string | null) => {
-    if (!sex) return "—";
+  const sexBadge = (sex: string | null, showDot = false) => {
+    if (!sex) return showDot ? <><span className="inline-block w-2 h-2 rounded-full bg-gray-400 mr-1" />—</> : "—";
+    const colorMap: Record<string, string> = { male: "bg-blue-400", female: "bg-pink-400", unknown: "bg-gray-400" };
     const classMap: Record<string, string> = { male: "text-blue-400", female: "text-pink-400", unknown: "text-gray-400" };
-    return <span className={`capitalize ${classMap[sex] ?? "text-gray-400"}`}>{sex}</span>;
+    return <span className={`capitalize ${classMap[sex] ?? "text-gray-400"}`}>
+      {showDot && <span className={`inline-block w-2 h-2 rounded-full ${colorMap[sex] ?? "bg-gray-400"} mr-1`} />}{sex}
+    </span>;
+  };
+
+  const toggleSort = (field: PatientSortField) => {
+    if (sortField === field) { setSortDir(sortDir === "asc" ? "desc" : "asc"); }
+    else { setSortField(field); setSortDir(field === "name" ? "asc" : "desc"); }
+  };
+
+  const sortedPatients = patients ? [...patients].sort((a, b) => {
+    const dir = sortDir === "asc" ? 1 : -1;
+    switch (sortField) {
+      case "name": return dir * `${a.last_name}, ${a.first_name}`.localeCompare(`${b.last_name}, ${b.first_name}`);
+      case "sex": return dir * (a.sex ?? "").localeCompare(b.sex ?? "");
+      case "updated": return dir * (new Date(a.updated_at ?? a.created_at).getTime() - new Date(b.updated_at ?? b.created_at).getTime());
+      default: return 0;
+    }
+  }) : [];
+
+  const SortIcon = ({ field }: { field: PatientSortField }) => {
+    if (sortField !== field) return <ArrowUpDown className="w-3 h-3 text-muted-foreground/30" />;
+    return sortDir === "asc" ? <ArrowUp className="w-3 h-3 text-primary" /> : <ArrowDown className="w-3 h-3 text-primary" />;
+  };
+
+  const editForm = useForm<EditPatientForm>({ resolver: zodResolver(editPatientSchema) });
+  const updatePatient = useUpdatePatient();
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const openEdit = (p: any) => {
+    setEditPatient({ id: p.id, firstName: p.first_name, lastName: p.last_name, dateOfBirth: p.date_of_birth ?? undefined, sex: p.sex ?? undefined, ethnicity: p.ethnicity ?? undefined });
+    editForm.reset({ firstName: p.first_name, lastName: p.last_name, dateOfBirth: p.date_of_birth ?? "", sex: p.sex ?? undefined, ethnicity: p.ethnicity ?? "" });
+    setEditOpen(true);
+  };
+
+  const onEditSubmit = (data: EditPatientForm) => {
+    if (!editPatient) return;
+    updatePatient.mutate({ id: editPatient.id, input: { first_name: data.firstName, last_name: data.lastName, date_of_birth: data.dateOfBirth ?? null, sex: data.sex ?? null, ethnicity: data.ethnicity ?? null } }, {
+      onSuccess: () => { queryClient.invalidateQueries({ queryKey: queryKeys.patients }); setEditOpen(false); setEditPatient(null); },
+    });
   };
 
   return (
@@ -191,43 +247,56 @@ export default function Patients() {
 
       <div className="border border-border rounded overflow-hidden bg-card">
         <div className="grid grid-cols-2 md:grid-cols-5 gap-4 px-4 py-3 border-b border-border text-xs text-muted-foreground uppercase tracking-widest">
-          <div className="col-span-2">Name</div>
-          <div>MRN</div>
+          <button type="button" onClick={() => toggleSort("name")} className="col-span-2 flex items-center gap-1 hover:text-foreground transition-colors">Name<SortIcon field="name" /></button>
+          <button type="button" onClick={() => toggleSort("sex")} className="flex items-center gap-1 hover:text-foreground transition-colors">Sex<SortIcon field="sex" /></button>
           <div>Details</div>
           <div>Actions</div>
         </div>
         <div className="divide-y divide-border">
           {isLoading ? (
             <TableSkeleton rows={5} cols={5} />
-          ) : patients?.length === 0 ? (
+          ) : sortedPatients.length === 0 ? (
             <EmptyState icon={Activity} title="No patients found" description="Create your first patient record." />
           ) : (
-            patients?.map((p) => (
+              sortedPatients.map((p) => (
               <div key={p.id} data-testid={`row-patient-${p.id}`} className="grid grid-cols-2 md:grid-cols-5 gap-4 px-4 py-3 text-sm hover:bg-accent transition-colors items-center">
                 <div className="col-span-2 font-medium">{p.last_name}, {p.first_name}</div>
-                <div className="text-muted-foreground font-mono text-xs">{p.mrn}</div>
-                <div className="text-muted-foreground text-xs">{p.date_of_birth ?? "—"} <span className="mx-1">·</span> {sexBadge(p.sex)}</div>
-                <div className="flex items-center gap-1">
+                <div className="text-muted-foreground text-xs">{sexBadge(p.sex, true)}</div>
+                <div className="text-muted-foreground text-xs">{p.date_of_birth ?? "—"}</div>
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <button
+                    type="button"
+                    data-testid={`button-edit-patient-${p.id}`}
+                    onClick={() => openEdit(p)}
+                    className="inline-flex items-center gap-1 px-2 py-1 text-xs rounded-md border border-border text-muted-foreground hover:border-primary/40 hover:text-primary hover:bg-primary/5 transition-colors"
+                    title="Edit patient"
+                    aria-label={`Edit patient ${p.first_name} ${p.last_name}`}
+                  >
+                    <Pencil className="w-3 h-3" />
+                    <span>Edit</span>
+                  </button>
                   <Link href={`/patients/${p.id}`}>
                     <button
                       type="button"
                       data-testid={`button-view-patient-${p.id}`}
-                      className="text-muted-foreground hover:text-primary transition-colors p-1 rounded hover:bg-primary/10"
+                      className="inline-flex items-center gap-1 px-2 py-1 text-xs rounded-md border border-border text-muted-foreground hover:border-primary/40 hover:text-primary hover:bg-primary/5 transition-colors"
                       title="View patient details"
                       aria-label={`View patient ${p.first_name} ${p.last_name}`}
                     >
-                       <Eye className="w-4 h-4" />
+                       <Eye className="w-3 h-3" />
+                       <span>View</span>
                     </button>
                   </Link>
                   <button
                     type="button"
                     data-testid={`button-delete-patient-${p.id}`}
                     onClick={() => handleDelete(p.id, `${p.first_name} ${p.last_name}`)}
-                    className="text-muted-foreground hover:text-destructive transition-colors p-1 rounded hover:bg-destructive/10"
+                    className="inline-flex items-center gap-1 px-2 py-1 text-xs rounded-md border border-border text-muted-foreground hover:border-destructive/40 hover:text-destructive hover:bg-destructive/5 transition-colors"
                     title="Delete patient"
                     aria-label={`Delete patient ${p.first_name} ${p.last_name}`}
                   >
-                    <Trash2 className="w-4 h-4" />
+                    <Trash2 className="w-3 h-3" />
+                    <span>Delete</span>
                   </button>
                 </div>
               </div>
@@ -235,6 +304,66 @@ export default function Patients() {
           )}
         </div>
       </div>
+
+      {/* Edit Patient Modal */}
+      <FormLayout
+        open={editOpen}
+        onOpenChange={setEditOpen}
+        title="Edit Patient"
+        submitLabel="Save Changes"
+        form={editForm}
+        onSubmit={onEditSubmit}
+        isSubmitting={updatePatient.isPending}
+        trigger={<></>}
+      >
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <FormField control={editForm.control} name="firstName" render={({ field }) => (
+            <FormItem>
+              <FormLabel className="text-xs text-muted-foreground uppercase tracking-wider">First Name</FormLabel>
+              <FormControl><Input {...field} className="bg-muted border-border text-sm" /></FormControl>
+              <FormMessage />
+            </FormItem>
+          )} />
+          <FormField control={editForm.control} name="lastName" render={({ field }) => (
+            <FormItem>
+              <FormLabel className="text-xs text-muted-foreground uppercase tracking-wider">Last Name</FormLabel>
+              <FormControl><Input {...field} className="bg-muted border-border text-sm" /></FormControl>
+              <FormMessage />
+            </FormItem>
+          )} />
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <FormField control={editForm.control} name="dateOfBirth" render={({ field }) => (
+            <FormItem>
+              <FormLabel className="text-xs text-muted-foreground uppercase tracking-wider">Date of Birth</FormLabel>
+              <FormControl><Input {...field} type="date" className="bg-muted border-border text-sm" /></FormControl>
+            </FormItem>
+          )} />
+          <FormField control={editForm.control} name="sex" render={({ field }) => (
+            <FormItem>
+              <FormLabel className="text-xs text-muted-foreground uppercase tracking-wider">Sex</FormLabel>
+              <Select onValueChange={field.onChange} defaultValue={field.value}>
+                <FormControl>
+                  <SelectTrigger className="bg-muted border-border text-sm">
+                    <SelectValue placeholder="Select" />
+                  </SelectTrigger>
+                </FormControl>
+                <SelectContent className="bg-popover border-border">
+                  <SelectItem value="male">Male</SelectItem>
+                  <SelectItem value="female">Female</SelectItem>
+                  <SelectItem value="unknown">Unknown</SelectItem>
+                </SelectContent>
+              </Select>
+            </FormItem>
+          )} />
+        </div>
+        <FormField control={editForm.control} name="ethnicity" render={({ field }) => (
+          <FormItem>
+            <FormLabel className="text-xs text-muted-foreground uppercase tracking-wider">Ethnicity</FormLabel>
+            <FormControl><Input {...field} className="bg-muted border-border text-sm" /></FormControl>
+          </FormItem>
+        )} />
+      </FormLayout>
 
       {confirmProps && (
         <ConfirmDialog

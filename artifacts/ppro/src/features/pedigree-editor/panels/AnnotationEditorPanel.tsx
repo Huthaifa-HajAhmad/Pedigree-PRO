@@ -1,6 +1,6 @@
 import type { PedigreeAnnotation } from "@/features/pedigree-editor/canvas/types";
-import { ANNOTATION_COLORS, ANNOTATION_SIZES, ANNOTATION_POSITIONS } from "@/features/pedigree-editor/canvas/types";
-import { ChevronDown, Trash2 } from "lucide-react";
+import { ANNOTATION_COLORS, ANNOTATION_POSITIONS } from "@/features/pedigree-editor/canvas/types";
+import { ChevronDown, Trash2, RotateCcw } from "lucide-react";
 
 export function AnnotationEditorPanel({
   annotation, isSelected, onSelect, onUpdate, onDelete,
@@ -13,7 +13,7 @@ export function AnnotationEditorPanel({
 }) {
   return (
     <div className={`mb-1.5 border rounded overflow-hidden transition-all ${isSelected ? "border-primary/70" : "border-border"}`}>
-      <button className="w-full flex items-center justify-between px-2.5 py-1.5 text-left" onClick={onSelect}>
+      <button type="button" className="w-full flex items-center justify-between px-2.5 py-1.5 text-left" onClick={onSelect}>
         <span className="text-xs truncate max-w-[110px]" style={{ color: annotation.color }}>
           {annotation.text || "—"}
         </span>
@@ -37,7 +37,7 @@ export function AnnotationEditorPanel({
           {/* Color swatches */}
           <div className="flex items-center gap-1.5 flex-wrap">
             {ANNOTATION_COLORS.map((c) => (
-              <button key={c} onClick={() => onUpdate({ color: c })}
+              <button type="button" key={c} onClick={() => onUpdate({ color: c })}
                 className="w-4 h-4 rounded-full flex-shrink-0 transition-all"
                 style={{ background: c, outline: annotation.color === c ? `2px solid ${c}` : "2px solid transparent", outlineOffset: 2 }}
                 title={c}
@@ -51,30 +51,42 @@ export function AnnotationEditorPanel({
             />
           </div>
 
-          {/* Font size */}
-          <div className="flex gap-1">
-            {ANNOTATION_SIZES.map((s) => (
-              <button key={s.value} onClick={() => onUpdate({ fontSize: s.value })}
-                className={`flex-1 py-0.5 rounded text-xs border transition-all ${annotation.fontSize === s.value ? "border-primary text-primary bg-primary/10" : "border-border text-muted-foreground hover:border-primary"}`}>
-                {s.label}
-              </button>
-            ))}
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-[10px] text-muted-foreground uppercase tracking-widest">Size</span>
+              <span className="text-[10px] font-mono text-muted-foreground tabular-nums">{annotation.fontSize}px</span>
+            </div>
+            <input
+              type="range"
+              min={8}
+              max={20}
+              step={1}
+              value={annotation.fontSize}
+              onChange={(e) => onUpdate({ fontSize: Number(e.target.value) })}
+              className="w-full accent-primary h-1"
+            />
           </div>
 
           {/* Position */}
           <div className="grid grid-cols-4 gap-1">
             {ANNOTATION_POSITIONS.map((p) => (
-              <button key={p} onClick={() => onUpdate({ position: p })}
+              <button type="button" key={p} onClick={() => onUpdate({ position: p })}
                 className={`py-0.5 rounded text-xs border transition-all capitalize ${annotation.position === p ? "border-primary text-primary bg-primary/10" : "border-border text-muted-foreground hover:border-primary"}`}>
                 {(p[0] ?? "").toUpperCase() + p.slice(1, 3)}
               </button>
             ))}
           </div>
 
-          <button onClick={onDelete}
+          <button type="button" onClick={onDelete}
             className="flex items-center gap-1 text-xs text-destructive/70 hover:text-destructive transition-colors">
             <Trash2 className="w-3 h-3" /> Remove
           </button>
+          {((annotation.offsetX ?? 0) !== 0 || (annotation.offsetY ?? 0) !== 0) && (
+            <button type="button" onClick={() => onUpdate({ offsetX: 0, offsetY: 0 })}
+              className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors">
+              <RotateCcw className="w-3 h-3" /> Reset position
+            </button>
+          )}
         </div>
       )}
     </div>

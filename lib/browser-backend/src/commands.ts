@@ -309,12 +309,13 @@ export function create_pedigree(args: CreatePedigreeInput): Pedigree {
     ]
   );
 
+  const id = lastInsertRowId();
+
   exec(
     "INSERT INTO activity_log (action, subject, actor_key, timestamp) VALUES ('created', ?, ?, datetime('now'))",
     [args.title, args.creator_key]
   );
 
-  const id = lastInsertRowId();
   return get_pedigree({ id });
 }
 
@@ -778,7 +779,12 @@ export function import_pedigree_legacy(args: { path: string }): LegacyImportSumm
 export async function backup_database(): Promise<string> {
   const { exportDb } = await import("./db");
   const data = await exportDb();
-  return btoa(String.fromCharCode(...new Uint8Array(data)));
+  let binary = "";
+  const chunkSize = 0x8000;
+  for (let i = 0; i < data.length; i += chunkSize) {
+    binary += String.fromCharCode(...data.subarray(i, i + chunkSize));
+  }
+  return btoa(binary);
 }
 
 export async function restore_database(args: { backup_data: string }): Promise<void> {
@@ -844,7 +850,18 @@ export async function relay_receive(args: { share_token: string }): Promise<{
   ciphertext: string;
   encrypted_key: string;
 }> {
-  const response = await fetch(`${RELAY_BASE_URL}/api/relay/receive/${args.share_token}`);
+  // Validate share_token format before use (M2 fix)
+  if (!/^[a-zA-Z0-9+/=_-]+$/.test(args.share_token)) {
+    throw new Error("Invalid share token format");
+  }
+
+  // Use POST instead of GET to avoid token in URL/logs (M1 fix)
+  const response = await fetch(`${RELAY_BASE_URL}/api/relay/receive`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ share_token: args.share_token }),
+    credentials: "omit",
+  });
 
   if (!response.ok) {
     if (response.status === 404) {
@@ -854,7 +871,9 @@ export async function relay_receive(args: { share_token: string }): Promise<{
       throw new Error("Share token already consumed");
     }
     const errorData = await response.json().catch(() => ({ error: `HTTP ${response.status}` }));
-    throw new Error(`Relay error: ${errorData.error ?? errorData.message ?? response.statusText}`);
+    // Sanitize error messages in production (M3 fix)
+    const message = response.status >= 500 ? "Server error" : (errorData.error ?? errorData.message ?? response.statusText);
+    throw new Error(`Relay error: ${message}`);
   }
 
   return response.json() as Promise<{ ciphertext: string; encrypted_key: string }>;

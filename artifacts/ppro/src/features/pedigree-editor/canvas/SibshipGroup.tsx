@@ -1,16 +1,18 @@
 import { useMemo } from "react";
 import type { PedigreeNode } from "./types";
-import { NODE_SIZE } from "./types";
+import { useCanvasConfig } from "@/features/pedigree-editor/context/CanvasConfigContext";
 
-export function SibshipGroup({ parentIds, childIds, nodes, invalid }: {
+export function SibshipGroup({ parentIds, childIds, nodes, invalid, edgeType = "couple" }: {
   parentIds: string[];
   childIds: string[];
   nodes: PedigreeNode[];
   invalid: boolean;
+  edgeType?: "couple" | "consanguinity";
 }) {
-  const S = NODE_SIZE;
+  const cfg = useCanvasConfig();
+  const S = cfg.config.nodeSize;
   const stroke = invalid ? "hsl(var(--destructive))" : "hsl(var(--foreground) / 0.35)";
-  const sw = invalid ? 2 : 1.5;
+  const sw = invalid ? 2 : cfg.config.edgeWidthNormal;
   const dash = invalid ? "5 3" : undefined;
 
   const nodeMap = useMemo(() => {
@@ -25,9 +27,11 @@ export function SibshipGroup({ parentIds, childIds, nodes, invalid }: {
   const paths: string[] = [];
   const childTopY = Math.min(...children.map((c) => c.y)) - S / 2;
 
+  const coupleYOffset = edgeType === "consanguinity" ? 3.5 : 0;
+
   if (parents.length === 1) {
     const p = parents[0]!;
-    const barY = Math.min(p.y + S / 2 + 40, childTopY - 5);
+    const barY = childTopY - 5;
     if (children.length === 1) {
       const c = children[0]!;
       paths.push(`M ${p.x} ${p.y + S / 2} L ${p.x} ${barY} L ${c.x} ${barY} L ${c.x} ${c.y - S / 2}`);
@@ -43,18 +47,13 @@ export function SibshipGroup({ parentIds, childIds, nodes, invalid }: {
     const p1 = sorted[0]!;
     const p2 = sorted[1]!;
     const midX = (p1.x + S / 2 + p2.x - S / 2) / 2;
-    const coupleY = (p1.y + p2.y) / 2;
-    if (children.length === 1) {
-      const c = children[0]!;
-      paths.push(`M ${midX} ${coupleY} L ${midX} ${c.y - S / 2}`);
-    } else {
-      const barY = Math.min(Math.max(p1.y, p2.y) + S / 2 + 40, childTopY - 5);
-      const xs = children.map((c) => c.x).sort((a, b) => a - b);
-      const barLeft = Math.min(midX, xs[0] ?? midX);
-      const barRight = Math.max(midX, xs[xs.length - 1] ?? midX);
-      paths.push(`M ${midX} ${coupleY} L ${midX} ${barY}`, `M ${barLeft} ${barY} L ${barRight} ${barY}`);
-      for (const c of children) paths.push(`M ${c.x} ${barY} L ${c.x} ${c.y - S / 2}`);
-    }
+    const coupleY = (p1.y + p2.y) / 2 + coupleYOffset;
+    const barY = Math.min(Math.max(p1.y, p2.y) + S / 2 + cfg.config.edgeDropOffset, childTopY - 5);
+    const xs = children.map((c) => c.x).sort((a, b) => a - b);
+    const barLeft = Math.min(midX, xs[0] ?? midX);
+    const barRight = Math.max(midX, xs[xs.length - 1] ?? midX);
+    paths.push(`M ${midX} ${coupleY} L ${midX} ${barY}`, `M ${barLeft} ${barY} L ${barRight} ${barY}`);
+    for (const c of children) paths.push(`M ${c.x} ${barY} L ${c.x} ${c.y - S / 2}`);
   }
   return <path d={paths.join(" ")} fill="none" stroke={stroke} strokeWidth={sw} strokeDasharray={dash} />;
 }

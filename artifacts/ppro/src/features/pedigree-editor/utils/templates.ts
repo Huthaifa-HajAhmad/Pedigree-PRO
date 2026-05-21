@@ -16,7 +16,7 @@ export function buildTemplate(key: string): CanvasData {
   const n = (s: string) => `t${ts}_${s}`;
   const e = (s: string) => `te${ts}_${s}`;
   const node = (id: string, type: PedigreeNode["type"], label: string, x: number, y: number, extra: Partial<PedigreeNode> = {}): PedigreeNode =>
-    ({ id: n(id), type, affected: false, carrier: false, deceased: false, proband: false, label, age: "", x, y, pinned: true, ...extra });
+    ({ id: n(id), type, affected: false, carrier: false, deceased: false, proband: false, label, age: "", x, y, ...extra });
 
   if (key === "nuclear") {
     const fId = n("f"), mId = n("m"), cId = n("c");

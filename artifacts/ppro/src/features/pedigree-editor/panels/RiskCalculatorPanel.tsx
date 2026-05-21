@@ -28,41 +28,43 @@ export function RiskCalculatorPanel({
   const confidenceColor = result.confidence === "strong" ? "hsl(var(--primary))" : result.confidence === "inferred" ? "hsl(var(--warning))" : "hsl(var(--muted-foreground))"
 
   return (
-    <div className="space-y-3">
-      {/* Mode tabs */}
-      <div className="grid grid-cols-4 gap-1">
-        {MODES.map((m) => (
-          <button
-            type="button"
-            key={m.id}
-            onClick={() => onModeChange(m.id)}
-            title={m.title}
-            className={`py-0.5 rounded text-xs border transition-all ${
-              mode === m.id
-                ? "border-primary text-primary bg-primary/10"
-                : "border-border text-muted-foreground hover:border-primary"
-            }`}
-          >
-            {m.label}
-          </button>
-        ))}
+    <div className="space-y-4">
+      {/* Mode tabs - styled as a segmented control */}
+      <div className="bg-muted rounded-lg p-1">
+        <div className="grid grid-cols-4 gap-1">
+          {MODES.map((m) => (
+            <button
+              type="button"
+              key={m.id}
+              onClick={() => onModeChange(m.id)}
+              title={m.title}
+              className={`py-1.5 rounded-md text-xs font-medium transition-all ${
+                mode === m.id
+                  ? "bg-background text-primary shadow-sm border border-border/50"
+                  : "text-muted-foreground hover:text-foreground hover:bg-muted"
+              }`}
+            >
+              {m.label}
+            </button>
+          ))}
+        </div>
       </div>
 
-      {/* Risk entries */}
-      <div className="space-y-2">
+      {/* Risk entries - styled as cards */}
+      <div className="space-y-2.5">
         {result.entries.map((e, i) => {
           const colors = TIER_COLORS[e.tier];
           return (
-            <div key={`${e.label}-${i}`}>
-              <div className="flex justify-between items-baseline mb-0.5">
-                <span className="text-xs text-muted-foreground leading-tight pr-2">{e.label}</span>
-                <span className="text-xs font-semibold flex-shrink-0" style={{ color: colors.text }}>
+            <div key={`${e.label}-${i}`} className="bg-muted/30 rounded-md p-2">
+              <div className="flex justify-between items-center mb-1.5">
+                <span className="text-xs font-medium text-foreground leading-tight pr-2">{e.label}</span>
+                <span className="text-xs font-bold flex-shrink-0 px-1.5 py-0.5 rounded bg-background border border-border/50" style={{ color: colors.text }}>
                   {e.percent}
                 </span>
               </div>
-              <div className="h-1 rounded-full bg-border overflow-hidden">
+              <div className="h-2 rounded-full bg-border/60 overflow-hidden">
                 <div
-                  className="h-full rounded-full transition-all duration-300"
+                  className="h-full rounded-full transition-all duration-500 ease-out"
                   style={{ width: `${Math.min(100, e.value * 100)}%`, background: colors.bar }}
                 />
               </div>
@@ -71,12 +73,18 @@ export function RiskCalculatorPanel({
         })}
       </div>
 
-      {/* Basis notes */}
-      <div className="border border-border/50 rounded p-2 space-y-1">
+      {/* Basis notes - styled as an info box */}
+      <div className="bg-muted/40 border border-border/60 rounded-lg p-3 space-y-1.5">
+        <div className="text-xs font-medium text-foreground mb-2">Risk Basis</div>
         {result.basis.map((b, i) => (
-          <p key={`${b.substring(0, 24)}-${i}`} className="text-xs text-muted-foreground leading-snug">{b}</p>
+          <p key={`${b.substring(0, 24)}-${i}`} className="text-xs text-muted-foreground leading-relaxed flex items-start gap-1.5">
+            <span className="text-primary mt-0.5">•</span>
+            <span>{b}</span>
+          </p>
         ))}
-        <p className="text-xs mt-1" style={{ color: confidenceColor }}>{confidenceLabel}</p>
+        <div className="pt-2 mt-2 border-t border-border/40">
+          <p className="text-xs font-medium" style={{ color: confidenceColor }}>{confidenceLabel}</p>
+        </div>
       </div>
     </div>
   );
@@ -129,7 +137,7 @@ export function RiskPanelSidebar({
   const validNodes = canvas.nodes.filter((n) => n.type !== "sab" && n.type !== "pregnancy");
 
   return (
-    <div className="w-64 border-l border-border glass-panel flex flex-col flex-shrink-0 overflow-hidden">
+    <div className="w-72 h-full border-l border-border glass-panel flex flex-col flex-shrink-0 overflow-hidden shadow-[-4px_0_12px_rgba(0,0,0,0.08),0_4px_12px_rgba(0,0,0,0.08)]">
       {/* Header */}
       <div className="p-3 border-b border-border flex items-center justify-between flex-shrink-0">
         <div className="flex items-center gap-2">

@@ -20,7 +20,7 @@ export function VersionHistoryPanel({
     <PanelShell
       title="Version History"
       icon={<Save className="w-3.5 h-3.5" />}
-      width="w-64"
+      width="w-72"
       actions={
         <button type="button" aria-label="Save current session" onClick={onSave} title="Save current session"
           className="p-1.5 rounded hover:bg-accent transition-colors text-muted-foreground hover:text-primary">

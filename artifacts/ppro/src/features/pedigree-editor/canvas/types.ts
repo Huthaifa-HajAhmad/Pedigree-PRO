@@ -49,6 +49,6 @@ export const NODE_SIZE = 44;
 export const NODE_GAP = NODE_SIZE * 2.2;
 export const GEN_GRID = 120;
 
-export const ANNOTATION_COLORS = ["#6475F7", "#FFFFFF", "#FACC15", "#FF4040", "#60A5FA", "#E879F9", "#FB923C"] as const;
+export const ANNOTATION_COLORS = ["#FFFFFF", "#1F2937", "#6475F7", "#FACC15", "#FF4040", "#60A5FA", "#E879F9", "#FB923C"] as const;
 export const ANNOTATION_SIZES = [{ label: "S", value: 10 }, { label: "M", value: 12 }, { label: "L", value: 14 }, { label: "XL", value: 16 }] as const;
 export const ANNOTATION_POSITIONS = ["above", "below", "left", "right"] as const;

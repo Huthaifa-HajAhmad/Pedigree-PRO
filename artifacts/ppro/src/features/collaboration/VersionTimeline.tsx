@@ -118,7 +118,7 @@ export function VersionTimeline({ pedigreeId, currentCanvas, onRestore, onPrevie
         </div>
         <div className="flex items-center gap-1">
           {isPlaying ? (
-            <button
+            <button type="button"
               onClick={handlePause}
               className="p-1 rounded hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
               title="Pause playback"
@@ -126,7 +126,7 @@ export function VersionTimeline({ pedigreeId, currentCanvas, onRestore, onPrevie
               <Pause className="w-3.5 h-3.5" />
             </button>
           ) : (
-            <button
+            <button type="button"
               onClick={handlePlay}
               className="p-1 rounded hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
               title="Play history"
@@ -211,7 +211,7 @@ export function VersionTimeline({ pedigreeId, currentCanvas, onRestore, onPrevie
             {(() => { try { return new Date(selVersion.created_at).toLocaleString(); } catch { return "—"; } })()}
           </div>
           <div className="flex items-center gap-1">
-            <button
+            <button type="button"
               onClick={() => {
                 if (selectedIndex > 0) {
                   const newIndex = selectedIndex - 1;
@@ -227,14 +227,14 @@ export function VersionTimeline({ pedigreeId, currentCanvas, onRestore, onPrevie
             >
               <ChevronLeft className="w-3 h-3" />
             </button>
-            <button
+            <button type="button"
               onClick={() => handleRestore(selVersion)}
               className="flex items-center gap-1 px-2 py-1 rounded text-xs font-medium bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
             >
               <RotateCcw className="w-3 h-3" />
               Restore
             </button>
-            <button
+            <button type="button"
               onClick={() => {
                 if (selectedIndex < versions.length - 1) {
                   const newIndex = selectedIndex + 1;

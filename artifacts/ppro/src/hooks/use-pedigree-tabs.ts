@@ -8,6 +8,7 @@ export interface PedigreeTab {
 const TABS_KEY = "ppro_open_tabs";
 const LEGACY_TABS_KEY = "pedigree-pro_open_tabs";
 const MAX_TABS = 8;
+const TABS_CHANGE_EVENT = "ppro-tabs-change";
 
 function migrateTabsKey(): void {
   try {
@@ -38,6 +39,7 @@ function readTabs(): PedigreeTab[] {
 function writeTabs(tabs: PedigreeTab[]): void {
   try {
     localStorage.setItem(TABS_KEY, JSON.stringify(tabs));
+    window.dispatchEvent(new CustomEvent(TABS_CHANGE_EVENT, { detail: tabs }));
   } catch {}
 }
 
@@ -45,11 +47,19 @@ export function usePedigreeTabs() {
   const [tabs, setTabs] = useState<PedigreeTab[]>(() => { migrateTabsKey(); return readTabs(); });
 
   useEffect(() => {
-    const handler = (e: StorageEvent) => {
+    const storageHandler = (e: StorageEvent) => {
       if (e.key === TABS_KEY) setTabs(readTabs());
     };
-    window.addEventListener("storage", handler);
-    return () => window.removeEventListener("storage", handler);
+    const customHandler = (e: Event) => {
+      const detail = (e as CustomEvent<PedigreeTab[]>).detail;
+      if (detail) setTabs(detail);
+    };
+    window.addEventListener("storage", storageHandler);
+    window.addEventListener(TABS_CHANGE_EVENT, customHandler);
+    return () => {
+      window.removeEventListener("storage", storageHandler);
+      window.removeEventListener(TABS_CHANGE_EVENT, customHandler);
+    };
   }, []);
 
   const openTab = useCallback((id: number, title: string) => {
@@ -75,5 +85,36 @@ export function usePedigreeTabs() {
     });
   }, []);
 
-  return { tabs, openTab, closeTab };
+  const reorderTabs = useCallback((fromIndex: number, toIndex: number) => {
+    setTabs((prev) => {
+      const moved = prev[fromIndex];
+      if (!moved) return prev;
+      const without = prev.filter((_, i) => i !== fromIndex);
+      const insertAt = Math.min(toIndex, without.length);
+      const reordered = [...without.slice(0, insertAt), moved, ...without.slice(insertAt)];
+      writeTabs(reordered);
+      return reordered;
+    });
+  }, []);
+
+  const pruneStaleTabs = useCallback((validIds: Set<number>) => {
+    setTabs((prev) => {
+      const pruned = prev.filter((t) => validIds.has(t.id));
+      if (pruned.length !== prev.length) {
+        writeTabs(pruned);
+        return pruned;
+      }
+      return prev;
+    });
+  }, []);
+
+  const renameTab = useCallback((id: number, title: string) => {
+    setTabs((prev) => {
+      const updated = prev.map((t) => (t.id === id ? { ...t, title } : t));
+      writeTabs(updated);
+      return updated;
+    });
+  }, []);
+
+  return { tabs, openTab, closeTab, reorderTabs, pruneStaleTabs, renameTab };
 }

@@ -1,4 +1,6 @@
 import { useMemo, useCallback, useEffect } from "react";
+
+const EMPTY_SET: Set<string> = new Set();
 import { NodeShape } from "@/features/pedigree-editor/canvas/NodeShape";
 import { EdgeLine } from "@/features/pedigree-editor/canvas/EdgeLine";
 import { SibshipGroup } from "@/features/pedigree-editor/canvas/SibshipGroup";
@@ -8,6 +10,7 @@ import { FindBar } from "@/features/pedigree-editor/overlay/FindBar";
 import { useCanvasTouch } from "@/features/pedigree-editor/hooks/use-canvas-touch";
 import { NodeEditModal } from "@/features/pedigree-editor/modals/NodeEditModal";
 import { ContextMenu } from "@/features/pedigree-editor/overlay/ContextMenu";
+import { AddSiblingDialog } from "@/features/pedigree-editor/overlay/AddSiblingDialog";
 import { PropertiesPanel } from "@/features/pedigree-editor/panels/PropertiesPanel";
 import { RiskPanelSidebar } from "@/features/pedigree-editor/panels/RiskCalculatorPanel";
 import { VersionHistoryPanel } from "@/features/pedigree-editor/panels/VersionHistoryPanel";
@@ -19,7 +22,7 @@ import { NODE_SIZE } from "@/features/pedigree-editor/canvas/types";
 
 function AnnotationLayer({
   annotations, nodes, selectedAnnotationId, canvas,
-  onAnnotationClick, onAnnotationDragStart,
+  onAnnotationClick, onAnnotationDragStart, onAnnotationUpdateText,
 }: {
   annotations: CanvasData["annotations"];
   nodes: PedigreeNode[];
@@ -27,6 +30,7 @@ function AnnotationLayer({
   canvas: CanvasData;
   onAnnotationClick: (annId: string, nodeId: string) => void;
   onAnnotationDragStart: (annId: string, e: React.MouseEvent) => void;
+  onAnnotationUpdateText?: (annId: string, text: string) => void;
 }) {
   const nodeById = useMemo(() => {
     const map = new Map<string, PedigreeNode>();
@@ -60,6 +64,7 @@ function AnnotationLayer({
             isSelected={selectedAnnotationId === ann.id}
             onClick={() => onAnnotationClick(ann.id, ann.nodeId)}
             onDragStart={(e) => onAnnotationDragStart(ann.id, e)}
+            onUpdateText={onAnnotationUpdateText}
           />
         );
       })}
@@ -89,12 +94,17 @@ function SibshipLayer({ edges, nodes, invalidEdgeIds }: {
       const allEdges = pcEdges.filter(
         (e) => parentIds.includes(e.sourceId) && childIds.includes(e.targetId)
       );
+      const coupleEdge = edges.find(
+        (e) => (e.type === "couple" || e.type === "consanguinity") &&
+          parentIds.includes(e.sourceId) && parentIds.includes(e.targetId)
+      );
       return {
         key: `family-${key}`,
         parentIds,
         childIds,
         nodes,
         invalid: allEdges.some((e) => invalidEdgeIds.has(e.id)),
+        edgeType: (coupleEdge?.type as "couple" | "consanguinity") ?? "couple",
       };
     });
   }, [edges, nodes, invalidEdgeIds]);
@@ -108,6 +118,7 @@ function SibshipLayer({ edges, nodes, invalidEdgeIds }: {
           childIds={g.childIds}
           nodes={g.nodes}
           invalid={g.invalid}
+          edgeType={g.edgeType}
         />
       ))}
     </g>
@@ -124,7 +135,8 @@ export function PedigreeCanvasBody() {
     showMinimap, showGrid, showLegend, contextMenu,
     selectedAnnotationId, riskMode, showRiskCalc,
     showRiskPanel, showVersions, showValidation, expandedIssueId,
-    showShareModal,
+    showShareModal, showAddSiblingDialog, siblingSourceId,
+    alignGuides,
   } = state;
 
   const {
@@ -134,6 +146,7 @@ export function PedigreeCanvasBody() {
     handleNodeClick, handleNodeDoubleClick, handleNodeContextMenu, handleDragStart,
     handleMouseMove, handleMouseUp, handleSVGMouseDown, handleWheel,
     getSVGCoords, handleSaveVersion, handleRestoreVersion, handleDeleteVersion,
+    addSiblings,
   } = ops;
 
   const {
@@ -143,6 +156,7 @@ export function PedigreeCanvasBody() {
 
   const {
     svgRef, preDragCanvasRef, lassoRectRef, searchInputRef,
+    pendingAnnDragRef,
   } = refs;
 
   const fakeMouseEvent = useCallback((clientX: number, clientY: number): React.MouseEvent => ({
@@ -180,8 +194,19 @@ export function PedigreeCanvasBody() {
     if (!coords) return;
     dispatch({ type: "SET_STATE", patch: { selectedAnnotationId: annId } });
     preDragCanvasRef.current = canvas;
-    dispatch({ type: "SET_STATE", patch: { annDragging: { annId, startSVG: coords, initOffset: { x: canvas.annotations.find((a) => a.id === annId)?.offsetX ?? 0, y: canvas.annotations.find((a) => a.id === annId)?.offsetY ?? 0 } } } });
+    const ann = canvas.annotations.find((a) => a.id === annId);
+    pendingAnnDragRef.current = { annId, startSVG: coords, initOffset: { x: ann?.offsetX ?? 0, y: ann?.offsetY ?? 0 } };
   }, [getSVGCoords, canvas, preDragCanvasRef]);
+
+  const handleAnnotationUpdateText = useCallback((annId: string, text: string) => {
+    updateAnnotation(annId, { text });
+  }, [updateAnnotation]);
+
+  const nodeIdsWithEdges = useMemo(() => {
+    const ids = new Set<string>();
+    for (const e of canvas.edges) { ids.add(e.sourceId); ids.add(e.targetId); }
+    return ids;
+  }, [canvas.edges]);
 
   return (
     <div className="flex flex-1 overflow-hidden" data-print-area>
@@ -199,27 +224,64 @@ export function PedigreeCanvasBody() {
         >
           {visibleGenRows.map((row) => (
             <line key={row} x1={viewBox.x} y1={row} x2={viewBox.x + vbW} y2={row}
-              stroke={"hsl(var(--primary))"} strokeWidth={0.5} strokeDasharray="6 4" opacity={0.25}
+              stroke={"hsl(var(--muted-foreground) / 0.12)"} strokeWidth={0.3} strokeDasharray="6 4" opacity={0.4}
             />
           ))}
 
-          {generationRailEntries.length > 0 && (
+          {generationRailEntries.length > 0 && (() => {
+            // Enforce minimum 24px vertical spacing between rail entries
+            const spacedEntries = generationRailEntries.reduce<{ roman: string; y: number }[]>((acc, entry) => {
+              if (acc.length === 0) return [{ roman: entry.roman, y: entry.y }];
+              const last = acc[acc.length - 1]!;
+              const minGap = 24;
+              acc.push({ roman: entry.roman, y: Math.max(entry.y, last.y + minGap) });
+              return acc;
+            }, []);
+            return (
+              <g style={{ pointerEvents: "none" }}>
+                <line x1={viewBox.x + 44} y1={viewBox.y + 30} x2={viewBox.x + 44} y2={viewBox.y + vbH - 30}
+                  stroke={"hsl(var(--primary))"} strokeWidth={0.75} opacity={0.12}
+                />
+                {spacedEntries.map(({ roman, y }) => (
+                  <text key={roman} x={viewBox.x + 10} y={y + 5} fontSize={14} fontWeight="700"
+                    fontFamily="JetBrains Mono, monospace" fill="hsl(var(--foreground) / 0.35)"
+                    style={{ userSelect: "none", letterSpacing: "0.05em" }}
+                  >{roman}</text>
+                ))}
+              </g>
+            );
+          })()}
+
+          {alignGuides.length > 0 && (
             <g style={{ pointerEvents: "none" }}>
-              <line x1={viewBox.x + 44} y1={viewBox.y + 30} x2={viewBox.x + 44} y2={viewBox.y + vbH - 30}
-                stroke={"hsl(var(--primary))"} strokeWidth={0.75} opacity={0.12}
-              />
-              {generationRailEntries.map(({ roman, y }) => (
-                <text key={roman} x={viewBox.x + 10} y={y + 5} fontSize={14} fontWeight="700"
-                  fontFamily="JetBrains Mono, monospace" fill="hsl(var(--foreground) / 0.35)"
-                  style={{ userSelect: "none", letterSpacing: "0.05em" }}
-                >{roman}</text>
-              ))}
+              {alignGuides.map((g, i) => {
+                const isSnap = g.strength === "snap";
+                const sw = isSnap ? 1.5 : 0.75;
+                const opacity = isSnap ? 0.85 : 0.5;
+                const dash = isSnap ? undefined : "4 4";
+                return g.axis === "x" ? (
+                  <line key={i} x1={g.pos} y1={viewBox.y} x2={g.pos} y2={viewBox.y + vbH}
+                    stroke="hsl(var(--primary))" strokeWidth={sw} strokeDasharray={dash} opacity={opacity} />
+                ) : (
+                  <line key={i} x1={viewBox.x} y1={g.pos} x2={viewBox.x + vbW} y2={g.pos}
+                    stroke="hsl(var(--primary))" strokeWidth={sw} strokeDasharray={dash} opacity={opacity} />
+                );
+              })}
+              {alignGuides.filter(g => g.strength === "snap").map((g, i) =>
+                g.axis === "x" ? (
+                  <polygon key={`d${i}`} points={`${g.pos},${viewBox.y + 10} ${g.pos + 4},${viewBox.y + 16} ${g.pos},${viewBox.y + 22} ${g.pos - 4},${viewBox.y + 16}`}
+                    fill="hsl(var(--primary))" opacity={0.6} />
+                ) : (
+                  <polygon key={`d${i}`} points={`${viewBox.x + 10},${g.pos} ${viewBox.x + 16},${g.pos - 4} ${viewBox.x + 22},${g.pos} ${viewBox.x + 16},${g.pos + 4}`}
+                    fill="hsl(var(--primary))" opacity={0.6} />
+                )
+              )}
             </g>
           )}
 
-          <rect ref={lassoRectRef} x={0} y={0} width={0} height={0}
+          <rect ref={lassoRectRef}
             fill="hsl(var(--primary) / 0.08)" stroke={"hsl(var(--primary))"} strokeWidth={1.5}
-            strokeDasharray="8 4" style={{ display: "none", pointerEvents: "none" }}
+            strokeDasharray="8 4" style={{ display: lassoVisible ? "" : "none", pointerEvents: "none" }}
           />
 
           {searchMatches.length > 0 && (
@@ -239,19 +301,20 @@ export function PedigreeCanvasBody() {
           <g>
             {canvas.edges.filter((e) => e.type !== "parent-child").map((edge) => (
               <EdgeLine key={edge.id} edge={edge} nodes={canvas.nodes}
-                invalid={validation.invalidEdgeIds.has(edge.id)}
+                invalid={showValidation && validation.invalidEdgeIds.has(edge.id)}
               />
             ))}
           </g>
 
-          <SibshipLayer edges={canvas.edges} nodes={canvas.nodes} invalidEdgeIds={validation.invalidEdgeIds} />
+          <SibshipLayer edges={canvas.edges} nodes={canvas.nodes} invalidEdgeIds={showValidation ? validation.invalidEdgeIds : EMPTY_SET} />
 
           <g>
             {canvas.nodes.map((node) => (
               <NodeShape key={node.id} node={node}
                 selected={selectedIds.has(node.id)} isLinkSource={linkSource === node.id}
-                invalid={validation.invalidNodeIds.has(node.id)}
+                invalid={showValidation && validation.invalidNodeIds.has(node.id)}
                 autoLabel={showAutoLabels ? autoLabels.get(node.id) : undefined}
+                hasEdges={nodeIdsWithEdges.has(node.id)}
                 onClick={(e) => handleNodeClick(node.id, e)}
                 onDragStart={(e) => handleDragStart(e, node.id)}
                 onContextMenu={(e) => handleNodeContextMenu(node.id, e)}
@@ -268,6 +331,7 @@ export function PedigreeCanvasBody() {
             canvas={canvas}
             onAnnotationClick={handleAnnotationClick}
             onAnnotationDragStart={handleAnnotationDragStart}
+            onAnnotationUpdateText={handleAnnotationUpdateText}
           />
 
           {canvas.nodes.length === 0 && (
@@ -303,10 +367,12 @@ export function PedigreeCanvasBody() {
           viewBox={{ x: viewBox.x, y: viewBox.y }}
           vbW={vbW} vbH={vbH} mmW={MM_W} mmH={MM_H}
           nodeCount={canvas.nodes.length}
-          onMinimapPan={(fx, fy) => dispatch({ type: "SET_STATE", patch: { viewBox: { ...viewBox, x: fx * 1400 - vbW / 2, y: fy * 900 - vbH / 2 } } })}
+          onMinimapPan={(cx, cy) => dispatch({ type: "SET_STATE", patch: { viewBox: { ...viewBox, x: cx - vbW / 2, y: cy - vbH / 2 } } })}
           showLegend={showLegend}
           legendEntries={legendEntries}
           singleSelected={selectedIds.size === 1}
+          showRiskPanel={showRiskPanel}
+          showValidation={showValidation}
         />
 
         {editModalNodeId && (() => {
@@ -344,7 +410,7 @@ export function PedigreeCanvasBody() {
           );
         })()}
 
-        {anySelected && (
+        {anySelected && !showRiskPanel && !showValidation && (
           <PropertiesPanel
             selectedIds={selectedIds}
             canvasNodes={canvas.nodes} canvasEdges={canvas.edges}
@@ -361,14 +427,30 @@ export function PedigreeCanvasBody() {
             onAlignSelected={alignSelected}
           />
         )}
-      </div>
 
-      {showRiskPanel && (
-        <RiskPanelSidebar canvas={canvas} mode={riskMode}
-          onModeChange={(m) => dispatch({ type: "SET_STATE", patch: { riskMode: m } })}
-          onClose={() => dispatch({ type: "SET_STATE", patch: { showRiskPanel: false } })}
-        />
-      )}
+        {showRiskPanel && (
+          <div className="absolute right-0 top-0 bottom-0 z-30 overflow-hidden shadow-[-4px_0_12px_rgba(0,0,0,0.08),0_4px_12px_rgba(0,0,0,0.08)]">
+            <RiskPanelSidebar canvas={canvas} mode={riskMode}
+              onModeChange={(m) => dispatch({ type: "SET_STATE", patch: { riskMode: m } })}
+              onClose={() => dispatch({ type: "SET_STATE", patch: { showRiskPanel: false } })}
+            />
+          </div>
+        )}
+
+        {showValidation && (
+          <div className="absolute right-0 top-0 bottom-0 z-30 overflow-hidden shadow-[-4px_0_12px_rgba(0,0,0,0.08),0_4px_12px_rgba(0,0,0,0.08)]">
+            <ValidationPanelWrapper
+              validation={validation} expandedIssueId={expandedIssueId}
+              onToggleIssue={(id) => dispatch({ type: "SET_STATE", patch: { expandedIssueId: expandedIssueId === id ? null : id } })}
+              onFocusIssue={(nodeIds) => {
+                if (nodeIds.length > 0) { dispatch({ type: "SET_STATE", patch: { selectedIds: new Set(nodeIds), showValidation: true } }); }
+              }}
+              nodes={canvas.nodes}
+              onClose={() => dispatch({ type: "SET_STATE", patch: { showValidation: false } })}
+            />
+          </div>
+        )}
+      </div>
 
       {showVersions && (
         <VersionHistoryPanel
@@ -378,22 +460,22 @@ export function PedigreeCanvasBody() {
         />
       )}
 
-      {showValidation && (
-        <ValidationPanelWrapper
-          validation={validation} expandedIssueId={expandedIssueId}
-          onToggleIssue={(id) => dispatch({ type: "SET_STATE", patch: { expandedIssueId: expandedIssueId === id ? null : id } })}
-          onFocusIssue={(nodeIds) => {
-            if (nodeIds.length > 0) { dispatch({ type: "SET_STATE", patch: { selectedIds: new Set(nodeIds), showValidation: true } }); }
-          }}
-          nodes={canvas.nodes}
-        />
-      )}
-
       {showShareModal && pedigree && (
         <ShareModal pedigreeId={pedigree.id} pedigreeTitle={pedigree.title}
           onClose={() => dispatch({ type: "SET_STATE", patch: { showShareModal: false } })}
         />
       )}
+
+      {showAddSiblingDialog && siblingSourceId && (() => {
+        const srcNode = canvas.nodes.find((n) => n.id === siblingSourceId);
+        if (!srcNode) return null;
+        return (
+          <AddSiblingDialog sourceNode={srcNode}
+            onConfirm={(siblings) => addSiblings(siblingSourceId, siblings)}
+            onCancel={() => dispatch({ type: "SET_STATE", patch: { showAddSiblingDialog: false, siblingSourceId: null } })}
+          />
+        );
+      })()}
     </div>
   );
 }
