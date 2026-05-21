@@ -10,6 +10,7 @@ export interface ValidationPanelWrapperProps {
   onToggleIssue: (id: string) => void;
   onFocusIssue: (nodeIds: string[]) => void;
   nodes: PedigreeNode[];
+  onClose?: () => void;
 }
 
 export function ValidationPanelWrapper({
@@ -18,6 +19,7 @@ export function ValidationPanelWrapper({
   onToggleIssue,
   onFocusIssue,
   nodes,
+  onClose,
 }: ValidationPanelWrapperProps) {
   const hasIssues = validation.issues.length > 0;
   const hasErrors = validation.errorCount > 0;
@@ -30,23 +32,26 @@ export function ValidationPanelWrapper({
           ? <AlertTriangle className={`w-3.5 h-3.5 ${hasErrors ? "text-red-400" : "text-yellow-400"}`} />
           : <ShieldCheck className="w-3.5 h-3.5 text-primary" />
       }
-      width="w-64"
+      width="w-72"
+      onClose={onClose}
       actions={
-        <span
-          className={`text-xs ${
-            hasErrors
-              ? "text-red-400"
+        hasIssues ? (
+          <span
+            className={`text-xs ${
+              hasErrors
+                ? "text-red-400"
+                : validation.warningCount > 0
+                ? "text-yellow-400"
+                : "text-primary"
+            }`}
+          >
+            {hasErrors
+              ? `${validation.errorCount} error${validation.errorCount !== 1 ? "s" : ""}, ${validation.warningCount} warning${validation.warningCount !== 1 ? "s" : ""}`
               : validation.warningCount > 0
-              ? "text-yellow-400"
-              : "text-primary"
-          }`}
-        >
-          {hasErrors
-            ? `${validation.errorCount} error${validation.errorCount !== 1 ? "s" : ""}, ${validation.warningCount} warning${validation.warningCount !== 1 ? "s" : ""}`
-            : validation.warningCount > 0
-            ? `${validation.warningCount} warning${validation.warningCount !== 1 ? "s" : ""}`
-            : "No issues found ✓"}
-        </span>
+              ? `${validation.warningCount} warning${validation.warningCount !== 1 ? "s" : ""}`
+              : null}
+          </span>
+        ) : undefined
       }
     >
       <div className="flex flex-col min-h-full gap-4">

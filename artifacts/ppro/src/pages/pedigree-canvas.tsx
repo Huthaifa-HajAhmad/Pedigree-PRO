@@ -81,9 +81,13 @@ function PedigreeCanvasInner() {
         currentId={pedigree?.id ?? 0}
         showTabPicker={state.showTabPicker}
         onToggleTabPicker={() => ctx.dispatch({ type: "SET_STATE", patch: { showTabPicker: !state.showTabPicker } })}
+        onCloseTabPicker={() => ctx.dispatch({ type: "SET_STATE", patch: { showTabPicker: false } })}
         onCloseTab={ops.handleCloseTab}
+        onRenameTab={ops.renameTab}
         onNavigate={navigate}
-        onOpenTab={(tid, title) => {}}
+        onOpenTab={(tid, title) => { ops.openTab(tid, title); navigate(`/pedigrees/${tid}`); }}
+        onReorderTab={ops.reorderTabs}
+        onDeletePedigree={ops.handleDeletePedigree}
       />
 
       {showDraftBanner && (
@@ -95,6 +99,8 @@ function PedigreeCanvasInner() {
         linkMode={state.linkMode} linkSource={state.linkSource}
         setLinkMode={toggle.setLinkMode}
         setLinkSource={toggle.setLinkSource}
+        selectedIds={state.selectedIds}
+        createConsanguinityEdge={ops.createConsanguinityEdge}
         undo={ops.undo} redo={ops.redo} deleteSelected={ops.deleteSelected}
         historyLength={state.history.length} futureLength={state.future.length}
         selectedCount={state.selectedIds.size} anySelected={memo.anySelected}
@@ -141,6 +147,9 @@ function PedigreeCanvasInner() {
           exportPPRO(pedigree?.id ?? 0, exporterKey, getExportInfo().title);
           ctx.dispatch({ type: "SET_STATE", patch: { showExportMenu: false } });
         }}
+        clearSelection={() => ctx.dispatch({ type: "SET_STATE", patch: { selectedIds: new Set(), selectedAnnotationId: null } })}
+        pedigreeTitle={pedigree?.title ?? ""}
+        onDeletePedigree={() => ops.handleDeletePedigree(pedigree?.id ?? 0, pedigree?.title ?? "")}
       />
 
       <PedigreeCanvasBody />

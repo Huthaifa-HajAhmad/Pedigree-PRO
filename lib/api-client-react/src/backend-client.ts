@@ -105,7 +105,7 @@ export function createPatient(input: CreatePatientInput): Promise<Patient> {
 }
 
 export function updatePatient(id: number, input: Partial<CreatePatientInput>): Promise<Patient> {
-  return apiCall<Patient>("update_patient", { id, ...input } as unknown as Record<string, unknown>);
+  return apiCall<Patient>("update_patient", { id, input } as unknown as Record<string, unknown>);
 }
 
 export function deletePatient(id: number): Promise<void> {
@@ -166,7 +166,7 @@ export function createPedigree(input: CreatePedigreeInput): Promise<Pedigree> {
 }
 
 export function updatePedigree(id: number, input: Partial<CreatePedigreeInput>): Promise<Pedigree> {
-  return apiCall<Pedigree>("update_pedigree", { id, ...input } as unknown as Record<string, unknown>);
+  return apiCall<Pedigree>("update_pedigree", { id, input } as unknown as Record<string, unknown>);
 }
 
 export function deletePedigree(id: number): Promise<void> {
@@ -204,7 +204,7 @@ export function listVersions(pedigreeId: number): Promise<PedigreeVersion[]> {
 }
 
 export function saveVersion(pedigreeId: number, input: SaveVersionInput): Promise<PedigreeVersion> {
-  return apiCall<PedigreeVersion>("save_version", { pedigree_id: pedigreeId, ...input } as unknown as Record<string, unknown>);
+  return apiCall<PedigreeVersion>("save_version", { pedigree_id: pedigreeId, input } as unknown as Record<string, unknown>);
 }
 
 export function restoreVersion(pedigreeId: number, versionId: number): Promise<Pedigree> {

@@ -2,6 +2,7 @@ import { useParams, Link } from "wouter";
 import { memo } from "react";
 import { useGetSharedPedigree } from "@workspace/api-client-react";
 import type { PedigreeNode, PedigreeEdge } from "@/features/pedigree-editor/canvas/types";
+import { NODE_SIZE } from "@/features/pedigree-editor/canvas/types";
 
 interface CanvasData {
   nodes: PedigreeNode[];
@@ -18,7 +19,6 @@ function parseCanvas(raw: string | null | undefined): CanvasData {
   }
 }
 
-const NODE_SIZE = 44;
 const NEON = "hsl(235 75% 62%)";
 
 const EdgeLine = memo(({ edge, nodes }: { edge: PedigreeEdge; nodes: PedigreeNode[] }) => {

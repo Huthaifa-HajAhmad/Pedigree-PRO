@@ -35,6 +35,18 @@ export function toRoman(n: number): string {
   return result;
 }
 
+export function romanToInt(s: string): number {
+  const map: Record<string, number> = { I: 1, V: 5, X: 10, L: 50, C: 100, D: 500, M: 1000 };
+  let total = 0;
+  for (let i = 0; i < s.length; i++) {
+    const curr = map[s[i]!] ?? 0;
+    const next = map[s[i + 1]!] ?? 0;
+    if (curr < next) total -= curr;
+    else total += curr;
+  }
+  return total;
+}
+
 // ── Main export ───────────────────────────────────────────────────────────────
 export function computeAutoLabels(
   nodes: LabelNode[],
@@ -55,6 +67,16 @@ export function computeAutoLabels(
     if (!allIds.has(p) || !allIds.has(c)) continue; // guard against stale refs
     (childrenOf.get(p) ?? (childrenOf.set(p, []), childrenOf.get(p)!)).push(c);
     (parentsOf.get(c)  ?? (parentsOf.set(c, []),  parentsOf.get(c)!)).push(p);
+  }
+
+  // Build couples adjacency from couple/consanguinity edges so partners share generation.
+  const couplesOf = new Map<string, string[]>();
+  for (const edge of edges) {
+    if (edge.type !== "couple" && edge.type !== "consanguinity") continue;
+    const { sourceId, targetId } = edge;
+    if (!allIds.has(sourceId) || !allIds.has(targetId)) continue;
+    (couplesOf.get(sourceId) ?? (couplesOf.set(sourceId, []), couplesOf.get(sourceId)!)).push(targetId);
+    (couplesOf.get(targetId)  ?? (couplesOf.set(targetId, []),  couplesOf.get(targetId)!)).push(sourceId);
   }
 
   const hasParentChildEdges = childrenOf.size > 0;
@@ -84,6 +106,13 @@ export function computeAutoLabels(
       const current = genOf.get(id) ?? -1;
       if (gen <= current) continue; // already at this or deeper generation
       genOf.set(id, gen);
+      // Propagate same generation to couple partners
+      for (const partnerId of (couplesOf.get(id) ?? [])) {
+        const partnerGen = genOf.get(partnerId);
+        if (partnerGen === undefined || partnerGen < gen) {
+          queue.push({ id: partnerId, gen });
+        }
+      }
       for (const childId of (childrenOf.get(id) ?? [])) {
         queue.push({ id: childId, gen: gen + 1 });
       }

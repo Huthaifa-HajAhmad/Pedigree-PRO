@@ -17,6 +17,8 @@
     "@esbuild/win32-x64": "^0.27.3",
     "@fontsource/inter": "^5.2.8",
     "@fontsource/jetbrains-mono": "^5.2.8",
+    "@fontsource/manrope": "^5.2.8",
+    "@fontsource/plus-jakarta-sans": "^5.2.8",
     "@hookform/resolvers": "^3.10.0",
     "@radix-ui/react-dialog": "^1.1.7",
     "@radix-ui/react-label": "^2.1.3",

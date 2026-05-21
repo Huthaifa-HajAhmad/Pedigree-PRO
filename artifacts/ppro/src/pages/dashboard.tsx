@@ -1,7 +1,7 @@
 import { useCallback } from "react";
 import { useGetDashboardStats, useGetRecentActivity, useListPedigrees } from "@workspace/api-client-react";
 import { Link } from "wouter";
-import { UserCircle, Activity, TrendingUp, Clock, ChevronRight, Dna, Plus, Upload, UserPlus, Calendar } from "lucide-react";
+import { UserCircle, Activity, TrendingUp, Clock, ChevronRight, Dna, Plus, Upload, UserPlus, Calendar, GitBranch } from "lucide-react";
 import { StatsGrid } from "@/components/shared/StatsGrid";
 
 function ScrollFade({ children }: { children: React.ReactNode }) {
@@ -86,9 +86,17 @@ export default function Dashboard() {
           </div>
           <div className="flex-1 min-w-0">
             <div className="text-xs font-medium truncate">{p.title}</div>
-            <div className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1">
-              <Calendar className="w-3 h-3" />
-              {formatDateSafe(p.updated_at)}
+            <div className="text-xs text-muted-foreground mt-0.5 flex items-center gap-2">
+              <span className="flex items-center gap-1">
+                <Calendar className="w-3 h-3" />
+                {formatDateSafe(p.updated_at)}
+              </span>
+              {p.version_count > 0 && (
+                <span className="flex items-center gap-1">
+                  <GitBranch className="w-3 h-3" />
+                  v{p.version_count}
+                </span>
+              )}
             </div>
           </div>
           <ChevronRight className="w-4 h-4 text-muted-foreground/40 group-hover:text-primary/60 transition-colors" />
@@ -107,7 +115,7 @@ export default function Dashboard() {
           </div>
           <h1 className="text-xl font-semibold tracking-tight text-foreground">Clinical Dashboard</h1>
         </div>
-        <p className="text-sm text-muted-foreground ml-11">Genetics — Pedigree Intelligence Overview</p>
+        <p className="text-base text-muted-foreground ml-11">Family pedigree management and analysis</p>
       </div>
 
       {/* Stat cards */}

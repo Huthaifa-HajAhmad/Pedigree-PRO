@@ -23,3 +23,27 @@
 /* Hide scrollbar in tabs bar while keeping scroll functionality */
 .tabs-bar::-webkit-scrollbar { display: none; }
 .tabs-bar { scrollbar-width: none; -ms-overflow-style: none; }
+
+/* Elegant thin scrollbar for ribbon toolbar */
+.ribbon-scroll::-webkit-scrollbar { height: 3px; }
+.ribbon-scroll::-webkit-scrollbar-track { background: transparent; }
+.ribbon-scroll::-webkit-scrollbar-thumb { background: hsl(var(--muted-foreground) / 0.15); border-radius: 999px; }
+.ribbon-scroll:hover::-webkit-scrollbar-thumb { background: hsl(var(--muted-foreground) / 0.35); }
+.ribbon-scroll { scrollbar-width: thin; scrollbar-color: hsl(var(--muted-foreground) / 0.15) transparent; }
+
+/* Fade indicators for ribbon overflow */
+.ribbon-fade-left,
+.ribbon-fade-right {
+  pointer-events: none;
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 24px;
+  z-index: 10;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+.ribbon-fade-left { left: 0; background: linear-gradient(to right, hsl(var(--card)), transparent); }
+.ribbon-fade-right { right: 0; background: linear-gradient(to left, hsl(var(--card)), transparent); }
+.ribbon-fade-left.visible,
+.ribbon-fade-right.visible { opacity: 1; }

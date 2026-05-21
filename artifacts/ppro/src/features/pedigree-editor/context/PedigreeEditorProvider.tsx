@@ -3,12 +3,12 @@ import { useLocation } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useGetPedigree, useUpdatePedigree, useListVersions,
-  useSaveVersion, useRestoreVersion, useListProfiles, queryKeys,
+  useSaveVersion, useRestoreVersion, useListProfiles, useListPedigrees, useDeletePedigree, queryKeys,
 } from "@workspace/api-client-react";
-import { getAccentHex } from "@/lib/theme";
+import { getDefaultAnnotationColor } from "@/lib/theme";
 import { validatePedigree } from "@/lib/validate-pedigree";
 import { computeAutoLayout } from "@/lib/auto-layout";
-import { computeAutoLabels } from "@/lib/pedigree-labels";
+import { computeAutoLabels, romanToInt } from "@/lib/pedigree-labels";
 import { generateThumbnail } from "@/lib/generate-thumbnail";
 import { toast } from "@/hooks/use-toast";
 import { usePedigreeTabs } from "@/hooks/use-pedigree-tabs";
@@ -18,6 +18,7 @@ import { listProfilePrivateKeys } from "@workspace/browser-backend";
 import { usePedigreeDraft } from "@/hooks/use-pedigree-draft";
 import { usePedigreeCanvas } from "@/features/pedigree-editor/hooks/use-pedigree-canvas";
 import { parseCanvas } from "@/features/pedigree-editor/utils/helpers";
+import { getModuleCanvasConfig } from "@/features/pedigree-editor/context/CanvasConfigContext";
 import { pedigreeEditorReducer } from "./reducer";
 import { INITIAL_STATE, type PedigreeEditorContextValue } from "./types";
 import type { PedigreeNode, PedigreeEdge, PedigreeAnnotation, CanvasData } from "@/features/pedigree-editor/canvas/types";
@@ -34,6 +35,7 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
   const { data: versions, isLoading: versionsLoading } = useListVersions(id);
   const { data: profiles } = useListProfiles();
   const updatePedigree = useUpdatePedigree();
+  const deletePedigree = useDeletePedigree();
   const saveVersionMutation = useSaveVersion();
   const restoreVersionMutation = useRestoreVersion();
 
@@ -51,9 +53,12 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
   const spaceHeldRef = useRef(false);
   const rafRef = useRef<number | null>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const pendingAnnDragRef = useRef<{ annId: string; startSVG: { x: number; y: number }; initOffset: { x: number; y: number } } | null>(null);
   const draftKeyRef = useRef(`ppro_draft_${id}`);
   useEffect(() => { draftKeyRef.current = `ppro_draft_${id}`; }, [id]);
   const initialSyncDoneRef = useRef(false);
+  // Reset initial sync when pedigree id changes (M8 fix)
+  useEffect(() => { initialSyncDoneRef.current = false; }, [id]);
   const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const { showDraftBanner, draftEnabledRef, handleRestoreDraft, handleDismissDraft } = usePedigreeDraft({
@@ -99,8 +104,8 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
     }
     return [...groups.entries()].map(([r, ys]) => {
       const sorted = [...ys].sort((a, b) => a - b);
-      return { roman: r, y: sorted[Math.floor(ys.length / 2)] ?? 0 };
-    }).sort((a, b) => a.y - b.y);
+      return { roman: r, y: sorted[Math.floor(ys.length / 2)] ?? 0, genIdx: romanToInt(r) };
+    }).sort((a, b) => a.genIdx - b.genIdx);
   }, [state.canvas.nodes, autoLabels, state.showAutoLabels]);
 
   const legendEntries = useMemo(() => {
@@ -118,13 +123,29 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
     if (state.canvas.nodes.some((n) => n.proband)) e.push({ key: "proband", label: "Proband" });
     if (et.has("couple")) e.push({ key: "couple", label: "Partners" });
     if (et.has("consanguinity")) e.push({ key: "consanguinity", label: "Consanguineous" });
-    if (et.has("parent-child")) e.push({ key: "parent-child", label: "Parent–Child" });
+    if (et.has("parent-child")) e.push({ key: "parent-child", label: "Parent-Child" });
     return e;
   }, [state.canvas]);
 
-  const { tabs, openTab, closeTab } = usePedigreeTabs();
+  const { tabs, openTab, closeTab, reorderTabs, pruneStaleTabs, renameTab: renameTabLocal } = usePedigreeTabs();
   const [, navigate] = useLocation();
-  useEffect(() => { if (pedigree?.title && id) openTab(id, pedigree.title); }, [pedigree?.title, id, openTab]);
+  const lastSeenRef = useRef<{ id: number; title: string } | null>(null);
+  useEffect(() => {
+    if (!pedigree?.title || !id) return;
+    const nid = Number(id);
+    const seen = lastSeenRef.current;
+    if (seen?.id !== nid || seen?.title !== pedigree.title) {
+      lastSeenRef.current = { id: nid, title: pedigree.title };
+      openTab(nid, pedigree.title);
+    }
+  }, [pedigree?.title, id, openTab]);
+
+  const { data: allPedigrees } = useListPedigrees({});
+  useEffect(() => {
+    if (allPedigrees && allPedigrees.length > 0) {
+      pruneStaleTabs(new Set(allPedigrees.map((p) => p.id)));
+    }
+  }, [allPedigrees, pruneStaleTabs]);
 
   const tabItems = useMemo(() => tabs.map((t) => ({ id: t.id, title: t.title })), [tabs]);
 
@@ -144,8 +165,11 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
   const autoSave = useCallback((newCanvas: CanvasData) => {
     dispatch({ type: "SET_STATE", patch: { saveStatus: "saving" } });
     updatePedigree.mutate({ id, input: { canvas_data: JSON.stringify(newCanvas) } }, {
-      onSuccess: () => {
-        queryClient.setQueryData(queryKeys.pedigree(id), (old: { canvas_data?: string } | undefined) => old ? { ...old, canvas_data: JSON.stringify(newCanvas), canvas_hash: undefined } : old);
+      onSuccess: (data) => {
+        // Only update cache if this response is newer than what's cached (H4 fix)
+        const current = queryClient.getQueryData(queryKeys.pedigree(id)) as { updated_at?: string } | undefined;
+        if (current?.updated_at && data?.updated_at && new Date(data.updated_at) < new Date(current.updated_at)) return;
+        queryClient.setQueryData(queryKeys.pedigree(id), data);
         dispatch({ type: "SET_STATE", patch: { saveStatus: "saved" } });
         setTimeout(() => dispatch({ type: "SET_STATE", patch: { saveStatus: "idle" } }), 2000);
         try { localStorage.removeItem(`ppro_draft_${id}`); } catch {}
@@ -164,10 +188,16 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
     return () => { if (autoSaveTimerRef.current !== null) clearTimeout(autoSaveTimerRef.current); };
   }, [state.canvas]);
 
+  const draftSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   useEffect(() => {
     if (draftEnabledRef.current) {
-      try { localStorage.setItem(draftKeyRef.current, JSON.stringify({ canvas: state.canvas, at: Date.now() })); } catch {}
+      if (draftSaveTimerRef.current !== null) clearTimeout(draftSaveTimerRef.current);
+      draftSaveTimerRef.current = setTimeout(() => {
+        try { localStorage.setItem(draftKeyRef.current, JSON.stringify({ canvas: state.canvas, at: Date.now() })); } catch {}
+      }, 500);
     }
+    return () => { if (draftSaveTimerRef.current !== null) clearTimeout(draftSaveTimerRef.current); };
   }, [state.canvas]);
 
   useEffect(() => { return () => { if (rafRef.current !== null) { cancelAnimationFrame(rafRef.current); rafRef.current = null; } }; }, []);
@@ -200,25 +230,179 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
     dispatch({ type: "SET_STATE", patch: { selectedIds: new Set([nid]) } });
   }, []);
 
-  const addContextNode = useCallback((rel: "child" | "sibling" | "partner") => {
+    // Helper: get unique parent IDs from edges
+    const parentIdsFromEdges = useCallback((edges: PedigreeEdge[]): string[] => {
+      const ids = edges.map((e) => e.sourceId);
+      return [...new Set(ids)];
+    }, []);
+
+    // Helper: find position by shifting existing nodes to make room
+    // This uses a simpler, more robust algorithm that finds the nearest free slot
+    const insertAndShiftRight = useCallback((p: CanvasData, startX: number, y: number, direction: 1 | -1 = 1, excludeIds?: Set<string>): { x: number; shifts: Map<string, number> } => {
+      const shifts = new Map<string, number>();
+      const GAP = NODE_GAP;
+      const Y_TOLERANCE = NODE_SIZE; // Only consider nodes roughly on the same row
+
+      // Check collision at a given X position
+      const collidesAt = (x: number) =>
+        p.nodes.some((n) => !excludeIds?.has(n.id) && !shifts.has(n.id) && Math.abs(n.x - x) < GAP && Math.abs(n.y - y) < Y_TOLERANCE);
+
+      // Find the first free position by scanning in the specified direction
+      let targetX = startX;
+      while (collidesAt(targetX)) {
+        targetX += direction * GAP;
+      }
+
+      // If no collision at original startX, just use it without shifts
+      if (targetX === startX) {
+        return { x: startX, shifts };
+      }
+
+      // We need to shift nodes between startX and targetX
+      // Get nodes on the same row, sorted by X
+      const rowNodes = [...p.nodes]
+        .filter((n) => !excludeIds?.has(n.id) && Math.abs(n.y - y) < Y_TOLERANCE)
+        .sort((a, b) => a.x - b.x);
+
+      if (direction > 0) {
+        // Shifting right: move all nodes at or right of startX to make room
+        for (const n of rowNodes) {
+          if (n.x >= startX - GAP / 2) {
+            // This node needs to shift right by at least enough to not overlap with previous shifted node
+            const prevShiftedX = shifts.size > 0
+              ? Math.max(...Array.from(shifts.values()))
+              : startX - GAP;
+            const newX = Math.max(n.x + GAP, prevShiftedX + GAP);
+            shifts.set(n.id, newX);
+          }
+        }
+      } else {
+        // Shifting left: move all nodes at or left of startX to make room
+        for (const n of [...rowNodes].reverse()) {
+          if (n.x <= startX + GAP / 2) {
+            const prevShiftedX = shifts.size > 0
+              ? Math.min(...Array.from(shifts.values()))
+              : startX + GAP;
+            const newX = Math.min(n.x - GAP, prevShiftedX - GAP);
+            shifts.set(n.id, newX);
+          }
+        }
+      }
+
+      return { x: startX, shifts };
+    }, []);
+
+    const addContextNode = useCallback((rel: "child" | "sibling" | "partner" | "parents") => {
     const sids = stateRef.current.selectedIds; if (sids.size !== 1) return;
     const sid = [...sids][0]; if (!sid) return;
+    if (rel === "sibling") {
+      dispatch({ type: "SET_STATE", patch: { showAddSiblingDialog: true, siblingSourceId: sid } });
+      return;
+    }
     const now = Date.now(), nid = `n${now}-${Math.random().toString(36).slice(2, 6)}`;
     dispatch({ type: "UPDATE_CANVAS", updater: (p) => {
       const s = p.nodes.find((n) => n.id === sid); if (!s) return p;
-      const SX = 110, SY = 150;
+      const SY = 150;
+      const nd = { affected: false, carrier: false, deceased: false, proband: false, label: "", age: "" };
       let nx: number, ny: number, nt: PedigreeNode["type"]; const ne: PedigreeEdge[] = [];
-      if (rel === "child") { ny = s.y + SY; nt = "unknown";
+      if (rel === "child") {
+        ny = s.y + SY; nt = "unknown";
         const ce = p.edges.find((e) => e.type === "couple" && (e.sourceId === sid || e.targetId === sid));
-        if (ce) { const pid = ce.sourceId === sid ? ce.targetId : ce.sourceId; nx = (s.x + (p.nodes.find((n) => n.id === pid)?.x ?? s.x)) / 2; ne.push({ id: `e${now}`, type: "parent-child", sourceId: sid, targetId: nid }, { id: `e${now + 1}`, type: "parent-child", sourceId: pid, targetId: nid }); }
-        else { const mid = `n${now + 100}`; const mt: PedigreeNode["type"] = s.type === "female" ? "male" : s.type === "male" ? "female" : "unknown"; nx = s.x + SX / 2;
-          return { ...p, nodes: [...p.nodes, { id: mid, type: mt, affected: false, carrier: false, deceased: false, proband: false, label: "", age: "", x: s.x + SX, y: s.y }, { id: nid, type: nt, affected: false, carrier: false, deceased: false, proband: false, label: "", age: "", x: nx, y: ny }], edges: [...p.edges, { id: `e${now}`, type: "couple", sourceId: sid, targetId: mid }, { id: `e${now + 1}`, type: "parent-child", sourceId: sid, targetId: nid }, { id: `e${now + 2}`, type: "parent-child", sourceId: mid, targetId: nid }] }; } }
-      else if (rel === "partner") { nt = s.type === "male" ? "female" : s.type === "female" ? "male" : "unknown"; nx = s.x + SX; ny = s.y; ne.push({ id: `e${now}`, type: "couple", sourceId: sid, targetId: nid }); }
-      else { nt = (s.type === "sab" || s.type === "pregnancy") ? "unknown" : s.type; ny = s.y; nx = s.x + SX; }
-      return { ...p, nodes: [...p.nodes, { id: nid, type: nt, affected: false, carrier: false, deceased: false, proband: false, label: "", age: "", x: nx, y: ny }], edges: [...p.edges, ...ne] };
+        if (ce) {
+          const pid = ce.sourceId === sid ? ce.targetId : ce.sourceId;
+          nx = (s.x + (p.nodes.find((n) => n.id === pid)?.x ?? s.x)) / 2;
+          ne.push({ id: `e${now}`, type: "parent-child", sourceId: sid, targetId: nid }, { id: `e${now + 1}`, type: "parent-child", sourceId: pid, targetId: nid });
+        }
+        else {
+          // Auto-create partner for child - use insertAndShiftRight
+          const mid = `n${now + 100}`;
+          const mt: PedigreeNode["type"] = s.type === "female" ? "male" : s.type === "male" ? "female" : "unknown";
+          let partnerDir: 1 | -1 = s.type === "female" ? -1 : 1;
+          const existingCoupleForChild = p.edges.find(e => e.type === "couple" && (e.sourceId === sid || e.targetId === sid));
+          if (existingCoupleForChild) {
+            const partnerId = existingCoupleForChild.sourceId === sid ? existingCoupleForChild.targetId : existingCoupleForChild.sourceId;
+            const partnerNode = p.nodes.find(n => n.id === partnerId);
+            if (partnerNode) {
+              const partnerOnRight = partnerNode.x > s.x;
+              const standardIsRight = partnerDir > 0;
+              if (partnerOnRight === standardIsRight) partnerDir = partnerDir > 0 ? -1 : 1;
+            }
+          }
+          const partnerStartX = partnerDir > 0 ? s.x + NODE_GAP : s.x - NODE_GAP;
+          const partnerRes = insertAndShiftRight(p, partnerStartX, s.y, partnerDir, new Set([sid]));
+          // Apply shifts to existing nodes
+          const shiftedNodes = p.nodes.map((n) => {
+            const newX = partnerRes.shifts.get(n.id);
+            return newX !== undefined ? { ...n, x: newX } : n;
+          });
+          // Child is placed at the midpoint between the two parents
+          nx = (s.x + partnerRes.x) / 2;
+          return {
+            ...p,
+            nodes: [...shiftedNodes, { id: mid, type: mt, ...nd, x: partnerRes.x, y: s.y }, { id: nid, type: nt, ...nd, x: nx, y: ny }],
+            edges: [...p.edges, { id: `e${now}`, type: "couple", sourceId: sid, targetId: mid }, { id: `e${now + 1}`, type: "parent-child", sourceId: sid, targetId: nid }, { id: `e${now + 2}`, type: "parent-child", sourceId: mid, targetId: nid }]
+          };
+        }
+      }
+      else if (rel === "partner") {
+        nt = s.type === "male" ? "female" : s.type === "female" ? "male" : "unknown";
+        let dir: 1 | -1 = s.type === "female" ? -1 : 1;
+        const existingCouple = p.edges.find(e => e.type === "couple" && (e.sourceId === sid || e.targetId === sid));
+        if (existingCouple) {
+          const partnerId = existingCouple.sourceId === sid ? existingCouple.targetId : existingCouple.sourceId;
+          const partnerNode = p.nodes.find(n => n.id === partnerId);
+          if (partnerNode) {
+            const partnerOnRight = partnerNode.x > s.x;
+            const standardIsRight = dir > 0;
+            if (partnerOnRight === standardIsRight) dir = dir > 0 ? -1 : 1;
+          }
+        }
+        const startX = dir > 0 ? s.x + NODE_GAP : s.x - NODE_GAP;
+        const res = insertAndShiftRight(p, startX, s.y, dir, new Set([sid]));
+        nx = res.x; ny = s.y;
+        // Apply shifts to existing nodes
+        const shiftedNodes = p.nodes.map((n) => {
+          const newX = res.shifts.get(n.id);
+          return newX !== undefined ? { ...n, x: newX } : n;
+        });
+        ne.push({ id: `e${now}`, type: "couple", sourceId: sid, targetId: nid });
+        return { ...p, nodes: [...shiftedNodes, { id: nid, type: nt, ...nd, x: nx, y: ny }], edges: [...p.edges, ...ne] };
+      }
+      else if (rel === "parents") {
+        const fid = `n${now}`, mid2 = `n${now + 1}`; ny = s.y - SY;
+        // Center parents above the child, excluding the child node from collision
+        const resLeft = insertAndShiftRight(p, s.x - NODE_GAP / 2, ny, -1, new Set([sid]));
+        // Apply left shifts before calculating right to avoid double-shifting
+        const afterLeftShifts = p.nodes.map((n) => ({
+          ...n,
+          x: resLeft.shifts.get(n.id) ?? n.x
+        }));
+        const resRight = insertAndShiftRight({ ...p, nodes: afterLeftShifts }, s.x + NODE_GAP / 2, ny, 1, new Set([sid]));
+        // Combine shifts from both directions
+        const allShifts = new Map<string, number>(resLeft.shifts);
+        resRight.shifts.forEach((x, id) => {
+          const existing = allShifts.get(id);
+          // Take the shift that moves the node furthest (handles nodes caught between both parents)
+          if (existing === undefined || (x > 0 && x > existing) || (x < 0 && x < existing)) {
+            allShifts.set(id, x);
+          }
+        });
+        // Apply shifts
+        const shiftedNodes = p.nodes.map((n) => {
+          const newX = allShifts.get(n.id);
+          return newX !== undefined ? { ...n, x: newX } : n;
+        });
+        return {
+          ...p,
+          nodes: [...shiftedNodes, { id: fid, type: "male", ...nd, x: resLeft.x, y: ny }, { id: mid2, type: "female", ...nd, x: resRight.x, y: ny }],
+          edges: [...p.edges, { id: `e${now}`, type: "couple", sourceId: fid, targetId: mid2 }, { id: `e${now + 1}`, type: "parent-child", sourceId: fid, targetId: sid }, { id: `e${now + 2}`, type: "parent-child", sourceId: mid2, targetId: sid }]
+        };
+      }
+      else { return p; }
+      return { ...p, nodes: [...p.nodes, { id: nid, type: nt!, ...nd, x: nx!, y: ny! }], edges: [...p.edges, ...ne] };
     } });
     dispatch({ type: "SET_STATE", patch: { selectedIds: new Set([nid]) } });
-  }, []);
+  }, [insertAndShiftRight]);
 
   const toggleNodeProp = useCallback((nid: string, prop: "affected" | "carrier" | "deceased" | "proband") => {
     dispatch({ type: "UPDATE_CANVAS", updater: (p) => ({ ...p, nodes: p.nodes.map((n) => n.id === nid ? { ...n, [prop]: typeof n[prop] === "boolean" ? !n[prop] : true } : n) }) });
@@ -237,6 +421,7 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
 
   const handleNodeDoubleClick = useCallback((nid: string, e: React.MouseEvent) => {
     e.stopPropagation();
+    if (Date.now() - lastDragEndTimeRef.current < 400) return;
     dispatch({ type: "SET_STATE", patch: { selectedIds: new Set([nid]), editModalNodeId: nid } });
   }, []);
 
@@ -267,7 +452,13 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
   }, []);
 
   const addAnnotation = useCallback((nid: string) => {
-    const a: PedigreeAnnotation = { id: `a${Date.now()}`, nodeId: nid, text: "Note", color: getAccentHex(), fontSize: 12, position: "above" };
+    const existing = stateRef.current.canvas.annotations.filter(a => a.nodeId === nid);
+    const posCounts: Record<string, number> = { above: 0, below: 0, left: 0, right: 0 };
+    for (const a of existing) { posCounts[a.position] = (posCounts[a.position] ?? 0) + 1; }
+    const bestPos = (Object.entries(posCounts) as [string, number][]).sort((a, b) => a[1] - b[1])[0];
+    const position = (bestPos?.[0] ?? "below") as PedigreeAnnotation["position"];
+    const cfg = getModuleCanvasConfig?.() ?? { annFontSize: 12 };
+    const a: PedigreeAnnotation = { id: `a${Date.now()}`, nodeId: nid, text: "Note", color: getDefaultAnnotationColor(), fontSize: cfg.annFontSize ?? 12, position };
     dispatch({ type: "UPDATE_CANVAS", updater: (p) => ({ ...p, annotations: [...p.annotations, a] }) });
     dispatch({ type: "SET_STATE", patch: { selectedAnnotationId: a.id } });
   }, []);
@@ -291,7 +482,25 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
           if (p.edges.some((ed) => (ed.type === "couple" || ed.type === "consanguinity") && (ed.sourceId === s.linkSource || ed.targetId === s.linkSource))) return { ...p, edges: [...p.edges, { id: `e${Date.now()}`, type: "parent-child", sourceId: s.linkSource!, targetId: nid }] };
           const mt: PedigreeNode["type"] = pn.type === "male" ? "female" : pn.type === "female" ? "male" : "unknown";
           const ts = Date.now(), mid = `n${ts}-${Math.random().toString(36).slice(2, 6)}_auto`;
-          return { ...p, nodes: [...p.nodes, { id: mid, type: mt, affected: false, carrier: false, deceased: false, proband: false, label: "", age: "", x: pn.type === "female" ? pn.x - NODE_GAP : pn.x + NODE_GAP, y: pn.y, pinned: true }], edges: [...p.edges, { id: `e${Date.now()}`, type: "parent-child", sourceId: s.linkSource!, targetId: nid }, { id: `ec${ts}`, type: "couple", sourceId: s.linkSource!, targetId: mid }, { id: `emc${ts}`, type: "parent-child", sourceId: mid, targetId: nid }] };
+          let dir: 1 | -1 = pn.type === "female" ? -1 : 1;
+          const existingLinkCouple = p.edges.find(e => e.type === "couple" && (e.sourceId === s.linkSource! || e.targetId === s.linkSource!));
+          if (existingLinkCouple) {
+            const partnerId = existingLinkCouple.sourceId === s.linkSource! ? existingLinkCouple.targetId : existingLinkCouple.sourceId;
+            const partnerNode = p.nodes.find(n => n.id === partnerId);
+            if (partnerNode) {
+              const partnerOnRight = partnerNode.x > pn.x;
+              const standardIsRight = dir > 0;
+              if (partnerOnRight === standardIsRight) dir = dir > 0 ? -1 : 1;
+            }
+          }
+          const startPx = dir > 0 ? pn.x + NODE_GAP : pn.x - NODE_GAP;
+          const res = insertAndShiftRight(p, startPx, pn.y, dir, new Set([s.linkSource!]));
+          // Apply shifts to existing nodes
+          const shiftedNodes = p.nodes.map((n) => {
+            const newX = res.shifts.get(n.id);
+            return newX !== undefined ? { ...n, x: newX } : n;
+          });
+          return { ...p, nodes: [...shiftedNodes, { id: mid, type: mt, affected: false, carrier: false, deceased: false, proband: false, label: "", age: "", x: res.x, y: pn.y }], edges: [...p.edges, { id: `e${Date.now()}`, type: "parent-child", sourceId: s.linkSource!, targetId: nid }, { id: `ec${ts}`, type: "couple", sourceId: s.linkSource!, targetId: mid }, { id: `emc${ts}`, type: "parent-child", sourceId: mid, targetId: nid }] };
         } });
         else dispatch({ type: "UPDATE_CANVAS", updater: (p) => ({ ...p, edges: [...p.edges, { id: `e${Date.now()}`, type: s.linkMode!, sourceId: s.linkSource!, targetId: nid }] }) });
       }
@@ -300,12 +509,12 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
     if (s.linkMode && !s.linkSource) { dispatch({ type: "SET_STATE", patch: { linkSource: nid } }); return; }
     if (e.metaKey || e.ctrlKey) { const n = new Set(s.selectedIds); n.has(nid) ? n.delete(nid) : n.add(nid); dispatch({ type: "SET_STATE", patch: { selectedIds: n } }); }
     else dispatch({ type: "SET_STATE", patch: { selectedIds: new Set([nid]) } });
-  }, []);
+  }, [insertAndShiftRight]);
 
   const runAutoLayout = useCallback((rp: boolean) => {
     dispatch({ type: "UPDATE_CANVAS", updater: (p) => ({ ...p, nodes: computeAutoLayout(p.nodes, p.edges, rp) as PedigreeNode[] }) });
   }, []);
-  useEffect(() => { if (state.liveLayout && state.canvas.nodes.length > 0) runAutoLayout(true); }, [state.liveLayout, state.canvas.edges, state.canvas.nodes.length, runAutoLayout]);
+  useEffect(() => { if (state.liveLayout && state.canvas.nodes.length > 0) runAutoLayout(true); }, [state.liveLayout, state.canvas.edges.length, state.canvas.nodes.length, runAutoLayout]);
 
   const bakeEmptyLabels = useCallback(() => {
     dispatch({ type: "UPDATE_CANVAS", updater: (p) => ({ ...p, nodes: p.nodes.map((n) => { if (n.label) return n; const c = computeAutoLabels(p.nodes, p.edges).get(n.id); return c ? { ...n, label: c } : n; }) }) });
@@ -332,6 +541,184 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
     }
   }, [closeTab, id, tabs, navigate]);
 
+  const renameTab = useCallback((tabId: number, newTitle: string) => {
+    const prevTitle = tabs.find((t) => t.id === tabId)?.title ?? "";
+    renameTabLocal(tabId, newTitle);
+    const cached = queryClient.getQueryData(queryKeys.pedigree(tabId)) as Record<string, unknown> | undefined;
+    if (cached) {
+      queryClient.setQueryData(queryKeys.pedigree(tabId), { ...cached, title: newTitle });
+    }
+    updatePedigree.mutate({ id: tabId, input: { title: newTitle } }, {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: queryKeys.pedigrees });
+        queryClient.invalidateQueries({ queryKey: queryKeys.pedigree(tabId) });
+      },
+      onError: () => {
+        renameTabLocal(tabId, prevTitle);
+        toast({ title: "Rename failed", description: "Could not update pedigree title.", variant: "destructive" });
+      },
+    });
+  }, [renameTabLocal, updatePedigree, queryClient, tabs, toast]);
+
+  const createConsanguinityEdge = useCallback((sourceId: string, targetId: string) => {
+    dispatch({ type: "UPDATE_CANVAS", updater: (p) => ({
+      ...p,
+      edges: [
+        ...p.edges.filter((ed) => !(ed.type === "couple" && ((ed.sourceId === sourceId && ed.targetId === targetId) || (ed.sourceId === targetId && ed.targetId === sourceId)))),
+        { id: `e${Date.now()}`, type: "consanguinity", sourceId, targetId }
+      ]
+    }) });
+  }, []);
+
+  // Helper: parse DOB string (YYYY or YYYY-MM or YYYY-MM-DD) for sorting
+  const parseDobYear = (dob?: string): number => {
+    if (!dob) return 9999; // Unknown/empty DOB sorts last (youngest)
+    const parts = dob.split("-");
+    const year = parseInt(parts[0] || "", 10);
+    return isNaN(year) ? 9999 : year;
+  };
+
+  // Helper: calculate age from DOB string
+  const calculateAgeFromDob = (dob?: string): string => {
+    if (!dob) return "";
+    const birthDate = new Date(dob);
+    if (isNaN(birthDate.getTime())) return "";
+    const today = new Date();
+    let age = today.getFullYear() - birthDate.getFullYear();
+    const monthDiff = today.getMonth() - birthDate.getMonth();
+    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+      age--;
+    }
+    return age > 0 ? String(age) : "";
+  };
+
+  const addSiblings = useCallback((sourceId: string, siblings: Array<{ type: PedigreeNode["type"]; dob: string; annotation: string }>) => {
+    dispatch({ type: "UPDATE_CANVAS", updater: (p) => {
+      const s = p.nodes.find((n) => n.id === sourceId); if (!s) return p;
+      const SY = 150;
+      // Sort siblings by DOB - older (lower year) first = left
+      const sortedSiblings = [...siblings].sort((a, b) => parseDobYear(a.dob) - parseDobYear(b.dob));
+      const nd = { affected: false, carrier: false, deceased: false, proband: false, label: "", age: "" };
+      const parentEdges = p.edges.filter((e) => e.type === "parent-child" && e.targetId === sourceId);
+      let parentIds = parentIdsFromEdges(parentEdges);
+      let parents = parentIds.map((id) => p.nodes.find((n) => n.id === id)).filter(Boolean) as PedigreeNode[];
+      const now = Date.now();
+      let newNodes: PedigreeNode[] = [];
+      const newEdges: PedigreeEdge[] = [];
+      let allShifts = new Map<string, number>();
+
+      // If no parents exist, auto-create them above the source node
+      if (parentIds.length === 0) {
+        const fid = `n${now}_father`;
+        const mid = `n${now}_mother`;
+        const parentY = s.y - SY;
+
+        // Position parents centered above the source node
+        const fatherRes = insertAndShiftRight(p, s.x - NODE_GAP / 2, parentY, -1, new Set([s.id]));
+        const motherRes = insertAndShiftRight(p, s.x + NODE_GAP / 2, parentY, 1, new Set([s.id]));
+
+        // Merge parent shifts
+        fatherRes.shifts.forEach((x, id) => allShifts.set(id, x));
+        motherRes.shifts.forEach((x, id) => allShifts.set(id, x));
+
+        // Create parent nodes
+        newNodes.push(
+          { id: fid, type: "male", ...nd, x: fatherRes.x, y: parentY, label: "" },
+          { id: mid, type: "female", ...nd, x: motherRes.x, y: parentY, label: "" }
+        );
+
+        // Create couple edge between parents
+        newEdges.push({ id: `e${now}_couple`, type: "couple", sourceId: fid, targetId: mid });
+        // Create parent-child edges
+        newEdges.push({ id: `e${now}_pf`, type: "parent-child", sourceId: fid, targetId: sourceId });
+        newEdges.push({ id: `e${now}_pm`, type: "parent-child", sourceId: mid, targetId: sourceId });
+
+        // Update parentIds for sibling connections
+        parentIds = [fid, mid];
+        parents = newNodes.filter((n) => n.id === fid || n.id === mid);
+      }
+
+      const allChildIds = new Set<string>();
+      for (const pid of parentIds) {
+        for (const e of [...p.edges, ...newEdges]) {
+          if (e.type === "parent-child" && e.sourceId === pid) allChildIds.add(e.targetId);
+        }
+      }
+      allChildIds.add(sourceId);
+
+      for (let i = 0; i < sortedSiblings.length; i++) {
+        const sb = sortedSiblings[i]!;
+        const age = calculateAgeFromDob(sb.dob);
+        const nid = `n${now + i}-${Math.random().toString(36).slice(2, 6)}`;
+        newNodes.push({
+          id: nid,
+          type: sb.type,
+          ...nd,
+          x: 0,
+          y: s.y,
+          dob: sb.dob || undefined,
+          age,
+          label: sb.annotation || ""
+        });
+        allChildIds.add(nid);
+        for (let pi = 0; pi < parentIds.length; pi++) {
+          const pid = parentIds[pi]!;
+          newEdges.push({
+            id: `e${now + i}_${pi}`,
+            type: "parent-child",
+            sourceId: pid,
+            targetId: nid
+          });
+        }
+      }
+
+      const allNodes = [...p.nodes, ...newNodes];
+      const childMap = new Map<string, PedigreeNode>();
+      for (const n of allNodes) {
+        if (allChildIds.has(n.id)) childMap.set(n.id, n);
+      }
+      const allChildren = [...childMap.values()];
+      allChildren.sort((a, b) => parseDobYear(a.dob) - parseDobYear(b.dob));
+
+      const parentCenter = parents.length === 2
+        ? (parents[0]!.x + parents[1]!.x) / 2
+        : parents.length === 1 ? parents[0]!.x
+        : s.x;
+
+      const totalWidth = (allChildren.length - 1) * NODE_GAP;
+      const childStartX = parentCenter - totalWidth / 2;
+
+      const positionMap = new Map<string, number>();
+      allChildren.forEach((child, i) => {
+        positionMap.set(child.id, childStartX + i * NODE_GAP);
+      });
+
+      const shiftedNodes = p.nodes.map((n) => {
+        const newX = allShifts.get(n.id) ?? positionMap.get(n.id);
+        return newX !== undefined ? { ...n, x: newX } : n;
+      });
+
+      newNodes = newNodes.map((n) => {
+        const newX = positionMap.get(n.id);
+        return newX !== undefined ? { ...n, x: newX } : n;
+      });
+
+      return { ...p, nodes: [...shiftedNodes, ...newNodes], edges: [...p.edges, ...newEdges] };
+    } });
+    dispatch({ type: "SET_STATE", patch: { showAddSiblingDialog: false, siblingSourceId: null } });
+  }, [insertAndShiftRight, parentIdsFromEdges]);
+
+  const handleDeletePedigree = useCallback((tabId: number, tabTitle: string) => {
+    openConfirm("Delete Pedigree", `Delete "${tabTitle}"? This cannot be undone.`, () => {
+      deletePedigree.mutate(tabId, {
+        onSuccess: () => {
+          closeTab(tabId);
+          navigate("/pedigrees");
+        },
+      });
+    }, "destructive");
+  }, [openConfirm, deletePedigree, closeTab, navigate]);
+
   const navigateArrow = useCallback((dir: "ArrowUp" | "ArrowDown" | "ArrowLeft" | "ArrowRight") => {
     const nodes = stateRef.current.canvas.nodes; if (!nodes.length) return;
     const single = stateRef.current.selectedIds.size === 1 ? nodes.find((n) => stateRef.current.selectedIds.has(n.id)) ?? null : null;
@@ -343,7 +730,7 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
     dispatch({ type: "SET_STATE", patch: { selectedIds: new Set([candidates.reduce((b, n) => (n.x - x) ** 2 + (n.y - y) ** 2 < (b.x - x) ** 2 + (b.y - y) ** 2 ? n : b).id]) } });
   }, []);
 
-  const { getSVGCoords, handleDragStart, handleMouseMove, handleMouseUp, handleSVGMouseDown, handleWheel, fitToScreen } = usePedigreeCanvas({ stateRef, dispatch, svgRef, lassoRef, isLassoingRef, lassoRectRef, spaceHeldRef, preDragCanvasRef, rafRef, canvasRef, draftEnabledRef, draftKeyRef });
+  const { getSVGCoords, handleDragStart, handleMouseMove, handleMouseUp, handleSVGMouseDown, handleWheel, fitToScreen, lastDragEndTimeRef } = usePedigreeCanvas({ stateRef, dispatch, svgRef, lassoRef, isLassoingRef, lassoRectRef, spaceHeldRef, preDragCanvasRef, rafRef, pendingAnnDragRef });
 
   const setShowSearch: Dispatch<SetStateAction<boolean>> = useCallback((v) => { const nv = typeof v === "function" ? v(stateRef.current.showSearch) : v; dispatch({ type: "SET_STATE", patch: { showSearch: nv } }); }, []);
   const setSearchQuery: Dispatch<SetStateAction<string>> = useCallback((q) => { const nq = typeof q === "function" ? q(stateRef.current.searchQuery) : q; dispatch({ type: "SET_STATE", patch: { searchQuery: nq } }); }, []);
@@ -369,11 +756,11 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
 
   const value = useMemo<PedigreeEditorContextValue>(() => ({
     state, dispatch,
-    ops: { updateCanvas, undo, redo, addNode, addContextNode, toggleNodeProp, setNodeType, handleNodeContextMenu, handleNodeDoubleClick, handleNodeClick, deleteSelected, updateSelectedNode, bulkUpdate, alignSelected, addAnnotation, updateAnnotation, deleteAnnotation, runAutoLayout, bakeEmptyLabels, bakeAllLabels, openConfirm, navigateArrow, handleCloseTab, fitToScreen, getSVGCoords, handleDragStart, handleMouseMove, handleMouseUp, handleSVGMouseDown, handleWheel, handleSaveVersion, commitSaveVersion, handleDeleteVersion, handleRestoreVersion },
+    ops: { updateCanvas, undo, redo, addNode, addContextNode, toggleNodeProp, setNodeType, handleNodeContextMenu, handleNodeDoubleClick, handleNodeClick, deleteSelected, updateSelectedNode, bulkUpdate, alignSelected, addAnnotation, updateAnnotation, deleteAnnotation, runAutoLayout, bakeEmptyLabels, bakeAllLabels, openConfirm, navigateArrow, handleCloseTab, openTab, reorderTabs, renameTab, fitToScreen, getSVGCoords, handleDragStart, handleMouseMove, handleMouseUp, handleSVGMouseDown, handleWheel, handleSaveVersion, commitSaveVersion, handleDeleteVersion, handleRestoreVersion, createConsanguinityEdge, addSiblings, handleDeletePedigree },
     memo: { autoLabels, validation, searchMatches, generationRailEntries, legendEntries, visibleGenRows, vbW, vbH, MM_W, MM_H, singleSelected: state.selectedIds.size === 1 ? state.canvas.nodes.find((n) => state.selectedIds.has(n.id)) ?? null : null, anySelected: state.selectedIds.size > 0, tabItems },
-    refs: { svgRef, canvasRef, preDragCanvasRef, lassoRef, isLassoingRef, lassoRectRef, spaceHeldRef, rafRef, searchInputRef, draftKeyRef, draftEnabledRef },
+    refs: { svgRef, canvasRef, preDragCanvasRef, lassoRef, isLassoingRef, lassoRectRef, spaceHeldRef, rafRef, searchInputRef, draftKeyRef, draftEnabledRef, pendingAnnDragRef },
     pedigree, versions, versionsLoading, profiles, saveVersionPending: saveVersionMutation.isPending, showDraftBanner, onRestoreDraft, handleDismissDraft,
-  }), [state, updateCanvas, undo, redo, addNode, addContextNode, toggleNodeProp, setNodeType, handleNodeContextMenu, handleNodeDoubleClick, handleNodeClick, deleteSelected, updateSelectedNode, bulkUpdate, alignSelected, addAnnotation, updateAnnotation, deleteAnnotation, runAutoLayout, bakeEmptyLabels, bakeAllLabels, openConfirm, navigateArrow, fitToScreen, getSVGCoords, handleDragStart, handleMouseMove, handleMouseUp, handleSVGMouseDown, handleWheel, commitSaveVersion, handleRestoreVersion, autoLabels, validation, searchMatches, generationRailEntries, legendEntries, visibleGenRows, vbW, vbH, MM_W, MM_H, tabItems, saveVersionMutation.isPending]);
+  }), [state, updateCanvas, undo, redo, addNode, addContextNode, toggleNodeProp, setNodeType, handleNodeContextMenu, handleNodeDoubleClick, handleNodeClick, deleteSelected, updateSelectedNode, bulkUpdate, alignSelected, addAnnotation, updateAnnotation, deleteAnnotation, runAutoLayout, bakeEmptyLabels, bakeAllLabels, openConfirm, navigateArrow, openTab, reorderTabs, renameTab, fitToScreen, getSVGCoords, handleDragStart, handleMouseMove, handleMouseUp, handleSVGMouseDown, handleWheel, commitSaveVersion, handleRestoreVersion, createConsanguinityEdge, addSiblings, handleDeletePedigree, autoLabels, validation, searchMatches, generationRailEntries, legendEntries, visibleGenRows, vbW, vbH, MM_W, MM_H, tabItems, saveVersionMutation.isPending]);
 
   return <PedigreeEditorContext.Provider value={value}>{children}</PedigreeEditorContext.Provider>;
 }

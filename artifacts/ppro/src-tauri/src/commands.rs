@@ -572,13 +572,13 @@ pub fn create_pedigree(
     )
     .map_err(|e| format!("Failed to create pedigree: {}", e))?;
 
+    let id = db.last_insert_rowid();
+
     let _ = db.execute(
         "INSERT INTO activity_log (action, subject, actor_key, timestamp)
          VALUES ('created', ?1, ?2, datetime('now'))",
         params![input.title, input.creator_key],
     );
-
-    let id = db.last_insert_rowid();
     drop(db);
     get_pedigree(state, id)
 }

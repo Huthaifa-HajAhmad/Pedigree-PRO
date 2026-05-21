@@ -3,9 +3,9 @@ import { useState, useEffect, useRef, useCallback, type RefObject } from "react"
 export type ToolbarMode = "full" | "compact" | "minimal" | "overflow";
 
 const BREAKPOINTS = {
-  full: 1200,
-  compact: 900,
-  minimal: 700,
+  full: 1050,
+  compact: 820,
+  minimal: 600,
 };
 
 export function useToolbarLayout(): { mode: ToolbarMode; ref: RefObject<HTMLDivElement | null> } {

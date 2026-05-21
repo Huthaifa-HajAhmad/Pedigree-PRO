@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useRef } from "react";
 import { Minimap } from "@/features/pedigree-editor/overlay/Minimap";
 import { LegendPanel } from "@/features/pedigree-editor/overlay/LegendPanel";
 import { KeyboardShortcutHint } from "@/features/pedigree-editor/overlay/KeyboardShortcutHint";
@@ -18,6 +18,8 @@ export function CanvasOverlayManager({
   showLegend,
   legendEntries,
   singleSelected,
+  showRiskPanel,
+  showValidation,
 }: {
   showMinimap: boolean;
   minimapNodes: PedigreeNode[];
@@ -28,60 +30,46 @@ export function CanvasOverlayManager({
   mmW: number;
   mmH: number;
   nodeCount: number;
-  onMinimapPan: (fx: number, fy: number) => void;
+  onMinimapPan: (cx: number, cy: number) => void;
   showLegend: boolean;
   legendEntries: Array<{ key: string; label: string }>;
   singleSelected: boolean;
+  showRiskPanel: boolean;
+  showValidation: boolean;
 }) {
-  const [legendExpanded, setLegendExpanded] = useState(false);
-  const [narrow, setNarrow] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
-
-  const measure = useCallback(() => {
-    if (containerRef.current) {
-      setNarrow(containerRef.current.clientWidth < 480);
-    }
-  }, []);
-
-  useEffect(() => {
-    measure();
-    const el = containerRef.current;
-    if (!el) return;
-    const ro = new ResizeObserver(measure);
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, [measure]);
-
-  const minimapVisible = showMinimap
-    && nodeCount > 0
-    && !(narrow && legendExpanded);
+  const minimapVisible = showMinimap && nodeCount > 0;
+  const panelOpen = singleSelected || showRiskPanel || showValidation;
 
   return (
     <div ref={containerRef} className="absolute inset-0 pointer-events-none">
-      {minimapVisible && (
-        <div className="pointer-events-auto">
-          <Minimap
-            nodes={minimapNodes}
-            edges={minimapEdges}
-            viewBox={viewBox}
-            vbW={vbW}
-            vbH={vbH}
-            mmW={mmW}
-            mmH={mmH}
-            onPan={onMinimapPan}
-          />
-        </div>
-      )}
-
       <KeyboardShortcutHint singleSelected={singleSelected} />
 
-      {showLegend && (
-        <div className="pointer-events-auto">
-          <LegendPanel
-            entries={legendEntries}
-            expanded={legendExpanded}
-            onToggle={setLegendExpanded}
-          />
+      {/* Stacked overlay container: legend above minimap on the right side */}
+      {(minimapVisible || showLegend) && (
+        <div className={`absolute bottom-4 flex flex-col-reverse gap-2 pointer-events-auto ${panelOpen ? "right-[296px]" : "right-4"}`}>
+          {minimapVisible && (
+            <Minimap
+              shifted={false}
+              containerClassName="!relative !bottom-0 !right-0"
+              nodes={minimapNodes}
+              edges={minimapEdges}
+              viewBox={viewBox}
+              vbW={vbW}
+              vbH={vbH}
+              mmW={mmW}
+              mmH={mmH}
+              onPan={onMinimapPan}
+            />
+          )}
+          {showLegend && (
+            <LegendPanel
+              entries={legendEntries}
+              expanded={true}
+              onToggle={() => {}}
+              className="!relative !bottom-0 !right-0 !left-auto"
+            />
+          )}
         </div>
       )}
     </div>

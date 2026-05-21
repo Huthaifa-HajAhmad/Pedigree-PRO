@@ -74,3 +74,21 @@ data/*.sqlite-journal
 .env.local
 .env.*.local
 
+# Kilo agent tooling
+.kilo/
+
+# Kilo alternate directory
+.commandcode/
+
+# Playwright MCP logs
+.playwright-mcp/
+
+# Playwright test results
+test-results/
+
+# Typecheck helper scripts
+typecheck.bat
+
+# Landing page screenshots (not source)
+landing-page.png
+

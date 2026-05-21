@@ -1,14 +1,29 @@
-import { useEffect, useRef, useCallback } from "react";
-import { Plus, Trash2, User, Calendar, Stethoscope, Dna, Flag, MessageSquare } from "lucide-react";
+import { useState, useEffect, useCallback } from "react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import {
+  Plus, Trash2, Square, Circle, Diamond, Baby, AlertTriangle, RotateCcw,
+} from "lucide-react";
 import type { PedigreeNode, PedigreeAnnotation } from "@/features/pedigree-editor/canvas/types";
-import { ANNOTATION_COLORS, ANNOTATION_SIZES, ANNOTATION_POSITIONS } from "@/features/pedigree-editor/canvas/types";
-import { PanelShell } from "@/components/shared/panels/PanelShell";
-import { PanelSection } from "@/components/shared/panels/PanelSection";
+import { ANNOTATION_COLORS, ANNOTATION_POSITIONS } from "@/features/pedigree-editor/canvas/types";
 
-export function NodeEditModal({
-  node, autoLabel, annotations,
-  onClose, onUpdateNode, onAddAnnotation, onUpdateAnnotation, onDeleteAnnotation,
-}: {
+function TypeIcon({ type }: { type: PedigreeNode["type"] }) {
+  const cls = "w-3.5 h-3.5";
+  switch (type) {
+    case "male": return <Square className={cls} />;
+    case "female": return <Circle className={cls} />;
+    case "unknown": return <Diamond className={cls} />;
+    case "pregnancy": return <Baby className={cls} />;
+    case "sab": return <AlertTriangle className={cls} />;
+  }
+}
+
+interface NodeEditModalProps {
   node: PedigreeNode;
   autoLabel?: string;
   annotations: PedigreeAnnotation[];
@@ -17,143 +32,229 @@ export function NodeEditModal({
   onAddAnnotation: (nodeId: string) => void;
   onUpdateAnnotation: (annId: string, updates: Partial<PedigreeAnnotation>) => void;
   onDeleteAnnotation: (annId: string) => void;
-}) {
-  const onCloseRef = useRef(onClose);
-  onCloseRef.current = onClose;
+}
+
+export function NodeEditModal({
+  node, autoLabel, annotations,
+  onClose, onUpdateNode, onAddAnnotation, onUpdateAnnotation, onDeleteAnnotation,
+}: NodeEditModalProps) {
+  const [draft, setDraft] = useState<Partial<PedigreeNode>>({});
 
   useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onCloseRef.current();
-      if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) onCloseRef.current();
-    };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
+    setDraft({
+      label: node.label,
+      dob: node.dob,
+      age: node.age,
+      condition: node.condition,
+      notes: node.notes,
+      type: node.type,
+      affected: node.affected,
+      carrier: node.carrier,
+      deceased: node.deceased,
+      proband: node.proband,
+      pinned: node.pinned,
+    });
+  }, [node.id]);
+
+  const current = { ...node, ...draft } as PedigreeNode;
+
+  const patch = useCallback((u: Partial<PedigreeNode>) => {
+    setDraft((prev) => ({ ...prev, ...u }));
   }, []);
 
-  const statusValue = node.affected ? "affected" : node.carrier ? "carrier" : "unaffected";
+  const handleSave = () => {
+    const updates: Partial<PedigreeNode> = {};
+    if (draft.label !== undefined && draft.label !== node.label) updates.label = draft.label;
+    if (draft.dob !== undefined && draft.dob !== node.dob) updates.dob = draft.dob;
+    if (draft.age !== undefined && draft.age !== node.age) updates.age = draft.age;
+    if (draft.condition !== undefined && draft.condition !== node.condition) updates.condition = draft.condition;
+    if (draft.notes !== undefined && draft.notes !== node.notes) updates.notes = draft.notes;
+    if (draft.type !== undefined && draft.type !== node.type) updates.type = draft.type;
+    if (draft.affected !== undefined && draft.affected !== node.affected) updates.affected = draft.affected;
+    if (draft.carrier !== undefined && draft.carrier !== node.carrier) updates.carrier = draft.carrier;
+    if (draft.deceased !== undefined && draft.deceased !== node.deceased) updates.deceased = draft.deceased;
+    if (draft.proband !== undefined && draft.proband !== node.proband) updates.proband = draft.proband;
+    if (draft.pinned !== undefined && draft.pinned !== node.pinned) updates.pinned = draft.pinned;
+    if (Object.keys(updates).length > 0) onUpdateNode(updates);
+    onClose();
+  };
 
-  const field = "w-full bg-muted border border-border rounded-lg px-3 py-2 text-sm outline-none focus:border-primary transition-colors placeholder:text-muted-foreground";
+  const inputCls = "flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50";
   const sectionLabel = "text-xs uppercase tracking-widest text-muted-foreground block mb-2";
   const toggleBtn = (active: boolean) =>
-    `w-9 h-5 rounded-full border transition-all relative flex-shrink-0 ${active ? "border-primary" : "border-border"}`;
+    `w-9 h-5 rounded-full border transition-all relative flex-shrink-0 ${active ? "border-primary bg-primary" : "border-border bg-muted"}`;
 
   const handleAddAnnotation = useCallback(() => onAddAnnotation(node.id), [node.id, onAddAnnotation]);
 
+  const statusValue = current.affected ? "affected" : current.carrier ? "carrier" : "unaffected";
+
   return (
-    <div className="fixed inset-0 z-50 flex justify-end">
-      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative z-10 h-full w-80" onClick={(e) => e.stopPropagation()}>
-        <PanelShell
-          title="Edit Node"
-          icon={<User className="w-3.5 h-3.5" />}
-          onClose={onClose}
-          width="w-80"
-        >
+    <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>
+      <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto p-0 gap-0">
+        <DialogHeader className="px-6 pt-6 pb-2">
+          <DialogTitle className="flex items-center gap-2 text-base">
+            <TypeIcon type={current.type} />
+            Edit Node
+            {autoLabel && (
+              <span className="text-xs text-muted-foreground font-normal ml-1">({autoLabel})</span>
+            )}
+          </DialogTitle>
+        </DialogHeader>
+
+        <div className="px-6 py-4 space-y-6">
           {/* Identity */}
-          <PanelSection title="Identity" icon={<User className="w-3 h-3" />}>
-            <div>
-              <label htmlFor="ne-name" className={sectionLabel}>Name</label>
-              <input id="ne-name" type="text" value={node.label}
-                onChange={(e) => onUpdateNode({ label: e.target.value })}
-                placeholder="Patient name…" autoFocus className={field} />
-            </div>
-          </PanelSection>
+          <section>
+            <label className={sectionLabel}>Identity</label>
+            <input
+              type="text"
+              value={current.label ?? ""}
+              onChange={(e) => patch({ label: e.target.value })}
+              placeholder="Patient name…"
+              autoFocus
+              className={inputCls}
+            />
+          </section>
 
           {/* Demographics */}
-          <PanelSection title="Demographics" icon={<Calendar className="w-3 h-3" />}>
-            <div>
-              <label htmlFor="ne-dob" className={sectionLabel}>Date of Birth</label>
-              <input id="ne-dob" type="date" value={node.dob ?? ""}
-                onChange={(e) => onUpdateNode({ dob: e.target.value })} className={field} />
+          <section>
+            <label className={sectionLabel}>Demographics</label>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs text-muted-foreground mb-1 block">Date of Birth</label>
+                <input
+                  type="date"
+                  value={current.dob ?? ""}
+                  onChange={(e) => patch({ dob: e.target.value })}
+                  className={inputCls}
+                />
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground mb-1 block">Age (years)</label>
+                <input
+                  type="number"
+                  value={current.age ?? ""}
+                  onChange={(e) => patch({ age: e.target.value })}
+                  placeholder="e.g. 42"
+                  className={inputCls}
+                />
+              </div>
             </div>
-            <div>
-              <label htmlFor="ne-age" className={sectionLabel}>Age (years)</label>
-              <input id="ne-age" type="number" value={node.age ?? ""}
-                onChange={(e) => onUpdateNode({ age: e.target.value })}
-                placeholder="e.g. 42" className={field} />
-            </div>
-          </PanelSection>
+          </section>
 
           {/* Clinical */}
-          <PanelSection title="Clinical" icon={<Stethoscope className="w-3 h-3" />}>
-            <div>
-              <label htmlFor="ne-condition" className={sectionLabel}>Condition / Gene</label>
-              <input id="ne-condition" type="text" value={node.condition ?? ""}
-                onChange={(e) => onUpdateNode({ condition: e.target.value })}
-                placeholder="e.g. BRCA1, HD onset 48y" className={field} />
-              <p className="text-xs text-muted-foreground mt-1 opacity-60">Shown in amber italic below node</p>
+          <section>
+            <label className={sectionLabel}>Clinical Notes</label>
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs text-muted-foreground mb-1 block">Condition / Gene</label>
+                <input
+                  type="text"
+                  value={current.condition ?? ""}
+                  onChange={(e) => patch({ condition: e.target.value })}
+                  placeholder="e.g. BRCA1, HD onset 48y"
+                  className={inputCls}
+                />
+                <p className="text-xs text-muted-foreground mt-1 opacity-60">Shown in amber italic below node</p>
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground mb-1 block">Notes</label>
+                <textarea
+                  value={current.notes ?? ""}
+                  onChange={(e) => patch({ notes: e.target.value })}
+                  placeholder="Clinical observations…"
+                  rows={3}
+                  className={`${inputCls} resize-none min-h-[72px]`}
+                />
+                <p className="text-xs text-muted-foreground mt-1 opacity-60">{(current.notes ?? "").length} characters</p>
+              </div>
             </div>
-            <div>
-              <label htmlFor="ne-notes" className={sectionLabel}>Clinical Notes</label>
-              <textarea id="ne-notes" value={node.notes ?? ""}
-                onChange={(e) => onUpdateNode({ notes: e.target.value })}
-                placeholder="Clinical observations…" rows={4}
-                className={field + " resize-none"} />
-              <p className="text-xs text-muted-foreground mt-1 opacity-60">Sidebar & export only</p>
-            </div>
-          </PanelSection>
+          </section>
 
           {/* Type & Status */}
-          <PanelSection title="Type & Status" icon={<Dna className="w-3 h-3" />}>
-            <div>
-              <label className={sectionLabel}>Sex / Type</label>
-              <div className="grid grid-cols-3 md:grid-cols-5 gap-1.5">
-                {(["male", "female", "unknown", "pregnancy", "sab"] as const).map((t) => (
-                  <button type="button" key={t} onClick={() => onUpdateNode({ type: t })}
-                    className={`py-1.5 rounded-lg text-xs border transition-all ${
-                      node.type === t
-                        ? "border-primary text-primary bg-primary/10"
-                        : "border-border text-muted-foreground hover:border-primary"
-                    }`}>
-                    {t === "sab" ? "SAB" : t === "pregnancy" ? "Preg." : t.charAt(0).toUpperCase() + t.slice(1)}
-                  </button>
-                ))}
+          <section>
+            <label className={sectionLabel}>Type & Status</label>
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs text-muted-foreground mb-1.5 block">Sex / Type</label>
+                <div className="grid grid-cols-5 gap-1.5">
+                  {(["male", "female", "unknown", "pregnancy", "sab"] as const).map((t) => (
+                    <button
+                      type="button"
+                      key={t}
+                      onClick={() => patch({ type: t })}
+                      className={`py-1.5 rounded-lg text-xs border transition-all ${
+                        current.type === t
+                          ? "border-primary text-primary bg-primary/10"
+                          : "border-border text-muted-foreground hover:border-primary"
+                      }`}
+                    >
+                      {t === "sab" ? "SAB" : t === "pregnancy" ? "Preg." : t.charAt(0).toUpperCase() + t.slice(1)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground mb-1.5 block">Status</label>
+                <div className="grid grid-cols-3 gap-1.5">
+                  {(["unaffected", "affected", "carrier"] as const).map((s) => (
+                    <button
+                      type="button"
+                      key={s}
+                      onClick={() => {
+                        if (s === "affected") patch({ affected: true, carrier: false });
+                        else if (s === "carrier") patch({ affected: false, carrier: true });
+                        else patch({ affected: false, carrier: false });
+                      }}
+                      className={`py-1.5 rounded-lg text-xs border transition-all ${
+                        statusValue === s
+                          ? "border-primary text-primary bg-primary/10"
+                          : "border-border text-muted-foreground hover:border-primary"
+                      }`}
+                    >
+                      {s === "unaffected" ? "—" : s.charAt(0).toUpperCase() + s.slice(1)}
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
-            <div>
-              <label className={sectionLabel}>Status</label>
-              <div className="grid grid-cols-3 gap-1.5">
-                {(["unaffected", "affected", "carrier"] as const).map((s) => (
-                  <button type="button" key={s} onClick={() => {
-                    if (s === "affected") onUpdateNode({ affected: true, carrier: false });
-                    else if (s === "carrier") onUpdateNode({ affected: false, carrier: true });
-                    else onUpdateNode({ affected: false, carrier: false });
-                  }}
-                    className={`py-1.5 rounded-lg text-xs border transition-all ${
-                      statusValue === s
-                        ? "border-primary text-primary bg-primary/10"
-                        : "border-border text-muted-foreground hover:border-primary"
-                    }`}>
-                    {s === "unaffected" ? "—" : s.charAt(0).toUpperCase() + s.slice(1)}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </PanelSection>
+          </section>
 
           {/* Flags */}
-          <PanelSection title="Flags" icon={<Flag className="w-3 h-3" />}>
-            {([
-              { key: "deceased" as const, label: "Deceased" },
-              { key: "proband"  as const, label: "Proband"  },
-              { key: "pinned"   as const, label: "Pin position" },
-            ]).map(({ key, label }) => (
-              <div key={key} className="flex items-center justify-between">
-                <span className="text-xs text-muted-foreground uppercase tracking-widest">{label}</span>
-                <button type="button" onClick={() => onUpdateNode({ [key]: !node[key] })}
-                  className={`${toggleBtn(!!node[key])} ${node[key] ? "bg-primary" : "bg-muted"}`}>
-                  <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-background transition-transform ${node[key] ? "translate-x-4" : "translate-x-0.5"}`} />
-                </button>
-              </div>
-            ))}
-          </PanelSection>
+          <section>
+            <label className={sectionLabel}>Flags</label>
+            <div className="space-y-2">
+              {([
+                { key: "deceased" as const, label: "Deceased" },
+                { key: "proband" as const, label: "Proband" },
+                { key: "pinned" as const, label: "Pin position" },
+              ]).map(({ key, label }) => (
+                <div key={key} className="flex items-center justify-between">
+                  <span className="text-xs text-muted-foreground uppercase tracking-widest">{label}</span>
+                  <button
+                    type="button"
+                    onClick={() => patch({ [key]: !current[key] })}
+                    className={toggleBtn(!!current[key])}
+                    aria-pressed={!!current[key]}
+                  >
+                    <span className={`absolute top-[1px] left-[1px] w-4 h-4 rounded-full shadow-sm transition-transform bg-card ${current[key] ? "translate-x-[16px]" : "translate-x-0"}`} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </section>
 
           {/* Annotations */}
-          <PanelSection title={`Annotations (${annotations.length})`} icon={<MessageSquare className="w-3 h-3" />}>
-            <button type="button" onClick={handleAddAnnotation}
-              className="w-full flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-border text-xs text-muted-foreground hover:border-primary hover:text-primary transition-colors">
-              <Plus className="w-3 h-3" /> Add Annotation
-            </button>
+          <section>
+            <div className="flex items-center justify-between mb-2">
+              <label className={sectionLabel + " mb-0"}>Annotations ({annotations.length})</label>
+              <button
+                type="button"
+                onClick={handleAddAnnotation}
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-border text-xs text-muted-foreground hover:border-primary hover:text-primary transition-colors"
+              >
+                <Plus className="w-3 h-3" /> Add
+              </button>
+            </div>
             {annotations.length === 0 && (
               <p className="text-xs text-muted-foreground opacity-40 italic">No annotations</p>
             )}
@@ -164,66 +265,112 @@ export function NodeEditModal({
                     <span className="text-xs text-muted-foreground uppercase tracking-widest">#{idx + 1}</span>
                     <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ background: ann.color }} />
                     <span className="text-xs flex-1 truncate" style={{ color: ann.color }}>{ann.text || "—"}</span>
-                    <button type="button" aria-label="Remove annotation"
+                    <button
+                      type="button"
+                      aria-label="Remove annotation"
                       onClick={() => onDeleteAnnotation(ann.id)}
-                      className="text-destructive/60 hover:text-destructive transition-colors" title="Remove annotation">
+                      className="text-destructive/60 hover:text-destructive transition-colors"
+                      title="Remove annotation"
+                    >
                       <Trash2 className="w-3 h-3" />
                     </button>
                   </div>
                   <div className="px-3 py-3 space-y-2.5">
-                    <input type="text" value={ann.text}
+                    <input
+                      type="text"
+                      value={ann.text}
                       onChange={(e) => onUpdateAnnotation(ann.id, { text: e.target.value })}
                       aria-label="Annotation text"
-                      className="w-full bg-transparent border border-border rounded-md px-2.5 py-1.5 text-xs focus:border-primary outline-none transition-colors" />
+                      className="w-full bg-transparent border border-border rounded-md px-2.5 py-1.5 text-xs focus:border-primary outline-none transition-colors"
+                    />
                     <div>
                       <div className="text-xs uppercase tracking-widest text-muted-foreground mb-1.5">Color</div>
                       <div className="flex items-center gap-1.5 flex-wrap">
                         {ANNOTATION_COLORS.map((c) => (
-                          <button type="button" key={c}
+                          <button
+                            type="button"
+                            key={c}
                             onClick={() => onUpdateAnnotation(ann.id, { color: c })}
                             className="w-5 h-5 rounded-full flex-shrink-0 transition-all"
                             style={{ background: c, outline: ann.color === c ? `2px solid ${c}` : "2px solid transparent", outlineOffset: 2 }}
-                            title={c} />
+                            title={c}
+                          />
                         ))}
-                        <input type="color" value={ann.color}
+                        <input
+                          type="color"
+                          value={ann.color}
                           onChange={(e) => onUpdateAnnotation(ann.id, { color: e.target.value })}
                           className="w-5 h-5 rounded cursor-pointer flex-shrink-0"
-                          style={{ padding: 0, border: "none", background: "none" }} aria-label="Select color" />
+                          style={{ padding: 0, border: "none", background: "none" }}
+                          aria-label="Select color"
+                        />
                       </div>
                     </div>
                     <div className="grid grid-cols-2 gap-2">
                       <div>
-                        <div className="text-xs uppercase tracking-widest text-muted-foreground mb-1.5">Size</div>
-                        <div className="flex gap-1">
-                          {ANNOTATION_SIZES.map((s) => (
-                            <button type="button" key={s.value}
-                              onClick={() => onUpdateAnnotation(ann.id, { fontSize: s.value })}
-                              className={`flex-1 py-0.5 rounded text-xs border transition-all ${
-                                ann.fontSize === s.value ? "border-primary text-primary bg-primary/10" : "border-border text-muted-foreground hover:border-primary"
-                              }`}>{s.label}</button>
-                          ))}
-                        </div>
-                      </div>
+                         <div className="text-xs uppercase tracking-widest text-muted-foreground mb-1.5">Size</div>
+                         <div className="flex items-center gap-2">
+                           <input
+                             type="range"
+                             min={8}
+                             max={20}
+                             step={1}
+                             value={ann.fontSize}
+                             onChange={(e) => onUpdateAnnotation(ann.id, { fontSize: Number(e.target.value) })}
+                             className="flex-1 accent-primary h-1"
+                           />
+                           <span className="text-[10px] font-mono text-muted-foreground tabular-nums w-6 text-right">{ann.fontSize}</span>
+                         </div>
+                       </div>
                       <div>
                         <div className="text-xs uppercase tracking-widest text-muted-foreground mb-1.5">Position</div>
                         <div className="grid grid-cols-2 gap-1">
                           {ANNOTATION_POSITIONS.map((p) => (
-                            <button type="button" key={p}
+                            <button
+                              type="button"
+                              key={p}
                               onClick={() => onUpdateAnnotation(ann.id, { position: p })}
                               className={`py-0.5 rounded text-xs border capitalize transition-all ${
                                 ann.position === p ? "border-primary text-primary bg-primary/10" : "border-border text-muted-foreground hover:border-primary"
-                              }`}>{p.slice(0, 3)}</button>
+                              }`}
+                            >{p.slice(0, 3)}</button>
                           ))}
                         </div>
                       </div>
                     </div>
+                    {((ann.offsetX ?? 0) !== 0 || (ann.offsetY ?? 0) !== 0) && (
+                      <button
+                        type="button"
+                        onClick={() => onUpdateAnnotation(ann.id, { offsetX: 0, offsetY: 0 })}
+                        className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors mt-1"
+                      >
+                        <RotateCcw className="w-3 h-3" /> Reset position
+                      </button>
+                    )}
                   </div>
                 </div>
               ))}
             </div>
-          </PanelSection>
-        </PanelShell>
-      </div>
-    </div>
+          </section>
+        </div>
+
+        <DialogFooter className="px-6 py-4 border-t border-border gap-2">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-4 py-2 text-xs rounded-lg border border-border hover:bg-accent transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={handleSave}
+            className="px-4 py-2 text-xs font-semibold rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+          >
+            Save Changes
+          </button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

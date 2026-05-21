@@ -1,14 +1,42 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
+/* Inter - Default */
 @import "@fontsource/inter/300.css";
 @import "@fontsource/inter/400.css";
 @import "@fontsource/inter/500.css";
 @import "@fontsource/inter/600.css";
 @import "@fontsource/inter/700.css";
 @import "@fontsource/inter/400-italic.css";
+
+/* Plus Jakarta Sans - Premium Option 1 */
+@import "@fontsource/plus-jakarta-sans/300.css";
+@import "@fontsource/plus-jakarta-sans/400.css";
+@import "@fontsource/plus-jakarta-sans/500.css";
+@import "@fontsource/plus-jakarta-sans/600.css";
+@import "@fontsource/plus-jakarta-sans/700.css";
+@import "@fontsource/plus-jakarta-sans/400-italic.css";
+
+/* Manrope - Premium Option 2 */
+@import "@fontsource/manrope/300.css";
+@import "@fontsource/manrope/400.css";
+@import "@fontsource/manrope/500.css";
+@import "@fontsource/manrope/600.css";
+@import "@fontsource/manrope/700.css";
+
+/* Monospace */
 @import "@fontsource/jetbrains-mono/400.css";
 @import "@fontsource/jetbrains-mono/500.css";
+
+/* Font family CSS variables for runtime switching */
+:root {
+  --font-inter: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-plus-jakarta: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+  --font-manrope: 'Manrope', system-ui, -apple-system, sans-serif;
+  --app-font-sans: var(--font-inter);
+  --app-font-serif: 'Inter', system-ui, sans-serif;
+  --app-font-mono: 'JetBrains Mono', monospace;
+}
 
 @custom-variant dark (&:is(.dark *));
 
@@ -90,8 +118,21 @@
 
   body {
     @apply font-sans antialiased bg-background text-foreground;
-    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    font-family: var(--app-font-sans);
   }
+}
+
+/* Font family utility classes for switching */
+.font-inter {
+  --app-font-sans: var(--font-inter);
+}
+
+.font-plus-jakarta {
+  --app-font-sans: var(--font-plus-jakarta);
+}
+
+.font-manrope {
+  --app-font-sans: var(--font-manrope);
 }
 
 @media (prefers-reduced-motion: reduce) {

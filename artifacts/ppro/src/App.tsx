@@ -7,6 +7,8 @@ import { ErrorBoundary } from "@/components/shared/ErrorBoundary";
 import { Layout } from "@/components/Layout";
 import { Skeleton } from "@/components/shared/Skeleton";
 import { ThemeProvider } from "@/lib/theme";
+import { FontProvider } from "@/lib/font";
+import { CanvasConfigProvider } from "@/features/pedigree-editor/context/CanvasConfigContext";
 
 const NotFound = lazy(() => import("@/pages/not-found"));
 const Dashboard = lazy(() => import("@/pages/dashboard"));
@@ -16,6 +18,7 @@ const Pedigrees = lazy(() => import("@/pages/pedigrees"));
 const PedigreeCanvas = lazy(() => import("@/pages/pedigree-canvas"));
 const PedigreeShare = lazy(() => import("@/pages/pedigree-share"));
 const Profiles = lazy(() => import("@/pages/profiles"));
+const Settings = lazy(() => import("@/pages/settings"));
 
 function PageLoader() {
   return (
@@ -27,7 +30,7 @@ function PageLoader() {
 
 const queryClient = new QueryClient({
   defaultOptions: {
-    queries: { retry: 1, staleTime: 30_000 },
+    queries: { retry: 1, staleTime: 30_000, refetchOnWindowFocus: false },
   },
 });
 
@@ -45,6 +48,7 @@ function Router() {
               <Route path="/patients/:id" component={PatientDetail} />
               <Route path="/pedigrees" component={Pedigrees} />
               <Route path="/profiles" component={Profiles} />
+              <Route path="/settings" component={Settings} />
               <Route component={NotFound} />
             </Switch>
           </Layout>
@@ -58,7 +62,9 @@ function App() {
   return (
     <ErrorBoundary>
       <ThemeProvider>
-        <QueryClientProvider client={queryClient}>
+        <FontProvider>
+          <CanvasConfigProvider>
+          <QueryClientProvider client={queryClient}>
           <TooltipProvider>
             <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
               <Router />
@@ -66,6 +72,8 @@ function App() {
             <Toaster />
           </TooltipProvider>
         </QueryClientProvider>
+          </CanvasConfigProvider>
+        </FontProvider>
       </ThemeProvider>
     </ErrorBoundary>
   );

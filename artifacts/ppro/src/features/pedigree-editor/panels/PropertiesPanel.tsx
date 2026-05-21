@@ -1,4 +1,4 @@
-import { Pin, PinOff, Users, MessageSquare, Plus, ShieldCheck, ChevronDown, User, Dna, Flag, Stethoscope, Trash2, LayoutGrid } from "lucide-react";
+import { Pin, PinOff, Users, MessageSquare, Plus, ShieldCheck, User, Dna, Flag, Stethoscope, Trash2, LayoutGrid } from "lucide-react";
 import type { PedigreeNode, PedigreeEdge, PedigreeAnnotation } from "@/features/pedigree-editor/canvas/types";
 import type { InheritanceMode } from "@/lib/risk-calculator";
 import { computeRisk } from "@/lib/risk-calculator";
@@ -42,9 +42,9 @@ export function PropertiesPanel({
   };
 
   return (
-    <div className="absolute right-0 top-0 bottom-0 z-30 shadow-xl">
+    <div className="absolute right-0 top-0 bottom-0 z-30 overflow-hidden rounded-l-lg h-full shadow-[-4px_0_12px_rgba(0,0,0,0.08),0_4px_12px_rgba(0,0,0,0.08)]">
       {selectedIds.size > 1 ? (
-        <PanelShell title={`${selectedIds.size} Nodes`} icon={<Users className="w-3.5 h-3.5" />} width="w-full md:w-60">
+        <PanelShell title={`${selectedIds.size} Nodes`} icon={<Users className="w-3.5 h-3.5" />} width="w-full md:w-72">
           {/* Bulk Status */}
           <PanelSection title="Bulk Status" icon={<Dna className="w-3 h-3" />}>
             <div>
@@ -53,7 +53,7 @@ export function PropertiesPanel({
                 {(["unaffected", "affected", "carrier"] as const).map((s) => (
                   <button type="button" key={s} onClick={() => applyStatus(s)}
                     className="py-1 rounded text-xs border border-border text-muted-foreground hover:border-primary hover:text-primary transition-all">
-                    {s === "unaffected" ? "—" : s === "affected" ? "Aff." : "Carr."}
+                    {s === "unaffected" ? "—" : s === "affected" ? "Affected" : "Carrier"}
                   </button>
                 ))}
               </div>
@@ -88,7 +88,7 @@ export function PropertiesPanel({
 
           {/* Shared condition */}
           <PanelSection title="Condition (all)">
-            <input id="bulk-condition" placeholder="e.g. BRCA1, Lynch"
+            <input id="bulk-condition" placeholder="e.g. BRCA1, Lynch" aria-label="Condition"
               className="w-full bg-muted border border-border rounded px-2 py-1.5 text-xs outline-none focus:border-primary transition-colors"
               onKeyDown={(e) => {
                 if (e.key === "Enter") {
@@ -106,7 +106,7 @@ export function PropertiesPanel({
           </button>
         </PanelShell>
       ) : singleSelected ? (
-        <PanelShell title={`${singleSelected.type}`} icon={<User className="w-3.5 h-3.5" />} width="w-full md:w-60">
+        <PanelShell title={`${singleSelected.type}`} icon={<User className="w-3.5 h-3.5" />} width="w-full md:w-72">
           {/* Basic Info */}
           <PanelSection title="Basic Info" icon={<User className="w-3 h-3" />}>
             <div>
@@ -149,7 +149,7 @@ export function PropertiesPanel({
                 {(["unaffected", "affected", "carrier"] as const).map((s) => (
                   <button type="button" key={s} data-testid={`button-status-${s}`} onClick={() => applyStatus(s)}
                     className={`py-1 rounded text-xs border transition-all ${getStatus(singleSelected) === s ? "border-primary text-primary bg-primary/10" : "border-border text-muted-foreground hover:border-primary"}`}>
-                    {s === "unaffected" ? "—" : s === "affected" ? "Aff." : "Carr."}
+                    {s === "unaffected" ? "—" : s === "affected" ? "Affected" : "Carrier"}
                   </button>
                 ))}
               </div>
@@ -157,7 +157,7 @@ export function PropertiesPanel({
           </PanelSection>
 
           {/* Flags */}
-          <PanelSection title="Flags" icon={<Flag className="w-3 h-3" />}>
+          <PanelSection title="Flags" icon={<Flag className="w-3 h-3" />} defaultOpen={false}>
             <div className="flex items-center justify-between">
               <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
                 {singleSelected.pinned ? <><Pin className="w-3 h-3 text-muted-foreground" /> Pinned</> : <><PinOff className="w-3 h-3" /> Not pinned</>}
@@ -173,11 +173,14 @@ export function PropertiesPanel({
                 { key: "proband" as const, label: "Proband" },
               ]).map(({ key, label }) => (
                 <div key={key} className="flex items-center justify-between">
-                  <span className="text-xs text-muted-foreground uppercase tracking-wider">{label}</span>
+                  <span className="text-xs text-muted-foreground uppercase tracking-wider" id={`toggle-label-${key}`}>{label}</span>
                   <button type="button" data-testid={`toggle-${key}`}
+                    role="switch"
+                    aria-checked={singleSelected[key]}
+                    aria-labelledby={`toggle-label-${key}`}
                     onClick={() => onUpdateSelectedNode({ [key]: !singleSelected[key] })}
-                    className={`w-9 h-5 rounded-full border transition-all relative ${singleSelected[key] ? "border-primary bg-primary" : "border-border bg-muted"}`}>
-                    <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-background transition-transform ${singleSelected[key] ? "translate-x-4" : "translate-x-0.5"}`} />
+                  className={`w-9 h-5 rounded-full border transition-all relative ${singleSelected[key] ? "border-primary bg-primary" : "border-border bg-muted"}`}>
+                  <span className={`absolute top-[1px] left-[1px] w-4 h-4 rounded-full shadow-sm transition-transform bg-card ${singleSelected[key] ? "translate-x-[16px]" : "translate-x-0"}`} />
                   </button>
                 </div>
               ))}
@@ -192,25 +195,17 @@ export function PropertiesPanel({
               className="w-full bg-muted border border-border rounded px-2 py-1.5 text-xs outline-none focus:border-primary transition-colors resize-none" />
           </PanelSection>
 
-          {/* Risk Calculator inline */}
-          <div>
-            <button type="button" className="w-full flex items-center justify-between py-1 group" onClick={() => onShowRiskCalc(!showRiskCalc)}>
-              <span className="text-xs text-muted-foreground uppercase tracking-wider flex items-center gap-1 cursor-pointer">
-                <ShieldCheck className="w-3 h-3" /> Risk Calculator
-              </span>
-              <ChevronDown className={`w-3 h-3 text-muted-foreground transition-transform ${showRiskCalc ? "rotate-180" : ""}`} />
-            </button>
-            {showRiskCalc && (
-              <RiskCalculatorPanel
-                result={computeRisk(canvasNodes, canvasEdges, singleSelected.id, riskMode)}
-                mode={riskMode}
-                onModeChange={onRiskModeChange}
-              />
-            )}
-          </div>
+          {/* Risk Calculator */}
+          <PanelSection title="Risk Calculator" icon={<ShieldCheck className="w-3 h-3" />} defaultOpen={showRiskCalc}>
+            <RiskCalculatorPanel
+              result={computeRisk(canvasNodes, canvasEdges, singleSelected.id, riskMode)}
+              mode={riskMode}
+              onModeChange={onRiskModeChange}
+            />
+          </PanelSection>
 
           {/* Annotations */}
-          <PanelSection title={`Annotations`} icon={<MessageSquare className="w-3 h-3" />}>
+          <PanelSection title={`Annotations`} icon={<MessageSquare className="w-3 h-3" />} defaultOpen={!!selectedAnnotationId} key={selectedAnnotationId ?? "ann-none"}>
             <button type="button" onClick={() => onAddAnnotation(singleSelected.id)}
               className="flex items-center gap-0.5 text-xs text-muted-foreground hover:text-primary transition-colors">
               <Plus className="w-3 h-3" /> Add

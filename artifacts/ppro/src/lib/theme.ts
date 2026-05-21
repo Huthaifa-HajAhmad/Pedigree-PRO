@@ -57,6 +57,12 @@ export function getAccentHex(): string {
   return "#6475F7";
 }
 
+export function getDefaultAnnotationColor(): string {
+  const id = getStoredTheme();
+  const t = THEMES.find((th) => th.id === id);
+  return t?.isDark ? "#FFFFFF" : "#1F2937";
+}
+
 // ── Context ───────────────────────────────────────────────────────────────────
 export interface ThemeContextValue {
   themeId: ThemeId;

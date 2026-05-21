@@ -162,6 +162,15 @@ Invoke-WebRequest -Uri "http://127.0.0.1:3788/console?limit=20" -UseBasicParsing
 
 **Crypto test fixes:** ✅ Complete. Fixed Ed25519 typo (`kp.secretKey` → `kp.privateKey`). Fixed PBKDF2 determinism test (now passes salt to second call).
 
+### Code Review Fixes (May 2026)
+
+All 20 items from the `.kilo/plans/1778972218810-hidden-rocket.md` code review plan have been implemented:
+
+**Critical ✅:** backup_database stack overflow (chunked), WebRTC stale closure, silent data loss on decryption<br>
+**High ✅:** saveDb mutex, initDb coalescing, localStorage draft debounce, auto-save timestamp comparison<br>
+**Medium ✅:** relay_receive GET→POST, share_token validation, error sanitization, CommandMap type, ShareModal encryption messaging, LanShare plaintext confirmation, PII in console.error, initialSyncDoneRef reset<br>
+**Low ✅:** type="button" (10 buttons), aria-label accessibility, React.StrictMode, refetchOnWindowFocus disabled, edges.length dependency, draft path consolidation, HKDF recommendation
+
 ### Remaining Deferred Items
 
 **UX5 extended — ContextMenu keyboard navigation polish:**
@@ -169,17 +178,6 @@ Arrow key handlers were added but these items remain:
 - Tab-to-focus on the menu container itself
 - Focus trap (tab/shift+tab cycles within menu)
 - Home/End keys to jump to first/last menu item
-
-**UX8 — LAN sharing ICE timeout UX:**
-`LanShare.tsx` has a 30s ICE timeout but no visible progress spinner during the connecting phase. Add `Loader2` icon animation when `status === "connecting"`.
-
-**L3 extended — Dynamic import loading indicator:**
-Spinners added for export/import in `profiles.tsx`. Consider extracting a reusable `<DynamicImportSpinner>` component for `export-pedigree.ts` PDF/PPTX exports and `ShareModal.tsx`.
-
-**P2 — Version timeline virtualization:** ✅ Complete.
-
-**TS2 — Replace remaining `any` types (11 of 17 done):**
-11 conditional `any` types remain in `lib/db/src/index.ts` — table exports and `db`/`pool` vary between SQLite and Postgres backends. Needs union type design.
 
 **TS2 — Enable additional strict TS flags:**
 - `noUncheckedIndexedAccess` — requires audit pass (array/record access returns `T | undefined`)

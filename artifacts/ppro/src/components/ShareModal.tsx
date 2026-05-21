@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useSharePedigree } from "@workspace/api-client-react";
-import { Link2, Copy, Check, X, ExternalLink, Share2, Shield, Key, AlertTriangle } from "lucide-react";
+import { Link2, Copy, Check, X, ExternalLink, Share2, Shield, Key, AlertTriangle, Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DynamicImportSpinner } from "@/components/ui/dynamic-import-spinner";
 
@@ -70,15 +70,32 @@ export function ShareModal({ pedigreeId, pedigreeTitle, onClose }: ShareModalPro
         {/* Title */}
         <p className="text-xs text-muted-foreground mb-5">
           Share <span className="text-foreground font-medium">{pedigreeTitle}</span> with a colleague.
-          The data is end-to-end encrypted — only the recipient with the matching private key can decrypt it.
         </p>
 
-        {/* Security notice */}
-        <div className="flex items-start gap-2 px-3 py-2 rounded border border-primary/30 bg-primary/5 mb-5">
-          <Shield className="w-4 h-4 text-primary mt-0.5 flex-shrink-0" />
-          <p className="text-xs text-primary/80">
-            Zero-knowledge relay: the relay service never sees plaintext pedigree data.
-            Share tokens are single-use and expire after 7 days.
+        {/* Security notice — conditional on whether encryption is in use */}
+        {recipientKey ? (
+          <div className="flex items-start gap-2 px-3 py-2 rounded border border-primary/30 bg-primary/5 mb-5">
+            <Shield className="w-4 h-4 text-primary mt-0.5 flex-shrink-0" />
+            <p className="text-xs text-primary/80">
+              Encrypting for recipient's Ed25519 key. The relay never sees plaintext pedigree data.
+              Share tokens are single-use and expire after 7 days.
+            </p>
+          </div>
+        ) : (
+          <div className="flex items-start gap-2 px-3 py-2 rounded border border-amber-500/30 bg-amber-500/5 mb-5">
+            <AlertTriangle className="w-4 h-4 text-amber-500 mt-0.5 flex-shrink-0" />
+            <p className="text-xs text-amber-600 dark:text-amber-400">
+              No recipient key provided. The share link is <strong>not encrypted</strong> — anyone with the link can read the data.
+              For HIPAA compliance, provide a recipient public key above.
+            </p>
+          </div>
+        )}
+
+        {/* Zero-knowledge relay notice (shown regardless) */}
+        <div className="flex items-start gap-2 px-3 py-2 rounded border border-muted/30 bg-muted/10 mb-5">
+          <Info className="w-4 h-4 text-muted-foreground mt-0.5 flex-shrink-0" />
+          <p className="text-xs text-muted-foreground">
+            The relay service never stores plaintext data. Share tokens are single-use and expire after 7 days.
           </p>
         </div>
 

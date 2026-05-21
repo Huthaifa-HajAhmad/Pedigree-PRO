@@ -195,6 +195,12 @@ importers:
       '@fontsource/jetbrains-mono':
         specifier: ^5.2.8
         version: 5.2.8
+      '@fontsource/manrope':
+        specifier: ^5.2.8
+        version: 5.2.8
+      '@fontsource/plus-jakarta-sans':
+        specifier: ^5.2.8
+        version: 5.2.8
       '@hookform/resolvers':
         specifier: ^3.10.0
         version: 3.10.0(react-hook-form@7.71.2(react@19.1.0))
@@ -615,6 +621,12 @@ packages:
 
   '@fontsource/jetbrains-mono@5.2.8':
     resolution: {integrity: sha512-6w8/SG4kqvIMu7xd7wt6x3idn1Qux3p9N62s6G3rfldOUYHpWcc2FKrqf+Vo44jRvqWj2oAtTHrZXEP23oSKwQ==}
+
+  '@fontsource/manrope@5.2.8':
+    resolution: {integrity: sha512-gJHJmcuUk7qWcNCfcAri/DJQtXtBYqi9yKratr4jXhSo0I3xUtNNKI+igQIcw5c+m95g0vounk8ZnX/kb8o0TA==}
+
+  '@fontsource/plus-jakarta-sans@5.2.8':
+    resolution: {integrity: sha512-P5qE49fqdeD+7DXH1KBxmMPlB17LTz1zvBhFH0tFzfnYTKVJVyb0pR6plh0ZGXxcB+Oayb54FZZw3V42/DawTw==}
 
   '@hookform/resolvers@3.10.0':
     resolution: {integrity: sha512-79Dv+3mDF7i+2ajj7SkypSKHhl1cbln1OGavqrsF7p6mbUv11xpqpacPsGDCTRvCSjEEIez2ef1NveSVL3b0Ag==}
@@ -3175,6 +3187,10 @@ snapshots:
   '@fontsource/inter@5.2.8': {}
 
   '@fontsource/jetbrains-mono@5.2.8': {}
+
+  '@fontsource/manrope@5.2.8': {}
+
+  '@fontsource/plus-jakarta-sans@5.2.8': {}
 
   '@hookform/resolvers@3.10.0(react-hook-form@7.71.2(react@19.1.0))':
     dependencies:

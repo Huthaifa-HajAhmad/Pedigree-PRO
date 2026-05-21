@@ -19,7 +19,8 @@ let db: any = null;
 let dbKey: CryptoKey | null = null;
 let autoSaveInterval: ReturnType<typeof setInterval> | null = null;
 let dirty = false;
-let initializing = false;
+let saveInProgress = false;
+let initPromise: Promise<void> | null = null;
 
 /**
  * Initializes the sql.js database.
@@ -30,57 +31,55 @@ let initializing = false;
  */
 export async function initDb(): Promise<void> {
   if (db) return; // Already initialized
-  if (initializing) throw new Error("Database initialization already in progress");
+  if (initPromise) return initPromise; // Coalesce concurrent callers
 
-  initializing = true;
-  try {
-    const SQL = await initSqlJs({
-      locateFile: (file: string) => {
-        return file.includes("sql-wasm") ? "/sql-wasm-browser.wasm" : `/${file}`;
-      },
-    });
+  initPromise = (async () => {
+    try {
+      const SQL = await initSqlJs({
+        locateFile: (file: string) => {
+          return file.includes("sql-wasm") ? "/sql-wasm-browser.wasm" : `/${file}`;
+        },
+      });
 
-    dbKey = await getOrCreateDbKey();
+      dbKey = await getOrCreateDbKey();
 
-    // Try to load existing encrypted database from IndexedDB
-    const stored = await get<{ ciphertext: Uint8Array; iv: Uint8Array } | null>(
-      DB_KEY,
-      DB_STORE
-    );
+      // Try to load existing encrypted database from IndexedDB
+      const stored = await get<{ ciphertext: Uint8Array; iv: Uint8Array } | null>(
+        DB_KEY,
+        DB_STORE
+      );
 
-    if (stored) {
-      try {
+      if (stored) {
         const decrypted = await decryptDbBlob(
           stored.ciphertext,
           stored.iv,
           dbKey
         );
         db = new SQL.Database(decrypted);
-      } catch (e) {
-        console.error("Failed to decrypt database, starting fresh:", e);
+      } else {
         db = new SQL.Database();
       }
-    } else {
-      db = new SQL.Database();
+
+      // Enable foreign key enforcement (matches Rust backend)
+      exec("PRAGMA foreign_keys = ON;");
+
+      // Run migrations
+      await runMigrations();
+
+      // Auto-save on page unload (synchronous best-effort via navigator.sendBeacon)
+      window.addEventListener("beforeunload", handleBeforeUnload);
+
+      // Also use visibilitychange for mobile/tab switching
+      document.addEventListener("visibilitychange", handleVisibilityChange);
+
+      // Periodic auto-save every 3 seconds to minimize data loss on abrupt close
+      autoSaveInterval = setInterval(saveIfDirty, 3_000);
+    } finally {
+      initPromise = null; // Allow retry on next call
     }
+  })();
 
-    // Enable foreign key enforcement (matches Rust backend)
-    exec("PRAGMA foreign_keys = ON;");
-
-    // Run migrations
-    await runMigrations();
-
-    // Auto-save on page unload (synchronous best-effort via navigator.sendBeacon)
-    window.addEventListener("beforeunload", handleBeforeUnload);
-
-    // Also use visibilitychange for mobile/tab switching
-    document.addEventListener("visibilitychange", handleVisibilityChange);
-
-    // Periodic auto-save every 3 seconds to minimize data loss on abrupt close
-    autoSaveInterval = setInterval(saveIfDirty, 3_000);
-  } finally {
-    initializing = false;
-  }
+  return initPromise;
 }
 
 /**
@@ -159,10 +158,16 @@ export async function importDb(data: Uint8Array): Promise<void> {
  */
 export async function saveDb(): Promise<void> {
   if (!db || !dbKey) return;
-  const data = db.export();
-  const { ciphertext, iv } = await encryptDbBlob(data, dbKey);
-  await set(DB_KEY, { ciphertext, iv }, DB_STORE);
-  dirty = false;
+  if (saveInProgress) return; // Skip concurrent save
+  saveInProgress = true;
+  try {
+    const data = db.export();
+    const { ciphertext, iv } = await encryptDbBlob(data, dbKey);
+    await set(DB_KEY, { ciphertext, iv }, DB_STORE);
+    dirty = false;
+  } finally {
+    saveInProgress = false;
+  }
 }
 
 /**

@@ -1,6 +1,6 @@
-import { memo } from "react";
+import { memo, useState, useRef, useCallback, useEffect } from "react";
 import type { PedigreeNode } from "./types";
-import { NODE_SIZE } from "./types";
+import { useCanvasConfig } from "@/features/pedigree-editor/context/CanvasConfigContext";
 
 
 interface NodeShapeProps {
@@ -9,6 +9,7 @@ interface NodeShapeProps {
   isLinkSource: boolean;
   invalid: boolean;
   autoLabel?: string;
+  hasEdges?: boolean;
   onClick: (e: React.MouseEvent) => void;
   onDragStart: (e: React.MouseEvent) => void;
   onContextMenu: (e: React.MouseEvent) => void;
@@ -17,8 +18,30 @@ interface NodeShapeProps {
 }
 
 export const NodeShape = memo(function NodeShape({
-  node, selected, isLinkSource, invalid, autoLabel, onClick, onDragStart, onContextMenu, onDoubleClick, animated = true,
+  node, selected, isLinkSource, invalid, autoLabel, hasEdges = true, onClick, onDragStart, onContextMenu, onDoubleClick, animated = true,
 }: NodeShapeProps) {
+  const cfg = useCanvasConfig();
+  const [showHint, setShowHint] = useState(false);
+  const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const handleMouseEnter = useCallback(() => {
+    hoverTimerRef.current = setTimeout(() => setShowHint(true), 1500);
+  }, []);
+
+  const handleMouseLeave = useCallback(() => {
+    if (hoverTimerRef.current !== null) {
+      clearTimeout(hoverTimerRef.current);
+      hoverTimerRef.current = null;
+    }
+    setShowHint(false);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (hoverTimerRef.current !== null) clearTimeout(hoverTimerRef.current);
+    };
+  }, []);
+
   const ERR = "#FF4040";
   const highlight = isLinkSource ? "#00BFFF" : "hsl(var(--primary))";
   const stroke = invalid
@@ -33,13 +56,14 @@ export const NodeShape = memo(function NodeShape({
     : invalid
     ? "rgba(255,64,64,0.07)"
     : "hsl(var(--card))";
-  const strokeWidth = selected || isLinkSource || invalid ? 2.5 : 1.5;
+  const S = cfg.config.nodeSize;
+  const strokeWidth = selected || isLinkSource || invalid ? cfg.config.edgeWidthSelected : cfg.config.edgeWidthNormal;
+  const carrierR = cfg.config.carrierDotRadius;
   const glow = invalid
     ? { filter: `drop-shadow(0 0 6px ${ERR})` }
     : selected || isLinkSource
     ? { filter: `drop-shadow(0 0 7px ${highlight})` }
     : {};
-  const S = NODE_SIZE;
 
   return (
     <g
@@ -49,8 +73,10 @@ export const NodeShape = memo(function NodeShape({
       style={{ cursor: "grab", transition: animated ? "transform 0.35s cubic-bezier(0.4,0,0.2,1)" : "none" }}
       onClick={(e) => { e.stopPropagation(); onClick(e); }}
       onDoubleClick={(e) => { e.stopPropagation(); onDoubleClick(e); }}
-      onMouseDown={(e) => { e.stopPropagation(); onDragStart(e); }}
+      onMouseDown={(e) => { e.stopPropagation(); if (hoverTimerRef.current !== null) { clearTimeout(hoverTimerRef.current); hoverTimerRef.current = null; } setShowHint(false); onDragStart(e); }}
       onContextMenu={(e) => { e.stopPropagation(); onContextMenu(e); }}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
     >
       {selected && (
         <rect x={-S / 2 - 5} y={-S / 2 - 5} width={S + 10} height={S + 10}
@@ -61,7 +87,7 @@ export const NodeShape = memo(function NodeShape({
       )}
       {/* Shapes by type */}
       {node.type === "male" && (
-        <rect x={-S / 2} y={-S / 2} width={S} height={S} fill={fill} stroke={stroke} strokeWidth={strokeWidth} rx={2} style={glow} />
+        <rect x={-S / 2} y={-S / 2} width={S} height={S} fill={fill} stroke={stroke} strokeWidth={strokeWidth} rx={0} style={glow} />
       )}
       {node.type === "female" && (
         <circle cx={0} cy={0} r={S / 2} fill={fill} stroke={stroke} strokeWidth={strokeWidth} style={glow} />
@@ -79,7 +105,7 @@ export const NodeShape = memo(function NodeShape({
         <polygon points={`0,${S * 0.36} ${-S * 0.38},${-S * 0.26} ${S * 0.38},${-S * 0.26}`}
           fill={invalid ? "rgba(255,64,64,0.07)" : node.affected ? "hsl(var(--foreground))" : node.carrier ? "hsl(var(--primary) / 0.08)" : "hsl(var(--card))"} stroke={stroke} strokeWidth={strokeWidth} style={glow} />
       )}
-      {node.carrier && !node.affected && <circle cx={0} cy={0} r={5} fill={"hsl(var(--primary))"} opacity={0.85} />}
+      {node.carrier && !node.affected && <circle cx={0} cy={0} r={carrierR} fill={"hsl(var(--primary))"} opacity={0.85} />}
       {node.deceased && (
         <line x1={-S / 2 - 8} y1={S / 2 + 8} x2={S / 2 + 8} y2={-S / 2 - 8} stroke="hsl(var(--foreground) / 0.6)" strokeWidth={1.5} />
       )}
@@ -99,6 +125,17 @@ export const NodeShape = memo(function NodeShape({
           textAnchor="middle" fontSize={8} fill="hsl(var(--foreground) / 0.65)" style={{ userSelect: "none", fontFamily: "JetBrains Mono, monospace", fontStyle: "italic" }}>
           {node.condition.length > 18 ? node.condition.slice(0, 17) + "…" : node.condition}
         </text>
+      )}
+      {showHint && hasEdges && (
+        <>
+          <rect x={-52} y={-S / 2 - 22} width={104} height={14} rx={3}
+            fill="hsl(var(--popover))" stroke="hsl(var(--border))" strokeWidth={0.5} opacity={0.9}
+            style={{ pointerEvents: "none" }} />
+          <text x={0} y={-S / 2 - 12} textAnchor="middle" fontSize={7.5} fill="hsl(var(--foreground) / 0.7)"
+            style={{ userSelect: "none", fontFamily: "JetBrains Mono, monospace", pointerEvents: "none" }}>
+            Ctrl+drag → extend line
+          </text>
+        </>
       )}
     </g>
   );

@@ -4,7 +4,7 @@ import type { PedigreeNode } from "@/features/pedigree-editor/canvas/types";
 export interface UsePedigreeKeyboardParams {
   deleteSelected: () => void;
   addNode: (type: PedigreeNode["type"]) => void;
-  addContextNode: (rel: "child" | "partner" | "sibling") => void;
+  addContextNode: (rel: "child" | "partner" | "sibling" | "parents") => void;
   undo: () => void;
   redo: () => void;
   navigateArrow: (dir: "ArrowUp" | "ArrowDown" | "ArrowLeft" | "ArrowRight") => void;

@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { useListPedigrees, useDeletePedigree, useCreatePedigree, useListPatients, queryKeys, getBackendInitError } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Link, useLocation } from "wouter";
-import { Plus, Trash2, ArrowUpRight, Dna, Upload } from "lucide-react";
+import { Plus, Trash2, ArrowUpRight, Dna, Upload, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ImportDialog } from "@/components/ImportDialog";
 import { useForm } from "react-hook-form";
@@ -20,6 +20,7 @@ import { EmptyState } from "@/components/shared/EmptyState";
 import { ErrorDialog } from "@/components/shared/ErrorDialog";
 import { signData, computeHash } from "@workspace/crypto";
 import { listProfilePrivateKeys } from "@workspace/browser-backend";
+import { usePedigreeTabs } from "@/hooks/use-pedigree-tabs";
 
 const schema = z.object({
   title: z.string().min(1, "Title required"),
@@ -28,9 +29,14 @@ const schema = z.object({
 });
 type FormData = z.infer<typeof schema>;
 
+type SortField = "title" | "patient" | "versions" | "updated";
+type SortDir = "asc" | "desc";
+
 export default function Pedigrees() {
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [sortField, setSortField] = useState<SortField>("updated");
+  const [sortDir, setSortDir] = useState<SortDir>("desc");
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
     if (searchTimerRef.current !== null) clearTimeout(searchTimerRef.current);
@@ -54,6 +60,7 @@ export default function Pedigrees() {
   const { data: patients } = useListPatients();
   const deletePedigree = useDeletePedigree();
   const createPedigree = useCreatePedigree();
+  const { closeTab } = usePedigreeTabs();
 
   const form = useForm<FormData>({
     resolver: zodResolver(schema),
@@ -100,13 +107,43 @@ export default function Pedigrees() {
       );
     };
 
+  const toggleSort = (field: SortField) => {
+    if (sortField === field) {
+      setSortDir(sortDir === "asc" ? "desc" : "asc");
+    } else {
+      setSortField(field);
+      setSortDir(field === "title" ? "asc" : "desc");
+    }
+  };
+
+  const sortedPedigrees = pedigrees ? [...pedigrees].sort((a, b) => {
+    const dir = sortDir === "asc" ? 1 : -1;
+    switch (sortField) {
+      case "title": return dir * a.title.localeCompare(b.title);
+      case "patient": return dir * ((a.patient_id ?? Number.MAX_SAFE_INTEGER) - (b.patient_id ?? Number.MAX_SAFE_INTEGER));
+      case "versions": return dir * (a.version_count - b.version_count);
+      case "updated": return dir * (new Date(a.updated_at).getTime() - new Date(b.updated_at).getTime());
+      default: return 0;
+    }
+  }) : [];
+
+  const SortIcon = ({ field }: { field: SortField }) => {
+    if (sortField !== field) return <ArrowUpDown className="w-3 h-3 text-muted-foreground/30" />;
+    return sortDir === "asc" ? <ArrowUp className="w-3 h-3 text-primary" /> : <ArrowDown className="w-3 h-3 text-primary" />;
+  };
+
   const handleDelete = (id: number, title: string) => {
     setConfirmProps({
       title: "Delete Pedigree",
       message: `Delete "${title}"? This cannot be undone.`,
       onConfirm: () => {
         setConfirmOpen(false);
-        deletePedigree.mutate(id, { onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.pedigrees }) });
+        deletePedigree.mutate(id, {
+          onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: queryKeys.pedigrees });
+            closeTab(id);
+          },
+        });
       },
     });
     setConfirmOpen(true);
@@ -186,28 +223,30 @@ export default function Pedigrees() {
 
       <div className="border border-border rounded overflow-hidden bg-card">
         <div className="grid grid-cols-2 md:grid-cols-5 gap-4 px-4 py-3 border-b border-border text-xs text-muted-foreground uppercase tracking-widest">
-          <div className="col-span-2">Title</div>
-          <div>Patient</div>
-          <div>Versions</div>
+          <button type="button" onClick={() => toggleSort("title")} className="col-span-2 flex items-center gap-1 hover:text-foreground transition-colors">Title<SortIcon field="title" /></button>
+          <button type="button" onClick={() => toggleSort("patient")} className="flex items-center gap-1 hover:text-foreground transition-colors">Patient<SortIcon field="patient" /></button>
+          <button type="button" onClick={() => toggleSort("versions")} className="flex items-center gap-1 hover:text-foreground transition-colors">Versions<SortIcon field="versions" /></button>
           <div>Actions</div>
         </div>
         <div className="divide-y divide-border">
           {isLoading ? (
             <TableSkeleton rows={5} cols={5} />
-          ) : pedigrees?.length === 0 ? (
+          ) : sortedPedigrees.length === 0 ? (
             <EmptyState icon={Dna} title="No pedigrees found" description="Create your first pedigree or import one." />
           ) : (
-            pedigrees?.map((p) => (
+            sortedPedigrees.map((p) => (
               <div key={p.id} data-testid={`row-pedigree-${p.id}`} className="grid grid-cols-2 md:grid-cols-5 gap-4 px-4 py-3 text-sm hover:bg-accent transition-colors items-center">
                 <div className="col-span-2 flex items-center gap-2">
                   <Dna className="w-3.5 h-3.5 text-primary flex-shrink-0" />
                   <span className="font-medium truncate">{p.title}</span>
                 </div>
                 <div className="text-muted-foreground text-xs truncate">{p.patient_id ? `#${p.patient_id}` : "—"}</div>
-                <div className="text-muted-foreground text-xs flex items-center gap-1">
-                  <span className="text-xs px-2 py-0.5 rounded border border-border">{p.version_count}</span>
+                <div className="text-muted-foreground text-xs truncate">
+                  <span className="font-mono">{p.version_count} ver{p.version_count !== 1 ? "s" : ""}</span>
+                  <span className="mx-1.5 text-muted-foreground/40">·</span>
+                  <span>{(() => { try { return new Date(p.updated_at).toLocaleDateString(); } catch { return "—"; } })()}</span>
                 </div>
-                <div className="flex items-center justify-end gap-1">
+                <div className="flex items-center gap-1">
                   <Link href={`/pedigrees/${p.id}`}>
                     <button
                       type="button"
