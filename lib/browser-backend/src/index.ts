@@ -36,6 +36,7 @@ export {
   list_versions,
   save_version,
   restore_version,
+  delete_version,
   get_dashboard_stats,
   get_recent_activity,
   get_preferences,

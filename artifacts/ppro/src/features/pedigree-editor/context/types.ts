@@ -30,7 +30,7 @@ export interface PedigreeEditorState {
   liveLayout: boolean;
   showLegend: boolean;
   selectedAnnotationId: string | null;
-  annDragging: { annId: string; startSVG: { x: number; y: number }; initOffset: { x: number; y: number }; hasMoved: boolean } | null;
+  annDragging: { annId: string; startSVG: { x: number; y: number }; initOffset: { x: number; y: number }; hasMoved: boolean; labelBelowHeight: number; stackIndex: number } | null;
   showTemplates: boolean;
   riskMode: InheritanceMode;
   showRiskCalc: boolean;
@@ -40,6 +40,7 @@ export interface PedigreeEditorState {
   showMinimap: boolean;
   showGrid: boolean;
   contextMenu: { nodeId: string; x: number; y: number } | null;
+  colorPickerNode: string | null;
   editModalNodeId: string | null;
   showSearch: boolean;
   searchQuery: string;
@@ -98,6 +99,7 @@ export const INITIAL_STATE: PedigreeEditorState = {
   showMinimap: true,
   showGrid: true,
   contextMenu: null,
+  colorPickerNode: null,
   editModalNodeId: null,
   showSearch: false,
   searchQuery: "",
@@ -135,6 +137,7 @@ export interface PedigreeEditorOps {
   addContextNode: (rel: "child" | "sibling" | "partner" | "parents") => void;
   toggleNodeProp: (nodeId: string, prop: "affected" | "carrier" | "deceased" | "proband") => void;
   setNodeType: (nodeId: string, type: PedigreeNode["type"]) => void;
+  setNodeColor: (nodeId: string, color: string | undefined) => void;
   handleNodeContextMenu: (nodeId: string, e: React.MouseEvent) => void;
   handleNodeDoubleClick: (nodeId: string, e: React.MouseEvent) => void;
   handleNodeClick: (nodeId: string, e: React.MouseEvent) => void;
@@ -163,10 +166,12 @@ export interface PedigreeEditorOps {
   handleWheel: (e: React.WheelEvent) => void;
   handleSaveVersion: () => void;
   commitSaveVersion: () => void;
-  handleDeleteVersion: () => void;
+  handleDeleteVersion: (versionId: number) => void;
   handleRestoreVersion: (vid: number) => void;
   createConsanguinityEdge: (sourceId: string, targetId: string) => void;
-  addSiblings: (sourceId: string, siblings: Array<{ type: PedigreeNode["type"]; dob: string; annotation: string }>) => void;
+  addSiblings: (sourceId: string, siblings: Array<{ type: PedigreeNode["type"]; dob: string; twinGroup?: string; twinType?: "m" | "d" }>) => void;
+  markAsTwins: (nodeIds: string[], twinType: "m" | "d") => void;
+  unmarkTwins: (nodeIds: string[]) => void;
   handleDeletePedigree: (tabId: number, tabTitle: string) => void;
 }
 
@@ -214,5 +219,5 @@ export interface PedigreeEditorRefs {
   searchInputRef: React.RefObject<HTMLInputElement | null>;
   draftKeyRef: React.MutableRefObject<string>;
   draftEnabledRef: React.MutableRefObject<boolean>;
-  pendingAnnDragRef: React.MutableRefObject<{ annId: string; startSVG: { x: number; y: number }; initOffset: { x: number; y: number } } | null>;
+  pendingAnnDragRef: React.MutableRefObject<{ annId: string; startSVG: { x: number; y: number }; initOffset: { x: number; y: number }; labelBelowHeight: number; stackIndex: number } | null>;
 }

@@ -211,6 +211,10 @@ export function restoreVersion(pedigreeId: number, versionId: number): Promise<P
   return apiCall<Pedigree>("restore_version", { pedigree_id: pedigreeId, version_id: versionId });
 }
 
+export function deleteVersion(pedigreeId: number, versionId: number): Promise<{ deleted: boolean }> {
+  return apiCall<{ deleted: boolean }>("delete_version", { pedigree_id: pedigreeId, version_id: versionId });
+}
+
 // =============================================================================
 // Dashboard Types & Operations
 // =============================================================================

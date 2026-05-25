@@ -20,6 +20,7 @@ export function CanvasOverlayManager({
   singleSelected,
   showRiskPanel,
   showValidation,
+  showVersions,
 }: {
   showMinimap: boolean;
   minimapNodes: PedigreeNode[];
@@ -36,10 +37,11 @@ export function CanvasOverlayManager({
   singleSelected: boolean;
   showRiskPanel: boolean;
   showValidation: boolean;
+  showVersions: boolean;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const minimapVisible = showMinimap && nodeCount > 0;
-  const panelOpen = singleSelected || showRiskPanel || showValidation;
+  const panelOpen = singleSelected || showRiskPanel || showValidation || showVersions;
 
   return (
     <div ref={containerRef} className="absolute inset-0 pointer-events-none">

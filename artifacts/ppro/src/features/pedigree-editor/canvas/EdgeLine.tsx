@@ -6,28 +6,32 @@ interface EdgeLineProps {
   edge: PedigreeEdge;
   nodes: PedigreeNode[];
   invalid: boolean;
+  renderOffsets?: Map<string, number>;
 }
 
-export const EdgeLine = memo(function EdgeLine({ edge, nodes, invalid }: EdgeLineProps) {
+export const EdgeLine = memo(function EdgeLine({ edge, nodes, invalid, renderOffsets }: EdgeLineProps) {
   const cfg = useCanvasConfig();
   const src = nodes.find((n) => n.id === edge.sourceId);
   const tgt = nodes.find((n) => n.id === edge.targetId);
   if (!src || !tgt) return null;
   const S = cfg.config.nodeSize;
-  const isCoupleLike = edge.type === "couple" || edge.type === "consanguinity";
-  const edgeStroke = invalid ? "#FF4040" : isCoupleLike ? "hsl(var(--foreground) / 0.5)" : "hsl(var(--foreground) / 0.35)";
+  const edgeStroke = invalid ? "#FF4040" : cfg.config.edgeColor.startsWith("hsl(") ? "hsl(var(--foreground) / 0.5)" : cfg.config.edgeColor;
   const edgeWidth = invalid ? 2 : cfg.config.edgeWidthNormal;
   const edgeDash = invalid ? "5 3" : undefined;
 
   if (edge.type === "couple") {
     const [left, right] = src.x <= tgt.x ? [src, tgt] : [tgt, src];
-    return <line x1={left.x + S / 2} y1={left.y} x2={right.x - S / 2} y2={right.y} stroke={edgeStroke} strokeWidth={edgeWidth} strokeDasharray={edgeDash} />;
+    const leftOff = renderOffsets?.get(left.id) ?? 0;
+    const rightOff = renderOffsets?.get(right.id) ?? 0;
+    return <line x1={left.x + S / 2} y1={left.y + leftOff} x2={right.x - S / 2} y2={right.y + rightOff} stroke={edgeStroke} strokeWidth={edgeWidth} strokeDasharray={edgeDash} />;
   }
 
   if (edge.type === "consanguinity") {
     const [left, right] = src.x <= tgt.x ? [src, tgt] : [tgt, src];
-    const x1 = left.x + S / 2, y1 = left.y;
-    const x2 = right.x - S / 2, y2 = right.y;
+    const leftOff = renderOffsets?.get(left.id) ?? 0;
+    const rightOff = renderOffsets?.get(right.id) ?? 0;
+    const x1 = left.x + S / 2, y1 = left.y + leftOff;
+    const x2 = right.x - S / 2, y2 = right.y + rightOff;
     const dx = x2 - x1, dy = y2 - y1;
     const len = Math.sqrt(dx * dx + dy * dy) || 1;
     const ox = (-dy / len) * 3.5, oy = (dx / len) * 3.5;
@@ -39,6 +43,5 @@ export const EdgeLine = memo(function EdgeLine({ edge, nodes, invalid }: EdgeLin
     );
   }
 
-  const drop = src.y + S / 2 + cfg.config.edgeDropOffset;
-  return <path d={`M ${src.x} ${src.y + S / 2} L ${src.x} ${drop} L ${tgt.x} ${drop} L ${tgt.x} ${tgt.y - S / 2}`} fill="none" stroke={edgeStroke} strokeWidth={edgeWidth} strokeDasharray={edgeDash} />;
+  return null;
 });

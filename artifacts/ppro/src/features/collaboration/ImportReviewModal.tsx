@@ -52,7 +52,7 @@ export function ImportReviewModal({
         {/* Header */}
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
-            <ShieldCheck className={`w-4 h-4 ${isVerified ? "text-green-400" : "text-yellow-400"}`} />
+            <ShieldCheck className={`w-4 h-4 ${isVerified ? "text-primary" : "text-yellow-400"}`} />
             <span className="font-semibold text-sm">Review Import</span>
           </div>
           <button type="button" aria-label="Close import review" onClick={onReject} className="text-muted-foreground hover:text-foreground transition-colors">
@@ -77,7 +77,7 @@ export function ImportReviewModal({
           <div className="mb-4 px-3 py-2 rounded border border-border bg-muted/30">
             <div className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Changes</div>
             <div className="text-xs">
-              <span className="text-green-400 font-medium">+{diff.addedNodes.length} nodes</span>
+              <span className="text-primary font-medium">+{diff.addedNodes.length} nodes</span>
               {diff.removedNodes.length > 0 && (
                 <span className="text-red-400 font-medium ml-2">-{diff.removedNodes.length} nodes</span>
               )}
@@ -85,7 +85,7 @@ export function ImportReviewModal({
                 <span className="text-yellow-400 font-medium ml-2">~{diff.changedNodes.length} modified</span>
               )}
               {diff.addedEdges.length > 0 && (
-                <span className="text-green-400 font-medium ml-2">+{diff.addedEdges.length} edges</span>
+                <span className="text-primary font-medium ml-2">+{diff.addedEdges.length} edges</span>
               )}
               {diff.removedEdges.length > 0 && (
                 <span className="text-red-400 font-medium ml-2">-{diff.removedEdges.length} edges</span>

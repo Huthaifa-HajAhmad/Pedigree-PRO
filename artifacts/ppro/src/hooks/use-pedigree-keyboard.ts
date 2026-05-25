@@ -3,6 +3,8 @@ import type { PedigreeNode } from "@/features/pedigree-editor/canvas/types";
 
 export interface UsePedigreeKeyboardParams {
   deleteSelected: () => void;
+  deleteAnnotation: ((aid: string) => void) | null;
+  selectedAnnotationId: string | null;
   addNode: (type: PedigreeNode["type"]) => void;
   addContextNode: (rel: "child" | "partner" | "sibling" | "parents") => void;
   undo: () => void;
@@ -42,6 +44,7 @@ export function usePedigreeKeyboard(params: UsePedigreeKeyboardParams) {
     const handler = (e: KeyboardEvent) => {
       const target = e.target as Element;
       if (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.tagName === "SELECT") return;
+      if (document.activeElement instanceof HTMLInputElement || document.activeElement instanceof HTMLTextAreaElement || document.activeElement instanceof HTMLSelectElement || (document.activeElement as HTMLElement)?.isContentEditable) return;
       const k = kbRef.current;
 
       if (e.code === "Space") { e.preventDefault(); k.spaceHeldRef.current = true; k.setSpaceHeld(true); return; }
@@ -64,7 +67,15 @@ export function usePedigreeKeyboard(params: UsePedigreeKeyboardParams) {
         k.setSelectedIds(new Set()); k.setLinkMode(null); k.setLinkSource(null); k.setSelectedAnnotationId(null);
         return;
       }
-      if (e.key === "Delete" || e.key === "Backspace") { e.preventDefault(); k.deleteSelected(); return; }
+      if (e.key === "Delete" || e.key === "Backspace") {
+        e.preventDefault();
+        if (k.selectedAnnotationId && k.deleteAnnotation) {
+          k.deleteAnnotation(k.selectedAnnotationId);
+        } else {
+          k.deleteSelected();
+        }
+        return;
+      }
       if (e.key === "ArrowUp" || e.key === "ArrowDown" || e.key === "ArrowLeft" || e.key === "ArrowRight") {
         e.preventDefault();
         k.navigateArrow(e.key as "ArrowUp" | "ArrowDown" | "ArrowLeft" | "ArrowRight");
@@ -91,12 +102,12 @@ export function usePedigreeKeyboard(params: UsePedigreeKeyboardParams) {
       if (e.key === "c" || e.key === "C") { k.addContextNode("child"); return; }
       if (e.key === "r" || e.key === "R") { k.addContextNode("partner"); return; }
       if (e.key === "b" || e.key === "B") { k.addContextNode("sibling"); return; }
-      if (e.key === "m" || e.key === "M") k.addNode("male");
-      if (e.key === "f" || e.key === "F") k.addNode("female");
-      if (e.key === "u" || e.key === "U") k.addNode("unknown");
-      if (e.key === "p" || e.key === "P") k.addNode("pregnancy");
-      if (e.key === "k" || e.key === "K") { k.setLinkMode((prev) => (prev === "consanguinity" ? null : "consanguinity")); k.setLinkSource(null); }
-      if (e.key === "s" || e.key === "S") k.addNode("sab");
+      if (e.key === "m" || e.key === "M") { k.addNode("male"); return; }
+      if (e.key === "f" || e.key === "F") { k.addNode("female"); return; }
+      if (e.key === "u" || e.key === "U") { k.addNode("unknown"); return; }
+      if (e.key === "p" || e.key === "P") { k.addNode("pregnancy"); return; }
+      if (e.key === "k" || e.key === "K") { k.setLinkMode((prev) => (prev === "consanguinity" ? null : "consanguinity")); k.setLinkSource(null); return; }
+      if (e.key === "s" || e.key === "S") { k.addNode("sab"); return; }
     };
 
     const upHandler = (e: KeyboardEvent) => {

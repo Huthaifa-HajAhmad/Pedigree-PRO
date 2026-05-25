@@ -3,7 +3,7 @@ import { useLocation } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useGetPedigree, useUpdatePedigree, useListVersions,
-  useSaveVersion, useRestoreVersion, useListProfiles, useListPedigrees, useDeletePedigree, queryKeys,
+  useSaveVersion, useRestoreVersion, useDeleteVersion, useListProfiles, useListPedigrees, useDeletePedigree, queryKeys,
 } from "@workspace/api-client-react";
 import { getDefaultAnnotationColor } from "@/lib/theme";
 import { validatePedigree } from "@/lib/validate-pedigree";
@@ -38,6 +38,7 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
   const deletePedigree = useDeletePedigree();
   const saveVersionMutation = useSaveVersion();
   const restoreVersionMutation = useRestoreVersion();
+  const deleteVersionMutation = useDeleteVersion();
 
   const [state, dispatch] = useReducer(pedigreeEditorReducer, INITIAL_STATE);
   const stateRef = useRef(state);
@@ -53,7 +54,7 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
   const spaceHeldRef = useRef(false);
   const rafRef = useRef<number | null>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
-  const pendingAnnDragRef = useRef<{ annId: string; startSVG: { x: number; y: number }; initOffset: { x: number; y: number } } | null>(null);
+  const pendingAnnDragRef = useRef<{ annId: string; startSVG: { x: number; y: number }; initOffset: { x: number; y: number }; labelBelowHeight: number; stackIndex: number } | null>(null);
   const draftKeyRef = useRef(`ppro_draft_${id}`);
   useEffect(() => { draftKeyRef.current = `ppro_draft_${id}`; }, [id]);
   const initialSyncDoneRef = useRef(false);
@@ -293,16 +294,27 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
     }, []);
 
     const addContextNode = useCallback((rel: "child" | "sibling" | "partner" | "parents") => {
-    const sids = stateRef.current.selectedIds; if (sids.size !== 1) return;
+    const sids = stateRef.current.selectedIds; if (sids.size !== 1) {
+      toast({ title: "Select a node first (click a symbol)", duration: 2000 });
+      return;
+    }
     const sid = [...sids][0]; if (!sid) return;
     if (rel === "sibling") {
       dispatch({ type: "SET_STATE", patch: { showAddSiblingDialog: true, siblingSourceId: sid } });
       return;
     }
+    if (rel === "child" || rel === "partner") {
+      const sourceNode = stateRef.current.canvas.nodes.find((n) => n.id === sid);
+      if (sourceNode?.type === "unknown") {
+        toast({ title: "Set gender first", description: "Select Male or Female before adding children.", duration: 2500 });
+        return;
+      }
+    }
     const now = Date.now(), nid = `n${now}-${Math.random().toString(36).slice(2, 6)}`;
     dispatch({ type: "UPDATE_CANVAS", updater: (p) => {
       const s = p.nodes.find((n) => n.id === sid); if (!s) return p;
-      const SY = 150;
+      if ((rel === "child" || rel === "partner") && s.type === "unknown") return p;
+      const SY = GEN_GRID;
       const nd = { affected: false, carrier: false, deceased: false, proband: false, label: "", age: "" };
       let nx: number, ny: number, nt: PedigreeNode["type"]; const ne: PedigreeEdge[] = [];
       if (rel === "child") {
@@ -410,8 +422,18 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
   }, []);
 
   const setNodeType = useCallback((nid: string, type: PedigreeNode["type"]) => {
-    dispatch({ type: "UPDATE_CANVAS", updater: (p) => ({ ...p, nodes: p.nodes.map((n) => n.id === nid ? { ...n, type } : n) }) });
+    dispatch({ type: "UPDATE_CANVAS", updater: (p) => {
+      const node = p.nodes.find((n) => n.id === nid);
+      if (!node) return p;
+      const hasChildren = p.edges.some((e) => e.type === "parent-child" && e.sourceId === nid);
+      if ((type === "pregnancy" || type === "sab" || type === "unknown") && hasChildren) return p;
+      return { ...p, nodes: p.nodes.map((n) => n.id === nid ? { ...n, type } : n) };
+    } });
     dispatch({ type: "SET_STATE", patch: { contextMenu: null } });
+  }, []);
+
+  const setNodeColor = useCallback((nid: string, color: string | undefined) => {
+    dispatch({ type: "UPDATE_CANVAS", updater: (p) => ({ ...p, nodes: p.nodes.map((n) => n.id === nid ? { ...n, color } : n) }) });
   }, []);
 
   const handleNodeContextMenu = useCallback((nid: string, e: React.MouseEvent) => {
@@ -447,17 +469,13 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
     dispatch({ type: "UPDATE_CANVAS", updater: (p) => {
       const s = p.nodes.filter((n) => ids.has(n.id));
       const avg = s.reduce((a, n) => a + n[axis], 0) / s.length;
-      return { ...p, nodes: p.nodes.map((n) => ids.has(n.id) ? { ...n, [axis]: avg, pinned: true } : n) };
+      return { ...p, nodes: p.nodes.map((n) => ids.has(n.id) ? { ...n, [axis]: avg } : n) };
     } });
   }, []);
 
   const addAnnotation = useCallback((nid: string) => {
-    const existing = stateRef.current.canvas.annotations.filter(a => a.nodeId === nid);
-    const posCounts: Record<string, number> = { above: 0, below: 0, left: 0, right: 0 };
-    for (const a of existing) { posCounts[a.position] = (posCounts[a.position] ?? 0) + 1; }
-    const bestPos = (Object.entries(posCounts) as [string, number][]).sort((a, b) => a[1] - b[1])[0];
-    const position = (bestPos?.[0] ?? "below") as PedigreeAnnotation["position"];
-    const cfg = getModuleCanvasConfig?.() ?? { annFontSize: 12 };
+    const cfg = getModuleCanvasConfig?.() ?? { annFontSize: 12, annDefaultPos: "below" as const };
+    const position = cfg.annDefaultPos as PedigreeAnnotation["position"];
     const a: PedigreeAnnotation = { id: `a${Date.now()}`, nodeId: nid, text: "Note", color: getDefaultAnnotationColor(), fontSize: cfg.annFontSize ?? 12, position };
     dispatch({ type: "UPDATE_CANVAS", updater: (p) => ({ ...p, annotations: [...p.annotations, a] }) });
     dispatch({ type: "SET_STATE", patch: { selectedAnnotationId: a.id } });
@@ -508,7 +526,7 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
     }
     if (s.linkMode && !s.linkSource) { dispatch({ type: "SET_STATE", patch: { linkSource: nid } }); return; }
     if (e.metaKey || e.ctrlKey) { const n = new Set(s.selectedIds); n.has(nid) ? n.delete(nid) : n.add(nid); dispatch({ type: "SET_STATE", patch: { selectedIds: n } }); }
-    else dispatch({ type: "SET_STATE", patch: { selectedIds: new Set([nid]) } });
+    else dispatch({ type: "SET_STATE", patch: { selectedIds: new Set([nid]), showRiskPanel: false, showValidation: false, showVersions: false } });
   }, [insertAndShiftRight]);
 
   const runAutoLayout = useCallback((rp: boolean) => {
@@ -592,10 +610,10 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
     return age > 0 ? String(age) : "";
   };
 
-  const addSiblings = useCallback((sourceId: string, siblings: Array<{ type: PedigreeNode["type"]; dob: string; annotation: string }>) => {
+  const addSiblings = useCallback((sourceId: string, siblings: Array<{ type: PedigreeNode["type"]; dob: string; twinGroup?: string; twinType?: "m" | "d" }>) => {
     dispatch({ type: "UPDATE_CANVAS", updater: (p) => {
       const s = p.nodes.find((n) => n.id === sourceId); if (!s) return p;
-      const SY = 150;
+      const SY = GEN_GRID;
       // Sort siblings by DOB - older (lower year) first = left
       const sortedSiblings = [...siblings].sort((a, b) => parseDobYear(a.dob) - parseDobYear(b.dob));
       const nd = { affected: false, carrier: false, deceased: false, proband: false, label: "", age: "" };
@@ -658,7 +676,7 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
           y: s.y,
           dob: sb.dob || undefined,
           age,
-          label: sb.annotation || ""
+          label: ""
         });
         allChildIds.add(nid);
         for (let pi = 0; pi < parentIds.length; pi++) {
@@ -667,7 +685,9 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
             id: `e${now + i}_${pi}`,
             type: "parent-child",
             sourceId: pid,
-            targetId: nid
+            targetId: nid,
+            twinGroup: sb.twinGroup || undefined,
+            twinType: sb.twinType || undefined,
           });
         }
       }
@@ -703,21 +723,78 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
         return newX !== undefined ? { ...n, x: newX } : n;
       });
 
-      return { ...p, nodes: [...shiftedNodes, ...newNodes], edges: [...p.edges, ...newEdges] };
+      const sharedTwinGroup = sortedSiblings[0]?.twinGroup;
+      const sharedTwinType = sortedSiblings[0]?.twinType;
+      const allEdges = sharedTwinGroup
+        ? [...p.edges, ...newEdges].map((e) => {
+            if (e.type === "parent-child" && e.targetId === sourceId) {
+              return { ...e, twinGroup: sharedTwinGroup, twinType: sharedTwinType };
+            }
+            return e;
+          })
+        : [...p.edges, ...newEdges];
+      return { ...p, nodes: [...shiftedNodes, ...newNodes], edges: allEdges };
     } });
     dispatch({ type: "SET_STATE", patch: { showAddSiblingDialog: false, siblingSourceId: null } });
   }, [insertAndShiftRight, parentIdsFromEdges]);
+
+  const markAsTwins = useCallback((nodeIds: string[], twinType: "m" | "d") => {
+    const group = `twins_${Date.now()}`;
+    dispatch({ type: "UPDATE_CANVAS", updater: (p) => {
+      const oldGroups = new Set<string>();
+      for (const e of p.edges) {
+        if (e.type === "parent-child" && nodeIds.includes(e.targetId) && e.twinGroup) {
+          oldGroups.add(e.twinGroup);
+        }
+      }
+      return {
+        ...p,
+        edges: p.edges.map((e) => {
+          if (e.type === "parent-child" && e.twinGroup && oldGroups.has(e.twinGroup)) {
+            const { twinGroup: _, twinType: __, ...rest } = e;
+            return rest as PedigreeEdge;
+          }
+          return e;
+        }).map((e) => {
+          if (e.type === "parent-child" && nodeIds.includes(e.targetId)) {
+            return { ...e, twinGroup: group, twinType };
+          }
+          return e;
+        }),
+      };
+    } });
+  }, []);
+
+  const unmarkTwins = useCallback((nodeIds: string[]) => {
+    dispatch({ type: "UPDATE_CANVAS", updater: (p) => {
+      const groupsToRemove = new Set<string>();
+      for (const e of p.edges) {
+        if (e.type === "parent-child" && nodeIds.includes(e.targetId) && e.twinGroup) {
+          groupsToRemove.add(e.twinGroup);
+        }
+      }
+      return {
+        ...p,
+        edges: p.edges.map((e) => {
+          if (e.type === "parent-child" && e.twinGroup && groupsToRemove.has(e.twinGroup)) {
+            const { twinGroup, twinType, ...rest } = e;
+            return rest as PedigreeEdge;
+          }
+          return e;
+        }),
+      };
+    } });
+  }, []);
 
   const handleDeletePedigree = useCallback((tabId: number, tabTitle: string) => {
     openConfirm("Delete Pedigree", `Delete "${tabTitle}"? This cannot be undone.`, () => {
       deletePedigree.mutate(tabId, {
         onSuccess: () => {
-          closeTab(tabId);
-          navigate("/pedigrees");
+          handleCloseTab(tabId);
         },
       });
     }, "destructive");
-  }, [openConfirm, deletePedigree, closeTab, navigate]);
+  }, [openConfirm, deletePedigree, handleCloseTab]);
 
   const navigateArrow = useCallback((dir: "ArrowUp" | "ArrowDown" | "ArrowLeft" | "ArrowRight") => {
     const nodes = stateRef.current.canvas.nodes; if (!nodes.length) return;
@@ -741,11 +818,11 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
   const setViewBox: Dispatch<SetStateAction<{ x: number; y: number; zoom: number }>> = useCallback((vb) => { const nv = typeof vb === "function" ? vb(stateRef.current.viewBox) : vb; dispatch({ type: "SET_STATE", patch: { viewBox: nv } }); }, []);
   const setSpaceHeld: Dispatch<SetStateAction<boolean>> = useCallback((v) => { const nv = typeof v === "function" ? v(stateRef.current.spaceHeld) : v; dispatch({ type: "SET_STATE", patch: { spaceHeld: nv } }); }, []);
 
-  usePedigreeKeyboard({ deleteSelected, addNode, addContextNode, undo, redo, navigateArrow, showSearch: state.showSearch, fitToScreen, runAutoLayout: (rp: boolean) => runAutoLayout(rp), setShowSearch, setSearchQuery, setSelectedIds, setLinkMode, setLinkSource, setSelectedAnnotationId, setViewBox, spaceHeldRef, setSpaceHeld, searchInputRef, W, H });
+  usePedigreeKeyboard({ deleteSelected, deleteAnnotation, selectedAnnotationId: state.selectedAnnotationId, addNode, addContextNode, undo, redo, navigateArrow, showSearch: state.showSearch, fitToScreen, runAutoLayout: (rp: boolean) => runAutoLayout(rp), setShowSearch, setSearchQuery, setSelectedIds, setLinkMode, setLinkSource, setSelectedAnnotationId, setViewBox, spaceHeldRef, setSpaceHeld, searchInputRef, W, H });
 
   const handleSaveVersion = () => dispatch({ type: "SET_STATE", patch: { sessionLabel: `Session \u00b7 ${state.canvas.nodes.length} node${state.canvas.nodes.length !== 1 ? "s" : ""} \u00b7 ${new Date().toLocaleDateString()}`, showSaveModal: true } });
   const commitSaveVersion = async () => { const t = generateThumbnail(state.canvas); const canvasData = JSON.stringify(state.canvas); const canvasHash = cryptoComputeHash(canvasData); const keys = await listProfilePrivateKeys(); const activeKey = keys.length > 0 ? keys[0] : null; const saverKey = activeKey ? await getPublicKeyFromPrivate(activeKey.privateKey) : ""; const saverSignature = activeKey ? await signData(canvasHash, activeKey.privateKey) : null; saveVersionMutation.mutate({ pedigreeId: id, input: { canvas_data: canvasData, canvas_hash: canvasHash, label: state.sessionLabel || null, thumbnail: t, saver_key: saverKey, saver_signature: saverSignature } }, { onSuccess: () => { queryClient.invalidateQueries({ queryKey: queryKeys.versions(id) }); dispatch({ type: "SET_STATE", patch: { showSaveModal: false, sessionLabel: "" } }); } }); };
-  const handleDeleteVersion = () => { toast({ title: "Coming soon", description: "Version deletion will be available in v0.2." }); };
+  const handleDeleteVersion = (versionId: number) => { openConfirm("Delete Version", "Delete this saved session? This cannot be undone.", () => { deleteVersionMutation.mutate({ pedigreeId: id, versionId }, { onSuccess: () => { queryClient.invalidateQueries({ queryKey: queryKeys.versions(id) }); } }); }, "destructive"); };
   const handleRestoreVersion = (vid: number) => { openConfirm("Restore Version", "Restore this version? Current canvas will be replaced.", () => { restoreVersionMutation.mutate({ pedigreeId: id, versionId: vid }, { onSuccess: (d) => { const cd = (d as { canvas_data?: string | null }).canvas_data; if (cd) dispatch({ type: "SET_CANVAS", canvas: parseCanvas(cd) }); initialSyncDoneRef.current = true; queryClient.setQueryData(queryKeys.pedigree(id), d); dispatch({ type: "SET_STATE", patch: { showVersions: false } }); } }); }); };
 
   const onRestoreDraft = useCallback(() => handleRestoreDraft(
@@ -756,11 +833,11 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
 
   const value = useMemo<PedigreeEditorContextValue>(() => ({
     state, dispatch,
-    ops: { updateCanvas, undo, redo, addNode, addContextNode, toggleNodeProp, setNodeType, handleNodeContextMenu, handleNodeDoubleClick, handleNodeClick, deleteSelected, updateSelectedNode, bulkUpdate, alignSelected, addAnnotation, updateAnnotation, deleteAnnotation, runAutoLayout, bakeEmptyLabels, bakeAllLabels, openConfirm, navigateArrow, handleCloseTab, openTab, reorderTabs, renameTab, fitToScreen, getSVGCoords, handleDragStart, handleMouseMove, handleMouseUp, handleSVGMouseDown, handleWheel, handleSaveVersion, commitSaveVersion, handleDeleteVersion, handleRestoreVersion, createConsanguinityEdge, addSiblings, handleDeletePedigree },
+    ops: { updateCanvas, undo, redo, addNode, addContextNode, toggleNodeProp, setNodeType, setNodeColor, handleNodeContextMenu, handleNodeDoubleClick, handleNodeClick, deleteSelected, updateSelectedNode, bulkUpdate, alignSelected, addAnnotation, updateAnnotation, deleteAnnotation, runAutoLayout, bakeEmptyLabels, bakeAllLabels, openConfirm, navigateArrow, handleCloseTab, openTab, reorderTabs, renameTab, fitToScreen, getSVGCoords, handleDragStart, handleMouseMove, handleMouseUp, handleSVGMouseDown, handleWheel, handleSaveVersion, commitSaveVersion, handleDeleteVersion, handleRestoreVersion, createConsanguinityEdge, addSiblings, markAsTwins, unmarkTwins, handleDeletePedigree },
     memo: { autoLabels, validation, searchMatches, generationRailEntries, legendEntries, visibleGenRows, vbW, vbH, MM_W, MM_H, singleSelected: state.selectedIds.size === 1 ? state.canvas.nodes.find((n) => state.selectedIds.has(n.id)) ?? null : null, anySelected: state.selectedIds.size > 0, tabItems },
     refs: { svgRef, canvasRef, preDragCanvasRef, lassoRef, isLassoingRef, lassoRectRef, spaceHeldRef, rafRef, searchInputRef, draftKeyRef, draftEnabledRef, pendingAnnDragRef },
     pedigree, versions, versionsLoading, profiles, saveVersionPending: saveVersionMutation.isPending, showDraftBanner, onRestoreDraft, handleDismissDraft,
-  }), [state, updateCanvas, undo, redo, addNode, addContextNode, toggleNodeProp, setNodeType, handleNodeContextMenu, handleNodeDoubleClick, handleNodeClick, deleteSelected, updateSelectedNode, bulkUpdate, alignSelected, addAnnotation, updateAnnotation, deleteAnnotation, runAutoLayout, bakeEmptyLabels, bakeAllLabels, openConfirm, navigateArrow, openTab, reorderTabs, renameTab, fitToScreen, getSVGCoords, handleDragStart, handleMouseMove, handleMouseUp, handleSVGMouseDown, handleWheel, commitSaveVersion, handleRestoreVersion, createConsanguinityEdge, addSiblings, handleDeletePedigree, autoLabels, validation, searchMatches, generationRailEntries, legendEntries, visibleGenRows, vbW, vbH, MM_W, MM_H, tabItems, saveVersionMutation.isPending]);
+  }), [state, updateCanvas, undo, redo, addNode, addContextNode, toggleNodeProp, setNodeType, setNodeColor, handleNodeContextMenu, handleNodeDoubleClick, handleNodeClick, deleteSelected, updateSelectedNode, bulkUpdate, alignSelected, addAnnotation, updateAnnotation, deleteAnnotation, runAutoLayout, bakeEmptyLabels, bakeAllLabels, openConfirm, navigateArrow, openTab, reorderTabs, renameTab, fitToScreen, getSVGCoords, handleDragStart, handleMouseMove, handleMouseUp, handleSVGMouseDown, handleWheel, commitSaveVersion, handleDeleteVersion, handleRestoreVersion, createConsanguinityEdge, addSiblings, markAsTwins, unmarkTwins, handleDeletePedigree, autoLabels, validation, searchMatches, generationRailEntries, legendEntries, visibleGenRows, vbW, vbH, MM_W, MM_H, tabItems, saveVersionMutation.isPending, deleteVersionMutation.isPending]);
 
   return <PedigreeEditorContext.Provider value={value}>{children}</PedigreeEditorContext.Provider>;
 }

@@ -43,7 +43,7 @@ export function VersionHistoryPanel({
             <div key={v.id} data-testid={`version-${v.id}`} className="p-2.5 hover:bg-accent/50 transition-colors group">
               <div className="flex items-start gap-2.5">
                 {v.thumbnail ? (
-                  <div className="flex-shrink-0 w-[72px] h-[45px] rounded border border-border overflow-hidden bg-black">
+                  <div className="flex-shrink-0 w-[72px] h-[45px] rounded border border-border overflow-hidden bg-muted/20">
                     <img src={v.thumbnail} alt={`Session v${v.version_number} preview`}
                       className="w-full h-full object-contain" loading="lazy" decoding="async" draggable={false} />
                   </div>

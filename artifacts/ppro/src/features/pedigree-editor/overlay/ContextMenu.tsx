@@ -4,7 +4,7 @@ import {
   Square, Circle, Diamond, Baby, AlertTriangle,
   CheckCircle2, CircleDot, X, Star, ArrowDown, ArrowRight, ArrowUp,
   ArrowLeftRight, Link2, GitBranch, GitMerge, Trash2,
-  ChevronRight,
+  ChevronRight, Palette,
 } from "lucide-react";
 
 const ICON_CLS = "w-3 h-3 flex-shrink-0";
@@ -30,6 +30,10 @@ export function ContextMenu({
   onAddContextNode,
   onDeleteSelected,
   onSetLinkMode,
+  onOpenColorPicker,
+  selectedIds,
+  onMarkAsTwins,
+  onUnmarkTwins,
 }: {
   ctxNode: PedigreeNode;
   canvasEdges: PedigreeEdge[];
@@ -41,10 +45,15 @@ export function ContextMenu({
   onAddContextNode: (relationship: "child" | "sibling" | "partner" | "parents") => void;
   onDeleteSelected: () => void;
   onSetLinkMode: (mode: "couple" | "parent-child" | "consanguinity", sourceId: string) => void;
+  onOpenColorPicker: (nodeId: string) => void;
+  selectedIds?: Set<string>;
+  onMarkAsTwins?: (nodeIds: string[], twinType: "m" | "d") => void;
+  onUnmarkTwins?: (nodeIds: string[]) => void;
 }) {
   const isMale      = ctxNode.type === "male";
   const isPregnancy = ctxNode.type === "pregnancy";
   const isSab       = ctxNode.type === "sab";
+  const isUnknown   = ctxNode.type === "unknown";
   const isEndpoint  = isPregnancy || isSab;
 
   const { partnerEdges, hasPartner, hasParents, hasChildren, otherProband } = useMemo(() => {
@@ -161,10 +170,16 @@ export function ContextMenu({
     first?.focus({ preventScroll: true });
   }, [expandAdd]);
 
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+
+  useEffect(() => {
+    menuRef.current?.focus({ preventScroll: true });
+  }, []);
+
   useEffect(() => {
     const menu = menuRef.current;
     if (!menu) return;
-    menu.focus({ preventScroll: true });
 
     const onKeyDown = (e: KeyboardEvent) => {
       // Flyout keyboard handling
@@ -220,18 +235,23 @@ export function ContextMenu({
         e.preventDefault();
         if (expandTypeRef.current) { setExpandType(false); return; }
         if (expandAddRef.current) { setExpandAdd(false); return; }
-        onClose();
+        onCloseRef.current();
       }
     };
     menu.addEventListener("keydown", onKeyDown);
-    const onResize = () => onClose();
+    const onResize = () => {
+      clearHoverTimers();
+      setExpandType(false);
+      setExpandAdd(false);
+      onCloseRef.current();
+    };
     window.addEventListener("resize", onResize);
     return () => {
       menu.removeEventListener("keydown", onKeyDown);
       window.removeEventListener("resize", onResize);
       clearHoverTimers();
     };
-  }, [onClose, clearHoverTimers]);
+  }, [clearHoverTimers]);
 
   const btn  = "w-full text-left px-3 py-1.5 text-xs hover:bg-accent transition-colors flex items-center gap-2";
   const abtn = btn + " text-primary font-medium";
@@ -254,9 +274,9 @@ export function ContextMenu({
   const typeOptions: Array<{ key: PedigreeNode["type"]; label: string; icon: React.ReactNode; disabled?: boolean; title?: string }> = [
     { key: "male", label: "Male", icon: <Square className={ICON_CLS} />, disabled: ctxNode.type === "male" },
     { key: "female", label: "Female", icon: <Circle className={ICON_CLS} />, disabled: ctxNode.type === "female" },
-    { key: "unknown", label: "Unknown sex", icon: <Diamond className={ICON_CLS} />, disabled: ctxNode.type === "unknown" },
-    { key: "pregnancy", label: "Pregnancy", icon: <Baby className={ICON_CLS} />, disabled: isMale || isSab || ctxNode.type === "pregnancy", title: isMale ? "Males cannot carry a pregnancy" : undefined },
-    { key: "sab", label: isPregnancy ? "Mark as Loss (SAB)" : "SAB / Stillbirth", icon: <AlertTriangle className={ICON_CLS} />, disabled: ctxNode.type === "sab" && !isPregnancy, title: isPregnancy ? undefined : "Already SAB" },
+    { key: "unknown", label: "Unknown sex", icon: <Diamond className={ICON_CLS} />, disabled: ctxNode.type === "unknown" || hasChildren, title: hasChildren ? "Nodes with children cannot be unknown sex" : undefined },
+    { key: "pregnancy", label: "Pregnancy", icon: <Baby className={ICON_CLS} />, disabled: isMale || isSab || hasChildren || ctxNode.type === "pregnancy", title: isMale ? "Males cannot carry a pregnancy" : hasChildren ? "Nodes with children cannot be pregnancy" : undefined },
+    { key: "sab", label: isPregnancy ? "Mark as Loss (SAB)" : "SAB / Stillbirth", icon: <AlertTriangle className={ICON_CLS} />, disabled: (ctxNode.type === "sab" && !isPregnancy) || hasChildren, title: hasChildren ? "Nodes with children cannot be SAB" : isPregnancy ? undefined : "Already SAB" },
   ];
 
   return (
@@ -324,6 +344,62 @@ export function ContextMenu({
             )}
           </div>
 
+          {/* Set Color — opens standalone picker near node */}
+          <button type="button" role="menuitem" className={btn} onClick={() => { onClose(); onOpenColorPicker(ctxNode.id); }}>
+            <Palette className={ICON_CLS} />
+            <span className="flex-1">Set Color</span>
+            {ctxNode.color && <span className="w-3 h-3 rounded-full border border-border/50 flex-shrink-0" style={{ background: ctxNode.color }} />}
+          </button>
+
+          {/* Add Relatives — flyout submenu */}
+          <div className="relative group">
+            <button ref={addButtonRef} type="button" role="menuitem" className={btn} onClick={() => { setExpandAdd((v) => !v); setExpandType(false); }} onMouseEnter={handleAddEnter} onMouseLeave={handleAddLeave} aria-haspopup="menu" aria-expanded={expandAdd}>
+              <ArrowDown className={ICON_CLS} />
+              <span className="flex-1">Add Relatives</span>
+              <ChevronRight className="w-3 h-3 text-muted-foreground" />
+            </button>
+            {expandAdd && addFlyoutPos && (
+              <div ref={addFlyoutRef} role="menu" className="fixed z-50 min-w-[180px] border border-border rounded-md shadow-xl bg-popover"
+                style={{ left: addFlyoutPos.left, top: addFlyoutPos.top }}
+                onMouseEnter={() => { if (hoverAddTimerRef.current !== null) { clearTimeout(hoverAddTimerRef.current); hoverAddTimerRef.current = null; } }}
+                onMouseLeave={handleAddLeave}>
+                {!isEndpoint && !isUnknown ? (
+                  <button type="button" role="menuitem" className={btn} onClick={() => { onAddContextNode("child"); onClose(); }}>
+                    <ArrowDown className={ICON_CLS} /> Add Child <span className="ml-auto text-muted-foreground text-xs">C</span>
+                  </button>
+                ) : (
+                  <button type="button" role="menuitem" aria-disabled className={mbtn} title={isUnknown ? "Unknown sex nodes cannot parent children" : `${ctxNode.type}s cannot parent children`}>
+                    <ArrowDown className={ICON_CLS} /> Add Child <span className="ml-auto text-xs">N/A</span>
+                  </button>
+                )}
+                {!isEndpoint && !isUnknown ? (
+                  <button type="button" role="menuitem" className={btn} onClick={() => { onAddContextNode("partner"); onClose(); }}>
+                    <ArrowRight className={ICON_CLS} /> {hasPartner ? "Add Another Partner" : "Add Partner"}
+                    <span className="ml-auto text-muted-foreground text-xs">R</span>
+                  </button>
+                ) : (
+                  <button type="button" role="menuitem" aria-disabled className={mbtn} title={isUnknown ? "Unknown sex nodes don't form couple links" : `${ctxNode.type}s don't form couple links`}>
+                    <ArrowRight className={ICON_CLS} /> Add Partner <span className="ml-auto text-xs">N/A</span>
+                  </button>
+                )}
+                <button type="button" role="menuitem" className={btn} onClick={() => { onAddContextNode("sibling"); onClose(); }}>
+                  <ArrowLeftRight className={ICON_CLS} /> Add Sibling
+                  {!hasParents && <span className="ml-1 text-xs text-muted-foreground">(no parents yet)</span>}
+                  <span className="ml-auto text-muted-foreground text-xs">B</span>
+                </button>
+                {!hasParents && !isEndpoint ? (
+                  <button type="button" role="menuitem" className={btn} onClick={() => { onAddContextNode("parents"); onClose(); }}>
+                    <ArrowUp className={ICON_CLS} /> Add Parents
+                  </button>
+                ) : (
+                  <button type="button" role="menuitem" aria-disabled className={mbtn} title={hasParents ? "Already has parents" : `${ctxNode.type}s cannot have parents`}>
+                    <ArrowUp className={ICON_CLS} /> Add Parents <span className="ml-auto text-xs">N/A</span>
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+
           {sep}
 
           {/* Status */}
@@ -364,87 +440,72 @@ export function ContextMenu({
 
           {sep}
 
-          {/* Add Relatives — flyout submenu */}
-          <div className="relative group">
-            <button ref={addButtonRef} type="button" role="menuitem" className={btn} onClick={() => { setExpandAdd((v) => !v); setExpandType(false); }} onMouseEnter={handleAddEnter} onMouseLeave={handleAddLeave} aria-haspopup="menu" aria-expanded={expandAdd}>
-              <ArrowDown className={ICON_CLS} />
-              <span className="flex-1">Add Relatives</span>
-              <ChevronRight className="w-3 h-3 text-muted-foreground" />
-            </button>
-            {expandAdd && addFlyoutPos && (
-              <div ref={addFlyoutRef} role="menu" className="fixed z-50 min-w-[180px] border border-border rounded-md shadow-xl bg-popover"
-                style={{ left: addFlyoutPos.left, top: addFlyoutPos.top }}
-                onMouseEnter={() => { if (hoverAddTimerRef.current !== null) { clearTimeout(hoverAddTimerRef.current); hoverAddTimerRef.current = null; } }}
-                onMouseLeave={handleAddLeave}>
-                {!isEndpoint ? (
-                  <button type="button" role="menuitem" className={btn} onClick={() => { onAddContextNode("child"); onClose(); }}>
-                    <ArrowDown className={ICON_CLS} /> Add Child <span className="ml-auto text-muted-foreground text-xs">C</span>
-                  </button>
-                ) : (
-                  <button type="button" role="menuitem" aria-disabled className={mbtn} title={`${ctxNode.type}s cannot parent children`}>
-                    <ArrowDown className={ICON_CLS} /> Add Child <span className="ml-auto text-xs">N/A</span>
-                  </button>
-                )}
-                {!isEndpoint ? (
-                  <button type="button" role="menuitem" className={btn} onClick={() => { onAddContextNode("partner"); onClose(); }}>
-                    <ArrowRight className={ICON_CLS} /> {hasPartner ? "Add Another Partner" : "Add Partner"}
-                    <span className="ml-auto text-muted-foreground text-xs">R</span>
-                  </button>
-                ) : (
-                  <button type="button" role="menuitem" aria-disabled className={mbtn} title={`${ctxNode.type}s don't form couple links`}>
-                    <ArrowRight className={ICON_CLS} /> Add Partner <span className="ml-auto text-xs">N/A</span>
-                  </button>
-                )}
-                <button type="button" role="menuitem" className={btn} onClick={() => { onAddContextNode("sibling"); onClose(); }}>
-                  <ArrowLeftRight className={ICON_CLS} /> Add Sibling
-                  {!hasParents && <span className="ml-1 text-xs text-muted-foreground">(no parents yet)</span>}
-                  <span className="ml-auto text-muted-foreground text-xs">B</span>
-                </button>
-                {!hasParents && !isEndpoint ? (
-                  <button type="button" role="menuitem" className={btn} onClick={() => { onAddContextNode("parents"); onClose(); }}>
-                    <ArrowUp className={ICON_CLS} /> Add Parents
-                  </button>
-                ) : (
-                  <button type="button" role="menuitem" aria-disabled className={mbtn} title={hasParents ? "Already has parents" : `${ctxNode.type}s cannot have parents`}>
-                    <ArrowUp className={ICON_CLS} /> Add Parents <span className="ml-auto text-xs">N/A</span>
-                  </button>
-                )}
-              </div>
-            )}
-          </div>
-
-          {sep}
-
           {/* Connect */}
           {grp("Connect", isEndpoint ? "limited" : undefined)}
           {!isEndpoint ? (
             <button type="button" role="menuitem" className={btn} onClick={() => { onSetLinkMode("couple", ctxNode.id); onClose(); }}>
-              <Link2 className={ICON_CLS} /> Couple link to…
+              <Link2 className={ICON_CLS} /> Couple link…
             </button>
           ) : (
             <button type="button" role="menuitem" aria-disabled className={mbtn}><Link2 className={ICON_CLS} /> Couple link <span className="ml-auto text-xs">N/A</span></button>
           )}
           {!isEndpoint ? (
             <button type="button" role="menuitem" className={btn} onClick={() => { onSetLinkMode("parent-child", ctxNode.id); onClose(); }}>
-              <GitBranch className={ICON_CLS} /> Parent→Child from here
+              <GitBranch className={ICON_CLS} /> Parent→Child…
             </button>
           ) : (
             <button type="button" role="menuitem" aria-disabled className={mbtn}><GitBranch className={ICON_CLS} /> Parent→Child <span className="ml-auto text-xs">N/A</span></button>
           )}
           {!isEndpoint ? (
             <button type="button" role="menuitem" className={btn} onClick={() => { onSetLinkMode("consanguinity", ctxNode.id); onClose(); }}>
-              <GitMerge className={ICON_CLS} /> Consanguinity to…
+              <GitMerge className={ICON_CLS} /> Consanguinity…
             </button>
           ) : (
             <button type="button" role="menuitem" aria-disabled className={mbtn}><GitMerge className={ICON_CLS} /> Consanguinity <span className="ml-auto text-xs">N/A</span></button>
           )}
+
+          {/* Twins */}
+          {(() => {
+            if (!selectedIds || !onMarkAsTwins || !onUnmarkTwins) return null;
+            const siblingSet = new Set<string>();
+            const ctxParents = new Set(canvasEdges.filter((e) => e.type === "parent-child" && e.targetId === ctxNode.id).map((e) => e.sourceId));
+            if (ctxParents.size === 0) return null;
+            for (const sid of selectedIds) {
+              if (sid === ctxNode.id) continue;
+              const pids = canvasEdges.filter((e) => e.type === "parent-child" && e.targetId === sid).map((e) => e.sourceId);
+              if (pids.length > 0 && pids.some((p) => ctxParents.has(p))) siblingSet.add(sid);
+            }
+            if (siblingSet.size === 0) return null;
+            const allSibs = [ctxNode.id, ...siblingSet];
+            const existingEdge = canvasEdges.find((e) => e.type === "parent-child" && e.twinGroup && allSibs.includes(e.targetId));
+            return (
+              <>
+                {sep}
+                {grp("Twins")}
+                {existingEdge ? (
+                  <button type="button" role="menuitem" className={btn} onClick={() => { onUnmarkTwins(allSibs); onClose(); }}>
+                    <GitBranch className={ICON_CLS} /> Remove twin marking
+                  </button>
+                ) : (
+                  <>
+                    <button type="button" role="menuitem" className={btn} onClick={() => { onMarkAsTwins(allSibs, "m"); onClose(); }}>
+                      <GitBranch className={ICON_CLS} /> Mark as Identical twins
+                    </button>
+                    <button type="button" role="menuitem" className={btn} onClick={() => { onMarkAsTwins(allSibs, "d"); onClose(); }}>
+                      <GitBranch className={ICON_CLS} /> Mark as Fraternal twins
+                    </button>
+                  </>
+                )}
+              </>
+            );
+          })()}
 
           {sep}
 
           {/* Danger */}
           <button type="button" role="menuitem" className={dbtn} onClick={() => { onClose(); onDeleteSelected(); }}>
             <Trash2 className={`${ICON_CLS} text-red-400`} />
-            Delete {hasChildren || hasPartner ? [hasChildren && "children links", hasPartner && "couple link"].filter(Boolean).join(" & ") : "Node"}
+            Delete
           </button>
         </div>
       </div>

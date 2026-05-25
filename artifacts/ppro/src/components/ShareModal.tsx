@@ -185,9 +185,9 @@ export function ShareModal({ pedigreeId, pedigreeTitle, onClose }: ShareModalPro
             </div>
 
             {recipientKey && (
-              <div className="flex items-center gap-2 px-2 py-1.5 rounded border border-emerald-500/30 bg-emerald-500/5">
-                <Shield className="w-3 h-3 text-emerald-400" />
-                <span className="text-xs text-emerald-400">Encrypted for specific recipient</span>
+              <div className="flex items-center gap-2 px-2 py-1.5 rounded border border-primary/30 bg-primary/5">
+                <Shield className="w-3 h-3 text-primary" />
+                <span className="text-xs text-primary">Encrypted for specific recipient</span>
               </div>
             )}
           </div>

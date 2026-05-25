@@ -114,7 +114,7 @@ export function ShareGroup({
   }, [showExportMenu, measureExport, setShowExportMenu, clearHoverTimers]);
 
   const clinicalExports = [
-    { id: "report" as const, label: "Clinical Report", sub: "PDF with risk & validation", icon: <ShieldCheck className="w-4 h-4 text-green-400" />, fn: handleExportReport },
+    { id: "report" as const, label: "Clinical Report", sub: "PDF with risk & validation", icon: <ShieldCheck className="w-4 h-4 text-primary" />, fn: handleExportReport },
     { id: "pdf" as const, label: "Diagram", sub: "PDF landscape", icon: <FileText className="w-4 h-4 text-red-400" />, fn: handleExportPDF },
   ];
   const dataExports = [
@@ -122,7 +122,7 @@ export function ShareGroup({
     { id: "svg" as const, label: "SVG", sub: "Vector graphic", icon: <FileText className="w-4 h-4 text-purple-400" />, fn: handleExportSVG },
     { id: "png" as const, label: "PNG", sub: "High-res bitmap", icon: <Image className="w-4 h-4 text-cyan-400" />, fn: handleExportPNG },
     { id: "json" as const, label: "JSON", sub: "Raw data", icon: <FileJson className="w-4 h-4 text-blue-400" />, fn: handleExportJSON },
-    { id: "ppro" as const, label: "PRO File", sub: "Full history", icon: <FileJson className="w-4 h-4 text-emerald-400" />, fn: handleExportPPRO },
+    { id: "ppro" as const, label: "PRO File", sub: "Full history", icon: <FileJson className="w-4 h-4 text-primary" />, fn: handleExportPPRO },
   ];
 
   const btnCls = "w-full flex items-center gap-2 px-3 py-2.5 hover:bg-accent transition-colors text-left";
@@ -159,7 +159,7 @@ export function ShareGroup({
                 onClick={() => { setExpandClinical(true); setExpandData(false); }}
                 className={`${btnCls} ${expandClinical ? "bg-accent" : ""}`}
               >
-                <ShieldCheck className="w-4 h-4 text-green-400 flex-shrink-0" />
+                <ShieldCheck className="w-4 h-4 text-primary flex-shrink-0" />
                 <span className="flex-1 text-xs font-medium">Clinical</span>
                 <ChevronRight className="w-3 h-3 text-muted-foreground flex-shrink-0" />
               </button>

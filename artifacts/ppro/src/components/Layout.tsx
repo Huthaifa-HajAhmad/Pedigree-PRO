@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { Link, useLocation } from "wouter";
-import { Activity, LayoutDashboard, Dna, ChevronRight, UserCircle, Shield, LogOut, WifiOff, Menu, X, Settings } from "lucide-react";
+import { Activity, LayoutDashboard, Dna, ChevronRight, UserCircle, LogOut, Wifi, WifiOff, Menu, X, Settings, ShieldCheck, Lock, Tag, User, UserCog, CheckCircle2 } from "lucide-react";
 import { SkipToContent } from "@/components/SkipToContent";
 import { useTheme } from "@/lib/theme";
 import { useListProfiles, useSwitchProfile } from "@workspace/api-client-react";
@@ -39,6 +39,7 @@ const navItems = [
   { path: "/patients", label: "Patients", icon: Activity },
   { path: "/profiles", label: "Profiles", icon: UserCircle },
   { path: "/settings", label: "Settings", icon: Settings },
+  { path: "/about", label: "About", icon: ShieldCheck },
 ];
 
 export function Layout({ children }: { children: React.ReactNode }) {
@@ -122,11 +123,12 @@ export function Layout({ children }: { children: React.ReactNode }) {
               </Link>
             );
           })}
+
         </nav>
 
-        {/* Sidebar Footer — separated sections */}
-        <div className="p-3 border-t border-border space-y-1">
-          {/* Active Profile Section */}
+        {/* Sidebar Footer */}
+        <div className="border-t border-border p-4 space-y-3">
+          {/* Active Profile Card */}
           {activeProfile ? (
             <div className="relative" ref={profileDropdownRef}>
               <button
@@ -135,46 +137,54 @@ export function Layout({ children }: { children: React.ReactNode }) {
                 onClick={() => setProfileMenuOpen((v) => !v)}
                 aria-expanded={profileMenuOpen}
                 aria-haspopup="menu"
-                className="w-full flex items-center gap-2.5 p-2.5 rounded-lg border border-border hover:border-primary/50 hover:bg-primary/5 transition-all text-left group"
+                className="w-full flex items-center gap-2.5 p-2.5 rounded-xl border border-border bg-accent/10 ring-1 ring-border/40 hover:ring-primary/30 hover:border-primary/20 transition-all text-left group"
               >
-                <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0 group-hover:bg-primary/15 transition-colors">
-                  <Shield className="w-4 h-4 text-primary" />
+                <div
+                  className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 text-[10px] font-bold text-white"
+                  style={{ background: theme.accent }}
+                >
+                  {activeProfile.display_name.slice(0, 2).toUpperCase()}
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="text-xs font-medium text-foreground truncate">{activeProfile.display_name}</div>
-                  <div className="text-xs text-muted-foreground truncate">{activeProfile.role_label}</div>
+                  <div className="text-[10px] text-muted-foreground truncate flex items-center gap-1"><UserCog className="w-3 h-3 flex-shrink-0" />{activeProfile.role_label}</div>
                 </div>
-                <ChevronRight className={`w-3.5 h-3.5 flex-shrink-0 transition-all ${profileMenuOpen ? "rotate-90 text-primary" : "text-muted-foreground group-hover:text-primary"}`} />
+                <ChevronRight className={`w-3 h-3 flex-shrink-0 text-muted-foreground/50 group-hover:text-foreground transition-transform ${profileMenuOpen ? "-rotate-90" : ""}`} />
               </button>
 
               {profileMenuOpen && (
                 <div
-                  className="absolute bottom-full left-0 right-0 mb-1 z-50 border border-border rounded-lg shadow-2xl overflow-hidden animate-in fade-in slide-in-from-bottom-2"
+                  className="absolute bottom-full left-0 right-0 mb-2 z-50 border border-border rounded-xl shadow-2xl overflow-hidden animate-in fade-in slide-in-from-bottom-2"
                   style={{ background: "hsl(var(--popover))" }}
                   role="menu"
                 >
-                  <div className="px-3 py-2.5 border-b border-border text-xs text-muted-foreground uppercase tracking-widest font-medium">
+                  <div className="px-3 py-2 border-b border-border text-[10px] text-muted-foreground uppercase tracking-widest font-semibold">
                     Switch Profile
                   </div>
-                  <div className="max-h-48 overflow-y-auto p-1">
+                  <div className="max-h-48 overflow-y-auto p-1.5 space-y-0.5">
                     {profiles?.map((p) => (
                       <button
                         type="button"
                         key={p.id}
                         data-testid={`profile-option-${p.id}`}
                         onClick={() => handleSwitchProfile(p.id)}
-                        className={`w-full flex items-center gap-2.5 px-2.5 py-2 text-xs rounded-md transition-colors text-left ${
+                        className={`w-full flex items-center gap-2.5 px-2.5 py-2 text-xs rounded-lg transition-colors text-left ${
                           p.id === activeProfile.id ? "bg-primary/10 text-primary" : "hover:bg-accent"
                         }`}
                         role="menuitem"
                       >
-                        <Shield className={`w-3.5 h-3.5 flex-shrink-0 ${p.id === activeProfile.id ? "text-primary" : "text-muted-foreground"}`} />
+                        <div
+                          className="w-5 h-5 rounded-md flex items-center justify-center flex-shrink-0 text-[9px] font-bold text-white"
+                          style={{ background: p.id === activeProfile.id ? theme.accent : "hsl(var(--muted))" }}
+                        >
+                          {p.display_name.slice(0, 2).toUpperCase()}
+                        </div>
                         <div className="flex-1 min-w-0">
                           <div className="font-medium truncate">{p.display_name}</div>
-                          <div className="text-xs text-muted-foreground truncate">{p.role_label}</div>
+                          <div className="text-[10px] text-muted-foreground truncate flex items-center gap-1"><UserCog className="w-3 h-3 flex-shrink-0" />{p.role_label}</div>
                         </div>
                         {p.id === activeProfile.id && (
-                          <span className="text-xs text-primary font-semibold flex-shrink-0">Active</span>
+                          <CheckCircle2 className="w-3.5 h-3.5 text-primary flex-shrink-0" />
                         )}
                       </button>
                     ))}
@@ -195,50 +205,32 @@ export function Layout({ children }: { children: React.ReactNode }) {
             <Link href="/profiles" className="block">
               <div
                 data-testid="no-profile-indicator"
-                className="w-full flex items-center gap-2 p-2.5 rounded-lg border border-dashed border-border hover:border-primary/50 hover:bg-primary/5 transition-all cursor-pointer"
+                className="w-full flex items-center gap-2.5 p-2.5 rounded-xl border border-border bg-accent/10 ring-1 ring-border/40 hover:ring-primary/30 transition-all cursor-pointer"
               >
-                <UserCircle className="w-4 h-4 text-muted-foreground" />
-                <div className="text-xs text-muted-foreground">No active profile</div>
+                <div className="w-8 h-8 rounded-lg bg-muted flex items-center justify-center flex-shrink-0">
+                  <User className="w-4 h-4 text-muted-foreground" />
+                </div>
+                <div className="text-xs text-muted-foreground font-medium">No active profile</div>
               </div>
             </Link>
           )}
 
-          {/* Divider */}
-          <div className="my-2 border-t border-border/50" />
-
-          {/* Compact Theme Swatch */}
-          <Link href="/settings">
-            <div
-              className="w-full flex items-center gap-2.5 p-2.5 rounded-lg border border-border hover:border-primary/50 hover:bg-primary/5 transition-all cursor-pointer group"
-              onClick={() => isMobile && setSidebarOpen(false)}
-            >
-              <div
-                className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 transition-colors"
-                style={{ background: `${theme.accent}20` }}
-              >
-                <div
-                  className="w-4 h-4 rounded-full"
-                  style={{ background: `radial-gradient(circle at 35% 35%, ${theme.accent}, ${theme.bg})`, boxShadow: `0 0 0 1px ${theme.accent}40` }}
-                />
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="text-xs font-medium text-foreground truncate">{theme.name}</div>
-                <div className="text-xs text-muted-foreground truncate">Theme & settings</div>
-              </div>
-              <ChevronRight className="w-3 h-3 flex-shrink-0 text-muted-foreground group-hover:text-primary transition-colors" />
-            </div>
-          </Link>
-
-          {/* Divider */}
-          <div className="my-2 border-t border-border/50" />
-
-          {/* Online Status */}
-          <div className="px-1">
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <span className={`w-2 h-2 rounded-full flex-shrink-0 ${isOnline ? "bg-emerald-500" : "bg-amber-500"} ${isOnline ? "animate-pulse" : ""}`} />
-              <span className="text-xs">{isOnline ? "Online" : "Offline"}</span>
-            </div>
-            <div className="text-xs text-muted-foreground/40 mt-0.5">HIPAA Compliant</div>
+          {/* Status row */}
+          <div className="flex items-center gap-3 text-[10px] text-muted-foreground/70 leading-tight">
+            <span className="inline-flex items-center gap-1" title="Local & Encrypted">
+              <Lock className="w-3 h-3" />
+              <span>Local</span>
+            </span>
+            <span className="text-muted-foreground/30">·</span>
+            <span className="inline-flex items-center gap-1">
+              {isOnline ? <Wifi className="w-3 h-3 text-emerald-500" /> : <WifiOff className="w-3 h-3 text-amber-500" />}
+              <span>{isOnline ? "Online" : "Offline"}</span>
+            </span>
+            <span className="text-muted-foreground/30">·</span>
+            <span className="inline-flex items-center gap-1">
+              <Tag className="w-3 h-3" />
+              <span>v2.4</span>
+            </span>
           </div>
         </div>
       </aside>

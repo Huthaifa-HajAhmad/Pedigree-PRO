@@ -77,6 +77,7 @@ export {
   useListVersions,
   useSaveVersion,
   useRestoreVersion,
+  useDeleteVersion,
   useGetDashboardStats,
   useGetRecentActivity,
   useGetPreferences,

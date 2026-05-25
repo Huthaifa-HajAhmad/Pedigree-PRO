@@ -33,6 +33,7 @@ import {
   listVersions,
   saveVersion,
   restoreVersion,
+  deleteVersion,
   getDashboardStats,
   getRecentActivity,
   getPreferences,
@@ -283,6 +284,22 @@ export function useRestoreVersion() {
     }) => restoreVersion(pedigreeId, versionId),
     onSuccess: (_, { pedigreeId }) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.pedigree(pedigreeId) });
+    },
+  });
+}
+
+export function useDeleteVersion() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      pedigreeId,
+      versionId,
+    }: {
+      pedigreeId: number;
+      versionId: number;
+    }) => deleteVersion(pedigreeId, versionId),
+    onSuccess: (_, { pedigreeId }) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.versions(pedigreeId) });
     },
   });
 }

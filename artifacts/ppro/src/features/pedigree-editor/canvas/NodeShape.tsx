@@ -10,15 +10,15 @@ interface NodeShapeProps {
   invalid: boolean;
   autoLabel?: string;
   hasEdges?: boolean;
+  renderOffsetY?: number;
   onClick: (e: React.MouseEvent) => void;
   onDragStart: (e: React.MouseEvent) => void;
   onContextMenu: (e: React.MouseEvent) => void;
   onDoubleClick: (e: React.MouseEvent) => void;
-  animated?: boolean;
 }
 
 export const NodeShape = memo(function NodeShape({
-  node, selected, isLinkSource, invalid, autoLabel, hasEdges = true, onClick, onDragStart, onContextMenu, onDoubleClick, animated = true,
+  node, selected, isLinkSource, invalid, autoLabel, hasEdges = true, renderOffsetY = 0, onClick, onDragStart, onContextMenu, onDoubleClick,
 }: NodeShapeProps) {
   const cfg = useCanvasConfig();
   const [showHint, setShowHint] = useState(false);
@@ -48,13 +48,15 @@ export const NodeShape = memo(function NodeShape({
     ? ERR
     : selected || isLinkSource
     ? highlight
-    : "hsl(var(--foreground) / 0.75)";
+    : (cfg.config.nodeStrokeColor || "hsl(var(--foreground) / 0.75)");
   const fill = node.affected
     ? "hsl(var(--foreground))"
-    : node.carrier
-    ? "hsl(var(--primary) / 0.08)"
     : invalid
     ? "rgba(255,64,64,0.07)"
+    : node.color
+    ? node.color
+    : node.carrier
+    ? "hsl(var(--primary) / 0.08)"
     : "hsl(var(--card))";
   const S = cfg.config.nodeSize;
   const strokeWidth = selected || isLinkSource || invalid ? cfg.config.edgeWidthSelected : cfg.config.edgeWidthNormal;
@@ -69,8 +71,8 @@ export const NodeShape = memo(function NodeShape({
     <g
       role="img"
       aria-label={`${node.type}${node.label ? `: ${node.label}` : ""}${node.affected ? " (affected)" : ""}${node.carrier ? " (carrier)" : ""}`}
-      transform={`translate(${node.x}, ${node.y})`}
-      style={{ cursor: "grab", transition: animated ? "transform 0.35s cubic-bezier(0.4,0,0.2,1)" : "none" }}
+      transform={`translate(${node.x}, ${node.y + renderOffsetY})`}
+      style={{ cursor: "grab" }}
       onClick={(e) => { e.stopPropagation(); onClick(e); }}
       onDoubleClick={(e) => { e.stopPropagation(); onDoubleClick(e); }}
       onMouseDown={(e) => { e.stopPropagation(); if (hoverTimerRef.current !== null) { clearTimeout(hoverTimerRef.current); hoverTimerRef.current = null; } setShowHint(false); onDragStart(e); }}
@@ -93,7 +95,7 @@ export const NodeShape = memo(function NodeShape({
         <circle cx={0} cy={0} r={S / 2} fill={fill} stroke={stroke} strokeWidth={strokeWidth} style={glow} />
       )}
       {node.type === "unknown" && (
-        <polygon points={`0,${-S / 2} ${S / 2},${S / 4} ${-S / 2},${S / 4}`} fill={fill} stroke={stroke} strokeWidth={strokeWidth} style={glow} />
+        <polygon points={`0,${-S / 2} ${S / 2},0 0,${S / 2} ${-S / 2},0`} fill={fill} stroke={stroke} strokeWidth={strokeWidth} style={glow} />
       )}
       {node.type === "pregnancy" && (
         <>

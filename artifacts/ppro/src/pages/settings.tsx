@@ -1,13 +1,13 @@
 import { useState } from "react";
-import { Palette, Type, Ruler, Info, Check, RotateCcw } from "lucide-react";
-import { THEMES, useTheme } from "@/lib/theme";
+import { Palette, Type, Ruler, Check, RotateCcw } from "lucide-react";
+import { THEMES, useTheme, applyTheme } from "@/lib/theme";
 import { FONT_OPTIONS, useFont } from "@/lib/font";
 import { PanelSection } from "@/components/shared/panels/PanelSection";
+import { useCanvasConfig, DEFAULT_CANVAS_CONFIG } from "@/features/pedigree-editor/context/CanvasConfigContext";
 
 const TABS = [
   { id: "appearance", label: "Appearance", icon: Palette },
   { id: "canvas", label: "Canvas", icon: Ruler },
-  { id: "about", label: "About", icon: Info },
 ] as const;
 
 type TabId = (typeof TABS)[number]["id"];
@@ -27,6 +27,8 @@ function AppearanceTab() {
                 type="button"
                 key={t.id}
                 onClick={() => setTheme(t.id)}
+                onMouseEnter={() => applyTheme(t.id)}
+                onMouseLeave={() => applyTheme(themeId)}
                 className={`relative flex flex-col rounded-lg border transition-all text-left overflow-hidden ${
                   isActive ? "border-primary ring-1 ring-primary/50" : "border-border hover:border-primary/40"
                 }`}
@@ -103,27 +105,14 @@ function AppearanceTab() {
 }
 
 function CanvasTab() {
-  const configStr = localStorage.getItem("ppro_canvas_config");
-  const [config, setConfig] = useState(() => {
-    try {
-      return configStr ? JSON.parse(configStr) : { nodeSize: 44, edgeWidthNormal: 1.5 };
-    } catch {
-      return { nodeSize: 44, edgeWidthNormal: 1.5 };
-    }
-  });
+  const { config, updateConfig: ctxUpdate } = useCanvasConfig();
 
-  const updateConfig = (key: string, value: number | string) => {
-    const next = { ...config, [key]: value };
-    setConfig(next);
-    try { localStorage.setItem("ppro_canvas_config", JSON.stringify(next)); } catch {}
-    window.dispatchEvent(new CustomEvent("canvas-config-change", { detail: next }));
+  const updateConfig = (key: string, value: number | string | boolean) => {
+    ctxUpdate({ [key]: value } as Partial<typeof DEFAULT_CANVAS_CONFIG>);
   };
 
   const resetConfig = () => {
-    const defaults = { nodeSize: 44, edgeWidthNormal: 1.5 };
-    setConfig(defaults);
-    try { localStorage.setItem("ppro_canvas_config", JSON.stringify(defaults)); } catch {}
-    window.dispatchEvent(new CustomEvent("canvas-config-change", { detail: defaults }));
+    ctxUpdate({ ...DEFAULT_CANVAS_CONFIG });
   };
 
   return (
@@ -148,6 +137,36 @@ function CanvasTab() {
               <span>28</span><span>64</span>
             </div>
           </div>
+          <div>
+            <div className="text-xs text-muted-foreground uppercase tracking-widest mb-1.5">Node Border Color</div>
+            <div className="flex items-center gap-2">
+              <button type="button"
+                onClick={() => updateConfig("nodeStrokeColor", "#000000")}
+                className="w-7 h-7 rounded-full border border-border/50 flex-shrink-0 transition-all hover:scale-110"
+                style={{ background: "#000000", outline: (!config.nodeStrokeColor || config.nodeStrokeColor === "#000000") ? "2px solid hsl(var(--primary))" : "2px solid transparent", outlineOffset: 2 }}
+                aria-label="Black node border color"
+                title="Black"
+              />
+              <label className="relative w-7 h-7 rounded-full overflow-hidden flex-shrink-0 transition-all hover:scale-110 cursor-pointer"
+                style={{
+                  boxShadow: "0 0 0 1px hsl(var(--border)/0.3)",
+                  background: "conic-gradient(red, yellow, lime, aqua, blue, magenta, red)",
+                  outline: config.nodeStrokeColor && config.nodeStrokeColor !== "#000000" ? "2px solid hsl(var(--primary))" : "2px solid transparent",
+                  outlineOffset: 2,
+                }}
+                title="Custom color"
+              >
+                <input
+                  type="color"
+                  value={config.nodeStrokeColor?.startsWith("hsl(") ? "#000000" : (config.nodeStrokeColor ?? "#000000")}
+                  onChange={(e) => updateConfig("nodeStrokeColor", e.target.value)}
+                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                  style={{ padding: 0, border: "none", background: "none" }}
+                  aria-label="Custom node border color"
+                />
+              </label>
+            </div>
+          </div>
         </div>
       </PanelSection>
 
@@ -169,6 +188,36 @@ function CanvasTab() {
             />
             <div className="flex justify-between text-[10px] text-muted-foreground/50 mt-0.5">
               <span>0.5</span><span>4</span>
+            </div>
+          </div>
+            <div>
+            <div className="text-xs text-muted-foreground uppercase tracking-widest mb-1.5">Edge Color</div>
+            <div className="flex items-center gap-2">
+              <button type="button"
+                onClick={() => updateConfig("edgeColor", "#000000")}
+                className="w-7 h-7 rounded-full border border-border/50 flex-shrink-0 transition-all hover:scale-110"
+                style={{ background: "#000000", outline: (!config.edgeColor || config.edgeColor === "#000000") ? "2px solid hsl(var(--primary))" : "2px solid transparent", outlineOffset: 2 }}
+                aria-label="Black edge color"
+                title="Black"
+              />
+              <label className="relative w-7 h-7 rounded-full overflow-hidden flex-shrink-0 transition-all hover:scale-110 cursor-pointer"
+                style={{
+                  boxShadow: "0 0 0 1px hsl(var(--border)/0.3)",
+                  background: "conic-gradient(red, yellow, lime, aqua, blue, magenta, red)",
+                  outline: config.edgeColor && config.edgeColor !== "#000000" ? "2px solid hsl(var(--primary))" : "2px solid transparent",
+                  outlineOffset: 2,
+                }}
+                title="Custom color"
+              >
+                <input
+                  type="color"
+                  value={config.edgeColor?.startsWith("hsl(") ? "#000000" : (config.edgeColor ?? "#000000")}
+                  onChange={(e) => updateConfig("edgeColor", e.target.value)}
+                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                  style={{ padding: 0, border: "none", background: "none" }}
+                  aria-label="Custom edge color"
+                />
+              </label>
             </div>
           </div>
         </div>
@@ -197,8 +246,56 @@ function CanvasTab() {
             </div>
           </div>
           <div>
+            <div className="text-xs text-muted-foreground uppercase tracking-widest mb-1.5">Font Family</div>
+            <div className="grid grid-cols-2 gap-1">
+              {([
+                { id: "JetBrains Mono, monospace", label: "Mono" },
+                { id: "Arial, sans-serif", label: "Arial" },
+                { id: "Calibri, sans-serif", label: "Calibri" },
+                { id: "Inter, sans-serif", label: "Inter" },
+              ]).map((f) => (
+                <button
+                  type="button"
+                  key={f.id}
+                  onClick={() => updateConfig("annFontFamily", f.id)}
+                  className={`py-1 rounded text-xs border transition-all ${
+                    (config.annFontFamily ?? "JetBrains Mono, monospace") === f.id ? "border-primary text-primary bg-primary/10" : "border-border text-muted-foreground hover:border-primary"
+                  }`}
+                  style={{ fontFamily: f.id }}
+                >
+                  {f.label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div>
+            <div className="text-xs text-muted-foreground uppercase tracking-widest mb-1.5">Style</div>
+            <div className="flex gap-1">
+              <button
+                type="button"
+                onClick={() => updateConfig("annBold", !(config.annBold ?? true))}
+                className={`flex-1 py-1 rounded text-xs border transition-all ${
+                  (config.annBold ?? true) ? "border-primary text-primary bg-primary/10" : "border-border text-muted-foreground hover:border-primary"
+                }`}
+                style={{ fontWeight: (config.annBold ?? true) ? 600 : 400 }}
+              >
+                Bold
+              </button>
+              <button
+                type="button"
+                onClick={() => updateConfig("annUppercase", !(config.annUppercase ?? false))}
+                className={`flex-1 py-1 rounded text-xs border transition-all ${
+                  (config.annUppercase ?? false) ? "border-primary text-primary bg-primary/10" : "border-border text-muted-foreground hover:border-primary"
+                }`}
+                style={{ textTransform: (config.annUppercase ?? false) ? "uppercase" : "none" }}
+              >
+                Uppercase
+              </button>
+            </div>
+          </div>
+          <div>
             <div className="text-xs text-muted-foreground uppercase tracking-widest mb-1.5">Default Position</div>
-            <div className="grid grid-cols-4 gap-1">
+            <div className="grid grid-cols-2 gap-1">
               {(["above", "below", "left", "right"] as const).map((p) => (
                 <button
                   type="button"
@@ -208,7 +305,7 @@ function CanvasTab() {
                     (config.annDefaultPos ?? "below") === p ? "border-primary text-primary bg-primary/10" : "border-border text-muted-foreground hover:border-primary"
                   }`}
                 >
-                  {p.slice(0, 3)}
+                  {p.charAt(0).toUpperCase() + p.slice(1)}
                 </button>
               ))}
             </div>
@@ -227,62 +324,22 @@ function CanvasTab() {
   );
 }
 
-function AboutTab() {
-  return (
-    <div className="space-y-6">
-      <PanelSection title="Application" defaultOpen={true}>
-        <div className="space-y-3">
-          <div className="flex justify-between items-center">
-            <span className="text-xs text-muted-foreground">Name</span>
-            <span className="text-xs font-medium">Pedigree PRO</span>
-          </div>
-          <div className="flex justify-between items-center">
-            <span className="text-xs text-muted-foreground">Version</span>
-            <span className="text-xs font-mono">0.1.0</span>
-          </div>
-          <div className="flex justify-between items-center">
-            <span className="text-xs text-muted-foreground">License</span>
-            <span className="text-xs">Proprietary</span>
-          </div>
-        </div>
-      </PanelSection>
-
-      <PanelSection title="Privacy & Compliance" defaultOpen={true}>
-        <div className="space-y-3 text-xs text-muted-foreground leading-relaxed">
-          <div className="flex items-start gap-2 p-2.5 rounded-lg bg-emerald-500/5 border border-emerald-500/15">
-            <div className="w-2 h-2 rounded-full bg-emerald-500 flex-shrink-0 mt-0.5" />
-            <span><strong className="text-foreground">HIPAA Compliant.</strong> All patient data stays on your local device. No cloud sync, no external servers.</span>
-          </div>
-          <div className="flex items-start gap-2 p-2.5 rounded-lg bg-primary/5 border border-primary/15">
-            <div className="w-2 h-2 rounded-full bg-primary flex-shrink-0 mt-0.5" />
-            <span><strong className="text-foreground">Zero-Server Architecture.</strong> Database is encrypted at rest with AES-256-GCM. No data leaves your device unless you explicitly share it.</span>
-          </div>
-          <div className="flex items-start gap-2 p-2.5 rounded-lg bg-primary/5 border border-primary/15">
-            <div className="w-2 h-2 rounded-full bg-primary flex-shrink-0 mt-0.5" />
-            <span><strong className="text-foreground">WebRTC LAN Sharing.</strong> Peer-to-peer only. No signaling server. Data stays on your local network.</span>
-          </div>
-        </div>
-      </PanelSection>
-    </div>
-  );
-}
-
 export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState<TabId>("appearance");
 
   return (
     <div className="flex h-full">
-      <nav className="w-56 flex-shrink-0 border-r border-border p-3 space-y-0.5" style={{ background: "hsl(var(--sidebar))" }}>
+      <nav className="w-56 flex-shrink-0 border-r border-border p-3 flex flex-col" style={{ background: "hsl(var(--sidebar))" }}>
         <div className="px-3 py-2 mb-2">
           <h1 className="text-sm font-semibold">Settings</h1>
-          <p className="text-[10px] text-muted-foreground mt-0.5">Customize your workspace</p>
+          <p className="text-xs text-muted-foreground mt-0.5">Customize your workspace</p>
         </div>
         {TABS.map(({ id, label, icon: Icon }) => (
           <button
             type="button"
             key={id}
             onClick={() => setActiveTab(id)}
-            className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs transition-colors text-left ${
+            className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-colors text-left ${
               activeTab === id
                 ? "bg-primary/10 text-primary font-medium"
                 : "text-muted-foreground hover:text-foreground hover:bg-accent/50"
@@ -292,13 +349,13 @@ export default function SettingsPage() {
             {label}
           </button>
         ))}
+
       </nav>
 
       <div className="flex-1 overflow-y-auto">
         <div className="max-w-2xl mx-auto px-6 py-6">
           {activeTab === "appearance" && <AppearanceTab />}
           {activeTab === "canvas" && <CanvasTab />}
-          {activeTab === "about" && <AboutTab />}
         </div>
       </div>
     </div>

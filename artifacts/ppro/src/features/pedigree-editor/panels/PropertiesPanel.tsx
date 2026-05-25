@@ -1,29 +1,22 @@
-import { Pin, PinOff, Users, MessageSquare, Plus, ShieldCheck, User, Dna, Flag, Stethoscope, Trash2, LayoutGrid } from "lucide-react";
+import { Pin, PinOff, Users, MessageSquare, Plus, User, Dna, Flag, Stethoscope, Trash2, LayoutGrid, GitBranch } from "lucide-react";
 import type { PedigreeNode, PedigreeEdge, PedigreeAnnotation } from "@/features/pedigree-editor/canvas/types";
-import type { InheritanceMode } from "@/lib/risk-calculator";
-import { computeRisk } from "@/lib/risk-calculator";
 import { AnnotationEditorPanel } from "@/features/pedigree-editor/panels/AnnotationEditorPanel";
-import { RiskCalculatorPanel } from "@/features/pedigree-editor/panels/RiskCalculatorPanel";
 import { PanelShell } from "@/components/shared/panels/PanelShell";
 import { PanelSection } from "@/components/shared/panels/PanelSection";
 
 export function PropertiesPanel({
   selectedIds, canvasNodes, canvasEdges, canvasAnnotations,
-  selectedAnnotationId, riskMode, showRiskCalc,
-  onShowRiskCalc, onRiskModeChange, onUpdateSelectedNode,
+  selectedAnnotationId,
+  onUpdateSelectedNode,
   onBulkUpdate, onDeleteSelected, onAddAnnotation,
   onUpdateAnnotation, onDeleteAnnotation, onSelectAnnotation,
-  onAlignSelected,
+  onAlignSelected, onMarkAsTwins, onUnmarkTwins,
 }: {
   selectedIds: Set<string>;
   canvasNodes: PedigreeNode[];
   canvasEdges: PedigreeEdge[];
   canvasAnnotations: PedigreeAnnotation[];
   selectedAnnotationId: string | null;
-  riskMode: InheritanceMode;
-  showRiskCalc: boolean;
-  onShowRiskCalc: (v: boolean) => void;
-  onRiskModeChange: (m: InheritanceMode) => void;
   onUpdateSelectedNode: (updates: Partial<PedigreeNode>) => void;
   onBulkUpdate: (updates: Partial<PedigreeNode>) => void;
   onDeleteSelected: () => void;
@@ -32,6 +25,8 @@ export function PropertiesPanel({
   onDeleteAnnotation: (annId: string) => void;
   onSelectAnnotation: (annId: string | null) => void;
   onAlignSelected: (axis: "x" | "y") => void;
+  onMarkAsTwins?: (nodeIds: string[], twinType: "m" | "d") => void;
+  onUnmarkTwins?: (nodeIds: string[]) => void;
 }) {
   const singleSelected = selectedIds.size === 1 ? canvasNodes.find((n) => selectedIds.has(n.id)) ?? null : null;
   const getStatus = (node: PedigreeNode) => node.affected ? "affected" : node.carrier ? "carrier" : "unaffected";
@@ -40,6 +35,19 @@ export function PropertiesPanel({
     if (selectedIds.size === 1) onUpdateSelectedNode(upd);
     else onBulkUpdate(upd);
   };
+
+  const siblingNodes = selectedIds.size >= 2
+    ? canvasNodes.filter((n) => selectedIds.has(n.id))
+    : null;
+  const areSiblings = siblingNodes && siblingNodes.length >= 2 && (() => {
+    const firstParents = canvasEdges.filter((e) => e.type === "parent-child" && e.targetId === siblingNodes[0]!.id).map((e) => e.sourceId);
+    if (firstParents.length === 0) return false;
+    return siblingNodes.every((n) => {
+      const pids = canvasEdges.filter((e) => e.type === "parent-child" && e.targetId === n.id).map((e) => e.sourceId);
+      return pids.length > 0 && pids.some((p) => firstParents.includes(p));
+    });
+  })();
+  const hasExistingTwins = areSiblings && canvasEdges.some((e) => e.type === "parent-child" && e.twinGroup && selectedIds.has(e.targetId));
 
   return (
     <div className="absolute right-0 top-0 bottom-0 z-30 overflow-hidden rounded-l-lg h-full shadow-[-4px_0_12px_rgba(0,0,0,0.08),0_4px_12px_rgba(0,0,0,0.08)]">
@@ -99,6 +107,29 @@ export function PropertiesPanel({
             <div className="text-xs text-muted-foreground mt-1 opacity-60">Press Enter to apply</div>
           </PanelSection>
 
+          {/* Twins */}
+          {areSiblings && onMarkAsTwins && onUnmarkTwins && (
+            <PanelSection title="Twins" icon={<GitBranch className="w-3 h-3" />}>
+              {hasExistingTwins ? (
+                <button type="button" onClick={() => onUnmarkTwins([...selectedIds])}
+                  className="w-full py-1.5 text-xs border border-border rounded text-muted-foreground hover:border-destructive hover:text-destructive transition-colors">
+                  Remove twin marking
+                </button>
+              ) : (
+                <div className="grid grid-cols-2 gap-1">
+                  <button type="button" onClick={() => onMarkAsTwins([...selectedIds], "m")}
+                    className="py-1.5 text-xs border border-border rounded text-muted-foreground hover:border-primary hover:text-primary transition-colors">
+                    Identical
+                  </button>
+                  <button type="button" onClick={() => onMarkAsTwins([...selectedIds], "d")}
+                    className="py-1.5 text-xs border border-border rounded text-muted-foreground hover:border-primary hover:text-primary transition-colors">
+                    Fraternal
+                  </button>
+                </div>
+              )}
+            </PanelSection>
+          )}
+
           {/* Bulk delete */}
           <button type="button" data-testid="button-bulk-delete" onClick={onDeleteSelected}
             className="w-full py-1.5 text-xs border border-destructive/50 rounded text-destructive hover:bg-destructive/10 transition-colors">
@@ -156,6 +187,36 @@ export function PropertiesPanel({
             </div>
           </PanelSection>
 
+          {/* Annotations */}
+          <PanelSection title={`Annotations`} icon={<MessageSquare className="w-3 h-3" />} defaultOpen={true}>
+            <div className="space-y-3">
+              <button
+                type="button"
+                onClick={() => onAddAnnotation(singleSelected.id)}
+                className="w-full py-1.5 rounded-lg border border-dashed border-border text-xs text-muted-foreground hover:border-primary hover:text-primary transition-all flex items-center justify-center gap-1.5 active:scale-[0.98]"
+              >
+                <Plus className="w-3 h-3" /> Add annotation
+              </button>
+              {canvasAnnotations.filter((a) => a.nodeId === singleSelected.id).length === 0 && (
+                <p className="text-xs text-muted-foreground opacity-40 italic text-center">No annotations yet</p>
+              )}
+              <div className="space-y-3">
+                {canvasAnnotations
+                  .filter((a) => a.nodeId === singleSelected.id)
+                  .map((ann) => (
+                    <AnnotationEditorPanel
+                      key={ann.id}
+                      annotation={ann}
+                      isSelected={selectedAnnotationId === ann.id}
+                      onSelect={() => onSelectAnnotation(selectedAnnotationId === ann.id ? null : ann.id)}
+                      onUpdate={(updates) => onUpdateAnnotation(ann.id, updates)}
+                      onDelete={() => onDeleteAnnotation(ann.id)}
+                    />
+                  ))}
+              </div>
+            </div>
+          </PanelSection>
+
           {/* Flags */}
           <PanelSection title="Flags" icon={<Flag className="w-3 h-3" />} defaultOpen={false}>
             <div className="flex items-center justify-between">
@@ -193,38 +254,6 @@ export function PropertiesPanel({
               onChange={(e) => onUpdateSelectedNode({ notes: e.target.value })}
               placeholder="Longer clinical observations…" rows={3}
               className="w-full bg-muted border border-border rounded px-2 py-1.5 text-xs outline-none focus:border-primary transition-colors resize-none" />
-          </PanelSection>
-
-          {/* Risk Calculator */}
-          <PanelSection title="Risk Calculator" icon={<ShieldCheck className="w-3 h-3" />} defaultOpen={showRiskCalc}>
-            <RiskCalculatorPanel
-              result={computeRisk(canvasNodes, canvasEdges, singleSelected.id, riskMode)}
-              mode={riskMode}
-              onModeChange={onRiskModeChange}
-            />
-          </PanelSection>
-
-          {/* Annotations */}
-          <PanelSection title={`Annotations`} icon={<MessageSquare className="w-3 h-3" />} defaultOpen={!!selectedAnnotationId} key={selectedAnnotationId ?? "ann-none"}>
-            <button type="button" onClick={() => onAddAnnotation(singleSelected.id)}
-              className="flex items-center gap-0.5 text-xs text-muted-foreground hover:text-primary transition-colors">
-              <Plus className="w-3 h-3" /> Add
-            </button>
-            {canvasAnnotations.filter((a) => a.nodeId === singleSelected.id).length === 0 && (
-              <p className="text-xs text-muted-foreground opacity-40 italic">No annotations</p>
-            )}
-            {canvasAnnotations
-              .filter((a) => a.nodeId === singleSelected.id)
-              .map((ann) => (
-                <AnnotationEditorPanel
-                  key={ann.id}
-                  annotation={ann}
-                  isSelected={selectedAnnotationId === ann.id}
-                  onSelect={() => onSelectAnnotation(selectedAnnotationId === ann.id ? null : ann.id)}
-                  onUpdate={(updates) => onUpdateAnnotation(ann.id, updates)}
-                  onDelete={() => onDeleteAnnotation(ann.id)}
-                />
-              ))}
           </PanelSection>
 
           {/* Delete */}
