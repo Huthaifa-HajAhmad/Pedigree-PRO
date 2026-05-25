@@ -1,4 +1,4 @@
-import { FileText, X, AlertTriangle } from "lucide-react";
+import { FileText, X, AlertTriangle, Skull, Star, GitBranch } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { ParseResult } from "@/lib/import-pedigree";
 
@@ -22,6 +22,10 @@ export function PreviewStep({ importMode, filename, title, setTitle, patientId, 
     ? "Pedigree PRO native export — cryptographic provenance verified"
     : `${result.canvasData.nodes.length} individuals · ${result.canvasData.edges.length} relationships`;
 
+  const hasDeceased = result.canvasData.nodes.some((n) => n.deceased);
+  const hasProband = result.canvasData.nodes.some((n) => n.proband);
+  const hasTwins = result.canvasData.edges.some((e) => e.twinGroup);
+
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-3 p-3 border border-border rounded bg-muted/30">
@@ -29,6 +33,25 @@ export function PreviewStep({ importMode, filename, title, setTitle, patientId, 
         <div className="flex-1 min-w-0">
           <div className="text-sm font-medium truncate">{filename}</div>
           <div className="text-xs text-muted-foreground">{subtitle}</div>
+          {!isPPro && (hasDeceased || hasProband || hasTwins) && (
+            <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
+              {hasDeceased && (
+                <span className="inline-flex items-center gap-1 text-[10px] bg-muted rounded-full px-2 py-0.5 text-muted-foreground">
+                  <Skull className="w-3 h-3" /> Deceased
+                </span>
+              )}
+              {hasProband && (
+                <span className="inline-flex items-center gap-1 text-[10px] bg-muted rounded-full px-2 py-0.5 text-muted-foreground">
+                  <Star className="w-3 h-3" /> Proband
+                </span>
+              )}
+              {hasTwins && (
+                <span className="inline-flex items-center gap-1 text-[10px] bg-muted rounded-full px-2 py-0.5 text-muted-foreground">
+                  <GitBranch className="w-3 h-3" /> Twins
+                </span>
+              )}
+            </div>
+          )}
         </div>
         <button type="button" aria-label="Remove file" onClick={onBack} className="text-muted-foreground hover:text-foreground transition-colors flex-shrink-0">
           <X className="w-4 h-4" />

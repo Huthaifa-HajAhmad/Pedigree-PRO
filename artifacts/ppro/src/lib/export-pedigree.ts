@@ -1236,7 +1236,7 @@ export async function exportPNG(info: ExportInfo, _canvas: ExportCanvas): Promis
       canvas.height = h * scale;
       const ctx = canvas.getContext("2d");
       if (!ctx) { reject(new Error("Canvas 2D context unavailable")); return; }
-      ctx.fillStyle = "#0a0a0f";
+      ctx.fillStyle = "#f8f9fa";
       ctx.fillRect(0, 0, canvas.width, canvas.height);
       ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
       canvas.toBlob((b) => {

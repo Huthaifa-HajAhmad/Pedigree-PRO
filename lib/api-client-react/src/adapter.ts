@@ -41,7 +41,7 @@ type BrowserCommandName =
   | "list_profiles" | "create_profile" | "switch_profile" | "delete_profile"
   | "list_patients" | "get_patient" | "create_patient" | "update_patient" | "delete_patient"
   | "list_pedigrees" | "get_pedigree" | "create_pedigree" | "update_pedigree" | "delete_pedigree"
-  | "list_versions" | "save_version" | "restore_version"
+  | "list_versions" | "save_version" | "restore_version" | "delete_version"
   | "get_dashboard_stats" | "get_recent_activity"
   | "get_preferences" | "save_preferences"
   | "share_pedigree" | "import_shared"
@@ -80,6 +80,7 @@ type CommandMap = {
   list_versions: (args: { pedigree_id: number }) => import("@workspace/browser-backend").PedigreeVersion[];
   save_version: (args: { pedigree_id: number; input: import("@workspace/browser-backend").SaveVersionInput }) => import("@workspace/browser-backend").PedigreeVersion;
   restore_version: (args: { pedigree_id: number; version_id: number }) => import("@workspace/browser-backend").Pedigree;
+  delete_version: (args: { pedigree_id: number; version_id: number }) => Promise<{ deleted: boolean }>;
   get_dashboard_stats: () => import("@workspace/browser-backend").DashboardStats;
   get_recent_activity: (args?: { limit?: number }) => import("@workspace/browser-backend").ActivityItem[];
   get_preferences: () => import("@workspace/browser-backend").Preferences;

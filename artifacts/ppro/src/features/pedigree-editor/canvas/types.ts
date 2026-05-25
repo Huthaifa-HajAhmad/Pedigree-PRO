@@ -13,6 +13,7 @@ export interface PedigreeNode {
   x: number;
   y: number;
   pinned?: boolean;
+  color?: string;
 }
 
 export interface PedigreeEdge {
@@ -20,6 +21,8 @@ export interface PedigreeEdge {
   type: "couple" | "parent-child" | "consanguinity";
   sourceId: string;
   targetId: string;
+  twinGroup?: string;
+  twinType?: "m" | "d";
 }
 
 export interface PedigreeAnnotation {
@@ -31,6 +34,7 @@ export interface PedigreeAnnotation {
   position: "above" | "below" | "left" | "right";
   offsetX?: number;
   offsetY?: number;
+  hidden?: boolean;
 }
 
 export interface CanvasData {

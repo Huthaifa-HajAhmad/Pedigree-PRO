@@ -17,11 +17,11 @@ const W = 160;
 const H = 100;
 const NS = 9;          // node half-size
 const PAD = 12;
-const NEON = "#39FF14";
-const BG   = "#0A0A0A";
-const LINE = "#3A3A3A";
-const NODE_FILL = "#1E1E1E";
-const NODE_STROKE = "#484848";
+const NEON = "#16a34a";
+const BG   = "#f8f9fa";
+const LINE = "#94a3b8";
+const NODE_FILL = "#ffffff";
+const NODE_STROKE = "#334155";
 
 // ---------------------------------------------------------------------------
 // Fit canvas node coordinates into the thumbnail viewport
@@ -112,8 +112,8 @@ export function generateThumbnail(canvas: Canvas): string {
   // Nodes
   for (const node of canvas.nodes) {
     const { x, y } = map(node.x, node.y);
-    const fill   = node.affected ? NEON : node.type === "sab" ? "#404040" : NODE_FILL;
-    const stroke = node.affected ? NEON : node.deceased ? "#555" : NODE_STROKE;
+    const fill   = node.affected ? NEON : node.type === "sab" ? "#e2e8f0" : NODE_FILL;
+    const stroke = node.affected ? NEON : node.deceased ? "#9ca3af" : NODE_STROKE;
 
     if (node.type === "male") {
       parts.push(svgRect(x, y, NS, fill, stroke));
@@ -124,7 +124,7 @@ export function generateThumbnail(canvas: Canvas): string {
     } else if (node.type === "sab") {
       parts.push(svgTriangle(x, y, NS, true, fill, stroke));
     } else {
-      parts.push(svgTriangle(x, y, NS, false, fill, stroke));
+      parts.push(svgDiamond(x, y, NS, fill, stroke));
     }
 
     // Carrier dot
@@ -134,7 +134,7 @@ export function generateThumbnail(canvas: Canvas): string {
 
     // Deceased slash
     if (node.deceased) {
-      parts.push(svgLine(x - NS - 1, y + NS + 1, x + NS + 1, y - NS - 1, "#666", 0.7));
+      parts.push(svgLine(x - NS - 1, y + NS + 1, x + NS + 1, y - NS - 1, "#9ca3af", 0.7));
     }
 
     // Proband arrow

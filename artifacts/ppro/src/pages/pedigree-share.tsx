@@ -72,7 +72,7 @@ const NodeShape = memo(({ node }: { node: PedigreeNode }) => {
           style={node.affected ? { filter: `drop-shadow(0 0 6px ${NEON})` } : {}} />
       )}
       {node.type === "unknown" && (
-        <polygon points={`0,${-NODE_SIZE / 2} ${NODE_SIZE / 2},${NODE_SIZE / 4} ${-NODE_SIZE / 2},${NODE_SIZE / 4}`}
+        <polygon points={`0,${-NODE_SIZE / 2} ${NODE_SIZE / 2},0 0,${NODE_SIZE / 2} ${-NODE_SIZE / 2},0`}
           fill={fill} stroke={stroke} strokeWidth={node.affected ? 2 : 1.5}
           style={node.affected ? { filter: `drop-shadow(0 0 6px ${NEON})` } : {}} />
       )}
@@ -209,7 +209,7 @@ export default function PedigreeShare() {
             <svg width="14" height="14" viewBox="-7 -7 14 14">
               {shape === "square" && <rect x="-5" y="-5" width="10" height="10" fill="none" stroke="rgba(255,255,255,0.45)" strokeWidth="1.2" rx="1" />}
               {shape === "circle" && <circle cx="0" cy="0" r="5" fill="none" stroke="rgba(255,255,255,0.45)" strokeWidth="1.2" />}
-              {shape === "diamond" && <polygon points="0,-5 5,2 -5,2" fill="none" stroke="rgba(255,255,255,0.45)" strokeWidth="1.2" />}
+              {shape === "diamond" && <polygon points="0,-5 5,0 0,5 -5,0" fill="none" stroke="rgba(255,255,255,0.45)" strokeWidth="1.2" />}
               {shape === "filled" && <circle cx="0" cy="0" r="5" fill="rgba(57,255,20,0.25)" stroke={NEON} strokeWidth="1.2" />}
             </svg>
             <span className="text-xs text-muted-foreground">{label}</span>

@@ -1,13 +1,11 @@
 import { useRef, useState } from "react";
-import { useCreatePedigree, useListPatients, useListProfiles, useImportPedigreeLegacy, queryKeys, detectApiMode } from "@workspace/api-client-react";
+import { useCreatePedigree, useListPatients, useListProfiles, queryKeys } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { Upload } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { UploadStep } from "@/components/steps/UploadStep";
 import { PreviewStep } from "@/components/steps/PreviewStep";
-import { LegacyPreviewStep } from "@/components/steps/LegacyPreviewStep";
-import { LegacySummaryStep } from "@/components/steps/LegacySummaryStep";
 import { ImportingStep } from "@/components/steps/ImportingStep";
 import { parseFile, type ParseResult } from "@/lib/import-pedigree";
 import { signData, computeHash, getPublicKeyFromPrivate } from "@workspace/crypto";
@@ -17,8 +15,8 @@ interface Props {
   children: React.ReactNode;
 }
 
-type Step = "upload" | "preview" | "importing" | "legacy_summary";
-type ImportMode = "ped" | "ppro" | "legacy";
+type Step = "upload" | "preview" | "importing";
+type ImportMode = "ped" | "ppro";
 
 export function ImportDialog({ children }: Props) {
   const [open, setOpen] = useState(false);
@@ -31,14 +29,12 @@ export function ImportDialog({ children }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [importMode, setImportMode] = useState<ImportMode>("ped");
   const fileRef = useRef<HTMLInputElement>(null);
-  const isBrowserMode = detectApiMode() === "browser";
 
   const [, navigate] = useLocation();
   const queryClient = useQueryClient();
   const { data: patients } = useListPatients();
   const { data: profiles } = useListProfiles();
   const createPedigree = useCreatePedigree();
-  const importLegacy = useImportPedigreeLegacy();
 
   const reset = () => {
     setStep("upload");
@@ -59,7 +55,6 @@ export function ImportDialog({ children }: Props) {
   const detectImportMode = (file: File): ImportMode => {
     const ext = file.name.split(".").pop()?.toLowerCase() ?? "";
     if (ext === "ppro") return "ppro";
-    if (ext === "db" || ext === "sqlite" || ext === "sqlite3") return "legacy";
     return "ped";
   };
 
@@ -90,11 +85,9 @@ export function ImportDialog({ children }: Props) {
       return;
     }
 
-    if (mode === "legacy") { setFilename(file.name); setStep("preview"); return; }
-
-    const validExts = ["ped", "hap", "tfam", "csv", "tsv", "txt"];
+    const validExts = ["ped", "hap", "tfam", "hp", "csv", "tsv", "txt", "utf8"];
     const ext = file.name.split(".").pop()?.toLowerCase() ?? "";
-    if (!validExts.includes(ext)) { setError(`Unsupported file type ".${ext}". Accepted: .ped, .hap, .tfam, .csv, .tsv, .txt, .ppro, .db`); return; }
+    if (!validExts.includes(ext)) { setError(`Unsupported file type ".${ext}". Accepted: .ped, .hap, .tfam, .hp, .csv, .tsv, .txt, .utf8, .ppro`); return; }
     if (file.size > 5 * 1024 * 1024) { setError("File too large (max 5 MB)."); return; }
     const reader = new FileReader();
     reader.onload = (e) => {
@@ -139,18 +132,6 @@ export function ImportDialog({ children }: Props) {
     });
   };
 
-  const handleLegacyImport = () => {
-    setStep("importing");
-    importLegacy.mutate(filename, {
-      onSuccess: (summary) => {
-        queryClient.invalidateQueries({ queryKey: queryKeys.pedigrees });
-        setResult({ canvasData: { nodes: [], edges: [] }, familyIds: [], warnings: [`Imported: ${summary.pedigrees_imported} pedigrees, ${summary.patients_imported} patients`], suggestedTitle: `Legacy DB: ${filename}` });
-        setStep("legacy_summary");
-      },
-      onError: (err) => { setError(`Legacy import failed: ${err instanceof Error ? err.message : String(err)}`); setStep("preview"); },
-    });
-  };
-
   return (
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogTrigger asChild>{children}</DialogTrigger>
@@ -163,23 +144,12 @@ export function ImportDialog({ children }: Props) {
 
         {step === "upload" && <UploadStep dragOver={dragOver} setDragOver={setDragOver} fileRef={fileRef} handleFileInput={handleFileInput} handleDrop={handleDrop} error={error} />}
 
-        {step === "preview" && importMode !== "legacy" && result && (
+        {step === "preview" && result && (
           <PreviewStep importMode={importMode} filename={filename} title={title} setTitle={setTitle}
             patientId={patientId} setPatientId={setPatientId} result={result}
             error={error} patients={patients}
             onBack={() => { setStep("upload"); setResult(null); setError(null); }}
             onImport={handleImport} />
-        )}
-
-        {step === "preview" && importMode === "legacy" && (
-          <LegacyPreviewStep filename={filename} isBrowserMode={isBrowserMode}
-            error={error} onBack={() => { setStep("upload"); setError(null); }}
-            onImport={handleLegacyImport} />
-        )}
-
-        {step === "legacy_summary" && result && (
-          <LegacySummaryStep result={result}
-            onDone={() => { queryClient.invalidateQueries({ queryKey: queryKeys.pedigrees }); setOpen(false); reset(); navigate("/pedigrees"); }} />
         )}
 
         {step === "importing" && <ImportingStep importMode={importMode} />}

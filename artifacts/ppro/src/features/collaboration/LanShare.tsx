@@ -417,9 +417,9 @@ export function LanShare({ pedigreeData, recipientPublicKey, onPedigreeReceived,
         )}
 
         {status === "connected" && (
-          <div className="mt-3 flex items-center gap-2 px-3 py-2 rounded border border-green-500/30 bg-green-500/5">
-            <Check className="w-3.5 h-3.5 text-green-400" />
-            <span className="text-xs text-green-400">Connected! Data transferred.</span>
+          <div className="mt-3 flex items-center gap-2 px-3 py-2 rounded border border-primary/30 bg-primary/5">
+            <Check className="w-3.5 h-3.5 text-primary" />
+            <span className="text-xs text-primary">Connected! Data transferred.</span>
           </div>
         )}
       </div>

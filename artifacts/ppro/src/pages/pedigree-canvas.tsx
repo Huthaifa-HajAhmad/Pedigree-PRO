@@ -49,7 +49,10 @@ function PedigreeCanvasInner() {
     setShowLegend: (v: React.SetStateAction<boolean>) => ctx.dispatch({ type: "SET_STATE", patch: { showLegend: typeof v === "function" ? v(state.showLegend) : v } }),
     setShowSaveModal: (v: React.SetStateAction<boolean>) => ctx.dispatch({ type: "SET_STATE", patch: { showSaveModal: typeof v === "function" ? v(state.showSaveModal) : v } }),
     setSessionLabel: (v: React.SetStateAction<string>) => ctx.dispatch({ type: "SET_STATE", patch: { sessionLabel: typeof v === "function" ? v(state.sessionLabel) : v } }),
-    setShowVersions: (v: React.SetStateAction<boolean>) => ctx.dispatch({ type: "SET_STATE", patch: { showVersions: typeof v === "function" ? v(state.showVersions) : v } }),
+    setShowVersions: (v: React.SetStateAction<boolean>) => {
+      const newVal = typeof v === "function" ? v(state.showVersions) : v;
+      ctx.dispatch({ type: "SET_STATE", patch: { showVersions: newVal, showRiskPanel: false, showValidation: false, showSaveModal: false } });
+    },
     setShowShareModal: (v: React.SetStateAction<boolean>) => ctx.dispatch({ type: "SET_STATE", patch: { showShareModal: typeof v === "function" ? v(state.showShareModal) : v } }),
     setShowExportMenu: (v: React.SetStateAction<boolean>) => ctx.dispatch({ type: "SET_STATE", patch: { showExportMenu: typeof v === "function" ? v(state.showExportMenu) : v } }),
     setShowVersionTimeline: (v: React.SetStateAction<boolean>) => ctx.dispatch({ type: "SET_STATE", patch: { showVersionTimeline: typeof v === "function" ? v(state.showVersionTimeline) : v } }),

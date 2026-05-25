@@ -19,6 +19,7 @@ const PedigreeCanvas = lazy(() => import("@/pages/pedigree-canvas"));
 const PedigreeShare = lazy(() => import("@/pages/pedigree-share"));
 const Profiles = lazy(() => import("@/pages/profiles"));
 const Settings = lazy(() => import("@/pages/settings"));
+const About = lazy(() => import("@/pages/about"));
 
 function PageLoader() {
   return (
@@ -49,6 +50,7 @@ function Router() {
               <Route path="/pedigrees" component={Pedigrees} />
               <Route path="/profiles" component={Profiles} />
               <Route path="/settings" component={Settings} />
+              <Route path="/about" component={About} />
               <Route component={NotFound} />
             </Switch>
           </Layout>

@@ -3,13 +3,14 @@ import { useMemo, useCallback, useEffect } from "react";
 const EMPTY_SET: Set<string> = new Set();
 import { NodeShape } from "@/features/pedigree-editor/canvas/NodeShape";
 import { EdgeLine } from "@/features/pedigree-editor/canvas/EdgeLine";
-import { SibshipGroup } from "@/features/pedigree-editor/canvas/SibshipGroup";
+import { SibshipGroup, computeFamilyChildYOffset } from "@/features/pedigree-editor/canvas/SibshipGroup";
 import { AnnotationShape } from "@/features/pedigree-editor/canvas/AnnotationShape";
 import { CanvasOverlayManager } from "@/features/pedigree-editor/overlay/CanvasOverlayManager";
 import { FindBar } from "@/features/pedigree-editor/overlay/FindBar";
 import { useCanvasTouch } from "@/features/pedigree-editor/hooks/use-canvas-touch";
-import { NodeEditModal } from "@/features/pedigree-editor/modals/NodeEditModal";
+import { NodeQuickEditPopover } from "@/features/pedigree-editor/overlay/NodeQuickEditPopover";
 import { ContextMenu } from "@/features/pedigree-editor/overlay/ContextMenu";
+import { NodeColorPicker } from "@/features/pedigree-editor/overlay/NodeColorPicker";
 import { AddSiblingDialog } from "@/features/pedigree-editor/overlay/AddSiblingDialog";
 import { PropertiesPanel } from "@/features/pedigree-editor/panels/PropertiesPanel";
 import { RiskPanelSidebar } from "@/features/pedigree-editor/panels/RiskCalculatorPanel";
@@ -20,9 +21,18 @@ import { usePedigreeEditor } from "@/features/pedigree-editor/context/usePedigre
 import type { PedigreeNode, CanvasData } from "@/features/pedigree-editor/canvas/types";
 import { NODE_SIZE } from "@/features/pedigree-editor/canvas/types";
 
+function computeLabelBelowHeight(node: PedigreeNode, autoLabel?: string): number {
+  let h = 0;
+  if (autoLabel) h = 13;
+  if (node.label) h = autoLabel ? 24 : 14;
+  if (node.age || node.dob) h += 11;
+  if (node.condition) h += 11;
+  return h;
+}
+
 function AnnotationLayer({
   annotations, nodes, selectedAnnotationId, canvas,
-  onAnnotationClick, onAnnotationDragStart, onAnnotationUpdateText,
+  onAnnotationClick, onAnnotationDragStart, onAnnotationUpdateText, autoLabels, showAutoLabels, familyYOffsetMap,
 }: {
   annotations: CanvasData["annotations"];
   nodes: PedigreeNode[];
@@ -31,6 +41,9 @@ function AnnotationLayer({
   onAnnotationClick: (annId: string, nodeId: string) => void;
   onAnnotationDragStart: (annId: string, e: React.MouseEvent) => void;
   onAnnotationUpdateText?: (annId: string, text: string) => void;
+  autoLabels: Map<string, string>;
+  showAutoLabels: boolean;
+  familyYOffsetMap: Map<string, number>;
 }) {
   const nodeById = useMemo(() => {
     const map = new Map<string, PedigreeNode>();
@@ -55,27 +68,35 @@ function AnnotationLayer({
   return (
     <g>
       {annotations.map((ann) => {
-        const node = nodeById.get(ann.nodeId);
-        if (!node) return null;
-        const stackIndex = stackIndexById.get(ann.id) ?? 0;
-        return (
-          <AnnotationShape key={ann.id} ann={ann}
-            nodeX={node.x} nodeY={node.y} stackIndex={stackIndex}
-            isSelected={selectedAnnotationId === ann.id}
-            onClick={() => onAnnotationClick(ann.id, ann.nodeId)}
-            onDragStart={(e) => onAnnotationDragStart(ann.id, e)}
-            onUpdateText={onAnnotationUpdateText}
-          />
-        );
+         const node = nodeById.get(ann.nodeId);
+         if (!node) return null;
+         const stackIndex = stackIndexById.get(ann.id) ?? 0;
+         const autoLabel = showAutoLabels ? autoLabels.get(node.id) : undefined;
+         const labelBelowHeight = computeLabelBelowHeight(node, autoLabel);
+         const offsetY = familyYOffsetMap.get(ann.nodeId) ?? 0;
+         return (
+           <AnnotationShape key={ann.id} ann={ann}
+             nodeX={node.x} nodeY={node.y + offsetY} stackIndex={stackIndex}
+             isSelected={selectedAnnotationId === ann.id}
+             onClick={() => onAnnotationClick(ann.id, ann.nodeId)}
+             onDragStart={(e) => onAnnotationDragStart(ann.id, e)}
+             onUpdateText={onAnnotationUpdateText}
+             labelBelowHeight={labelBelowHeight}
+           />
+         );
       })}
     </g>
   );
 }
 
-function SibshipLayer({ edges, nodes, invalidEdgeIds }: {
+function SibshipLayer({ edges, nodes, invalidEdgeIds, annotations = [], showAutoLabels, autoLabels, familyOffsets }: {
   edges: CanvasData["edges"];
   nodes: PedigreeNode[];
   invalidEdgeIds: Set<string>;
+  annotations?: CanvasData["annotations"];
+  showAutoLabels?: boolean;
+  autoLabels?: Map<string, string>;
+  familyOffsets?: Map<string, number>;
 }) {
   const groups = useMemo(() => {
     const pcEdges = edges.filter((e) => e.type === "parent-child");
@@ -117,8 +138,13 @@ function SibshipLayer({ edges, nodes, invalidEdgeIds }: {
           parentIds={g.parentIds}
           childIds={g.childIds}
           nodes={g.nodes}
+          edges={edges}
           invalid={g.invalid}
           edgeType={g.edgeType}
+          annotations={annotations}
+          showAutoLabels={showAutoLabels}
+          autoLabels={autoLabels}
+          parentOffsets={familyOffsets}
         />
       ))}
     </g>
@@ -130,10 +156,10 @@ export function PedigreeCanvasBody() {
 
   const {
     canvas, selectedIds, linkSource, showAutoLabels, viewBox,
-    panning, spaceHeld, lassoVisible, isDragging, annDragging,
+    panning, spaceHeld, lassoVisible,
     editModalNodeId, showSearch, searchQuery, searchMatchIndex,
-    showMinimap, showGrid, showLegend, contextMenu,
-    selectedAnnotationId, riskMode, showRiskCalc,
+    showMinimap, showGrid, showLegend, contextMenu, colorPickerNode,
+    selectedAnnotationId, riskMode,
     showRiskPanel, showVersions, showValidation, expandedIssueId,
     showShareModal, showAddSiblingDialog, siblingSourceId,
     alignGuides,
@@ -141,12 +167,12 @@ export function PedigreeCanvasBody() {
 
   const {
     updateCanvas, addAnnotation, updateAnnotation, deleteAnnotation,
-    setNodeType, toggleNodeProp, addContextNode, deleteSelected,
+    setNodeType, setNodeColor, toggleNodeProp, addContextNode, deleteSelected,
     updateSelectedNode, bulkUpdate, alignSelected,
     handleNodeClick, handleNodeDoubleClick, handleNodeContextMenu, handleDragStart,
     handleMouseMove, handleMouseUp, handleSVGMouseDown, handleWheel,
     getSVGCoords, handleSaveVersion, handleRestoreVersion, handleDeleteVersion,
-    addSiblings,
+    addSiblings, markAsTwins, unmarkTwins,
   } = ops;
 
   const {
@@ -164,6 +190,8 @@ export function PedigreeCanvasBody() {
     metaKey: false, ctrlKey: false, altKey: false, shiftKey: false, button: 0,
     preventDefault: () => {}, stopPropagation: () => {},
   } as unknown as React.MouseEvent), []);
+
+  const handleCloseContextMenu = useCallback(() => dispatch({ type: "SET_STATE", patch: { contextMenu: null } }), [dispatch]);
 
   const { onTouchStart, onTouchMove, onTouchEnd } = useCanvasTouch({
     getSVGCoords,
@@ -192,11 +220,26 @@ export function PedigreeCanvasBody() {
   const handleAnnotationDragStart = useCallback((annId: string, e: React.MouseEvent) => {
     const coords = getSVGCoords(e);
     if (!coords) return;
-    dispatch({ type: "SET_STATE", patch: { selectedAnnotationId: annId } });
     preDragCanvasRef.current = canvas;
     const ann = canvas.annotations.find((a) => a.id === annId);
-    pendingAnnDragRef.current = { annId, startSVG: coords, initOffset: { x: ann?.offsetX ?? 0, y: ann?.offsetY ?? 0 } };
-  }, [getSVGCoords, canvas, preDragCanvasRef]);
+    const node = ann ? canvas.nodes.find((n) => n.id === ann.nodeId) : undefined;
+    const autoLabel = ann && showAutoLabels ? autoLabels.get(ann.nodeId) : undefined;
+    const labelBelowHeight = node ? computeLabelBelowHeight(node, autoLabel) : 0;
+    const stackIndex = (() => {
+      const grouped = new Map<string, string[]>();
+      for (const a of canvas.annotations) {
+        const key = `${a.nodeId}|${a.position}`;
+        if (!grouped.has(key)) grouped.set(key, []);
+        grouped.get(key)!.push(a.id);
+      }
+      for (const ids of grouped.values()) {
+        const idx = ids.indexOf(annId);
+        if (idx >= 0) return idx;
+      }
+      return 0;
+    })();
+    pendingAnnDragRef.current = { annId, startSVG: coords, initOffset: { x: ann?.offsetX ?? 0, y: ann?.offsetY ?? 0 }, labelBelowHeight, stackIndex };
+  }, [getSVGCoords, canvas, preDragCanvasRef, showAutoLabels, autoLabels]);
 
   const handleAnnotationUpdateText = useCallback((annId: string, text: string) => {
     updateAnnotation(annId, { text });
@@ -207,6 +250,27 @@ export function PedigreeCanvasBody() {
     for (const e of canvas.edges) { ids.add(e.sourceId); ids.add(e.targetId); }
     return ids;
   }, [canvas.edges]);
+
+  const familyOffsets = useMemo(() => {
+    const offsets = new Map<string, number>();
+    const pcEdges = canvas.edges.filter((e) => e.type === "parent-child");
+    const childParents = new Map<string, string[]>();
+    for (const e of pcEdges) {
+      if (!childParents.has(e.targetId)) childParents.set(e.targetId, []);
+      childParents.get(e.targetId)!.push(e.sourceId);
+    }
+    const families = new Map<string, { parentIds: string[]; childIds: string[] }>();
+    for (const [childId, pIds] of childParents) {
+      const key = [...pIds].sort().join("|");
+      if (!families.has(key)) families.set(key, { parentIds: [...pIds].sort(), childIds: [] });
+      families.get(key)!.childIds.push(childId);
+    }
+    for (const [, { parentIds, childIds }] of families) {
+      const familyMap = computeFamilyChildYOffset(parentIds, childIds, canvas.nodes, canvas.annotations, NODE_SIZE, showAutoLabels, autoLabels, offsets);
+      for (const [nid, delta] of familyMap) offsets.set(nid, delta);
+    }
+    return offsets;
+  }, [canvas.nodes, canvas.edges, canvas.annotations, showAutoLabels, autoLabels]);
 
   return (
     <div className="flex flex-1 overflow-hidden" data-print-area>
@@ -224,7 +288,7 @@ export function PedigreeCanvasBody() {
         >
           {visibleGenRows.map((row) => (
             <line key={row} x1={viewBox.x} y1={row} x2={viewBox.x + vbW} y2={row}
-              stroke={"hsl(var(--muted-foreground) / 0.12)"} strokeWidth={0.3} strokeDasharray="6 4" opacity={0.4}
+              stroke={"hsl(var(--primary) / 0.5)"} strokeWidth={0.8} strokeDasharray="8 5" opacity={0.4}
             />
           ))}
 
@@ -302,11 +366,12 @@ export function PedigreeCanvasBody() {
             {canvas.edges.filter((e) => e.type !== "parent-child").map((edge) => (
               <EdgeLine key={edge.id} edge={edge} nodes={canvas.nodes}
                 invalid={showValidation && validation.invalidEdgeIds.has(edge.id)}
+                renderOffsets={familyOffsets}
               />
             ))}
           </g>
 
-          <SibshipLayer edges={canvas.edges} nodes={canvas.nodes} invalidEdgeIds={showValidation ? validation.invalidEdgeIds : EMPTY_SET} />
+          <SibshipLayer edges={canvas.edges} nodes={canvas.nodes} invalidEdgeIds={showValidation ? validation.invalidEdgeIds : EMPTY_SET} annotations={canvas.annotations} showAutoLabels={showAutoLabels} autoLabels={autoLabels} familyOffsets={familyOffsets} />
 
           <g>
             {canvas.nodes.map((node) => (
@@ -315,11 +380,11 @@ export function PedigreeCanvasBody() {
                 invalid={showValidation && validation.invalidNodeIds.has(node.id)}
                 autoLabel={showAutoLabels ? autoLabels.get(node.id) : undefined}
                 hasEdges={nodeIdsWithEdges.has(node.id)}
+                renderOffsetY={familyOffsets.get(node.id) ?? 0}
                 onClick={(e) => handleNodeClick(node.id, e)}
                 onDragStart={(e) => handleDragStart(e, node.id)}
                 onContextMenu={(e) => handleNodeContextMenu(node.id, e)}
                 onDoubleClick={(e) => handleNodeDoubleClick(node.id, e)}
-                animated={!isDragging && !annDragging}
               />
             ))}
           </g>
@@ -332,6 +397,9 @@ export function PedigreeCanvasBody() {
             onAnnotationClick={handleAnnotationClick}
             onAnnotationDragStart={handleAnnotationDragStart}
             onAnnotationUpdateText={handleAnnotationUpdateText}
+            autoLabels={autoLabels}
+            showAutoLabels={showAutoLabels}
+            familyYOffsetMap={familyOffsets}
           />
 
           {canvas.nodes.length === 0 && (
@@ -373,24 +441,26 @@ export function PedigreeCanvasBody() {
           singleSelected={selectedIds.size === 1}
           showRiskPanel={showRiskPanel}
           showValidation={showValidation}
+          showVersions={showVersions}
         />
 
         {editModalNodeId && (() => {
           const editNode = canvas.nodes.find((n) => n.id === editModalNodeId);
           if (!editNode) return null;
-          const nodeAnnotations = canvas.annotations.filter((a) => a.nodeId === editModalNodeId);
-          const nodeAutoLabel = showAutoLabels ? autoLabels.get(editModalNodeId) : undefined;
           return (
-            <NodeEditModal key={editModalNodeId}
-              node={editNode} autoLabel={nodeAutoLabel} annotations={nodeAnnotations}
+            <NodeQuickEditPopover
+              key={editModalNodeId}
+              node={editNode}
+              svgRef={svgRef}
               onClose={() => dispatch({ type: "SET_STATE", patch: { editModalNodeId: null } })}
               onUpdateNode={(updates) => updateCanvas((prev) => ({
                 ...prev,
                 nodes: prev.nodes.map((n) => n.id === editModalNodeId ? { ...n, ...updates } : n),
               }))}
-              onAddAnnotation={addAnnotation}
-              onUpdateAnnotation={updateAnnotation}
-              onDeleteAnnotation={deleteAnnotation}
+              onOpenSidebar={() => {
+                dispatch({ type: "SET_STATE", patch: { editModalNodeId: null } });
+                // Sidepanel auto-opens when a node is selected, which is already true
+              }}
             />
           );
         })()}
@@ -402,34 +472,50 @@ export function PedigreeCanvasBody() {
             <ContextMenu ctxNode={ctxNode}
               canvasEdges={canvas.edges} canvasNodes={canvas.nodes}
               position={{ x: contextMenu.x, y: contextMenu.y }}
-              onClose={() => dispatch({ type: "SET_STATE", patch: { contextMenu: null } })}
+              onClose={handleCloseContextMenu}
               onSetNodeType={setNodeType} onToggleNodeProp={toggleNodeProp}
               onAddContextNode={addContextNode} onDeleteSelected={deleteSelected}
               onSetLinkMode={(mode, sourceId) => { dispatch({ type: "SET_STATE", patch: { linkMode: mode, linkSource: sourceId } }); }}
+              onOpenColorPicker={(nodeId) => dispatch({ type: "SET_STATE", patch: { colorPickerNode: nodeId } })}
+              selectedIds={selectedIds}
+              onMarkAsTwins={markAsTwins}
+              onUnmarkTwins={unmarkTwins}
             />
           );
         })()}
 
-        {anySelected && !showRiskPanel && !showValidation && (
+        {colorPickerNode && (() => {
+          const cpNode = canvas.nodes.find((n) => n.id === colorPickerNode);
+          if (!cpNode) return null;
+          return (
+            <NodeColorPicker
+              node={cpNode}
+              svgRef={svgRef}
+              onSetColor={setNodeColor}
+              onClose={() => dispatch({ type: "SET_STATE", patch: { colorPickerNode: null } })}
+            />
+          );
+        })()}
+
+        {anySelected && !showRiskPanel && !showValidation && !showVersions && (
           <PropertiesPanel
             selectedIds={selectedIds}
             canvasNodes={canvas.nodes} canvasEdges={canvas.edges}
             canvasAnnotations={canvas.annotations}
             selectedAnnotationId={selectedAnnotationId}
-            riskMode={riskMode} showRiskCalc={showRiskCalc}
-            onShowRiskCalc={(v) => dispatch({ type: "SET_STATE", patch: { showRiskCalc: v } })}
-            onRiskModeChange={(m) => dispatch({ type: "SET_STATE", patch: { riskMode: m } })}
             onUpdateSelectedNode={updateSelectedNode} onBulkUpdate={bulkUpdate}
             onDeleteSelected={deleteSelected}
             onAddAnnotation={addAnnotation} onUpdateAnnotation={updateAnnotation}
             onDeleteAnnotation={deleteAnnotation}
             onSelectAnnotation={(annId: string | null) => dispatch({ type: "SET_STATE", patch: { selectedAnnotationId: annId } })}
             onAlignSelected={alignSelected}
+            onMarkAsTwins={markAsTwins}
+            onUnmarkTwins={unmarkTwins}
           />
         )}
 
         {showRiskPanel && (
-          <div className="absolute right-0 top-0 bottom-0 z-30 overflow-hidden shadow-[-4px_0_12px_rgba(0,0,0,0.08),0_4px_12px_rgba(0,0,0,0.08)]">
+          <div className="absolute right-0 top-0 bottom-0 z-30 overflow-hidden rounded-l-lg h-full shadow-[-4px_0_12px_rgba(0,0,0,0.08),0_4px_12px_rgba(0,0,0,0.08)]">
             <RiskPanelSidebar canvas={canvas} mode={riskMode}
               onModeChange={(m) => dispatch({ type: "SET_STATE", patch: { riskMode: m } })}
               onClose={() => dispatch({ type: "SET_STATE", patch: { showRiskPanel: false } })}
@@ -471,6 +557,7 @@ export function PedigreeCanvasBody() {
         if (!srcNode) return null;
         return (
           <AddSiblingDialog sourceNode={srcNode}
+            autoLabel={showAutoLabels ? autoLabels.get(siblingSourceId) : undefined}
             onConfirm={(siblings) => addSiblings(siblingSourceId, siblings)}
             onCancel={() => dispatch({ type: "SET_STATE", patch: { showAddSiblingDialog: false, siblingSourceId: null } })}
           />

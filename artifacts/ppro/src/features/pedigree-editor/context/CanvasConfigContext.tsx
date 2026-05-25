@@ -11,6 +11,11 @@ export interface CanvasConfig {
   carrierDotRadius: number;
   annFontSize: number;
   annDefaultPos: "above" | "below" | "left" | "right";
+  edgeColor: string;
+  nodeStrokeColor: string;
+  annFontFamily: string;
+  annBold: boolean;
+  annUppercase: boolean;
 }
 
 export const DEFAULT_CANVAS_CONFIG: CanvasConfig = {
@@ -23,6 +28,11 @@ export const DEFAULT_CANVAS_CONFIG: CanvasConfig = {
   carrierDotRadius: 5,
   annFontSize: 12,
   annDefaultPos: "below",
+  edgeColor: "#000000",
+  nodeStrokeColor: "",
+  annFontFamily: "JetBrains Mono, monospace",
+  annBold: true,
+  annUppercase: false,
 };
 
 const STORAGE_KEY = "ppro_canvas_config";

@@ -13,6 +13,7 @@ import { ClinicalGroup } from "@/features/pedigree-editor/toolbar/groups/Clinica
 import { CollaborateGroup } from "@/features/pedigree-editor/toolbar/groups/CollaborateGroup";
 import { FileGroup } from "@/features/pedigree-editor/toolbar/groups/FileGroup";
 import { ShareGroup } from "@/features/pedigree-editor/toolbar/groups/ShareGroup";
+import { HelpGroup } from "@/features/pedigree-editor/toolbar/groups/HelpGroup";
 import { useToolbarLayout } from "@/features/pedigree-editor/toolbar/hooks/useToolbarLayout";
 
 import type { PedigreeNode } from "@/features/pedigree-editor/canvas/types";
@@ -226,6 +227,10 @@ export function RibbonToolbar(props: RibbonToolbarProps) {
           handleExportSVG={props.handleExportSVG}
           handleExportJSON={props.handleExportJSON}
           handleExportPPRO={props.handleExportPPRO} labelHidden={hideLabels || compactSecondaries} />
+
+        <div className="w-px self-stretch bg-border mx-1 flex-shrink-0" />
+
+        <HelpGroup labelHidden={hideLabels || compactSecondaries} />
       </div>
 
       {/* Hidden live region for save status announcements */}

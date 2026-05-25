@@ -16,7 +16,7 @@ function LegendSymbol({ k }: { k: string }) {
   );
   if (k === "unknown") return (
     <svg width={14} height={14} viewBox="-7 -7 14 14">
-      <polygon points="0,-5 5.5,3 -5.5,3" fill="none" stroke={W} strokeWidth={1.5} />
+      <polygon points="0,-5.5 5.5,0 0,5.5 -5.5,0" fill="none" stroke={W} strokeWidth={1.5} />
     </svg>
   );
   if (k === "pregnancy") return (
@@ -26,7 +26,8 @@ function LegendSymbol({ k }: { k: string }) {
   );
   if (k === "sab") return (
     <svg width={14} height={14} viewBox="-7 -7 14 14">
-      <polygon points="0,5 -5.5,-3 5.5,-3" fill="hsl(var(--muted-foreground) / 0.3)" stroke={W} strokeWidth={1.5} />
+      <polygon points="0,5.5 -5.5,-3 5.5,-3" fill="none" stroke={W} strokeWidth={1.5} />
+      <line x1={-4.5} y1={-3} x2={4.5} y2={5} stroke={W} strokeWidth={1.2} />
     </svg>
   );
   if (k === "affected") return (
@@ -48,22 +49,20 @@ function LegendSymbol({ k }: { k: string }) {
   );
   if (k === "proband") return (
     <svg width={14} height={14} viewBox="-7 -7 14 14">
-      <path d="M-5,0 L3,0 M0,-3 L4,0 L0,3" fill="none" stroke={G} strokeWidth={1.5} strokeLinejoin="round" />
+      <path d="M5,0 L-3,0 M0,-3 L-4,0 L0,3" fill="none" stroke={G} strokeWidth={1.5} strokeLinejoin="round" />
     </svg>
   );
   if (k === "couple") return (
     <svg width={22} height={14} viewBox="-11 -7 22 14">
-      <line x1={-6} y1={0} x2={6} y2={0} stroke={W} strokeWidth={1.5} />
+      <line x1={-7} y1={0} x2={7} y2={0} stroke={W} strokeWidth={1.5} />
       <circle cx={-7} cy={0} r={1.5} fill={W} />
       <circle cx={7} cy={0} r={1.5} fill={W} />
     </svg>
   );
   if (k === "consanguinity") return (
     <svg width={22} height={14} viewBox="-11 -7 22 14">
-      <line x1={-6} y1={-2} x2={6} y2={-2} stroke={W} strokeWidth={1.5} />
-      <line x1={-6} y1={2} x2={6} y2={2} stroke={W} strokeWidth={1.5} />
-      <circle cx={-7} cy={0} r={1.5} fill={W} />
-      <circle cx={7} cy={0} r={1.5} fill={W} />
+      <line x1={-7} y1={-2.5} x2={7} y2={-2.5} stroke={W} strokeWidth={1.5} />
+      <line x1={-7} y1={2.5} x2={7} y2={2.5} stroke={W} strokeWidth={1.5} />
     </svg>
   );
   if (k === "parent-child") return (
@@ -121,17 +120,19 @@ export function LegendPanel({ entries, expanded: controlledExpanded, onToggle, c
           </button>
         )}
       </div>
-      <div className="grid grid-cols-2 gap-x-2 gap-y-1">
-        {entries.map((e) => (
-          <div key={e.key} className="flex items-center gap-2">
-            <div className="flex-shrink-0 flex items-center justify-center w-[22px]">
-              <LegendSymbol k={e.key} />
+      <div className="max-h-[240px] overflow-y-auto">
+        <div className="flex flex-col gap-1.5">
+          {entries.map((e) => (
+            <div key={e.key} className="flex items-center gap-2">
+              <div className="flex-shrink-0 flex items-center justify-center w-[22px]">
+                <LegendSymbol k={e.key} />
+              </div>
+              <span className="text-[11px] text-muted-foreground">
+                {e.label}
+              </span>
             </div>
-            <span className="text-[10px] leading-tight text-muted-foreground truncate">
-              {e.label}
-            </span>
-          </div>
-        ))}
+          ))}
+        </div>
       </div>
     </div>
   );

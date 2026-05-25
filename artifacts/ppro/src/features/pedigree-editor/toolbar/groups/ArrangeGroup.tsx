@@ -1,5 +1,5 @@
 import { useEffect, useRef, useCallback, useState } from "react";
-import { LayoutGrid, ChevronDown, Hash, PinOff } from "lucide-react";
+import { LayoutGrid, ChevronDown, Hash, PinOff, Eye } from "lucide-react";
 import type { CanvasData } from "@/features/pedigree-editor/canvas/types";
 
 interface ArrangeGroupProps {
@@ -127,8 +127,16 @@ export function ArrangeGroup({
                   <div className="text-xs font-medium text-foreground">{showAutoLabels ? "Hide labels" : "Show labels"}</div>
                   <div className="text-xs text-muted-foreground mt-0.5">{showAutoLabels ? "Turn off overlay" : "Show I:1, II:3 … above each node"}</div>
                 </div>
-                <div className={`w-8 h-4 rounded-full flex-shrink-0 transition-colors ${showAutoLabels ? "bg-primary" : "bg-muted"}`}>
-                  <div className={`w-3 h-3 rounded-full bg-white mt-0.5 transition-all ${showAutoLabels ? "ml-4" : "ml-0.5"}`} />
+                <div className={`w-9 h-5 rounded-full border transition-all relative flex-shrink-0 ${showAutoLabels ? "border-primary bg-primary" : "border-border bg-muted"}`}>
+                  <span className={`absolute top-[1px] left-[1px] w-4 h-4 rounded-full shadow-sm transition-transform bg-card ${showAutoLabels ? "translate-x-[16px]" : "translate-x-0"}`} />
+                </div>
+              </button>
+               <button type="button" onClick={() => { updateCanvas((prev) => { const anyVisible = prev.annotations.some((a) => !a.hidden); return { ...prev, annotations: prev.annotations.map((a) => ({ ...a, hidden: anyVisible })) }; }); setShowLabelsMenu(false); }}
+                className="w-full flex items-start gap-3 px-3 py-2.5 hover:bg-accent transition-colors text-left border-t border-border">
+                <Eye className="w-4 h-4 mt-0.5 flex-shrink-0 text-primary" />
+                <div>
+                  <div className="text-xs font-medium text-foreground">Toggle all annotations</div>
+                  <div className="text-xs text-muted-foreground mt-0.5">Hide or show every annotation</div>
                 </div>
               </button>
               <button type="button" onClick={bakeEmptyLabels} disabled={canvasNodesLength === 0}

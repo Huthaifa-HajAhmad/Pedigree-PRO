@@ -446,6 +446,17 @@ export function restore_version(args: {
   return get_pedigree({ id: args.pedigree_id });
 }
 
+export function delete_version(args: {
+  pedigree_id: number;
+  version_id: number;
+}): { deleted: boolean } {
+  exec(
+    "DELETE FROM pedigree_versions WHERE id = ? AND pedigree_id = ?",
+    [args.version_id, args.pedigree_id]
+  );
+  return { deleted: true };
+}
+
 // =============================================================================
 // Dashboard Types & Operations
 // =============================================================================

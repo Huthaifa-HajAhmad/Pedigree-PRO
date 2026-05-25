@@ -172,7 +172,7 @@ export function TabBar({
           onClick={onToggleTabPicker}
           title="Open another pedigree in a tab"
           aria-label="Open another pedigree in a tab"
-          className="flex items-center justify-center min-w-[44px] min-h-[44px] text-muted-foreground hover:text-primary hover:bg-muted/40 transition-colors rounded"
+          className="flex items-center justify-center min-w-[32px] min-h-[32px] text-muted-foreground hover:text-primary hover:bg-accent active:scale-95 rounded-md transition-all duration-150"
         >
           <Plus className="w-3.5 h-3.5" />
         </button>

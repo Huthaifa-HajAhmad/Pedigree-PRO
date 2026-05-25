@@ -34,7 +34,8 @@ export interface LayoutEdge {
 }
 
 const GEN_Y_START = 130;
-const GEN_SPACING = 140;
+import { GEN_GRID } from "@/features/pedigree-editor/canvas/types";
+const GEN_SPACING = GEN_GRID;
 const H_SPACING = 110;
 const COUPLE_SPACING = 90;
 const CANVAS_CENTER_X = 700;
