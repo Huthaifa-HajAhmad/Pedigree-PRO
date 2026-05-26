@@ -20,7 +20,7 @@
   background-size: 40px 40px;
 }
 
-/* Hide scrollbar in tabs bar while keeping scroll functionality */
+/* Tabs bar: hidden scrollbar, smooth transitions */
 .tabs-bar::-webkit-scrollbar { display: none; }
 .tabs-bar { scrollbar-width: none; -ms-overflow-style: none; }
 

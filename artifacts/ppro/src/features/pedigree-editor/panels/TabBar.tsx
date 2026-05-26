@@ -1,6 +1,7 @@
-import { useRef, useState } from "react";
-import { Dna, Plus, X, Pencil, Trash2 } from "lucide-react";
+import { useRef, useState, useCallback, useEffect } from "react";
+import { ChevronDown, Plus, X, Pencil, Trash2 } from "lucide-react";
 import { TabPickerPopover } from "@/features/pedigree-editor/panels/TabPickerPopover";
+import { useTheme } from "@/lib/theme";
 
 
 interface TabEntry {
@@ -20,6 +21,7 @@ interface TabBarProps {
   onOpenTab: (id: number, title: string) => void;
   onReorderTab?: (fromIndex: number, toIndex: number) => void;
   onDeletePedigree: (tabId: number, tabTitle: string) => void;
+  saveStatus?: "idle" | "saving" | "saved";
 }
 
 export function TabBar({
@@ -34,7 +36,9 @@ export function TabBar({
   onOpenTab,
   onReorderTab,
   onDeletePedigree,
+  saveStatus = "idle",
 }: TabBarProps) {
+  const { theme } = useTheme();
   const dragIndexRef = useRef<number | null>(null);
   const [dropIndex, setDropIndex] = useState<number | null>(null);
   const [draggingId, setDraggingId] = useState<number | null>(null);
@@ -42,6 +46,29 @@ export function TabBar({
   const [renameValue, setRenameValue] = useState("");
   const renameInputRef = useRef<HTMLInputElement>(null);
   const [tabCtxMenu, setTabCtxMenu] = useState<{ x: number; y: number; tab: TabEntry } | null>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(false);
+
+  const updateScrollIndicators = useCallback(() => {
+    const el = scrollContainerRef.current;
+    if (!el) return;
+    setCanScrollLeft(el.scrollLeft > 2);
+    setCanScrollRight(el.scrollLeft < el.scrollWidth - el.clientWidth - 2);
+  }, []);
+
+  useEffect(() => {
+    updateScrollIndicators();
+    const el = scrollContainerRef.current;
+    if (!el) return;
+    el.addEventListener("scroll", updateScrollIndicators, { passive: true });
+    const observer = new ResizeObserver(updateScrollIndicators);
+    observer.observe(el);
+    return () => {
+      el.removeEventListener("scroll", updateScrollIndicators);
+      observer.disconnect();
+    };
+  }, [updateScrollIndicators, tabs]);
 
   const startRename = (tab: TabEntry) => {
     setRenamingId(tab.id);
@@ -61,138 +88,216 @@ export function TabBar({
     setRenamingId(null);
     setRenameValue("");
   };
+
   return (
     <div
-      className="tabs-bar flex items-center gap-1 px-2 border-b border-border bg-background flex-shrink-0 overflow-hidden h-11"
+      className="tabs-bar relative flex items-stretch h-10 flex-shrink-0 border-b border-border"
+      style={{ background: "hsl(var(--card))" }}
     >
-      {/* Brand chip */}
-      <div className="flex items-center pr-2 border-r border-border flex-shrink-0 self-stretch">
-        <Dna className="w-3.5 h-3.5 my-auto text-primary" />
-      </div>
+      {/* Scrollable tab rail */}
+      <div className="relative flex-1 min-w-0">
+        {/* Left fade */}
+        {canScrollLeft && (
+          <div className="absolute left-0 top-0 bottom-0 w-6 z-10 pointer-events-none" style={{ background: "linear-gradient(to right, hsl(var(--card)), transparent)" }} />
+        )}
 
-      {/* Tabs */}
-      {tabs.map((tab, idx) => {
-        const isActive = tab.id === currentId;
-        const isDropTarget = dropIndex !== null && idx === dropIndex;
-        const isRenaming = renamingId === tab.id;
-        return (
-          <div
-            key={tab.id}
-            draggable={!!onReorderTab && !isRenaming}
-            onDragStart={(e) => {
-              dragIndexRef.current = idx;
-              setDraggingId(tab.id);
-              e.dataTransfer.effectAllowed = "move";
-              e.dataTransfer.setData("text/plain", String(idx));
-            }}
-            onDragOver={(e) => {
-              e.preventDefault();
-              e.dataTransfer.dropEffect = "move";
-              setDropIndex(idx);
-            }}
-            onDragLeave={() => setDropIndex(null)}
-            onDrop={(e) => {
-              e.preventDefault();
-              const fromIdx = dragIndexRef.current;
-              if (fromIdx !== null && fromIdx !== idx && onReorderTab) {
-                onReorderTab(fromIdx, idx);
-              }
-              dragIndexRef.current = null;
-              setDropIndex(null);
-              setDraggingId(null);
-            }}
-            onDragEnd={() => {
-              dragIndexRef.current = null;
-              setDropIndex(null);
-              setDraggingId(null);
-            }}
-            className={`flex items-center gap-1.5 px-2.5 min-h-[36px] rounded-md flex-shrink-0 group cursor-pointer transition-all select-none border-t-2 ${
-              isActive
-                ? "bg-primary/15 outline outline-1 outline-primary/35 text-foreground font-semibold border-t-primary"
-                : "text-muted-foreground/80 hover:text-foreground bg-muted/10 border border-border/30 border-t-border hover:border-t-muted-foreground/50"
-            } ${draggingId === tab.id ? "opacity-50" : ""} ${isDropTarget ? "border-l-2 border-l-primary" : ""}`}
-            onClick={() => {
-              if (!isActive && !isRenaming) onNavigate(`/pedigrees/${tab.id}`);
-            }}
-            onDoubleClick={(e) => {
-              e.stopPropagation();
-              startRename(tab);
-            }}
-            onContextMenu={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              setTabCtxMenu({ x: e.clientX, y: e.clientY, tab });
-            }}
-          >
-            {isActive && !isRenaming && (
-              <span className="w-1.5 h-1.5 rounded-full flex-shrink-0 bg-primary" />
-            )}
-            {isRenaming ? (
-              <input
-                ref={renameInputRef}
-                type="text"
-                value={renameValue}
-                onChange={(e) => setRenameValue(e.target.value)}
-                onKeyDown={(e) => {
-                  e.stopPropagation();
-                  if (e.key === "Enter") commitRename();
-                  if (e.key === "Escape") cancelRename();
+        <div
+          ref={scrollContainerRef}
+          className="flex items-stretch h-full overflow-x-auto overflow-y-hidden gap-0.5 px-1"
+          role="tablist"
+          aria-label="Open pedigrees"
+        >
+          {tabs.map((tab, idx) => {
+            const isActive = tab.id === currentId;
+            const isDropTarget = dropIndex !== null && idx === dropIndex;
+            const isRenaming = renamingId === tab.id;
+            const showUnsavedDot = !isRenaming && (
+              (isActive && saveStatus === "idle" && tabs.length > 1)
+            );
+            return (
+              <div
+                key={tab.id}
+                role="tab"
+                aria-selected={isActive}
+                tabIndex={isActive ? 0 : -1}
+                draggable={!!onReorderTab && !isRenaming}
+                onDragStart={(e) => {
+                  dragIndexRef.current = idx;
+                  setDraggingId(tab.id);
+                  e.dataTransfer.effectAllowed = "move";
+                  e.dataTransfer.setData("text/plain", String(idx));
                 }}
-                onBlur={commitRename}
-                onClick={(e) => e.stopPropagation()}
-                className="text-xs bg-muted border border-border rounded px-1 py-0 outline-none focus:border-primary text-foreground w-[100px]"
-                autoFocus
-              />
-            ) : (
-              <span className="text-xs truncate max-w-[130px]">
-                {tab.title}
-              </span>
-            )}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  e.dataTransfer.dropEffect = "move";
+                  setDropIndex(idx);
+                }}
+                onDragLeave={() => setDropIndex(null)}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  const fromIdx = dragIndexRef.current;
+                  if (fromIdx !== null && fromIdx !== idx && onReorderTab) {
+                    onReorderTab(fromIdx, idx);
+                  }
+                  dragIndexRef.current = null;
+                  setDropIndex(null);
+                  setDraggingId(null);
+                }}
+                onDragEnd={() => {
+                  dragIndexRef.current = null;
+                  setDropIndex(null);
+                  setDraggingId(null);
+                }}
+                onClick={() => {
+                  if (!isActive && !isRenaming) onNavigate(`/pedigrees/${tab.id}`);
+                }}
+                onDoubleClick={(e) => {
+                  e.stopPropagation();
+                  startRename(tab);
+                }}
+                onContextMenu={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setTabCtxMenu({ x: e.clientX, y: e.clientY, tab });
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !isActive) onNavigate(`/pedigrees/${tab.id}`);
+                  if (e.key === "Delete" || (e.key === "w" && (e.metaKey || e.ctrlKey))) {
+                    e.preventDefault();
+                    onCloseTab(tab.id);
+                  }
+                }}
+                className={`
+                  group relative flex items-center gap-1.5 px-3 pr-2 flex-shrink-0 cursor-pointer
+                  transition-all duration-150 outline-none select-none
+                  focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-primary/60
+                  ${isDropTarget ? "border-l-2 border-l-primary" : ""}
+                  ${draggingId === tab.id ? "opacity-40" : ""}
+                  ${isActive
+                    ? "bg-card text-foreground shadow-sm"
+                    : "bg-muted/40 text-muted-foreground border border-transparent hover:text-foreground hover:bg-muted/70 hover:border-border/60 shadow-[0_1px_2px_rgba(0,0,0,0.06)]"
+                  }
+                `}
+                style={isActive ? { borderBottom: `2px solid ${theme.accent}` } : undefined}
+              >
+                {/* Unsaved indicator dot */}
+                {showUnsavedDot && (
+                  <span className="w-1.5 h-1.5 rounded-full flex-shrink-0 opacity-70" style={{ background: "hsl(var(--primary))" }} />
+                )}
+
+                {/* Tab title or rename input */}
+                {isRenaming ? (
+                  <input
+                    ref={renameInputRef}
+                    type="text"
+                    value={renameValue}
+                    onChange={(e) => setRenameValue(e.target.value)}
+                    onKeyDown={(e) => {
+                      e.stopPropagation();
+                      if (e.key === "Enter") commitRename();
+                      if (e.key === "Escape") cancelRename();
+                    }}
+                    onBlur={commitRename}
+                    onClick={(e) => e.stopPropagation()}
+                    className="text-sm leading-5 bg-background border border-border rounded px-1.5 py-0 outline-none focus:border-primary text-foreground w-[120px]"
+                    autoFocus
+                  />
+                ) : (
+                  <span className="text-sm leading-5 truncate max-w-[140px]">
+                    {tab.title}
+                  </span>
+                )}
+
+                {/* Close button */}
+                <button
+                  type="button"
+                  className={`
+                    flex-shrink-0 w-4 h-4 flex items-center justify-center rounded-sm
+                    transition-all duration-100
+                    ${isActive
+                      ? "text-muted-foreground hover:text-foreground hover:bg-accent"
+                      : "opacity-0 group-hover:opacity-60 hover:!opacity-100 text-muted-foreground hover:bg-accent"
+                    }
+                    focus-visible:opacity-100 focus-visible:ring-1 focus-visible:ring-primary/60
+                  `}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onCloseTab(tab.id);
+                  }}
+                  title="Close tab"
+                  aria-label={`Close ${tab.title}`}
+                >
+                  <X className="w-2.5 h-2.5" />
+                </button>
+              </div>
+            );
+          })}
+
+          {/* Add tab button inside rail */}
+          <button
+            type="button"
+            data-tab-picker-trigger
+            onClick={onToggleTabPicker}
+            title="Open pedigree"
+            aria-label="Open another pedigree"
+            className="flex items-center justify-center w-8 my-1.5 rounded flex-shrink-0 text-muted-foreground/50 hover:text-foreground hover:bg-accent/60 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/60"
+          >
+            <Plus className="w-3.5 h-3.5" />
+          </button>
+
+          {/* Tab picker chevron button inside rail */}
+          {tabs.length > 0 && (
             <button
               type="button"
-              className="opacity-0 group-hover:opacity-50 hover:!opacity-100 text-muted-foreground transition-opacity flex-shrink-0 w-5 h-5 flex items-center justify-center rounded hover:bg-muted"
-              onClick={(e) => {
-                e.stopPropagation();
-                onCloseTab(tab.id);
-              }}
-              title="Close tab"
-              aria-label={`Close tab ${tab.title}`}
+              onClick={onToggleTabPicker}
+              title="Switch pedigree"
+              aria-label="Switch pedigree"
+              className="flex items-center justify-center w-7 my-1.5 rounded flex-shrink-0 text-muted-foreground/40 hover:text-foreground hover:bg-accent/60 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/60"
             >
-              <X className="w-3 h-3" />
+              <ChevronDown className="w-3 h-3" />
             </button>
-          </div>
-        );
-      })}
+          )}
+        </div>
 
-      {/* Open another pedigree */}
-      <div className="flex-shrink-0 flex items-center">
-        <button
-          type="button"
-          data-tab-picker-trigger
-          onClick={onToggleTabPicker}
-          title="Open another pedigree in a tab"
-          aria-label="Open another pedigree in a tab"
-          className="flex items-center justify-center min-w-[32px] min-h-[32px] text-muted-foreground hover:text-primary hover:bg-accent active:scale-95 rounded-md transition-all duration-150"
-        >
-          <Plus className="w-3.5 h-3.5" />
-        </button>
-        {showTabPicker && (
-          <TabPickerPopover
-            currentId={currentId}
-            openTabIds={new Set(tabs.map((t) => t.id))}
-            onClose={onCloseTabPicker}
-            onOpen={(pid, title) => {
-              onOpenTab(pid, title);
-            }}
-          />
+        {/* Right fade */}
+        {canScrollRight && (
+          <div className="absolute right-0 top-0 bottom-0 w-6 z-10 pointer-events-none" style={{ background: "linear-gradient(to left, hsl(var(--card)), transparent)" }} />
         )}
       </div>
+
+      {/* Right: save status */}
+      <div className="flex items-center gap-2 px-2.5 flex-shrink-0 border-l border-border text-xs text-muted-foreground/40">
+        {saveStatus === "saving" && (
+          <span className="inline-flex items-center gap-1">
+            <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+            <span>Saving</span>
+          </span>
+        )}
+        {saveStatus === "saved" && (
+          <span className="inline-flex items-center gap-1 text-emerald-500/70">
+            <span>Saved</span>
+          </span>
+        )}
+      </div>
+
+      {showTabPicker && (
+        <TabPickerPopover
+          currentId={currentId}
+          openTabIds={new Set(tabs.map((t) => t.id))}
+          onClose={onCloseTabPicker}
+          onOpen={(pid, title) => {
+            onOpenTab(pid, title);
+          }}
+        />
+      )}
 
       {tabCtxMenu && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => setTabCtxMenu(null)} onContextMenu={(e) => { e.preventDefault(); setTabCtxMenu(null); }} />
-          <div className="fixed z-50 min-w-[160px] border border-border rounded-md shadow-xl bg-popover py-1"
-            style={{ left: tabCtxMenu.x, top: tabCtxMenu.y }}>
+          <div
+            className="fixed z-50 min-w-[160px] border border-border rounded-md shadow-xl py-1"
+            style={{ background: "hsl(var(--popover))", left: tabCtxMenu.x, top: tabCtxMenu.y }}
+          >
             <button type="button"
               className="w-full text-left px-3 py-1.5 text-xs hover:bg-accent transition-colors flex items-center gap-2"
               onClick={() => { startRename(tabCtxMenu.tab); setTabCtxMenu(null); }}>
