@@ -79,20 +79,6 @@ function PedigreeCanvasInner() {
   return (
     <div className="flex flex-col h-dvh overflow-hidden">
       <h1 className="sr-only">Pedigree Editor — {pedigree?.title ?? "Untitled"}</h1>
-      <TabBar
-        tabs={memo.tabItems}
-        currentId={pedigree?.id ?? 0}
-        showTabPicker={state.showTabPicker}
-        onToggleTabPicker={() => ctx.dispatch({ type: "SET_STATE", patch: { showTabPicker: !state.showTabPicker } })}
-        onCloseTabPicker={() => ctx.dispatch({ type: "SET_STATE", patch: { showTabPicker: false } })}
-        onCloseTab={ops.handleCloseTab}
-        onRenameTab={ops.renameTab}
-        onNavigate={navigate}
-        onOpenTab={(tid, title) => { ops.openTab(tid, title); navigate(`/pedigrees/${tid}`); }}
-        onReorderTab={ops.reorderTabs}
-        onDeletePedigree={ops.handleDeletePedigree}
-      />
-
       {showDraftBanner && (
         <DraftBanner onRestore={onRestoreDraft} onDismiss={handleDismissDraft} />
       )}
@@ -153,6 +139,21 @@ function PedigreeCanvasInner() {
         clearSelection={() => ctx.dispatch({ type: "SET_STATE", patch: { selectedIds: new Set(), selectedAnnotationId: null } })}
         pedigreeTitle={pedigree?.title ?? ""}
         onDeletePedigree={() => ops.handleDeletePedigree(pedigree?.id ?? 0, pedigree?.title ?? "")}
+      />
+
+      <TabBar
+        tabs={memo.tabItems}
+        currentId={pedigree?.id ?? 0}
+        showTabPicker={state.showTabPicker}
+        onToggleTabPicker={() => ctx.dispatch({ type: "SET_STATE", patch: { showTabPicker: !state.showTabPicker } })}
+        onCloseTabPicker={() => ctx.dispatch({ type: "SET_STATE", patch: { showTabPicker: false } })}
+        onCloseTab={ops.handleCloseTab}
+        onRenameTab={ops.renameTab}
+        onNavigate={navigate}
+        onOpenTab={(tid, title) => { ops.openTab(tid, title); navigate(`/pedigrees/${tid}`); }}
+        onReorderTab={ops.reorderTabs}
+        onDeletePedigree={ops.handleDeletePedigree}
+        saveStatus={state.saveStatus}
       />
 
       <PedigreeCanvasBody />
