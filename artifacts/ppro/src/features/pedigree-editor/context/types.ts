@@ -169,7 +169,7 @@ export interface PedigreeEditorOps {
   handleDeleteVersion: (versionId: number) => void;
   handleRestoreVersion: (vid: number) => void;
   createConsanguinityEdge: (sourceId: string, targetId: string) => void;
-  addSiblings: (sourceId: string, siblings: Array<{ type: PedigreeNode["type"]; dob: string; twinGroup?: string; twinType?: "m" | "d" }>) => void;
+  addSiblings: (sourceId: string, siblings: Array<{ type: PedigreeNode["type"]; dob: string }>) => void;
   markAsTwins: (nodeIds: string[], twinType: "m" | "d") => void;
   unmarkTwins: (nodeIds: string[]) => void;
   handleDeletePedigree: (tabId: number, tabTitle: string) => void;

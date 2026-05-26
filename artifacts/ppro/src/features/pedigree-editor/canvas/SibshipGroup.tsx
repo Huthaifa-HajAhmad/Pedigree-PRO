@@ -76,7 +76,7 @@ export function computeFamilyChildYOffset(
   return result;
 }
 
-export function SibshipGroup({ parentIds, childIds, nodes, edges = [], invalid, edgeType = "couple", annotations = [], showAutoLabels = false, autoLabels, parentOffsets }: {
+export function SibshipGroup({ parentIds, childIds, nodes, edges = [], invalid, edgeType = "couple", annotations = [], showAutoLabels = false, autoLabels, parentOffsets, childOffsets }: {
   parentIds: string[];
   childIds: string[];
   nodes: PedigreeNode[];
@@ -87,6 +87,7 @@ export function SibshipGroup({ parentIds, childIds, nodes, edges = [], invalid, 
   showAutoLabels?: boolean;
   autoLabels?: Map<string, string>;
   parentOffsets?: Map<string, number>;
+  childOffsets?: Map<string, number>;
 }) {
   const cfg = useCanvasConfig();
   const S = NODE_SIZE;
@@ -112,7 +113,6 @@ export function SibshipGroup({ parentIds, childIds, nodes, edges = [], invalid, 
   const coupleYOffset = edgeType === "consanguinity" ? 3.5 : 0;
 
   const barY = Math.max(childTopY - MIN_BAR_CHILD_GAP, maxAnnBottom + 10);
-  const delta = Math.max(0, barY - (childTopY - MIN_BAR_CHILD_GAP));
 
   const TWIN_DROP = 16;
 
@@ -148,7 +148,7 @@ export function SibshipGroup({ parentIds, childIds, nodes, edges = [], invalid, 
     return ids;
   }, [twinGroups]);
 
-  function cy(c: PedigreeNode) { return c.y + delta - S / 2; }
+  function cy(c: PedigreeNode) { return c.y + (childOffsets?.get(c.id) ?? 0) - S / 2; }
 
   if (parents.length === 1) {
     const p = parents[0]!;
@@ -157,9 +157,18 @@ export function SibshipGroup({ parentIds, childIds, nodes, edges = [], invalid, 
       const c = children[0]!;
       paths.push(`M ${p.x} ${p.y + pOff + S / 2} L ${p.x} ${barY} L ${c.x} ${barY} L ${c.x} ${cy(c)}`);
     } else {
-      const xs = children.map((c) => c.x).sort((a, b) => a - b);
-      const barLeft = Math.min(p.x, xs[0] ?? p.x);
-      const barRight = Math.max(p.x, xs[xs.length - 1] ?? p.x);
+      // C6 fix: bar spans non-twin children + twin drop midpoints (not twin node positions)
+      const nonTwinXs = children.filter((c) => !twinChildIds.has(c.id)).map((c) => c.x);
+      const twinDropMidXs: number[] = [];
+      for (const [, members] of twinGroups) {
+        if (members.length >= 2) {
+          const twinXs = members.map((m) => m.x);
+          twinDropMidXs.push(twinXs.reduce((a, b) => a + b, 0) / twinXs.length);
+        }
+      }
+      const allBarXs = [...nonTwinXs, ...twinDropMidXs, p.x];
+      const barLeft = Math.min(...allBarXs);
+      const barRight = Math.max(...allBarXs);
       paths.push(`M ${p.x} ${p.y + pOff + S / 2} L ${p.x} ${barY}`, `M ${barLeft} ${barY} L ${barRight} ${barY}`);
 
       for (const [, members] of twinGroups) {
@@ -192,9 +201,18 @@ export function SibshipGroup({ parentIds, childIds, nodes, edges = [], invalid, 
     const midX = (p1.x + S / 2 + p2.x - S / 2) / 2;
     const coupleY = (p1.y + p1Off + p2.y + p2Off) / 2 + coupleYOffset;
 
-    const xs = children.map((c) => c.x).sort((a, b) => a - b);
-    const barLeft = Math.min(midX, xs[0] ?? midX);
-    const barRight = Math.max(midX, xs[xs.length - 1] ?? midX);
+    // C6 fix: bar spans non-twin children + twin drop midpoints (not twin node positions)
+    const nonTwinXs = children.filter((c) => !twinChildIds.has(c.id)).map((c) => c.x);
+    const twinDropMidXs: number[] = [];
+    for (const [, members] of twinGroups) {
+      if (members.length >= 2) {
+        const twinXs = members.map((m) => m.x);
+        twinDropMidXs.push(twinXs.reduce((a, b) => a + b, 0) / twinXs.length);
+      }
+    }
+    const allBarXs = [...nonTwinXs, ...twinDropMidXs, midX];
+    const barLeft = Math.min(...allBarXs);
+    const barRight = Math.max(...allBarXs);
     paths.push(`M ${midX} ${coupleY} L ${midX} ${barY}`, `M ${barLeft} ${barY} L ${barRight} ${barY}`);
 
     for (const [, members] of twinGroups) {
