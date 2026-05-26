@@ -215,12 +215,18 @@ export function usePedigreeCanvas(params: UsePedigreeCanvasParams) {
 
               // Unified distance-priority snap: parent midpoint vs initSnap (X-axis only)
               // Picks whichever target is closer; ties go to midpoint
+              // C5 fix: skip parent snap when parents are also moving (they're in movingIds)
+              // to avoid tug-of-war between moving midpoint and fixed initSnap.
+              // When parents move, the child should follow via initSnap only.
               const parentIds = prev.edges
                 .filter(e => e.type === "parent-child" && e.targetId === n.id)
                 .map(e => e.sourceId);
-              const parentXs = parentIds.length > 0
-                ? parentIds.map(pid => prev.nodes.find(nn => nn.id === pid)?.x).filter((x): x is number => x !== undefined)
-                : [];
+              const parentsAreMoving = parentIds.some(pid => movingIds.has(pid));
+              const parentXs = parentsAreMoving
+                ? []
+                : parentIds.length > 0
+                  ? parentIds.map(pid => prev.nodes.find(nn => nn.id === pid)?.x).filter((x): x is number => x !== undefined)
+                  : [];
 
               if (parentXs.length >= 2) {
                 const midX = parentXs.reduce((a, b) => a + b, 0) / parentXs.length;

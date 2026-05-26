@@ -40,12 +40,10 @@ export function PropertiesPanel({
     ? canvasNodes.filter((n) => selectedIds.has(n.id))
     : null;
   const areSiblings = siblingNodes && siblingNodes.length >= 2 && (() => {
-    const firstParents = canvasEdges.filter((e) => e.type === "parent-child" && e.targetId === siblingNodes[0]!.id).map((e) => e.sourceId);
-    if (firstParents.length === 0) return false;
-    return siblingNodes.every((n) => {
-      const pids = canvasEdges.filter((e) => e.type === "parent-child" && e.targetId === n.id).map((e) => e.sourceId);
-      return pids.length > 0 && pids.some((p) => firstParents.includes(p));
-    });
+    const getParents = (n: PedigreeNode) => canvasEdges.filter((e) => e.type === "parent-child" && e.targetId === n.id).map((e) => e.sourceId).sort().join("|");
+    const firstKey = getParents(siblingNodes[0]!);
+    if (!firstKey) return false;
+    return siblingNodes.every((n) => getParents(n) === firstKey);
   })();
   const hasExistingTwins = areSiblings && canvasEdges.some((e) => e.type === "parent-child" && e.twinGroup && selectedIds.has(e.targetId));
 

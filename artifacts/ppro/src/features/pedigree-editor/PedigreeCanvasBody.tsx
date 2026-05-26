@@ -97,6 +97,7 @@ function SibshipLayer({ edges, nodes, invalidEdgeIds, annotations = [], showAuto
   showAutoLabels?: boolean;
   autoLabels?: Map<string, string>;
   familyOffsets?: Map<string, number>;
+  childOffsets?: Map<string, number>;
 }) {
   const groups = useMemo(() => {
     const pcEdges = edges.filter((e) => e.type === "parent-child");
@@ -145,6 +146,7 @@ function SibshipLayer({ edges, nodes, invalidEdgeIds, annotations = [], showAuto
           showAutoLabels={showAutoLabels}
           autoLabels={autoLabels}
           parentOffsets={familyOffsets}
+          childOffsets={familyOffsets}
         />
       ))}
     </g>

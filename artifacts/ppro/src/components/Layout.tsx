@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { Link, useLocation } from "wouter";
-import { Activity, LayoutDashboard, Dna, ChevronRight, UserCircle, LogOut, Wifi, WifiOff, Menu, X, Settings, ShieldCheck, Lock, Tag, User, UserCog, CheckCircle2 } from "lucide-react";
+import { Activity, LayoutDashboard, Dna, ChevronRight, UserCircle, LogOut, Wifi, WifiOff, Menu, X, Settings, ShieldCheck, Lock, Tag, User, CheckCircle2 } from "lucide-react";
 import { SkipToContent } from "@/components/SkipToContent";
 import { useTheme } from "@/lib/theme";
 import { useListProfiles, useSwitchProfile } from "@workspace/api-client-react";
@@ -126,8 +126,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
         </nav>
 
-        {/* Sidebar Footer */}
-        <div className="border-t border-border p-4 space-y-3">
+        {/* Sidebar Footer — Profile Dock */}
+        <div className="flex-shrink-0 border-t border-sidebar-border" style={{ background: "hsl(var(--sidebar) / 0.6)" }}>
           {/* Active Profile Card */}
           {activeProfile ? (
             <div className="relative" ref={profileDropdownRef}>
@@ -137,61 +137,61 @@ export function Layout({ children }: { children: React.ReactNode }) {
                 onClick={() => setProfileMenuOpen((v) => !v)}
                 aria-expanded={profileMenuOpen}
                 aria-haspopup="menu"
-                className="w-full flex items-center gap-2.5 p-2.5 rounded-xl border border-border bg-accent/10 ring-1 ring-border/40 hover:ring-primary/30 hover:border-primary/20 transition-all text-left group"
+                className="w-full flex items-center gap-2.5 px-3 py-2.5 text-left group transition-colors duration-150 hover:bg-sidebar-accent/60 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-sidebar-ring"
               >
                 <div
-                  className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 text-[10px] font-bold text-white"
-                  style={{ background: theme.accent }}
+                  className="w-7 h-7 rounded-md flex items-center justify-center flex-shrink-0 transition-shadow duration-150 group-hover:shadow-sm"
+                  style={{ background: `${theme.accent}18`, color: theme.accent, boxShadow: profileMenuOpen ? `0 0 0 1.5px ${theme.accent}60` : "none" }}
                 >
-                  {activeProfile.display_name.slice(0, 2).toUpperCase()}
+                  <User className="w-4 h-4" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="text-xs font-medium text-foreground truncate">{activeProfile.display_name}</div>
-                  <div className="text-[10px] text-muted-foreground truncate flex items-center gap-1"><UserCog className="w-3 h-3 flex-shrink-0" />{activeProfile.role_label}</div>
+                  <div className="text-sm font-medium text-sidebar-foreground truncate leading-tight">{activeProfile.display_name}</div>
+                  <div className="text-xs text-sidebar-foreground/50 truncate leading-tight mt-0.5">{activeProfile.role_label}</div>
                 </div>
-                <ChevronRight className={`w-3 h-3 flex-shrink-0 text-muted-foreground/50 group-hover:text-foreground transition-transform ${profileMenuOpen ? "-rotate-90" : ""}`} />
+                <ChevronRight className={`w-3.5 h-3.5 flex-shrink-0 text-sidebar-foreground/30 transition-transform duration-150 ${profileMenuOpen ? "-rotate-90" : ""}`} />
               </button>
 
               {profileMenuOpen && (
                 <div
-                  className="absolute bottom-full left-0 right-0 mb-2 z-50 border border-border rounded-xl shadow-2xl overflow-hidden animate-in fade-in slide-in-from-bottom-2"
+                  className="absolute bottom-full left-0 right-0 mb-1 z-50 border border-sidebar-border rounded-lg shadow-lg overflow-hidden"
                   style={{ background: "hsl(var(--popover))" }}
                   role="menu"
                 >
-                  <div className="px-3 py-2 border-b border-border text-[10px] text-muted-foreground uppercase tracking-widest font-semibold">
+                  <div className="px-3 py-1.5 border-b border-sidebar-border text-[10px] text-muted-foreground uppercase tracking-wider font-medium">
                     Switch Profile
                   </div>
-                  <div className="max-h-48 overflow-y-auto p-1.5 space-y-0.5">
+                  <div className="max-h-48 overflow-y-auto p-1 space-y-px">
                     {profiles?.map((p) => (
                       <button
                         type="button"
                         key={p.id}
                         data-testid={`profile-option-${p.id}`}
                         onClick={() => handleSwitchProfile(p.id)}
-                        className={`w-full flex items-center gap-2.5 px-2.5 py-2 text-xs rounded-lg transition-colors text-left ${
-                          p.id === activeProfile.id ? "bg-primary/10 text-primary" : "hover:bg-accent"
+                        className={`w-full flex items-center gap-2 px-2 py-1.5 text-sm rounded-md transition-colors text-left ${
+                          p.id === activeProfile.id ? "bg-sidebar-accent/80 text-sidebar-foreground" : "hover:bg-sidebar-accent/50 text-sidebar-foreground/80"
                         }`}
                         role="menuitem"
                       >
                         <div
-                          className="w-5 h-5 rounded-md flex items-center justify-center flex-shrink-0 text-[9px] font-bold text-white"
-                          style={{ background: p.id === activeProfile.id ? theme.accent : "hsl(var(--muted))" }}
+                          className="w-5 h-5 rounded-sm flex items-center justify-center flex-shrink-0"
+                          style={{ background: p.id === activeProfile.id ? `${theme.accent}18` : "hsl(var(--muted))" }}
                         >
-                          {p.display_name.slice(0, 2).toUpperCase()}
+                          <User className={`w-3 h-3 ${p.id === activeProfile.id ? "" : "text-muted-foreground/60"}`} style={p.id === activeProfile.id ? { color: theme.accent } : {}} />
                         </div>
                         <div className="flex-1 min-w-0">
-                          <div className="font-medium truncate">{p.display_name}</div>
-                          <div className="text-[10px] text-muted-foreground truncate flex items-center gap-1"><UserCog className="w-3 h-3 flex-shrink-0" />{p.role_label}</div>
+                          <div className="font-medium truncate leading-tight">{p.display_name}</div>
+                          <div className="text-[10px] text-muted-foreground/70 truncate leading-tight">{p.role_label}</div>
                         </div>
                         {p.id === activeProfile.id && (
-                          <CheckCircle2 className="w-3.5 h-3.5 text-primary flex-shrink-0" />
+                          <CheckCircle2 className="w-3.5 h-3.5 text-primary/70 flex-shrink-0" />
                         )}
                       </button>
                     ))}
                   </div>
                   <Link href="/profiles">
                     <div
-                      className="w-full flex items-center gap-2 px-3 py-2.5 text-xs text-muted-foreground hover:bg-accent transition-colors border-t border-border cursor-pointer"
+                      className="w-full flex items-center gap-2 px-3 py-2 text-xs text-muted-foreground hover:bg-sidebar-accent/50 transition-colors border-t border-sidebar-border cursor-pointer"
                       onClick={() => setProfileMenuOpen(false)}
                     >
                       <LogOut className="w-3.5 h-3.5" />
@@ -205,30 +205,30 @@ export function Layout({ children }: { children: React.ReactNode }) {
             <Link href="/profiles" className="block">
               <div
                 data-testid="no-profile-indicator"
-                className="w-full flex items-center gap-2.5 p-2.5 rounded-xl border border-border bg-accent/10 ring-1 ring-border/40 hover:ring-primary/30 transition-all cursor-pointer"
+                className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-none border-0 bg-transparent hover:bg-sidebar-accent/60 transition-colors cursor-pointer text-left"
               >
-                <div className="w-8 h-8 rounded-lg bg-muted flex items-center justify-center flex-shrink-0">
-                  <User className="w-4 h-4 text-muted-foreground" />
+                <div className="w-7 h-7 rounded-md bg-muted flex items-center justify-center flex-shrink-0">
+                  <User className="w-3.5 h-3.5 text-muted-foreground" />
                 </div>
-                <div className="text-xs text-muted-foreground font-medium">No active profile</div>
+                <div className="text-sm text-muted-foreground font-medium">No active profile</div>
               </div>
             </Link>
           )}
 
-          {/* Status row */}
-          <div className="flex items-center gap-3 text-[10px] text-muted-foreground/70 leading-tight">
-            <span className="inline-flex items-center gap-1" title="Local & Encrypted">
-              <Lock className="w-3 h-3" />
+          {/* Metadata Row */}
+          <div className="px-3 py-2 border-t border-sidebar-border/60 flex items-center gap-2 text-xs text-sidebar-foreground/40 leading-none">
+            <span className="inline-flex items-center gap-1.5" title="Local & Encrypted">
+              <Lock className="w-3 h-3 flex-shrink-0 opacity-50" />
               <span>Local</span>
             </span>
-            <span className="text-muted-foreground/30">·</span>
-            <span className="inline-flex items-center gap-1">
-              {isOnline ? <Wifi className="w-3 h-3 text-emerald-500" /> : <WifiOff className="w-3 h-3 text-amber-500" />}
+            <span className="text-sidebar-foreground/20 flex-shrink-0">·</span>
+            <span className="inline-flex items-center gap-1.5">
+              {isOnline ? <Wifi className="w-3 h-3 flex-shrink-0 opacity-50" /> : <WifiOff className="w-3 h-3 flex-shrink-0 opacity-50" />}
               <span>{isOnline ? "Online" : "Offline"}</span>
             </span>
-            <span className="text-muted-foreground/30">·</span>
-            <span className="inline-flex items-center gap-1">
-              <Tag className="w-3 h-3" />
+            <span className="text-sidebar-foreground/20 flex-shrink-0">·</span>
+            <span className="inline-flex items-center gap-1.5 ml-auto">
+              <Tag className="w-3 h-3 flex-shrink-0 opacity-50" />
               <span>v2.4</span>
             </span>
           </div>

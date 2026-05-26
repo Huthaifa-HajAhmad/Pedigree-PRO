@@ -610,7 +610,7 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
     return age > 0 ? String(age) : "";
   };
 
-  const addSiblings = useCallback((sourceId: string, siblings: Array<{ type: PedigreeNode["type"]; dob: string; twinGroup?: string; twinType?: "m" | "d" }>) => {
+  const addSiblings = useCallback((sourceId: string, siblings: Array<{ type: PedigreeNode["type"]; dob: string }>) => {
     dispatch({ type: "UPDATE_CANVAS", updater: (p) => {
       const s = p.nodes.find((n) => n.id === sourceId); if (!s) return p;
       const SY = GEN_GRID;
@@ -686,8 +686,6 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
             type: "parent-child",
             sourceId: pid,
             targetId: nid,
-            twinGroup: sb.twinGroup || undefined,
-            twinType: sb.twinType || undefined,
           });
         }
       }
@@ -723,17 +721,7 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
         return newX !== undefined ? { ...n, x: newX } : n;
       });
 
-      const sharedTwinGroup = sortedSiblings[0]?.twinGroup;
-      const sharedTwinType = sortedSiblings[0]?.twinType;
-      const allEdges = sharedTwinGroup
-        ? [...p.edges, ...newEdges].map((e) => {
-            if (e.type === "parent-child" && e.targetId === sourceId) {
-              return { ...e, twinGroup: sharedTwinGroup, twinType: sharedTwinType };
-            }
-            return e;
-          })
-        : [...p.edges, ...newEdges];
-      return { ...p, nodes: [...shiftedNodes, ...newNodes], edges: allEdges };
+      return { ...p, nodes: [...shiftedNodes, ...newNodes], edges: [...p.edges, ...newEdges] };
     } });
     dispatch({ type: "SET_STATE", patch: { showAddSiblingDialog: false, siblingSourceId: null } });
   }, [insertAndShiftRight, parentIdsFromEdges]);
@@ -741,23 +729,40 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
   const markAsTwins = useCallback((nodeIds: string[], twinType: "m" | "d") => {
     const group = `twins_${Date.now()}`;
     dispatch({ type: "UPDATE_CANVAS", updater: (p) => {
+      const nodeSet = new Set(nodeIds);
       const oldGroups = new Set<string>();
       for (const e of p.edges) {
-        if (e.type === "parent-child" && nodeIds.includes(e.targetId) && e.twinGroup) {
+        if (e.type === "parent-child" && nodeSet.has(e.targetId) && e.twinGroup) {
           oldGroups.add(e.twinGroup);
         }
       }
+      const stripped = p.edges.map((e) => {
+        if (e.type === "parent-child" && nodeSet.has(e.targetId) && e.twinGroup) {
+          const { twinGroup, twinType: _, ...rest } = e;
+          return rest as PedigreeEdge;
+        }
+        return e;
+      });
+      const groupChildren = new Map<string, Set<string>>();
+      for (const e of stripped) {
+        if (e.type === "parent-child" && e.twinGroup) {
+          if (!groupChildren.has(e.twinGroup)) groupChildren.set(e.twinGroup, new Set());
+          groupChildren.get(e.twinGroup)!.add(e.targetId);
+        }
+      }
+      const orphanGroups = new Set<string>();
+      for (const [g, children] of groupChildren) {
+        if (children.size < 2) orphanGroups.add(g);
+      }
       return {
         ...p,
-        edges: p.edges.map((e) => {
-          if (e.type === "parent-child" && e.twinGroup && oldGroups.has(e.twinGroup)) {
-            const { twinGroup: _, twinType: __, ...rest } = e;
-            return rest as PedigreeEdge;
-          }
-          return e;
-        }).map((e) => {
-          if (e.type === "parent-child" && nodeIds.includes(e.targetId)) {
-            return { ...e, twinGroup: group, twinType };
+        edges: stripped.map((e) => {
+          if (e.type === "parent-child") {
+            if (nodeSet.has(e.targetId)) return { ...e, twinGroup: group, twinType };
+            if (e.twinGroup && orphanGroups.has(e.twinGroup)) {
+              const { twinGroup, twinType: _, ...rest } = e;
+              return rest as PedigreeEdge;
+            }
           }
           return e;
         }),
@@ -767,21 +772,42 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
 
   const unmarkTwins = useCallback((nodeIds: string[]) => {
     dispatch({ type: "UPDATE_CANVAS", updater: (p) => {
-      const groupsToRemove = new Set<string>();
+      const nodeSet = new Set(nodeIds);
+      const groupsToStrip = new Set<string>();
       for (const e of p.edges) {
-        if (e.type === "parent-child" && nodeIds.includes(e.targetId) && e.twinGroup) {
-          groupsToRemove.add(e.twinGroup);
+        if (e.type === "parent-child" && nodeSet.has(e.targetId) && e.twinGroup) {
+          groupsToStrip.add(e.twinGroup);
         }
+      }
+      const stripped = p.edges.map((e) => {
+        if (e.type === "parent-child" && nodeSet.has(e.targetId) && e.twinGroup && groupsToStrip.has(e.twinGroup)) {
+          const { twinGroup, twinType, ...rest } = e;
+          return rest as PedigreeEdge;
+        }
+        return e;
+      });
+      const groupChildren = new Map<string, Set<string>>();
+      for (const e of stripped) {
+        if (e.type === "parent-child" && e.twinGroup && groupsToStrip.has(e.twinGroup)) {
+          if (!groupChildren.has(e.twinGroup)) groupChildren.set(e.twinGroup, new Set());
+          groupChildren.get(e.twinGroup)!.add(e.targetId);
+        }
+      }
+      const orphanGroups = new Set<string>();
+      for (const [g, children] of groupChildren) {
+        if (children.size < 2) orphanGroups.add(g);
       }
       return {
         ...p,
-        edges: p.edges.map((e) => {
-          if (e.type === "parent-child" && e.twinGroup && groupsToRemove.has(e.twinGroup)) {
-            const { twinGroup, twinType, ...rest } = e;
-            return rest as PedigreeEdge;
-          }
-          return e;
-        }),
+        edges: orphanGroups.size > 0
+          ? stripped.map((e) => {
+              if (e.type === "parent-child" && e.twinGroup && orphanGroups.has(e.twinGroup)) {
+                const { twinGroup, twinType, ...rest } = e;
+                return rest as PedigreeEdge;
+              }
+              return e;
+            })
+          : stripped,
       };
     } });
   }, []);
