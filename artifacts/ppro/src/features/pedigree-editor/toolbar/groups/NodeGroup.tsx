@@ -35,7 +35,7 @@ export function NodeGroup({ addNode, labelHidden = false }: NodeGroupProps) {
   return (
     <div className="flex flex-col justify-between h-full border-r border-border flex-shrink-0 px-2 pt-2 pb-2">
       <div className="flex-1 flex items-center gap-1">
-        {(["male", "female", "unknown"] as const).map((t) => (
+        {(["male", "female"] as const).map((t) => (
           <button
             type="button"
             key={t}
@@ -48,7 +48,6 @@ export function NodeGroup({ addNode, labelHidden = false }: NodeGroupProps) {
             <div className="w-5 h-5 flex items-center justify-center">
               {t === "male" && <Square className="w-5 h-5" />}
               {t === "female" && <Circle className="w-5 h-5" />}
-              {t === "unknown" && <Diamond className="w-5 h-5" />}
             </div>
             <span className="text-[11px] capitalize leading-tight font-medium">{(t[0] ?? "").toUpperCase() + t.slice(1)}</span>
           </button>
@@ -79,6 +78,15 @@ export function NodeGroup({ addNode, labelHidden = false }: NodeGroupProps) {
               <button type="button" onClick={() => { addNode("sab"); setShowMoreNodes(false); }} className="w-full flex items-center gap-2.5 px-3 py-2 text-xs hover:bg-accent transition-colors text-left border-t border-border">
                 <NodeIcon type="sab" />
                 <div><div className="font-medium">SAB / Stillbirth</div><div className="text-xs text-muted-foreground">Shortcut: S</div></div>
+              </button>
+              <button
+                type="button"
+                data-testid="button-add-unknown"
+                onClick={() => { addNode("unknown"); setShowMoreNodes(false); }}
+                className="w-full flex items-center gap-2.5 px-3 py-2 text-xs hover:bg-accent transition-colors text-left border-t border-border"
+              >
+                <Diamond className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+                <div><div className="font-medium">Unknown</div><div className="text-xs text-muted-foreground">Shortcut: U</div></div>
               </button>
             </div>
           </>

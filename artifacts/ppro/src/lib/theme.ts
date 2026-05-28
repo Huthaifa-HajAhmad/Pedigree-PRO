@@ -14,8 +14,8 @@ export interface Theme {
 }
 
 export const THEMES: Theme[] = [
-  { id: "terminal", name: "Obsidian",       desc: "Modern indigo dark",   isDark: true,  accent: "#6475F7", bg: "#0B0D18", fg: "#EAECF4" },
   { id: "clinical", name: "Clinical White", desc: "Clean medical light",  isDark: false, accent: "#2563EB", bg: "#FAFAFA", fg: "#0F172A" },
+  { id: "terminal", name: "Obsidian",       desc: "Modern indigo dark",   isDark: true,  accent: "#6475F7", bg: "#0B0D18", fg: "#EAECF4" },
   { id: "midnight", name: "Midnight",       desc: "Deep navy & sky-blue", isDark: true,  accent: "#38BDF8", bg: "#060F1E", fg: "#DDE5EF" },
   { id: "amber",    name: "Amber",          desc: "Warm dark & gold",     isDark: true,  accent: "#FBBF24", bg: "#0E0C09", fg: "#D1CEC9" },
   { id: "rose",     name: "Rose",           desc: "Dark with rose glow",  isDark: true,  accent: "#FB7185", bg: "#10080C", fg: "#EDD8DD" },
@@ -41,7 +41,7 @@ export function getStoredTheme(): ThemeId {
       return v as ThemeId;
     }
   } catch {}
-  return "terminal";
+  return "clinical";
 }
 
 export function applyTheme(id: ThemeId) {
@@ -72,7 +72,7 @@ export interface ThemeContextValue {
 }
 
 export const ThemeContext = createContext<ThemeContextValue>({
-  themeId: "terminal",
+  themeId: "clinical",
   theme: THEMES[0]!,
   setTheme: () => {},
   synced: false,

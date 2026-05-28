@@ -6,9 +6,11 @@ export interface ExportNode {
   id: string;
   type: "male" | "female" | "unknown" | "pregnancy" | "sab";
   affected: boolean;
+  affectedLevel?: number;
   carrier: boolean;
   deceased: boolean;
   proband: boolean;
+  adopted?: boolean;
   label: string;
   age: string;
   dob?: string;
@@ -49,6 +51,40 @@ export interface ExportInfo {
 // Dynamic legend — derived from canvas content
 // ---------------------------------------------------------------------------
 interface LegendItem { shape: string; label: string }
+
+const AFFECTED_PALETTE: Record<number, [number, number, number]> = {
+  1: [74, 144, 217],   // #4A90D9 - generic affected
+  2: [57, 255, 20],    // #39FF14 - primary condition (default green)
+  3: [255, 107, 107],  // #FF6B6B - secondary condition
+  4: [255, 165, 0],    // #FFA500 - tertiary condition
+  5: [147, 112, 219],  // #9370DB - additional condition
+  6: [0, 206, 209],    // #00CED1 - additional condition
+  7: [255, 215, 0],    // #FFD700 - additional condition
+  8: [220, 20, 60],    // #DC143C - additional condition
+  9: [0, 128, 128],    // #008080 - additional condition
+};
+
+function affectedFillColors(node: ExportNode): { r: number; g: number; b: number } {
+  if (node.affected && node.affectedLevel && node.affectedLevel >= 1 && node.affectedLevel <= 9) {
+    const palette = AFFECTED_PALETTE[node.affectedLevel];
+    if (palette) return { r: palette[0], g: palette[1], b: palette[2] };
+  }
+  if (node.affected) return { r: 57, g: 255, b: 20 };
+  if (node.type === "sab") return { r: 180, g: 180, b: 180 };
+  return { r: 240, g: 240, b: 240 };
+}
+
+function affectedPPTXColor(node: ExportNode): string {
+  if (node.affected && node.affectedLevel && node.affectedLevel >= 1 && node.affectedLevel <= 9) {
+    const r = AFFECTED_PALETTE[node.affectedLevel]?.[0] ?? 57;
+    const g = AFFECTED_PALETTE[node.affectedLevel]?.[1] ?? 255;
+    const b = AFFECTED_PALETTE[node.affectedLevel]?.[2] ?? 20;
+    return ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1).toUpperCase();
+  }
+  if (node.affected) return "39FF14";
+  if (node.type === "sab") return "404040";
+  return "181818";
+}
 
 function computeLegendItems(canvas: ExportCanvas): LegendItem[] {
   const items: LegendItem[] = [];
@@ -418,6 +454,19 @@ export async function exportPPTX(info: ExportInfo, canvas: ExportCanvas) {
   const SH = 7.5;
   const today = new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
 
+  const PIX_FORMAT_VERSION = "1.0";
+  const PIX_EXPORT_META = {
+    format_version: PIX_FORMAT_VERSION,
+    exported_at: new Date().toISOString(),
+    exported_by: "Pedigree PRO",
+    schema: "pedigree-pro-v1",
+  };
+
+  pptx.author = "Pedigree PRO";
+  pptx.company = "Pedigree PRO";
+  pptx.subject = `Pedigree: ${info.title}`;
+  pptx.title = info.title;
+
   // Computed stats
   const genMap    = computeGenerations(canvas.nodes, canvas.edges);
   const maxGen    = Math.max(0, ...Array.from(genMap.values()));
@@ -446,6 +495,8 @@ export async function exportPPTX(info: ExportInfo, canvas: ExportCanvas) {
     cover.addText(`Patient ID: #${info.patientId}`, { x: 0.55, y: 3.1, w: 6.2, h: 0.25, fontSize: 10, color: "557755", fontFace: "Courier New" });
   }
   cover.addText(`Generated: ${today}`, { x: 0.55, y: info.patientId ? 3.42 : 3.1, w: 6.2, h: 0.22, fontSize: 9, color: "3A5A3A", fontFace: "Courier New" });
+
+  cover.addNotes(JSON.stringify({ ...PIX_EXPORT_META, slide: "cover", title: info.title, patientId: info.patientId, nodeCount: canvas.nodes.length, edgeCount: canvas.edges.length, proband: proband ? { label: proband.label, type: proband.type, affected: proband.affected } : null }));
 
   // Proband box
   if (proband) {
@@ -585,7 +636,7 @@ export async function exportPPTX(info: ExportInfo, canvas: ExportCanvas) {
     const { x, y } = p;
     const ns   = NS_IN;
     const half = ns / 2;
-    const fillColor = node.affected ? "39FF14" : node.type === "sab" ? "404040" : "181818";
+    const fillColor = affectedPPTXColor(node);
     const lineColor = node.affected ? "39FF14" : node.deceased ? "555555" : "484848";
     const lineW = node.affected ? 1.5 : node.proband ? 2.0 : 1.0;
 
@@ -648,6 +699,8 @@ export async function exportPPTX(info: ExportInfo, canvas: ExportCanvas) {
     const hex = ann.color.replace("#", "").padEnd(6, "0");
     slide.addText(ann.text, { x: tx, y: ty, w: approxW, h: boxH, fontSize: fs, color: hex, fontFace: "Courier New", align: "center" } as any);
   }
+
+  slide.addNotes(JSON.stringify({ ...PIX_EXPORT_META, slide: "pedigree-diagram", nodeCount: canvas.nodes.length, edgeCount: canvas.edges.length, generationCount: maxGen }));
 
   // ── SLIDE 3 — Clinical Roster ────────────────────────────────────────────
   if (notable.length > 0) {
@@ -853,9 +906,8 @@ export async function exportClinicalReport(info: ExportInfo, canvas: ExportCanva
     const p = map(node.x, node.y); const sc = p.scale ?? 1;
     const ns = NS * Math.min(1, sc * 0.1 + 0.4);
     const { x, y } = p;
-    if (node.affected)       doc.setFillColor(NR, NG, NB);
-    else if (node.type === "sab") doc.setFillColor(175, 175, 175);
-    else                     doc.setFillColor(235, 235, 235);
+    const fillC = affectedFillColors(node);
+    doc.setFillColor(fillC.r, fillC.g, fillC.b);
     doc.setDrawColor(60, 60, 60);
     doc.setLineWidth(node.affected ? 0.55 : 0.35);
     if (node.type === "male") {
@@ -868,7 +920,7 @@ export async function exportClinicalReport(info: ExportInfo, canvas: ExportCanva
     } else if (node.type === "sab") {
       doc.triangle(x, y + ns * 0.36, x - ns * 0.38, y - ns * 0.26, x + ns * 0.38, y - ns * 0.26, "FD");
     } else {
-      doc.setFillColor(node.affected ? NR : 215, node.affected ? NG : 215, node.affected ? NB : 215);
+      doc.setFillColor(node.affected ? fillC.r : 215, node.affected ? fillC.g : 215, node.affected ? fillC.b : 215);
       doc.triangle(x, y - ns / 2, x + ns / 2, y + ns / 4, x - ns / 2, y + ns / 4, "FD");
     }
     if (node.carrier && !node.affected) {

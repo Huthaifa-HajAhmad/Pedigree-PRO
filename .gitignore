@@ -92,3 +92,8 @@ typecheck.bat
 # Landing page screenshots (not source)
 landing-page.png
 
+
+# Test data artifacts
+hpcsv_family-1.utf8
+*.utf8
+

@@ -43,6 +43,7 @@ export {
   save_preferences,
   share_pedigree,
   import_shared,
+  decode_shared_pedigree,
   import_pedigree_native,
   import_pedigree_legacy,
   export_pedigree_ppro,
@@ -67,5 +68,6 @@ export type {
   ActivityItem,
   Preferences,
   ShareResult,
+  SharedPedigreeView,
   LegacyImportSummary,
 } from "./commands";

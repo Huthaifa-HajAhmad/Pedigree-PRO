@@ -6,3 +6,4 @@ export * from "./schema_sqlite_app_preferences";
 export * from "./schema_sqlite_local_profiles";
 export * from "./schema_sqlite_node_annotations";
 export * from "./schema_sqlite_pedigree_phenotypes";
+export * from "./schema_sqlite_share_links";

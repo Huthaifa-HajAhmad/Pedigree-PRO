@@ -1,17 +1,16 @@
-import { Clock, History, Wifi } from "lucide-react";
+import { Clock, History } from "lucide-react";
 
 interface CollaborateGroupProps {
   showVersionTimeline: boolean;
   setShowVersionTimeline: React.Dispatch<React.SetStateAction<boolean>>;
   showFollowMode: boolean;
   setShowFollowMode: React.Dispatch<React.SetStateAction<boolean>>;
-  setShowLanShare: React.Dispatch<React.SetStateAction<boolean>>;
   labelHidden?: boolean;
 }
 
 export function CollaborateGroup({
   showVersionTimeline, setShowVersionTimeline,
-  showFollowMode, setShowFollowMode, setShowLanShare, labelHidden = false,
+  showFollowMode, setShowFollowMode, labelHidden = false,
 }: CollaborateGroupProps) {
   return (
     <div className="flex flex-col justify-between h-full border-r border-border flex-shrink-0 px-2 pt-2 pb-2">
@@ -37,16 +36,6 @@ export function CollaborateGroup({
         >
           <History className="w-5 h-5" />
           <span>Follow</span>
-        </button>
-        <button type="button"
-          data-testid="button-lan-share"
-          onClick={() => setShowLanShare(true)}
-          title="LAN share (direct P2P)"
-          aria-label="LAN share"
-          className="flex flex-col items-center gap-1.5 min-w-[44px] min-h-[44px] py-1 rounded text-[11px] leading-tight font-medium text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
-        >
-          <Wifi className="w-5 h-5" />
-          <span>LAN</span>
         </button>
       </div>
       {!labelHidden && <div className="text-[10px] text-muted-foreground uppercase tracking-wider text-center border-t border-border/40 pt-1">Collaborate</div>}

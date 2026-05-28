@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Share2, Download, ChevronDown, ChevronRight, Loader2, ShieldCheck, FileText, Presentation, FileJson, Image } from "lucide-react";
+import { Share2, Download, ChevronDown, ChevronRight, Loader2, ShieldCheck, FileText, Presentation, FileJson, Image, Wifi } from "lucide-react";
 
 interface ShareGroupProps {
   setShowShareModal: (v: boolean) => void;
+  setShowLanShare: React.Dispatch<React.SetStateAction<boolean>>;
   showExportMenu: boolean;
   setShowExportMenu: (v: boolean) => void;
   exportingFormat: string | null;
@@ -33,7 +34,7 @@ function useDropdownPosition(ref: React.RefObject<HTMLButtonElement | null>) {
 }
 
 export function ShareGroup({
-  setShowShareModal, showExportMenu, setShowExportMenu, exportingFormat,
+  setShowShareModal, setShowLanShare, showExportMenu, setShowExportMenu, exportingFormat,
   handleExportReport, handleExportPDF, handleExportPPTX,
   handleExportPNG, handleExportSVG, handleExportJSON, handleExportPPRO, labelHidden = false,
 }: ShareGroupProps) {
@@ -135,6 +136,16 @@ export function ShareGroup({
           className="flex flex-col items-center gap-1.5 min-w-[44px] min-h-[44px] py-1 rounded text-[11px] leading-tight font-medium text-muted-foreground hover:bg-accent hover:text-foreground transition-colors">
           <Share2 className="w-5 h-5" />
           <span>Share</span>
+        </button>
+        <button type="button"
+          data-testid="button-lan-share"
+          onClick={() => setShowLanShare(true)}
+          title="LAN share (direct P2P)"
+          aria-label="LAN share"
+          className="flex flex-col items-center gap-1.5 min-w-[44px] min-h-[44px] py-1 rounded text-[11px] leading-tight font-medium text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
+        >
+          <Wifi className="w-5 h-5" />
+          <span>LAN</span>
         </button>
         <button
           type="button"

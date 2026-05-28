@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from "react";
-import { Share2, QrCode, Link2, Copy, Check, X, AlertTriangle, Loader2, Timer } from "lucide-react";
+import { Share2, QrCode, Link2, Copy, Check, X, AlertTriangle, Loader2, Timer, FileDown } from "lucide-react";
 import { sodiumSealBox, sodiumOpenSealedBox } from "@workspace/crypto";
 
 interface LanShareProps {
@@ -8,6 +8,65 @@ interface LanShareProps {
   onPedigreeReceived?: (data: unknown) => void;
   onDecryptError?: (error: Error) => void;
   onClose: () => void;
+}
+
+// Compress a string using native CompressionStream (gzip) and return base64url
+async function compressString(input: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const stream = new CompressionStream("gzip");
+  const writer = stream.writable.getWriter();
+  writer.write(encoder.encode(input));
+  writer.close();
+  const chunks: Uint8Array[] = [];
+  const reader = stream.readable.getReader();
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    chunks.push(value);
+  }
+  const total = chunks.reduce((sum, c) => sum + c.length, 0);
+  const result = new Uint8Array(total);
+  let offset = 0;
+  for (const c of chunks) {
+    result.set(c, offset);
+    offset += c.length;
+  }
+  // base64url encode
+  let binary = "";
+  for (let i = 0; i < result.length; i++) {
+    binary += String.fromCharCode(result[i]!);
+  }
+  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+// Decompress a base64url string using native DecompressionStream (gzip)
+async function decompressString(input: string): Promise<string> {
+  let base64 = input.replace(/-/g, "+").replace(/_/g, "/");
+  while (base64.length % 4) base64 += "=";
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  const stream = new DecompressionStream("gzip");
+  const writer = stream.writable.getWriter();
+  writer.write(bytes);
+  writer.close();
+  const chunks: Uint8Array[] = [];
+  const reader = stream.readable.getReader();
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    chunks.push(value);
+  }
+  const total = chunks.reduce((sum, c) => sum + c.length, 0);
+  const result = new Uint8Array(total);
+  let offset = 0;
+  for (const c of chunks) {
+    result.set(c, offset);
+    offset += c.length;
+  }
+  return new TextDecoder().decode(result);
 }
 
 /**
@@ -24,6 +83,7 @@ export function LanShare({ pedigreeData, recipientPublicKey, onPedigreeReceived,
   const modeRef = useRef<"host" | "join" | null>(null);
   const [offer, setOffer] = useState("");
   const [answer, setAnswer] = useState("");
+  const [originalSize, setOriginalSize] = useState(0);
   const [status, setStatus] = useState<"idle" | "connecting" | "connected" | "error">("idle");
   const statusRef = useRef<"idle" | "connecting" | "connected" | "error">("idle");
   const [error, setError] = useState("");
@@ -85,13 +145,25 @@ export function LanShare({ pedigreeData, recipientPublicKey, onPedigreeReceived,
       iceServers: [], // LAN only, no STUN/TUN
     });
 
-    pc.onicecandidate = (event) => {
+    pc.onicecandidate = async (event) => {
       if (event.candidate === null) {
         const currentMode = modeRef.current;
-        if (currentMode === "host") {
-          setOffer(btoa(JSON.stringify(pc.localDescription)));
-        } else if (currentMode === "join") {
-          setAnswer(btoa(JSON.stringify(pc.localDescription)));
+        const json = JSON.stringify(pc.localDescription);
+        setOriginalSize(json.length);
+        try {
+          const compressed = await compressString(json);
+          if (currentMode === "host") {
+            setOffer(compressed);
+          } else if (currentMode === "join") {
+            setAnswer(compressed);
+          }
+        } catch {
+          // Fallback to uncompressed base64 if compression fails
+          if (currentMode === "host") {
+            setOffer(btoa(json));
+          } else if (currentMode === "join") {
+            setAnswer(btoa(json));
+          }
         }
       }
     };
@@ -212,7 +284,14 @@ export function LanShare({ pedigreeData, recipientPublicKey, onPedigreeReceived,
         };
       };
 
-      const remoteOffer = JSON.parse(atob(offer));
+      let remoteOfferJson: string;
+      try {
+        remoteOfferJson = await decompressString(offer);
+      } catch {
+        // Fallback: uncompressed base64
+        remoteOfferJson = atob(offer);
+      }
+      const remoteOffer = JSON.parse(remoteOfferJson);
       await pc.setRemoteDescription(remoteOffer);
       const localAnswer = await pc.createAnswer();
       await pc.setLocalDescription(localAnswer);
@@ -225,7 +304,13 @@ export function LanShare({ pedigreeData, recipientPublicKey, onPedigreeReceived,
   const completeHostConnection = useCallback(async () => {
     if (!answer || !pcRef.current) return;
     try {
-      const remoteAnswer = JSON.parse(atob(answer));
+      let remoteAnswerJson: string;
+      try {
+        remoteAnswerJson = await decompressString(answer);
+      } catch {
+        remoteAnswerJson = atob(answer);
+      }
+      const remoteAnswer = JSON.parse(remoteAnswerJson);
       await pcRef.current.setRemoteDescription(remoteAnswer);
     } catch (e) {
       setError("Invalid answer");
@@ -307,13 +392,24 @@ export function LanShare({ pedigreeData, recipientPublicKey, onPedigreeReceived,
               </div>
             )}
             <div>
-              <label className="text-xs text-muted-foreground block mb-1">Your Offer (send to guest)</label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-xs text-muted-foreground">Your Offer (send to guest)</label>
+                {offer && originalSize > 0 && (
+                  <span className="text-[10px] text-muted-foreground/60 flex items-center gap-1">
+                    <FileDown className="w-3 h-3" />
+                    {offer.length.toLocaleString()} chars
+                    {offer.length < originalSize && (
+                      <span className="text-emerald-500/70 ml-0.5">(saved {Math.round((1 - offer.length / originalSize) * 100)}%)</span>
+                    )}
+                  </span>
+                )}
+              </div>
               <div className="flex gap-2">
                 <textarea
                   readOnly
                   aria-label="WebRTC offer to send to guest"
                   value={offer}
-                  className="flex-1 h-20 px-2 py-1.5 text-xs font-mono bg-muted border border-border rounded resize-none focus:outline-none"
+                  className="flex-1 h-24 px-2 py-1.5 text-xs font-mono bg-muted border border-border rounded resize-none focus:outline-none whitespace-pre-wrap break-all"
                 />
                 <button
                   type="button"
@@ -334,7 +430,7 @@ export function LanShare({ pedigreeData, recipientPublicKey, onPedigreeReceived,
                 onChange={(e) => setAnswer(e.target.value)}
                 aria-label="Paste guest's WebRTC answer"
                 placeholder="Paste answer from guest..."
-                className="w-full h-20 px-2 py-1.5 text-xs font-mono bg-background border border-border rounded resize-none focus:outline-none focus:border-primary"
+                className="w-full h-24 px-2 py-1.5 text-xs font-mono bg-background border border-border rounded resize-none focus:outline-none focus:border-primary whitespace-pre-wrap break-all"
               />
             </div>
 
@@ -352,13 +448,20 @@ export function LanShare({ pedigreeData, recipientPublicKey, onPedigreeReceived,
         {mode === "join" && (
           <div className="space-y-3">
             <div>
-              <label className="text-xs text-muted-foreground block mb-1">Host's Offer (paste here)</label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-xs text-muted-foreground">Host's Offer (paste here)</label>
+                {offer && (
+                  <span className="text-[10px] text-muted-foreground/60">
+                    {offer.length.toLocaleString()} chars
+                  </span>
+                )}
+              </div>
               <textarea
                 value={offer}
                 onChange={(e) => setOffer(e.target.value)}
                 aria-label="Paste host's WebRTC offer"
                 placeholder="Paste offer from host..."
-                className="w-full h-20 px-2 py-1.5 text-xs font-mono bg-background border border-border rounded resize-none focus:outline-none focus:border-primary"
+                className="w-full h-24 px-2 py-1.5 text-xs font-mono bg-background border border-border rounded resize-none focus:outline-none focus:border-primary whitespace-pre-wrap break-all"
               />
             </div>
 
@@ -383,15 +486,27 @@ export function LanShare({ pedigreeData, recipientPublicKey, onPedigreeReceived,
 
             {answer && (
               <div>
-                <label className="text-xs text-muted-foreground block mb-1">Your Answer (send to host)</label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-xs text-muted-foreground">Your Answer (send to host)</label>
+                  {originalSize > 0 && (
+                    <span className="text-[10px] text-muted-foreground/60 flex items-center gap-1">
+                      <FileDown className="w-3 h-3" />
+                      {answer.length.toLocaleString()} chars
+                      {answer.length < originalSize && (
+                        <span className="text-emerald-500/70 ml-0.5">(saved {Math.round((1 - answer.length / originalSize) * 100)}%)</span>
+                      )}
+                    </span>
+                  )}
+                </div>
                 <div className="flex gap-2">
                   <textarea
                     readOnly
                     aria-label="Your WebRTC answer to send to host"
                     value={answer}
-                  className="flex-1 h-20 px-2 py-1.5 text-xs font-mono bg-muted border border-border rounded resize-none focus:outline-none"
+                    className="flex-1 h-24 px-2 py-1.5 text-xs font-mono bg-muted border border-border rounded resize-none focus:outline-none whitespace-pre-wrap break-all"
                   />
                   <button
+                    type="button"
                     onClick={() => handleCopy(answer)}
                     className="self-start p-2 rounded hover:bg-accent text-muted-foreground transition-colors"
                     title="Copy answer"
