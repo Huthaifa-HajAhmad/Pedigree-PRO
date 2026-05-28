@@ -2,9 +2,11 @@ export interface PedigreeNode {
   id: string;
   type: "male" | "female" | "unknown" | "pregnancy" | "sab";
   affected: boolean;
+  affectedLevel?: number;
   carrier: boolean;
   deceased: boolean;
   proband: boolean;
+  adopted?: boolean;
   label: string;
   age: string;
   dob?: string;

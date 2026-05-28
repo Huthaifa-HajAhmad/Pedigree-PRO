@@ -19,7 +19,7 @@ let db: any = null;
 let dbKey: CryptoKey | null = null;
 let autoSaveInterval: ReturnType<typeof setInterval> | null = null;
 let dirty = false;
-let saveInProgress = false;
+let saveChain: Promise<void> = Promise.resolve();
 let initPromise: Promise<void> | null = null;
 
 /**
@@ -155,19 +155,29 @@ export async function importDb(data: Uint8Array): Promise<void> {
 
 /**
  * Saves the current database state to IndexedDB, encrypted.
+ *
+ * Uses a serialized promise chain so every call actually persists data.
+ * Previous implementation skipped concurrent calls with `if (saveInProgress) return`,
+ * which caused silent data loss: share_pedigree's INSERT + saveDb() could be
+ * skipped if the 3-second auto-save was running, leaving the short code only
+ * in the in-memory DB. A new tab loading from IndexedDB would get the stale
+ * snapshot → 404.
  */
 export async function saveDb(): Promise<void> {
   if (!db || !dbKey) return;
-  if (saveInProgress) return; // Skip concurrent save
-  saveInProgress = true;
-  try {
-    const data = db.export();
-    const { ciphertext, iv } = await encryptDbBlob(data, dbKey);
+  // Append this save to the chain; each save waits for the previous to finish.
+  // db.export() captures the LATEST in-memory state, so even queued saves
+  // will persist the correct data (including any INSERTs that happened while
+  // waiting for the previous save to complete).
+  saveChain = saveChain.then(async () => {
+    const data = db!.export();
+    const { ciphertext, iv } = await encryptDbBlob(data, dbKey!);
     await set(DB_KEY, { ciphertext, iv }, DB_STORE);
     dirty = false;
-  } finally {
-    saveInProgress = false;
-  }
+  }).catch((e) => {
+    console.error("[saveDb] Error persisting database:", e);
+  });
+  return saveChain;
 }
 
 /**
@@ -246,6 +256,8 @@ async function runMigrations(): Promise<void> {
     [1, "001_initial", MIGRATION_001],
     [2, "002_clinical_annotations", MIGRATION_002],
     [3, "003_drop_deprecated_columns", MIGRATION_003],
+    [4, "004_share_log", MIGRATION_004],
+    [5, "005_share_links", MIGRATION_005],
   ];
 
   for (const [version, name, sql] of migrations) {
@@ -371,4 +383,32 @@ CREATE INDEX IF NOT EXISTS idx_pedigree_phenotypes_pedigree ON pedigree_phenotyp
 const MIGRATION_003 = `
 DROP INDEX IF EXISTS idx_pedigrees_share_token;
 DROP TABLE IF EXISTS users;
+`;
+
+// Inlined migration 004: Share log for HIPAA audit trail
+const MIGRATION_004 = `
+CREATE TABLE IF NOT EXISTS share_log (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  pedigree_id INTEGER NOT NULL REFERENCES pedigrees(id) ON DELETE CASCADE,
+  action TEXT NOT NULL,
+  recipient_public_key TEXT,
+  role TEXT NOT NULL DEFAULT 'viewer',
+  encrypted_by_key TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_share_log_pedigree ON share_log(pedigree_id);
+CREATE INDEX IF NOT EXISTS idx_share_log_action ON share_log(action);
+CREATE INDEX IF NOT EXISTS idx_share_log_created_at ON share_log(created_at DESC);
+`;
+
+// Inlined migration 005: Shortlink mapping for share tokens
+const MIGRATION_005 = `
+CREATE TABLE IF NOT EXISTS share_links (
+  short_code TEXT PRIMARY KEY,
+  token TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_share_links_created_at ON share_links(created_at DESC);
 `;

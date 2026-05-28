@@ -30,6 +30,8 @@ export let localProfilesTable: any;
 export let pedigreeNodeAnnotationsTable: any;
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export let pedigreePhenotypesTable: any;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export let shareLinksTable: any;
 
 // Initialize using top-level await so module evaluation waits for DB setup
 const sqliteAdapter = await import("./sqlite-adapter");
@@ -44,3 +46,4 @@ appPreferencesTable = sqliteSchema.appPreferencesTable;
 localProfilesTable = sqliteSchema.localProfilesTable;
 pedigreeNodeAnnotationsTable = sqliteSchema.pedigreeNodeAnnotationsTable;
 pedigreePhenotypesTable = sqliteSchema.pedigreePhenotypesTable;
+shareLinksTable = sqliteSchema.shareLinksTable;

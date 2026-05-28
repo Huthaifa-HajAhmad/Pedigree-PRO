@@ -8,6 +8,16 @@
   </head>
   <body>
     <div id="root"></div>
+    <script>
+      (function() {
+        var theme = "clinical";
+        try {
+          var v = localStorage.getItem("ppro_theme") || localStorage.getItem("pedigree-pro-theme");
+          if (v && ["terminal","clinical","midnight","amber","rose","arctic"].indexOf(v) !== -1) theme = v;
+        } catch(e) {}
+        document.documentElement.setAttribute("data-theme", theme);
+      })();
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

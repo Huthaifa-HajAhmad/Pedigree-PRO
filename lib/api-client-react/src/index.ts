@@ -95,3 +95,5 @@ export {
   useGetSharedPedigree,
   queryKeys,
 } from "./hooks";
+
+export type { SharedPedigreeView } from "./hooks";

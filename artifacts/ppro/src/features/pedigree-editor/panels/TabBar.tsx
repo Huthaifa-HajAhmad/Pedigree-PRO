@@ -91,14 +91,14 @@ export function TabBar({
 
   return (
     <div
-      className="tabs-bar relative flex items-stretch h-10 flex-shrink-0 border-b border-border"
-      style={{ background: "hsl(var(--card))" }}
+      className="tabs-bar relative flex items-stretch h-10 flex-shrink-0 border-b border-border border-t border-border/40"
+      style={{ background: "hsl(var(--background))" }}
     >
       {/* Scrollable tab rail */}
       <div className="relative flex-1 min-w-0">
         {/* Left fade */}
         {canScrollLeft && (
-          <div className="absolute left-0 top-0 bottom-0 w-6 z-10 pointer-events-none" style={{ background: "linear-gradient(to right, hsl(var(--card)), transparent)" }} />
+          <div className="absolute left-0 top-0 bottom-0 w-6 z-10 pointer-events-none" style={{ background: "linear-gradient(to right, hsl(var(--background)), transparent)" }} />
         )}
 
         <div
@@ -261,7 +261,7 @@ export function TabBar({
 
         {/* Right fade */}
         {canScrollRight && (
-          <div className="absolute right-0 top-0 bottom-0 w-6 z-10 pointer-events-none" style={{ background: "linear-gradient(to left, hsl(var(--card)), transparent)" }} />
+          <div className="absolute right-0 top-0 bottom-0 w-6 z-10 pointer-events-none" style={{ background: "linear-gradient(to left, hsl(var(--background)), transparent)" }} />
         )}
       </div>
 

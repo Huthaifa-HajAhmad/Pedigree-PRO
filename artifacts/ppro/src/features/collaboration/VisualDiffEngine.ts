@@ -120,7 +120,7 @@ export function computeCanvasDiff(before: CanvasData, after: CanvasData): Canvas
 }
 
 const COMPARABLE_PROPS: Array<keyof PedigreeNode> = [
-  "type", "x", "y", "affected", "carrier", "deceased", "proband",
+  "type", "x", "y", "affected", "affectedLevel", "carrier", "deceased", "proband", "adopted",
   "label", "age", "dob", "pinned", "condition",
 ];
 
