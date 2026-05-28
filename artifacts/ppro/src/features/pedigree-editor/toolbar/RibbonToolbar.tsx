@@ -85,6 +85,11 @@ export interface RibbonToolbarProps {
   showFollowMode: boolean;
   setShowFollowMode: React.Dispatch<React.SetStateAction<boolean>>;
   setShowLanShare: React.Dispatch<React.SetStateAction<boolean>>;
+  twinSelectMode: boolean;
+  twinCandidateIds: Set<string>;
+  toggleTwinSelectMode: () => void;
+  clearTwinCandidates: () => void;
+  markAsTwins: (nodeIds: string[], twinType: "m" | "d") => void;
   saveStatus: "idle" | "saving" | "saved";
   handleSaveVersion: () => void;
   showSaveModal: boolean;
@@ -175,7 +180,15 @@ export function RibbonToolbar(props: RibbonToolbarProps) {
         </div>
 
         <NodeGroup addNode={props.addNode} labelHidden={hideLabels} />
-        <ConnectGroup linkMode={props.linkMode} setLinkMode={props.setLinkMode} setLinkSource={props.setLinkSource} selectedIds={props.selectedIds} canvasNodes={props.canvasNodes} createConsanguinityEdge={props.createConsanguinityEdge} labelHidden={hideLabels} />
+        <ConnectGroup
+          linkMode={props.linkMode} setLinkMode={props.setLinkMode} setLinkSource={props.setLinkSource}
+          selectedIds={props.selectedIds} canvasNodes={props.canvasNodes} canvasEdges={props.canvasEdges}
+          createConsanguinityEdge={props.createConsanguinityEdge}
+          twinSelectMode={props.twinSelectMode} twinCandidateIds={props.twinCandidateIds}
+          toggleTwinSelectMode={props.toggleTwinSelectMode} clearTwinCandidates={props.clearTwinCandidates}
+          markAsTwins={props.markAsTwins}
+          labelHidden={hideLabels}
+        />
         <EditGroup undo={props.undo} redo={props.redo} deleteSelected={props.deleteSelected}
           historyLength={props.historyLength} futureLength={props.futureLength}
           selectedCount={props.selectedCount} anySelected={props.anySelected} labelHidden={hideLabels} />
@@ -202,7 +215,7 @@ export function RibbonToolbar(props: RibbonToolbarProps) {
           onClearSelection={props.clearSelection} />
         <CollaborateGroup showVersionTimeline={props.showVersionTimeline} setShowVersionTimeline={props.setShowVersionTimeline}
           showFollowMode={props.showFollowMode} setShowFollowMode={props.setShowFollowMode}
-          setShowLanShare={props.setShowLanShare} labelHidden={hideLabels || compactSecondaries} />
+          labelHidden={hideLabels || compactSecondaries} />
 
         <div className="w-px self-stretch bg-border mx-1 flex-shrink-0" />
 
@@ -218,6 +231,7 @@ export function RibbonToolbar(props: RibbonToolbarProps) {
         <div className="w-px self-stretch bg-border mx-1 flex-shrink-0" />
 
         <ShareGroup setShowShareModal={props.setShowShareModal}
+          setShowLanShare={props.setShowLanShare}
           showExportMenu={props.showExportMenu} setShowExportMenu={props.setShowExportMenu}
           exportingFormat={props.exportingFormat}
           handleExportReport={props.handleExportReport}

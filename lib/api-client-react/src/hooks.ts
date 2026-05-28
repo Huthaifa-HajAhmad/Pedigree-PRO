@@ -369,8 +369,19 @@ export function useImportShared() {
       const mode = detectApiMode();
 
       if (mode === "browser") {
-        const { import_shared } = await import("@workspace/browser-backend");
-        return import_shared({ share_token: shareToken });
+        const backend = await import("@workspace/browser-backend");
+        await backend.initDb();
+
+        // Read fallback full token from hash fragment (#token) for cross-browser support
+        let fallbackToken: string | undefined;
+        try {
+          const hash = window.location.hash;
+          if (hash && hash.length > 1) {
+            fallbackToken = hash.slice(1) || undefined;
+          }
+        } catch { /* ignore */ }
+
+        return backend.import_shared({ share_token: shareToken, fallback_token: fallbackToken });
       }
 
       // Tauri mode: fetch encrypted payload, decrypt client-side, then import
@@ -473,19 +484,45 @@ export function useRotateKey() {
 // Share View Hook
 // =============================================================================
 
+export interface SharedPedigreeView {
+  title: string;
+  canvas_data: string | null;
+  notes: string | null;
+  updated_at: string;
+  encrypted: boolean;
+  decryptError?: string;
+}
+
 export function useGetSharedPedigree(token: string) {
-  return useQuery({
+  return useQuery<SharedPedigreeView>({
     queryKey: ["shared", token],
     queryFn: async () => {
       const { detectApiMode } = await import("./adapter");
       const mode = detectApiMode();
 
       if (mode === "browser") {
-        const { import_shared } = await import("@workspace/browser-backend");
-        return import_shared({ share_token: token });
+        const backend = await import("@workspace/browser-backend");
+        await backend.initDb();
+
+        // Read fallback full token from hash fragment (#token).
+        // The short code in the URL path only resolves in the same browser
+        // (same IndexedDB). The hash fragment carries the full token so
+        // the share works cross-browser without a server.
+        let fallbackToken: string | undefined;
+        try {
+          const hash = window.location.hash;
+          if (hash && hash.length > 1) {
+            fallbackToken = hash.slice(1) || undefined; // strip leading #
+          }
+        } catch { /* ignore */ }
+
+        return backend.decode_shared_pedigree({
+          share_token: token,
+          fallback_token: fallbackToken,
+        });
       }
 
-      // Tauri mode: fetch encrypted payload, decrypt client-side, then import
+      // Tauri mode: fetch encrypted payload, decrypt client-side, then return view
       const payload = await importShared(token);
       const sealedEnvelope = atob(payload.ciphertext);
       const { sodiumOpenSealedBox } = await import("@workspace/crypto");
@@ -495,12 +532,30 @@ export function useGetSharedPedigree(token: string) {
       for (const { privateKey } of await listProfilePrivateKeys()) {
         try {
           const decrypted = await sodiumOpenSealedBox(sealedEnvelope, privateKey);
-          return importPedigreeFromJson(decrypted, "imported");
+          // Parse as .ppro JSON for view
+          const data = JSON.parse(decrypted);
+          if (data?.pedigree) {
+            return {
+              title: data.pedigree.title ?? "",
+              canvas_data: data.pedigree.canvas_data ? JSON.stringify(data.pedigree.canvas_data) : null,
+              notes: data.pedigree.notes ?? null,
+              updated_at: data.provenance?.exported_at ?? new Date().toISOString(),
+              encrypted: false,
+            } satisfies SharedPedigreeView;
+          }
         } catch (e) {
           lastError = e instanceof Error ? e : new Error(String(e));
         }
       }
-      throw lastError ?? new Error("No matching private key found");
+
+      return {
+        title: "",
+        canvas_data: null,
+        notes: null,
+        updated_at: new Date().toISOString(),
+        encrypted: true,
+        decryptError: lastError?.message ?? "No matching private key found",
+      } satisfies SharedPedigreeView;
     },
     enabled: !!token,
   });

@@ -165,6 +165,7 @@ export function PedigreeCanvasBody() {
     showRiskPanel, showVersions, showValidation, expandedIssueId,
     showShareModal, showAddSiblingDialog, siblingSourceId,
     alignGuides,
+    twinSelectMode, twinCandidateIds,
   } = state;
 
   const {
@@ -277,6 +278,11 @@ export function PedigreeCanvasBody() {
   return (
     <div className="flex flex-1 overflow-hidden" data-print-area>
       <div className={`flex-1 overflow-hidden relative ${showGrid ? "grid-bg" : ""}`}>
+        {twinSelectMode && (
+          <div className="absolute top-3 left-1/2 -translate-x-1/2 z-20 px-3 py-1.5 rounded-full bg-amber-500 text-white text-xs font-medium shadow-md pointer-events-none">
+            Twin select: {twinCandidateIds.size} node{twinCandidateIds.size !== 1 ? "s" : ""}
+          </div>
+        )}
         <svg
           ref={svgRef}
           data-canvas-svg="true"
@@ -379,6 +385,7 @@ export function PedigreeCanvasBody() {
             {canvas.nodes.map((node) => (
               <NodeShape key={node.id} node={node}
                 selected={selectedIds.has(node.id)} isLinkSource={linkSource === node.id}
+                isTwinCandidate={twinCandidateIds.has(node.id)}
                 invalid={showValidation && validation.invalidNodeIds.has(node.id)}
                 autoLabel={showAutoLabels ? autoLabels.get(node.id) : undefined}
                 hasEdges={nodeIdsWithEdges.has(node.id)}

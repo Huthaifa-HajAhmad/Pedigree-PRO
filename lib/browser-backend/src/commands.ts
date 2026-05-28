@@ -560,29 +560,238 @@ export interface ShareResult {
   share_url: string;
 }
 
+// URL-safe base64url helpers for share tokens (avoid / and + in URL paths)
+function toBase64url(base64: string): string {
+  return base64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+/**
+ * Converts a base64url string back to standard base64 (with padding).
+ * This does NOT decode the base64 — it just restores the standard base64
+ * alphabet so base64ToUnicode() can decode it properly.
+ */
+function fromBase64urlToBase64(base64url: string): string {
+  let base64 = base64url.replace(/-/g, "+").replace(/_/g, "/");
+  while (base64.length % 4) base64 += "=";
+  return base64;
+}
+
+// =============================================================================
+// Compression Helpers (Browser native CompressionStream API)
+// =============================================================================
+
+async function compressString(str: string): Promise<Uint8Array> {
+  const encoder = new TextEncoder();
+  const stream = new CompressionStream("gzip");
+  const writer = stream.writable.getWriter();
+  writer.write(encoder.encode(str) as unknown as ArrayBufferView<ArrayBuffer>);
+  writer.close();
+  const reader = stream.readable.getReader();
+  const chunks: Uint8Array[] = [];
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    chunks.push(value);
+  }
+  const totalLength = chunks.reduce((a, b) => a + b.length, 0);
+  const result = new Uint8Array(totalLength);
+  let offset = 0;
+  for (const chunk of chunks) {
+    result.set(chunk, offset);
+    offset += chunk.length;
+  }
+  return result;
+}
+
+async function decompressBytes(bytes: Uint8Array): Promise<string> {
+  const stream = new DecompressionStream("gzip");
+  const writer = stream.writable.getWriter();
+  writer.write(bytes as unknown as ArrayBufferView<ArrayBuffer>);
+  writer.close();
+  const reader = stream.readable.getReader();
+  const chunks: Uint8Array[] = [];
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    chunks.push(value);
+  }
+  const totalLength = chunks.reduce((a, b) => a + b.length, 0);
+  const result = new Uint8Array(totalLength);
+  let offset = 0;
+  for (const chunk of chunks) {
+    result.set(chunk, offset);
+    offset += chunk.length;
+  }
+  return new TextDecoder().decode(result);
+}
+
+function bytesToBase64(bytes: Uint8Array): string {
+  let binary = "";
+  const chunkSize = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
+  }
+  return btoa(binary);
+}
+
+function base64ToBytes(base64: string): Uint8Array {
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return bytes;
+}
+
+function isGzipCompressed(data: Uint8Array): boolean {
+  return data.length >= 2 && data[0] === 0x1f && data[1] === 0x8b;
+}
+
+function looksLikeRelayToken(token: string): boolean {
+  // Relay tokens are alphanumeric-only, longer than short codes,
+  // and shorter than typical self-contained base64url data.
+  return /^[A-Za-z0-9]+$/.test(token) && token.length > 8 && token.length <= 40;
+}
+
+const SHORT_CODE_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+function generateShortCode(length = 8): string {
+  const bytes = new Uint8Array(length);
+  crypto.getRandomValues(bytes);
+  let result = "";
+  for (let i = 0; i < length; i++) {
+    result += SHORT_CODE_CHARS[bytes[i]! % SHORT_CODE_CHARS.length];
+  }
+  return result;
+}
+
+function isShortCode(token: string): boolean {
+  return /^[A-Za-z0-9]{8}$/.test(token);
+}
+
+function resolveShortCode(shortCode: string): string | null {
+  const row = queryOne<{ token: string }>("SELECT token FROM share_links WHERE short_code = ? LIMIT 1", [shortCode]);
+  return row?.token ?? null;
+}
+
 // Browser sharing: encrypt using libsodium sealed box for end-to-end encryption per ADR-001
 export async function share_pedigree(args: {
   pedigree_id: number;
   recipient_key: string;
 }): Promise<ShareResult> {
   const pproJson = export_pedigree_ppro({ pedigree_id: args.pedigree_id, exporter_key: args.recipient_key });
-  const { sodiumSealBox } = await import("@workspace/crypto");
-  const envelope = await sodiumSealBox(pproJson, args.recipient_key);
-  const token = btoa(envelope);
+  const hasKey = args.recipient_key && args.recipient_key !== "anonymous";
+
+  let payload: string;
+  if (hasKey) {
+    const { sodiumSealBox } = await import("@workspace/crypto");
+    payload = await sodiumSealBox(pproJson, args.recipient_key);
+  } else {
+    payload = pproJson;
+  }
+
+  // Compress payload for relay / self-contained fallback
+  const compressed = await compressString(payload);
+  const compressedBase64 = toBase64url(bytesToBase64(compressed));
+
+  // Try relay first for short cross-browser links
+  try {
+    const relayResult = await relay_share({ ciphertext: compressedBase64, encrypted_key: "" });
+    return {
+      share_token: relayResult.share_token,
+      share_url: `${window.location.origin}/share/${relayResult.share_token}`,
+    };
+  } catch {
+    // Relay offline/unavailable — fall back to self-contained compressed URL
+  }
+
+  // Self-contained fallback: store local short code for same-browser use
+  const token = compressedBase64;
+  let shortCode = generateShortCode(8);
+  // Collision guard: re-roll on conflict (extremely unlikely with 62^8 ≈ 2.18×10¹⁴)
+  while (queryOne<{ short_code: string }>("SELECT short_code FROM share_links WHERE short_code = ? LIMIT 1", [shortCode])) {
+    shortCode = generateShortCode(8);
+  }
+  exec("INSERT INTO share_links (short_code, token) VALUES (?, ?)", [shortCode, token]);
+
+  // CRITICAL: Save DB immediately so the short code is available in a new tab.
+  const { saveDb } = await import("./db");
+  await saveDb();
+
   return {
     share_token: token,
-    share_url: `${window.location.origin}/share/${token}`,
+    share_url: `${window.location.origin}/share/${shortCode}`,
   };
 }
 
-export async function import_shared(args: { share_token: string; importer_key?: string }): Promise<Pedigree> {
+export async function import_shared(args: { share_token: string; importer_key?: string; fallback_token?: string }): Promise<Pedigree> {
+  let token = args.share_token;
+
+  // Resolve shortlink if the token is an 8-char code
+  if (isShortCode(token)) {
+    const resolved = resolveShortCode(token);
+    if (resolved) {
+      token = resolved;
+    } else if (args.fallback_token) {
+      token = args.fallback_token;
+    } else {
+      throw new Error("Invalid share link: short code not found");
+    }
+  }
+
+  // If token looks like a relay token, try fetching from relay first
+  if (looksLikeRelayToken(token)) {
+    try {
+      const relayData = await relay_receive({ share_token: token });
+      const compressedBytes = base64ToBytes(fromBase64urlToBase64(relayData.ciphertext));
+      const raw = await decompressBytes(compressedBytes);
+
+      // Try encrypted decryption first
+      const { sodiumOpenSealedBox } = await import("@workspace/crypto");
+      const privateKeys = await listProfilePrivateKeys();
+      let lastError: Error | null = null;
+
+      for (const { privateKey } of privateKeys) {
+        try {
+          const decrypted = await sodiumOpenSealedBox(raw, privateKey);
+          return import_pedigree_native({ path: decrypted, importer_key: args.importer_key ?? "imported" });
+        } catch (e) {
+          lastError = e instanceof Error ? e : new Error(String(e));
+        }
+      }
+
+      // Fallback: unencrypted token (raw JSON)
+      try {
+        return import_pedigree_native({ path: raw, importer_key: args.importer_key ?? "imported" });
+      } catch {
+        // Not valid pedigree JSON either
+      }
+
+      throw lastError ?? new Error("Invalid share token: no matching private key found");
+    } catch {
+      // Relay failed or token not found — fall through to self-contained decode
+    }
+  }
+
+  // Self-contained base64url decode (compressed or uncompressed)
+  let raw: string;
+  try {
+    const stdBase64 = fromBase64urlToBase64(token);
+    const bytes = base64ToBytes(stdBase64);
+    if (isGzipCompressed(bytes)) {
+      raw = await decompressBytes(bytes);
+    } else {
+      raw = new TextDecoder().decode(bytes);
+    }
+  } catch {
+    throw new Error("Invalid share token: unable to decode");
+  }
+
+  // Try encrypted decryption first
   const { sodiumOpenSealedBox } = await import("@workspace/crypto");
   const privateKeys = await listProfilePrivateKeys();
   let lastError: Error | null = null;
 
   for (const { privateKey } of privateKeys) {
     try {
-      const decrypted = await sodiumOpenSealedBox(atob(args.share_token), privateKey);
+      const decrypted = await sodiumOpenSealedBox(raw, privateKey);
       return import_pedigree_native({ path: decrypted, importer_key: args.importer_key ?? "imported" });
     } catch (e) {
       lastError = e instanceof Error ? e : new Error(String(e));
@@ -590,7 +799,211 @@ export async function import_shared(args: { share_token: string; importer_key?: 
     }
   }
 
+  // Fallback: unencrypted token (raw JSON)
+  try {
+    return import_pedigree_native({ path: raw, importer_key: args.importer_key ?? "imported" });
+  } catch {
+    // Not valid pedigree JSON either
+  }
+
   throw lastError ?? new Error("Invalid share token: no matching private key found");
+}
+
+// =============================================================================
+// Share View (decode without importing)
+// =============================================================================
+
+/**
+ * Lightweight share data returned by decode_shared_pedigree().
+ * Contains enough information to render the read-only share preview
+ * WITHOUT creating a pedigree record in the database.
+ */
+export interface SharedPedigreeView {
+  title: string;
+  canvas_data: string | null;
+  notes: string | null;
+  updated_at: string;
+  /** true if the token was encrypted and could not be decrypted */
+  encrypted: boolean;
+  /** If encrypted and no matching key was found, a human-readable explanation */
+  decryptError?: string;
+}
+
+/**
+ * Resolves and decodes a share token for read-only viewing.
+ *
+ * Unlike import_shared(), this function does NOT create a pedigree record
+ * in the database. It simply decodes the token, attempts decryption if
+ * encrypted, parses the .ppro JSON, and returns the data for display.
+ *
+ * If the share is encrypted and no matching private key is found,
+ * it returns `{ encrypted: true, decryptError: "..." }` instead of
+ * throwing — so the UI can show a specific message instead of a 404.
+ *
+ * @param args.share_token The short code or full base64url token from the URL
+ * @param args.fallback_token Optional full token (e.g., from ?t= query param) if short code can't be resolved
+ */
+export async function decode_shared_pedigree(args: {
+  share_token: string;
+  fallback_token?: string;
+}): Promise<SharedPedigreeView> {
+  let token = args.share_token;
+
+  // Resolve shortlink if the token is an 8-char code
+  if (isShortCode(token)) {
+    const resolved = resolveShortCode(token);
+    if (resolved) {
+      token = resolved;
+    } else if (args.fallback_token) {
+      token = args.fallback_token;
+    } else {
+      return {
+        title: "",
+        canvas_data: null,
+        notes: null,
+        updated_at: new Date().toISOString(),
+        encrypted: false,
+        decryptError: "Short code not found in this browser's database. This share link was generated on a different device or in a private/incognito session. Open it in the same browser where it was created, or ask the sender to use File → Export for cross-device transfer.",
+      };
+    }
+  }
+
+  // If token looks like a relay token, try fetching from relay first
+  if (looksLikeRelayToken(token)) {
+    try {
+      const relayData = await relay_receive({ share_token: token });
+      const compressedBytes = base64ToBytes(fromBase64urlToBase64(relayData.ciphertext));
+      const raw = await decompressBytes(compressedBytes);
+
+      // Try encrypted decryption first
+      const { sodiumOpenSealedBox } = await import("@workspace/crypto");
+      const privateKeys = await listProfilePrivateKeys();
+
+      for (const { privateKey } of privateKeys) {
+        try {
+          const decrypted = await sodiumOpenSealedBox(raw, privateKey);
+          const view = parsePproForView(decrypted);
+          if (view) return { ...view, encrypted: false };
+        } catch {
+          // Key mismatch — try next key
+        }
+      }
+
+      // Fallback: unencrypted token (raw .ppro JSON)
+      const unencryptedView = parsePproForView(raw);
+      if (unencryptedView) {
+        return { ...unencryptedView, encrypted: false };
+      }
+
+      if (privateKeys.length > 0) {
+        return {
+          title: "",
+          canvas_data: null,
+          notes: null,
+          updated_at: new Date().toISOString(),
+          encrypted: true,
+          decryptError: "This share is encrypted for a specific recipient. None of your stored private keys can decrypt it. Ask the sender to share with your public key, or generate an unencrypted share link.",
+        };
+      }
+
+      return {
+        title: "",
+        canvas_data: null,
+        notes: null,
+        updated_at: new Date().toISOString(),
+        encrypted: true,
+        decryptError: "This share is encrypted for a specific recipient. You need a profile with the matching private key to view it. Create a profile and ask the sender to encrypt for your public key.",
+      };
+    } catch {
+      // Relay failed — fall through to self-contained decode
+    }
+  }
+
+  // Self-contained base64url decode (compressed or uncompressed)
+  let raw: string;
+  try {
+    const stdBase64 = fromBase64urlToBase64(token);
+    const bytes = base64ToBytes(stdBase64);
+    if (isGzipCompressed(bytes)) {
+      raw = await decompressBytes(bytes);
+    } else {
+      raw = new TextDecoder().decode(bytes);
+    }
+  } catch {
+    return {
+      title: "",
+      canvas_data: null,
+      notes: null,
+      updated_at: new Date().toISOString(),
+      encrypted: false,
+      decryptError: "Invalid share token: unable to decode. The link may be corrupted or incomplete.",
+    };
+  }
+
+  // Try encrypted decryption first
+  const { sodiumOpenSealedBox } = await import("@workspace/crypto");
+  const privateKeys = await listProfilePrivateKeys();
+
+  for (const { privateKey } of privateKeys) {
+    try {
+      const decrypted = await sodiumOpenSealedBox(raw, privateKey);
+      const view = parsePproForView(decrypted);
+      if (view) return { ...view, encrypted: false };
+    } catch {
+      // Key mismatch — try next key
+    }
+  }
+
+  // Fallback: unencrypted token (raw .ppro JSON)
+  const unencryptedView = parsePproForView(raw);
+  if (unencryptedView) {
+    return { ...unencryptedView, encrypted: false };
+  }
+
+  // If we got here and have private keys, the data IS encrypted but we can't decrypt it
+  if (privateKeys.length > 0) {
+    return {
+      title: "",
+      canvas_data: null,
+      notes: null,
+      updated_at: new Date().toISOString(),
+      encrypted: true,
+      decryptError: "This share is encrypted for a specific recipient. None of your stored private keys can decrypt it. Ask the sender to share with your public key, or generate an unencrypted share link.",
+    };
+  }
+
+  // No private keys at all — the data is likely encrypted
+  return {
+    title: "",
+    canvas_data: null,
+    notes: null,
+    updated_at: new Date().toISOString(),
+    encrypted: true,
+    decryptError: "This share is encrypted for a specific recipient. You need a profile with the matching private key to view it. Create a profile and ask the sender to encrypt for your public key.",
+  };
+}
+
+/**
+ * Parses a .ppro JSON string and extracts view-ready fields.
+ * Returns null if the string is not valid .ppro data.
+ */
+function parsePproForView(raw: string): Omit<SharedPedigreeView, "encrypted" | "decryptError"> | null {
+  try {
+    const data: PproExport = JSON.parse(raw);
+    if (data.format_version !== "1.0" || data.export_type !== "pedigree" || !data.pedigree) {
+      return null;
+    }
+    const ped = data.pedigree;
+    const canvasStr = ped.canvas_data ? JSON.stringify(ped.canvas_data) : null;
+    return {
+      title: ped.title,
+      canvas_data: canvasStr,
+      notes: ped.notes ?? null,
+      updated_at: data.provenance?.exported_at ?? new Date().toISOString(),
+    };
+  } catch {
+    return null;
+  }
 }
 
 // =============================================================================
@@ -713,6 +1126,18 @@ export function import_pedigree_native(args: {
   const ped = data.pedigree;
   const canvasStr = ped.canvas_data ? JSON.stringify(ped.canvas_data) : null;
 
+  // Deduplication: if a pedigree with the same canvas hash already exists, return it
+  if (canvasStr) {
+    const hash = computeHash(canvasStr);
+    const existing = queryOne<{ id: number }>(
+      "SELECT id FROM pedigrees WHERE canvas_hash = ? LIMIT 1",
+      [hash]
+    );
+    if (existing) {
+      return get_pedigree({ id: existing.id });
+    }
+  }
+
   const created = create_pedigree({
     title: ped.title,
     patient_id: null,
@@ -817,7 +1242,7 @@ export async function rotate_key(): Promise<void> {
 // Relay Sharing (Browser Mode)
 // =============================================================================
 
-const RELAY_BASE_URL = "https://relay.pedigreepro.app";
+const RELAY_BASE_URL = "https://pedigreepro-relay.pedigreepro.workers.dev";
 
 /**
  * Posts an encrypted share to the relay service (browser mode).

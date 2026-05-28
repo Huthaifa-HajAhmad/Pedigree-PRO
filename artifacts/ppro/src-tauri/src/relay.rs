@@ -20,7 +20,7 @@ use serde::{Deserialize, Serialize};
 
 /// Default relay service URL.
 /// Override via RELAY_URL environment variable or Tauri config.
-const DEFAULT_RELAY_URL: &str = "https://relay.pedigreepro.app";
+const DEFAULT_RELAY_URL: &str = "https://pedigreepro-relay.pedigreepro.workers.dev";
 
 // =============================================================================
 // Relay API Types

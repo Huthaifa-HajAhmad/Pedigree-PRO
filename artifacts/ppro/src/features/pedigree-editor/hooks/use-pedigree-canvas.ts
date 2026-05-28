@@ -401,6 +401,20 @@ export function usePedigreeCanvas(params: UsePedigreeCanvasParams) {
           (n) => n.x + half >= x1 && n.x - half <= x2 && n.y + half >= y1 && n.y - half <= y2
         );
         const newSelectedIds = new Set(enclosed.map((n) => n.id));
+        if (s.twinSelectMode) {
+          const newCandidates = new Set(s.twinCandidateIds);
+          for (const n of enclosed) {
+            if (newCandidates.has(n.id)) newCandidates.delete(n.id);
+            else newCandidates.add(n.id);
+          }
+          dispatch({ type: "SET_STATE", patch: { twinCandidateIds: newCandidates } });
+          lassoRef.current = null; isLassoingRef.current = false; lassoCTMInverseRef.current = null;
+          dispatch({ type: "SET_STATE", patch: { lassoVisible: false } });
+          dispatch({ type: "SET_STATE", patch: { dragging: null, isDragging: false, snapRows: [], panning: null, alignGuides: [] } });
+          draggingRef.current = null; isDraggingRef.current = false;
+          return;
+        }
+
         if (s.linkMode === "consanguinity" && enclosed.length === 2) {
           const nA = enclosed[0]!, nB = enclosed[1]!;
           if ((nA.type === "male" && nB.type === "female") || (nA.type === "female" && nB.type === "male")) {
