@@ -124,6 +124,11 @@ function PedigreeCanvasInner() {
         showVersionTimeline={state.showVersionTimeline} setShowVersionTimeline={toggle.setShowVersionTimeline}
         showFollowMode={state.showFollowMode} setShowFollowMode={toggle.setShowFollowMode}
         setShowLanShare={toggle.setShowLanShare}
+        twinSelectMode={state.twinSelectMode}
+        twinCandidateIds={state.twinCandidateIds}
+        toggleTwinSelectMode={ops.toggleTwinSelectMode}
+        clearTwinCandidates={ops.clearTwinCandidates}
+        markAsTwins={ops.markAsTwins}
         handleExportReport={he(exportClinicalReport, "Report")}
         handleExportPDF={he(exportPDF, "PDF")}
         handleExportPPTX={he(exportPPTX, "PPTX")}

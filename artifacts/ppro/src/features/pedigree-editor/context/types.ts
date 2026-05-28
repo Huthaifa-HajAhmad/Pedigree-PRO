@@ -52,6 +52,9 @@ export interface PedigreeEditorState {
   showLanShare: boolean;
   followIndex: number;
 
+  twinSelectMode: boolean;
+  twinCandidateIds: Set<string>;
+
   confirmOpen: boolean;
   confirmProps: { title: string; message: string; variant?: "default" | "destructive"; onConfirm: () => void } | null;
 
@@ -110,6 +113,9 @@ export const INITIAL_STATE: PedigreeEditorState = {
   showFollowMode: false,
   showLanShare: false,
   followIndex: 0,
+
+  twinSelectMode: false,
+  twinCandidateIds: new Set<string>(),
 
   confirmOpen: false,
   confirmProps: null,
@@ -172,6 +178,8 @@ export interface PedigreeEditorOps {
   addSiblings: (sourceId: string, siblings: Array<{ type: PedigreeNode["type"]; dob: string }>) => void;
   markAsTwins: (nodeIds: string[], twinType: "m" | "d") => void;
   unmarkTwins: (nodeIds: string[]) => void;
+  toggleTwinSelectMode: () => void;
+  clearTwinCandidates: () => void;
   handleDeletePedigree: (tabId: number, tabTitle: string) => void;
 }
 

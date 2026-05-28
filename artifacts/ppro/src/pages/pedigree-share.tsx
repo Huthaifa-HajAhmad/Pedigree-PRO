@@ -1,133 +1,113 @@
-import { useParams, Link } from "wouter";
-import { memo } from "react";
-import { useGetSharedPedigree } from "@workspace/api-client-react";
-import type { PedigreeNode, PedigreeEdge } from "@/features/pedigree-editor/canvas/types";
-import { NODE_SIZE } from "@/features/pedigree-editor/canvas/types";
-
-interface CanvasData {
-  nodes: PedigreeNode[];
-  edges: PedigreeEdge[];
-}
+import { useParams, Link, useLocation } from "wouter";
+import { useEffect, useState, useCallback } from "react";
+import { useGetSharedPedigree, useImportShared } from "@workspace/api-client-react";
+import { ReadOnlyCanvas } from "@/features/pedigree-editor/canvas/ReadOnlyCanvas";
+import type { CanvasData } from "@/features/pedigree-editor/canvas/types";
+import { ShieldAlert, KeyRound, Loader2 } from "lucide-react";
 
 function parseCanvas(raw: string | null | undefined): CanvasData {
-  if (!raw) return { nodes: [], edges: [] };
+  if (!raw) return { nodes: [], edges: [], annotations: [] };
   try {
     const parsed = JSON.parse(raw);
-    return parsed && Array.isArray(parsed.nodes) ? parsed : { nodes: [], edges: [] };
+    return parsed && Array.isArray(parsed.nodes)
+      ? { nodes: parsed.nodes ?? [], edges: parsed.edges ?? [], annotations: parsed.annotations ?? [] }
+      : { nodes: [], edges: [], annotations: [] };
   } catch {
-    return { nodes: [], edges: [] };
+    return { nodes: [], edges: [], annotations: [] };
   }
 }
 
-const NEON = "hsl(235 75% 62%)";
-
-const EdgeLine = memo(({ edge, nodes }: { edge: PedigreeEdge; nodes: PedigreeNode[] }) => {
-  const src = nodes.find((n) => n.id === edge.sourceId);
-  const tgt = nodes.find((n) => n.id === edge.targetId);
-  if (!src || !tgt) return null;
-
-  if (edge.type === "couple") {
-    return <line x1={src.x} y1={src.y} x2={tgt.x} y2={tgt.y} stroke="rgba(255,255,255,0.35)" strokeWidth={1.5} />;
+function useAccessMode(): "view" | "edit" {
+  try {
+    const m = new URLSearchParams(window.location.search).get("access");
+    return m === "edit" ? "edit" : "view";
+  } catch {
+    return "view";
   }
-
-  if (edge.type === "consanguinity") {
-    const x1 = src.x + NODE_SIZE / 2, y1 = src.y;
-    const x2 = tgt.x - NODE_SIZE / 2, y2 = tgt.y;
-    const dx = x2 - x1, dy = y2 - y1;
-    const len = Math.sqrt(dx * dx + dy * dy) || 1;
-    const ox = (-dy / len) * 3.5;
-    const oy = (dx / len) * 3.5;
-    return (
-      <g stroke="rgba(255,255,255,0.35)" strokeWidth={1.5} fill="none">
-        <line x1={x1 + ox} y1={y1 + oy} x2={x2 + ox} y2={y2 + oy} />
-        <line x1={x1 - ox} y1={y1 - oy} x2={x2 - ox} y2={y2 - oy} />
-      </g>
-    );
-  }
-
-  const dropY = src.y + NODE_SIZE / 2 + 20;
-  return (
-    <g stroke="rgba(255,255,255,0.25)" strokeWidth={1.5} fill="none">
-      <line x1={src.x} y1={src.y + NODE_SIZE / 2} x2={src.x} y2={dropY} />
-      <line x1={src.x} y1={dropY} x2={tgt.x} y2={dropY} />
-      <line x1={tgt.x} y1={dropY} x2={tgt.x} y2={tgt.y - NODE_SIZE / 2} />
-    </g>
-  );
-});
-
-const NodeShape = memo(({ node }: { node: PedigreeNode }) => {
-  const stroke = node.affected ? NEON : "rgba(255,255,255,0.45)";
-  const fill = node.affected ? "rgba(57,255,20,0.22)" : "rgba(30,30,30,0.85)";
-
-  return (
-    <g transform={`translate(${node.x}, ${node.y})`}>
-      {node.type === "male" && (
-        <rect x={-NODE_SIZE / 2} y={-NODE_SIZE / 2} width={NODE_SIZE} height={NODE_SIZE}
-          fill={fill} stroke={stroke} strokeWidth={node.affected ? 2 : 1.5} rx={2}
-          style={node.affected ? { filter: `drop-shadow(0 0 6px ${NEON})` } : {}} />
-      )}
-      {node.type === "female" && (
-        <circle cx={0} cy={0} r={NODE_SIZE / 2}
-          fill={fill} stroke={stroke} strokeWidth={node.affected ? 2 : 1.5}
-          style={node.affected ? { filter: `drop-shadow(0 0 6px ${NEON})` } : {}} />
-      )}
-      {node.type === "unknown" && (
-        <polygon points={`0,${-NODE_SIZE / 2} ${NODE_SIZE / 2},0 0,${NODE_SIZE / 2} ${-NODE_SIZE / 2},0`}
-          fill={fill} stroke={stroke} strokeWidth={node.affected ? 2 : 1.5}
-          style={node.affected ? { filter: `drop-shadow(0 0 6px ${NEON})` } : {}} />
-      )}
-      {node.type === "sab" && (
-        <polygon
-          points={`0,${NODE_SIZE * 0.36} ${-NODE_SIZE * 0.38},${-NODE_SIZE * 0.26} ${NODE_SIZE * 0.38},${-NODE_SIZE * 0.26}`}
-          fill={node.affected ? "rgba(57,255,20,0.22)" : "rgba(200,200,200,0.22)"}
-          stroke={stroke} strokeWidth={node.affected ? 2 : 1.5}
-          style={node.affected ? { filter: `drop-shadow(0 0 6px ${NEON})` } : {}}
-        />
-      )}
-      {node.deceased && (
-        <line x1={-NODE_SIZE / 2 - 8} y1={NODE_SIZE / 2 + 8}
-          x2={NODE_SIZE / 2 + 8} y2={-NODE_SIZE / 2 - 8}
-          stroke="rgba(255,255,255,0.55)" strokeWidth={1.5} />
-      )}
-      {node.proband && (
-        <text x={-NODE_SIZE / 2 - 16} y={8} fontSize={16} fill={NEON} style={{ userSelect: "none" }}>→</text>
-      )}
-      {node.label && (
-        <text x={0} y={NODE_SIZE / 2 + 14} textAnchor="middle"
-          fontSize={11} fill="rgba(255,255,255,0.7)" style={{ userSelect: "none" }}>
-          {node.label}
-        </text>
-      )}
-      {node.age && (
-        <text x={0} y={NODE_SIZE / 2 + 26} textAnchor="middle"
-          fontSize={9} fill="rgba(255,255,255,0.35)" style={{ userSelect: "none" }}>
-          {node.age}y
-        </text>
-      )}
-    </g>
-  );
-});
+}
 
 export default function PedigreeShare() {
   const { token } = useParams<{ token: string }>();
+  const [, navigate] = useLocation();
+  const accessMode = useAccessMode();
+  const importMutation = useImportShared();
+  const [importAttempted, setImportAttempted] = useState(false);
 
   const { data: pedigree, isLoading, isError } = useGetSharedPedigree(token ?? "");
 
-  if (isLoading) {
+  // Callback: triggers import-then-redirect (used by both "Open in Editor" button and edit auto-redirect)
+  const importAndEdit = useCallback(() => {
+    if (importAttempted || importMutation.isPending) return false;
+    setImportAttempted(true);
+    importMutation.mutate(token ?? "", {
+      onSuccess: (imported) => {
+        const id = (imported as { id?: number }).id;
+        if (id) navigate(`/pedigrees/${id}`);
+      },
+      onError: (err) => {
+        setImportAttempted(false); // allow retry
+        console.error("[PedigreeShare] Failed to import:", err);
+      },
+    });
+    return true;
+  }, [token, navigate, importMutation, importAttempted]);
+
+  // Auto-redirect to editor when access=edit and data is available
+  useEffect(() => {
+    if (
+      accessMode === "edit" &&
+      pedigree &&
+      !isLoading &&
+      !isError &&
+      !pedigree.encrypted &&
+      !pedigree.decryptError
+    ) {
+      importAndEdit();
+    }
+  }, [accessMode, pedigree, isLoading, isError, importAndEdit]);
+
+  if (isLoading || (accessMode === "edit" && importMutation.isPending)) {
     return (
       <div className="flex flex-col items-center justify-center h-dvh gap-3 bg-background">
-        <div className="text-primary animate-pulse tracking-widest text-sm font-mono">LOADING...</div>
+        <Loader2 className="w-6 h-6 text-primary animate-spin" />
+        <div className="text-primary tracking-widest text-sm font-mono">
+          {importMutation.isPending ? "Importing pedigree into editor..." : "Loading..."}
+        </div>
       </div>
     );
   }
 
-  if (isError || !pedigree) {
+  // Specific error states (not generic 404)
+  if (isError || !pedigree || pedigree.decryptError) {
+    const errorMessage = pedigree?.decryptError
+      ?? (isError ? "An unexpected error occurred while loading this share link." : "No data received.");
+
+    const isEncrypted = pedigree?.encrypted ?? false;
+
     return (
-      <div className="flex flex-col items-center justify-center h-dvh gap-4 bg-background">
-        <div className="text-5xl font-mono" style={{ color: NEON }}>404</div>
-        <div className="text-muted-foreground text-sm font-mono">This share link is invalid or has expired.</div>
+      <div className="flex flex-col items-center justify-center h-dvh gap-4 bg-background px-6">
+        {isEncrypted ? (
+          <>
+            <KeyRound className="w-12 h-12 text-primary/50" />
+            <div className="text-3xl font-mono text-primary">🔐</div>
+          </>
+        ) : (
+          <div className="text-5xl font-mono text-primary">404</div>
+        )}
+        <div className="text-muted-foreground text-sm font-mono text-center max-w-md">
+          {errorMessage}
+        </div>
+        {isEncrypted && (
+          <div className="flex items-start gap-2 px-3 py-2 rounded border border-primary/30 bg-primary/5 max-w-md">
+            <ShieldAlert className="w-4 h-4 text-primary mt-0.5 flex-shrink-0" />
+            <p className="text-xs text-primary/80">
+              End-to-end encryption ensures only the intended recipient can view the data.
+              The relay and sender's browser never expose plaintext.
+            </p>
+          </div>
+        )}
         <Link href="/">
-          <button className="mt-4 px-4 py-2 rounded border border-border text-xs text-muted-foreground hover:border-primary hover:text-primary transition-colors font-mono">
+          <button type="button" className="mt-4 px-4 py-2 rounded border border-border text-xs text-muted-foreground hover:border-primary hover:text-primary transition-colors font-mono">
             ← Back to Pedigree PRO
           </button>
         </Link>
@@ -135,16 +115,7 @@ export default function PedigreeShare() {
     );
   }
 
-  const canvas = parseCanvas((pedigree as { canvas_data?: string }).canvas_data);
-
-  const xs = canvas.nodes.map((n) => n.x);
-  const ys = canvas.nodes.map((n) => n.y);
-  const minX = xs.length ? Math.min(...xs) - 80 : 0;
-  const minY = ys.length ? Math.min(...ys) - 80 : 0;
-  const maxX = xs.length ? Math.max(...xs) + 80 : 800;
-  const maxY = ys.length ? Math.max(...ys) + 80 : 500;
-  const vbW = maxX - minX;
-  const vbH = maxY - minY;
+  const canvas = parseCanvas(pedigree.canvas_data);
 
   return (
     <div className="flex flex-col h-dvh overflow-hidden bg-background">
@@ -159,11 +130,11 @@ export default function PedigreeShare() {
           </span>
         </div>
         <div className="text-xs text-muted-foreground">
-          Last updated {new Date((pedigree as { updated_at?: string }).updated_at ?? Date.now()).toLocaleDateString()}
+          Shared {new Date(pedigree.updated_at).toLocaleDateString()}
         </div>
       </div>
 
-      {/* Canvas */}
+      {/* Canvas — uses real canvas components for pixel-perfect fidelity */}
       <div className="flex-1 overflow-hidden relative bg-background"
         style={{
           backgroundImage: "radial-gradient(circle, hsl(var(--muted-foreground) / 0.15) 1px, transparent 1px)",
@@ -174,18 +145,7 @@ export default function PedigreeShare() {
             <span className="text-muted-foreground text-sm font-mono">No pedigree data in this canvas.</span>
           </div>
         ) : (
-          <svg className="w-full h-full" viewBox={`${minX} ${minY} ${vbW} ${vbH}`} preserveAspectRatio="xMidYMid meet">
-            <g>
-              {canvas.edges.map((edge) => (
-                <EdgeLine key={edge.id} edge={edge} nodes={canvas.nodes} />
-              ))}
-            </g>
-            <g>
-              {canvas.nodes.map((node) => (
-                <NodeShape key={node.id} node={node} />
-              ))}
-            </g>
-          </svg>
+          <ReadOnlyCanvas canvas={canvas} />
         )}
       </div>
 
@@ -207,10 +167,10 @@ export default function PedigreeShare() {
         ].map(({ shape, label }) => (
           <div key={label} className="flex items-center gap-1.5">
             <svg width="14" height="14" viewBox="-7 -7 14 14">
-              {shape === "square" && <rect x="-5" y="-5" width="10" height="10" fill="none" stroke="rgba(255,255,255,0.45)" strokeWidth="1.2" rx="1" />}
-              {shape === "circle" && <circle cx="0" cy="0" r="5" fill="none" stroke="rgba(255,255,255,0.45)" strokeWidth="1.2" />}
-              {shape === "diamond" && <polygon points="0,-5 5,0 0,5 -5,0" fill="none" stroke="rgba(255,255,255,0.45)" strokeWidth="1.2" />}
-              {shape === "filled" && <circle cx="0" cy="0" r="5" fill="rgba(57,255,20,0.25)" stroke={NEON} strokeWidth="1.2" />}
+              {shape === "square" && <rect x="-5" y="-5" width="10" height="10" fill="none" stroke="hsl(var(--foreground) / 0.45)" strokeWidth="1.2" rx="1" />}
+              {shape === "circle" && <circle cx="0" cy="0" r="5" fill="none" stroke="hsl(var(--foreground) / 0.45)" strokeWidth="1.2" />}
+              {shape === "diamond" && <polygon points="0,-5 5,0 0,5 -5,0" fill="none" stroke="hsl(var(--foreground) / 0.45)" strokeWidth="1.2" />}
+              {shape === "filled" && <circle cx="0" cy="0" r="5" fill="hsl(var(--primary) / 0.2)" stroke="hsl(var(--primary))" strokeWidth="1.2" />}
             </svg>
             <span className="text-xs text-muted-foreground">{label}</span>
           </div>

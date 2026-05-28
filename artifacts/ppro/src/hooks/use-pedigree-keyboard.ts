@@ -23,6 +23,9 @@ export interface UsePedigreeKeyboardParams {
   spaceHeldRef: React.MutableRefObject<boolean>;
   setSpaceHeld: Dispatch<SetStateAction<boolean>>;
   searchInputRef: React.RefObject<HTMLInputElement | null>;
+  twinSelectMode: boolean;
+  setTwinSelectMode: Dispatch<SetStateAction<boolean>>;
+  clearTwinCandidates: () => void;
   W: number;
   H: number;
 }
@@ -64,6 +67,7 @@ export function usePedigreeKeyboard(params: UsePedigreeKeyboardParams) {
 
       if (e.key === "Escape") {
         if (k.showSearch) { k.setShowSearch(false); k.setSearchQuery(""); return; }
+        if (k.twinSelectMode) { k.setTwinSelectMode(false); k.clearTwinCandidates(); return; }
         k.setSelectedIds(new Set()); k.setLinkMode(null); k.setLinkSource(null); k.setSelectedAnnotationId(null);
         return;
       }

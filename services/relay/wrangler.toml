@@ -1,0 +1,21 @@
+name = "pedigreepro-relay"
+main = "index.ts"
+compatibility_date = "2025-01-01"
+workers_dev = true
+preview_urls = false
+
+# Create a KV namespace via:
+#   npx wrangler kv:namespace create "RELAY_KV"
+# Then paste the id below.
+[[kv_namespaces]]
+binding = "RELAY_KV"
+id = "26dda6c2741043fcbbe1ce2188001748"
+
+# Optional: custom domain
+# routes = [
+#   { pattern = "relay.pedigreepro.app", custom_domain = true }
+# ]
+
+# Deploy:
+#   cd services/relay
+#   npx wrangler deploy

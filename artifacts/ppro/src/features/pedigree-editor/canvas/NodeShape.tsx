@@ -7,6 +7,7 @@ interface NodeShapeProps {
   node: PedigreeNode;
   selected: boolean;
   isLinkSource: boolean;
+  isTwinCandidate?: boolean;
   invalid: boolean;
   autoLabel?: string;
   hasEdges?: boolean;
@@ -18,7 +19,7 @@ interface NodeShapeProps {
 }
 
 export const NodeShape = memo(function NodeShape({
-  node, selected, isLinkSource, invalid, autoLabel, hasEdges = true, renderOffsetY = 0, onClick, onDragStart, onContextMenu, onDoubleClick,
+  node, selected, isLinkSource, isTwinCandidate, invalid, autoLabel, hasEdges = true, renderOffsetY = 0, onClick, onDragStart, onContextMenu, onDoubleClick,
 }: NodeShapeProps) {
   const cfg = useCanvasConfig();
   const [showHint, setShowHint] = useState(false);
@@ -84,6 +85,10 @@ export const NodeShape = memo(function NodeShape({
         <rect x={-S / 2 - 5} y={-S / 2 - 5} width={S + 10} height={S + 10}
           fill="none" stroke={highlight} strokeWidth={1} strokeDasharray="3 3" opacity={0.5} rx={4} />
       )}
+      {isTwinCandidate && (
+        <rect x={-S / 2 - 6} y={-S / 2 - 6} width={S + 12} height={S + 12}
+          fill="none" stroke="#F59E0B" strokeWidth={1.5} strokeDasharray="4 3" opacity={0.85} rx={4} />
+      )}
       {node.pinned && (
         <circle cx={S / 2 + 4} cy={-S / 2 - 4} r={3} fill="hsl(var(--muted-foreground))" opacity={0.6} />
       )}
@@ -119,11 +124,12 @@ export const NodeShape = memo(function NodeShape({
       )}
       {/* Labels */}
       {autoLabel && <text x={0} y={S / 2 + 13} textAnchor="middle" fontSize={8} fill="hsl(var(--foreground) / 0.45)" style={{ userSelect: "none", fontFamily: "JetBrains Mono, monospace", letterSpacing: "0.05em" }}>{autoLabel}</text>}
-      {node.label && <text x={0} y={autoLabel ? S / 2 + 24 : S / 2 + 14} textAnchor="middle" fontSize={9} fill="hsl(var(--foreground))" style={{ userSelect: "none", fontFamily: "JetBrains Mono, monospace" }}>{node.label}</text>}
-      {node.age && <text x={0} y={(autoLabel ? S / 2 + 24 : S / 2 + 14) + (node.label ? 11 : 0)} textAnchor="middle" fontSize={8} fill="hsl(var(--foreground) / 0.55)" style={{ userSelect: "none", fontFamily: "JetBrains Mono, monospace" }}>{node.age}y</text>}
-      {node.dob && !node.age && <text x={0} y={(autoLabel ? S / 2 + 24 : S / 2 + 14) + (node.label ? 11 : 0)} textAnchor="middle" fontSize={8} fill="hsl(var(--foreground) / 0.5)" style={{ userSelect: "none", fontFamily: "JetBrains Mono, monospace" }}>{node.dob.length >= 4 ? `b.${node.dob.slice(0, 4)}` : node.dob}</text>}
+      {/* Only show node.label when autoLabel is NOT displayed to avoid garbled/overlapping text */}
+      {!autoLabel && node.label && <text x={0} y={S / 2 + 14} textAnchor="middle" fontSize={9} fill="hsl(var(--foreground))" style={{ userSelect: "none", fontFamily: "JetBrains Mono, monospace" }}>{node.label}</text>}
+      {node.age && <text x={0} y={(autoLabel ? S / 2 + 24 : S / 2 + 14) + (!autoLabel && node.label ? 11 : 0)} textAnchor="middle" fontSize={8} fill="hsl(var(--foreground) / 0.55)" style={{ userSelect: "none", fontFamily: "JetBrains Mono, monospace" }}>{node.age}y</text>}
+      {node.dob && !node.age && <text x={0} y={(autoLabel ? S / 2 + 24 : S / 2 + 14) + (!autoLabel && node.label ? 11 : 0)} textAnchor="middle" fontSize={8} fill="hsl(var(--foreground) / 0.5)" style={{ userSelect: "none", fontFamily: "JetBrains Mono, monospace" }}>{node.dob.length >= 4 ? `b.${node.dob.slice(0, 4)}` : node.dob}</text>}
       {node.condition && (
-        <text x={0} y={(autoLabel ? S / 2 + 24 : S / 2 + 14) + (node.label ? 11 : 0) + ((node.age || node.dob) ? 11 : 0) + 11}
+        <text x={0} y={(autoLabel ? S / 2 + 24 : S / 2 + 14) + (!autoLabel && node.label ? 11 : 0) + ((node.age || node.dob) ? 11 : 0) + 11}
           textAnchor="middle" fontSize={8} fill="hsl(var(--foreground) / 0.65)" style={{ userSelect: "none", fontFamily: "JetBrains Mono, monospace", fontStyle: "italic" }}>
           {node.condition.length > 18 ? node.condition.slice(0, 17) + "…" : node.condition}
         </text>
