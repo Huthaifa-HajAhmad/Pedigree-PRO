@@ -513,6 +513,12 @@ export function get_recent_activity(args?: { limit?: number }): ActivityItem[] {
   );
 }
 
+export async function clear_activity_log(): Promise<void> {
+  exec("DELETE FROM activity_log");
+  const { saveDb } = await import("./db");
+  await saveDb();
+}
+
 // =============================================================================
 // Preferences Types & Operations
 // =============================================================================

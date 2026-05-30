@@ -243,6 +243,10 @@ export function getRecentActivity(limit?: number): Promise<ActivityItem[]> {
   return apiCall<ActivityItem[]>("get_recent_activity", limit ? { limit } : undefined);
 }
 
+export function clearActivityLog(): Promise<void> {
+  return apiCall<void>("clear_activity_log");
+}
+
 // =============================================================================
 // Preferences Types & Operations
 // =============================================================================

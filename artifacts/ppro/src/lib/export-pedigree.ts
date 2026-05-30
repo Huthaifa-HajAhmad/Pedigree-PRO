@@ -52,40 +52,6 @@ export interface ExportInfo {
 // ---------------------------------------------------------------------------
 interface LegendItem { shape: string; label: string }
 
-const AFFECTED_PALETTE: Record<number, [number, number, number]> = {
-  1: [74, 144, 217],   // #4A90D9 - generic affected
-  2: [57, 255, 20],    // #39FF14 - primary condition (default green)
-  3: [255, 107, 107],  // #FF6B6B - secondary condition
-  4: [255, 165, 0],    // #FFA500 - tertiary condition
-  5: [147, 112, 219],  // #9370DB - additional condition
-  6: [0, 206, 209],    // #00CED1 - additional condition
-  7: [255, 215, 0],    // #FFD700 - additional condition
-  8: [220, 20, 60],    // #DC143C - additional condition
-  9: [0, 128, 128],    // #008080 - additional condition
-};
-
-function affectedFillColors(node: ExportNode): { r: number; g: number; b: number } {
-  if (node.affected && node.affectedLevel && node.affectedLevel >= 1 && node.affectedLevel <= 9) {
-    const palette = AFFECTED_PALETTE[node.affectedLevel];
-    if (palette) return { r: palette[0], g: palette[1], b: palette[2] };
-  }
-  if (node.affected) return { r: 57, g: 255, b: 20 };
-  if (node.type === "sab") return { r: 180, g: 180, b: 180 };
-  return { r: 240, g: 240, b: 240 };
-}
-
-function affectedPPTXColor(node: ExportNode): string {
-  if (node.affected && node.affectedLevel && node.affectedLevel >= 1 && node.affectedLevel <= 9) {
-    const r = AFFECTED_PALETTE[node.affectedLevel]?.[0] ?? 57;
-    const g = AFFECTED_PALETTE[node.affectedLevel]?.[1] ?? 255;
-    const b = AFFECTED_PALETTE[node.affectedLevel]?.[2] ?? 20;
-    return ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1).toUpperCase();
-  }
-  if (node.affected) return "39FF14";
-  if (node.type === "sab") return "404040";
-  return "181818";
-}
-
 function computeLegendItems(canvas: ExportCanvas): LegendItem[] {
   const items: LegendItem[] = [];
   const nt = new Set(canvas.nodes.map((n) => n.type));
@@ -106,29 +72,172 @@ function computeLegendItems(canvas: ExportCanvas): LegendItem[] {
 }
 
 // ---------------------------------------------------------------------------
-// Coordinate mapper — fits canvas data into a target rectangle
+// SVG-capture — clone the live canvas SVG, inline styles, render to PNG
 // ---------------------------------------------------------------------------
-function makeMapper(nodes: ExportNode[], targetW: number, targetH: number, padX = 0, padY = 0) {
-  if (nodes.length === 0) return (x: number, y: number) => ({ x: padX + x, y: padY + y, scale: 1 });
+function computeExportViewBox(nodes: ExportNode[]): { x: number; y: number; w: number; h: number } {
+  if (nodes.length === 0) return { x: 0, y: 0, w: 800, h: 500 };
+
+  // Calculate maximum text / marker extension beyond node centers.
+  // NodeShape positions text at S/2 + 13..47 below center (label/age/condition),
+  // and the proband arrow at S/2 + 16 below & S/2 + 16 left of center.
+  // NODE_SIZE = 44, so worst-case: 22 + 47 = 69 below, 22 + 16 = 38 to sides.
+  let maxBelowCenter = 0;
+  let maxSideExtent = 0;
+  for (const n of nodes) {
+    const hasLabel = !!n.label;
+    const hasAge = !!(n.age || n.dob);
+    const hasCondition = !!n.condition;
+
+    // Text rows stacked below node (see NodeShape.tsx lines 125-135)
+    let rows = 1; // at least the label or autoLabel
+    if (hasLabel) rows = 1;
+    if (hasAge) rows = Math.max(rows, 2);
+    if (hasCondition) rows = Math.max(rows, (hasAge ? 3 : 2));
+
+    // ~11 SVG units per row of text below the node bottom (S/2 ≈ 22)
+    const textBelow = 22 + 13 + (rows - 1) * 11;
+    maxBelowCenter = Math.max(maxBelowCenter, textBelow);
+
+    // Proband arrow extends ~38 SVG units below center and ~38 to the side
+    if (n.proband) {
+      maxBelowCenter = Math.max(maxBelowCenter, 22 + 16);
+      maxSideExtent = Math.max(maxSideExtent, 22 + 16);
+    }
+  }
 
   const xs = nodes.map((n) => n.x);
   const ys = nodes.map((n) => n.y);
-  const minX = Math.min(...xs) - 60;
-  const minY = Math.min(...ys) - 60;
-  const maxX = Math.max(...xs) + 60;
-  const maxY = Math.max(...ys) + 60;
-  const srcW = maxX - minX || 1;
-  const srcH = maxY - minY || 1;
+  const labelMaxW = Math.max(...nodes.map((n) => (n.label?.length ?? 0) * 7));
+  const padX = Math.max(80, Math.ceil(labelMaxW / 2) + 30, maxSideExtent + 20);
+  const padY = Math.max(60, maxBelowCenter + 15);
+  const minX = Math.min(...xs) - padX;
+  const minY = Math.min(...ys) - padY;
+  const maxX = Math.max(...xs) + padX;
+  const maxY = Math.max(...ys) + padY;
+  return { x: minX, y: minY, w: Math.max(maxX - minX, 800), h: Math.max(maxY - minY, 500) };
+}
 
-  const scale = Math.min(targetW / srcW, targetH / srcH);
-  const drawW = srcW * scale;
-  const drawH = srcH * scale;
-
-  return (cx: number, cy: number) => ({
-    x: padX + (targetW - drawW) / 2 + (cx - minX) * scale,
-    y: padY + (targetH - drawH) / 2 + (cy - minY) * scale,
-    scale,
+function inlineComputedStyles(original: SVGSVGElement, clone: SVGSVGElement) {
+  const origElements = original.querySelectorAll("*");
+  const cloneElements = clone.querySelectorAll("*");
+  origElements.forEach((origEl, i) => {
+    const cloneEl = cloneElements[i];
+    if (!(origEl instanceof SVGElement) || !(cloneEl instanceof SVGElement)) return;
+    const computed = getComputedStyle(origEl);
+    for (const attr of ["fill", "stroke", "stroke-width"]) {
+      const val = cloneEl.getAttribute(attr);
+      if (val && val.includes("var(")) {
+        const resolved = computed.getPropertyValue(attr);
+        if (resolved) cloneEl.setAttribute(attr, resolved);
+      }
+    }
+    if (cloneEl.style.length > 0) {
+      for (let i = 0; i < cloneEl.style.length; i++) {
+        const prop = cloneEl.style.item(i);
+        if (cloneEl.style.getPropertyValue(prop).includes("var(")) {
+          cloneEl.style.setProperty(prop, computed.getPropertyValue(prop));
+        }
+      }
+    }
   });
+}
+
+async function capturePedigreeImage(nodes: ExportNode[]): Promise<string> {
+  const svgEl = document.querySelector('svg[data-canvas-svg="true"]') ?? document.querySelector("svg");
+  if (!svgEl) throw new Error("No pedigree canvas SVG found on the page.");
+
+  const clone = svgEl.cloneNode(true) as SVGSVGElement;
+
+  // Resolve CSS custom properties (hsl(var(--…))) to concrete values
+  // MUST run before any element removal — otherwise index-based matching
+  // between original and clone breaks, producing wrong colors.
+  inlineComputedStyles(svgEl as SVGSVGElement, clone);
+
+  // Remove interactive/transient elements
+  clone.querySelector("rect[lasso]")?.remove();
+  clone.querySelectorAll('rect[stroke-dasharray]').forEach((el) => {
+    if (el.getAttribute("stroke-dasharray") === "3 3" || el.getAttribute("stroke-dasharray") === "4 3") el.remove();
+  });
+  clone.querySelectorAll('circle[r="3"][opacity]').forEach((el) => {
+    if (parseFloat(el.getAttribute("opacity") ?? "0") < 1) el.remove();
+  });
+
+  // Compute viewBox from actual rendered bounding box (includes text, arrows,
+  // labels) rather than node-center approximation which misses proband arrow
+  // asymmetry and causes left-shifted pedigree.
+  let vb: { x: number; y: number; w: number; h: number };
+  try {
+    clone.style.position = "absolute";
+    clone.style.visibility = "hidden";
+    clone.style.pointerEvents = "none";
+    document.body.appendChild(clone);
+    const b = clone.getBBox();
+    const PAD = 40;
+    vb = { x: b.x - PAD, y: b.y - PAD, w: b.width + PAD * 2, h: b.height + PAD * 2 };
+  } catch {
+    vb = computeExportViewBox(nodes);
+  } finally {
+    if (clone.parentNode) document.body.removeChild(clone);
+    clone.removeAttribute("style");
+  }
+  clone.setAttribute("viewBox", `${vb.x} ${vb.y} ${vb.w} ${vb.h}`);
+  clone.setAttribute("width", String(vb.w));
+  clone.setAttribute("height", String(vb.h));
+
+  const bg = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+  bg.setAttribute("x", String(vb.x));
+  bg.setAttribute("y", String(vb.y));
+  bg.setAttribute("width", String(vb.w));
+  bg.setAttribute("height", String(vb.h));
+  bg.setAttribute("fill", "#FFFFFF");
+  clone.insertBefore(bg, clone.firstChild);
+
+  clone.removeAttribute("onmousemove");
+  clone.removeAttribute("onmouseup");
+  clone.removeAttribute("onmousedown");
+  clone.removeAttribute("ontouchstart");
+  clone.removeAttribute("ontouchmove");
+  clone.removeAttribute("ontouchend");
+  clone.removeAttribute("style");
+  clone.querySelectorAll("*").forEach((el) => {
+    if (el instanceof SVGElement) {
+      el.style.cursor = "";
+      if (el.getAttribute("cursor") === "grab") el.removeAttribute("cursor");
+    }
+  });
+
+  clone.querySelectorAll("text").forEach((el) => {
+    const style = el.getAttribute("style");
+    if (style && style.includes("JetBrains Mono")) {
+      el.setAttribute("style", style.replace(/JetBrains Mono,\s*monospace/g, "monospace"));
+    }
+  });
+
+  const serializer = new XMLSerializer();
+  const svgString = serializer.serializeToString(clone);
+  const svgBlob = new Blob([svgString], { type: "image/svg+xml" });
+  const url = URL.createObjectURL(svgBlob);
+
+  const img = new Image();
+  const DPI = 3;
+  const dataUrl = await new Promise<string>((resolve, reject) => {
+    img.onload = () => {
+      const canvas = document.createElement("canvas");
+      canvas.width = vb.w * DPI;
+      canvas.height = vb.h * DPI;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) { reject(new Error("Canvas 2D context unavailable")); return; }
+      ctx.fillStyle = "#FFFFFF";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      resolve(canvas.toDataURL("image/png"));
+    };
+    img.onerror = () => reject(new Error("Failed to render SVG to image"));
+    img.src = url;
+  });
+
+  URL.revokeObjectURL(url);
+  return dataUrl;
 }
 
 // ---------------------------------------------------------------------------
@@ -152,7 +261,7 @@ export async function exportPPRO(pedigreeId: number, exporterKey: string, title:
 }
 
 // ---------------------------------------------------------------------------
-// PDF export — clinical-grade, white background, vector-like drawing
+// PDF export — clinical-grade, captures live SVG rendering as high-DPI image
 // ---------------------------------------------------------------------------
 export async function exportPDF(info: ExportInfo, canvas: ExportCanvas) {
   let jsPDF: typeof import("jspdf").jsPDF;
@@ -162,50 +271,62 @@ export async function exportPDF(info: ExportInfo, canvas: ExportCanvas) {
     throw new Error("PDF export requires the jspdf library. Run: pnpm add jspdf");
   }
 
-  const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
-  const PW = 297;
-  const PH = 210;
+  const dataUrl = await capturePedigreeImage(canvas.nodes);
+
+  const vb = computeExportViewBox(canvas.nodes);
+  const usePortrait = vb.h / vb.w > 1.3;
+  const doc = new jsPDF({ orientation: usePortrait ? "portrait" : "landscape", unit: "mm", format: "a4" });
+  const PW = usePortrait ? 210 : 297;
+  const PH = usePortrait ? 297 : 210;
   const M  = 12;
 
   // ── Header ──────────────────────────────────────────────────────────────
-  doc.setFillColor(10, 10, 10);
-  doc.rect(0, 0, PW, 22, "F");
+  const HEADER_H = 18;
+  doc.setFillColor(245, 245, 245);
+  doc.rect(0, 0, PW, HEADER_H, "F");
+  doc.setDrawColor(37, 99, 235);
+  doc.setLineWidth(1.2);
+  doc.line(0, 0, PW, 0);
 
-  doc.setTextColor(57, 255, 20);
+  doc.setTextColor(30, 30, 30);
   doc.setFontSize(14);
   doc.setFont("helvetica", "bold");
-  doc.text("Pedigree PRO", M, 10);
+  doc.text("Pedigree PRO", M, 8);
 
-  doc.setFontSize(7);
+  doc.setFontSize(8);
   doc.setFont("helvetica", "normal");
-  doc.setTextColor(120, 120, 120);
-  doc.text("Genetic Counseling Pedigree Report", M, 16);
+  doc.setTextColor(80, 80, 80);
+  doc.text("Genetic Counseling Pedigree Report", M, 14);
 
-  doc.setTextColor(200, 200, 200);
+  doc.setTextColor(80, 80, 80);
   doc.setFontSize(8);
   doc.text(
     new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" }),
-    PW - M, 10, { align: "right" }
+    PW - M, 8, { align: "right" }
   );
 
   doc.setFontSize(9);
-  doc.setTextColor(220, 220, 220);
-  doc.text(info.title, PW - M, 16, { align: "right" });
+  doc.setTextColor(50, 50, 50);
+  doc.text(info.title, PW - M, 14, { align: "right" });
 
-  // ── Dynamic legend ───────────────────────────────────────────────────────
-  const LEGEND_Y = PH - 22;
-  doc.setFillColor(18, 18, 18);
-  doc.rect(0, LEGEND_Y, PW, 22, "F");
+  // ── Legend ──────────────────────────────────────────────────────────────
+  const LEGEND_H = 16;
+  const LEGEND_Y = PH - LEGEND_H;
+  doc.setFillColor(245, 245, 245);
+  doc.rect(0, LEGEND_Y, PW, LEGEND_H, "F");
+  doc.setDrawColor(200, 200, 200);
+  doc.setLineWidth(0.3);
+  doc.line(0, LEGEND_Y, PW, LEGEND_Y);
 
   const legendItems = computeLegendItems(canvas);
   let lx = M;
-  const LY = LEGEND_Y + 11;
+  const LY = LEGEND_Y + LEGEND_H / 2;
   const LS = 5;
-  doc.setFontSize(7);
+  doc.setFontSize(8);
 
   for (const item of legendItems) {
     doc.setFillColor(220, 220, 220);
-    doc.setDrawColor(180, 180, 180);
+    doc.setDrawColor(100, 100, 100);
     doc.setLineWidth(0.4);
 
     if (item.shape === "square") {
@@ -213,45 +334,48 @@ export async function exportPDF(info: ExportInfo, canvas: ExportCanvas) {
     } else if (item.shape === "circle") {
       doc.circle(lx + LS / 2, LY, LS / 2);
     } else if (item.shape === "diamond") {
-      // rotated square
       const dc = lx + LS / 2;
-      doc.lines([[LS / 2, -LS / 2], [LS / 2, LS / 2], [-LS / 2, LS / 2], [-LS / 2, -LS / 2]], dc, LY, [1, 1], "S", true);
+      doc.lines([[0, -LS / 2], [LS / 2, LS / 2], [-LS / 2, LS / 2], [-LS / 2, -LS / 2]], dc, LY, [1, 1], "S", true);
     } else if (item.shape === "pregnancy") {
-      // diamond (4-point)
       const dc = lx + LS / 2;
-      doc.lines([[LS / 2, 0], [0, LS / 2], [-LS / 2, 0], [0, -LS / 2]], dc, LY - LS / 2, [1, 1], "S", true);
+      doc.lines([[0, -LS / 2], [LS / 2, LS / 2], [-LS / 2, LS / 2], [-LS / 2, -LS / 2]], dc, LY, [1, 1], "S", true);
     } else if (item.shape === "sab") {
-      // downward-pointing triangle
       doc.setFillColor(170, 170, 170);
       const tx = lx + LS / 2;
-      doc.triangle(tx, LY + LS / 2, tx - LS / 2, LY - LS / 3, tx + LS / 2, LY - LS / 3, "FD");
+      const ty = LY + LS / 6;
+      doc.triangle(tx, ty + LS / 2, tx - LS / 2, ty - LS / 3, tx + LS / 2, ty - LS / 3, "FD");
     } else if (item.shape === "filled") {
-      doc.setFillColor(57, 255, 20);
+      doc.setFillColor(22, 163, 74);
       doc.circle(lx + LS / 2, LY, LS / 2, "F");
       doc.setFillColor(220, 220, 220);
     } else if (item.shape === "carrier") {
       doc.circle(lx + LS / 2, LY, LS / 2);
-      doc.setFillColor(57, 255, 20);
+      doc.setFillColor(22, 163, 74);
       doc.circle(lx + LS / 2, LY, LS / 6, "F");
       doc.setFillColor(220, 220, 220);
     } else if (item.shape === "slash") {
       doc.rect(lx, LY - LS / 2, LS, LS);
-      doc.setDrawColor(180, 180, 180);
+      doc.setDrawColor(100, 100, 100);
       doc.line(lx, LY + LS / 2, lx + LS, LY - LS / 2);
     } else if (item.shape === "arrow") {
-      doc.setTextColor(57, 255, 20);
-      doc.text("→", lx, LY + 2);
-      doc.setTextColor(160, 160, 160);
+      doc.setTextColor(22, 163, 74);
+      const arrowLabel = "-> ";
+      doc.text(arrowLabel, lx, LY + 1);
+      const aw = doc.getTextWidth(arrowLabel);
+      doc.setTextColor(80, 80, 80);
+      doc.text(item.label, lx + aw, LY + 1);
+      lx += aw + doc.getTextWidth(item.label) + 6;
+      continue;
     } else if (item.shape === "dbl-line") {
-      doc.setDrawColor(160, 160, 160);
+      doc.setDrawColor(80, 80, 80);
       doc.line(lx, LY - 1, lx + LS, LY - 1);
       doc.line(lx, LY + 1, lx + LS, LY + 1);
     }
 
-    doc.setTextColor(160, 160, 160);
-    doc.text(item.label, lx + LS + 2, LY + 2);
+    doc.setTextColor(80, 80, 80);
+    doc.text(item.label, lx + LS + 2, LY + 1);
     lx += LS + doc.getTextWidth(item.label) + 8;
-    if (lx > PW - 30) break; // safety overflow guard
+    if (lx > PW - 30) break;
   }
 
   if (info.notes) {
@@ -260,156 +384,21 @@ export async function exportPDF(info: ExportInfo, canvas: ExportCanvas) {
     doc.text(`Notes: ${info.notes.slice(0, 200)}`, PW - M, LY + 2, { align: "right", maxWidth: 120 });
   }
 
-  // ── Canvas area ──────────────────────────────────────────────────────────
-  const CANVAS_TOP    = 26;
+  // ── Pedigree image ──────────────────────────────────────────────────────
+  const CANVAS_TOP = HEADER_H + 4;
   const CANVAS_BOTTOM = LEGEND_Y - 4;
-  const CANVAS_H      = CANVAS_BOTTOM - CANVAS_TOP;
-  const CANVAS_W      = PW - 2 * M;
-  const NS            = 7;
+  const CANVAS_H = CANVAS_BOTTOM - CANVAS_TOP;
+  const CANVAS_W = PW - 2 * M;
 
-  const map  = makeMapper(canvas.nodes, CANVAS_W, CANVAS_H, M, CANVAS_TOP);
-  const byId = new Map(canvas.nodes.map((n) => [n.id, n]));
+  const imgW = vb.w;
+  const imgH = vb.h;
+  const scale = Math.min(CANVAS_W / imgW, CANVAS_H / imgH);
+  const drawW = imgW * scale;
+  const drawH = imgH * scale;
+  const offsetX = M + (CANVAS_W - drawW) / 2;
+  const offsetY = CANVAS_TOP + (CANVAS_H - drawH) / 2;
 
-  // Draw edges first
-  doc.setLineWidth(0.35);
-  for (const edge of canvas.edges) {
-    const src = byId.get(edge.sourceId);
-    const tgt = byId.get(edge.targetId);
-    if (!src || !tgt) continue;
-
-    const sp  = map(src.x, src.y);
-    const tp  = map(tgt.x, tgt.y);
-    const sc  = sp.scale ?? 1;
-    const ns  = NS * Math.min(1, sc * 0.1 + 0.4);
-
-    doc.setDrawColor(120, 120, 120);
-
-    if (edge.type === "couple") {
-      doc.line(sp.x + ns / 2, sp.y, tp.x - ns / 2, tp.y);
-    } else if (edge.type === "consanguinity") {
-      // Two parallel lines offset perpendicular to the connection
-      const dx  = (tp.x - ns / 2) - (sp.x + ns / 2);
-      const dy  = tp.y - sp.y;
-      const len = Math.sqrt(dx * dx + dy * dy) || 1;
-      const ox  = (-dy / len) * 0.5;
-      const oy  = (dx / len) * 0.5;
-      doc.line(sp.x + ns / 2 + ox, sp.y + oy, tp.x - ns / 2 + ox, tp.y + oy);
-      doc.line(sp.x + ns / 2 - ox, sp.y - oy, tp.x - ns / 2 - ox, tp.y - oy);
-    } else {
-      const dropY = sp.y + ns / 2 + 4;
-      doc.line(sp.x, sp.y + ns / 2, sp.x, dropY);
-      doc.line(sp.x, dropY, tp.x, dropY);
-      doc.line(tp.x, dropY, tp.x, tp.y - ns / 2);
-    }
-  }
-
-  // Draw nodes
-  for (const node of canvas.nodes) {
-    const p  = map(node.x, node.y);
-    const sc = p.scale ?? 1;
-    const ns = NS * Math.min(1, sc * 0.1 + 0.4);
-    const { x, y } = p;
-
-    // Base fill
-    if (node.affected) {
-      doc.setFillColor(57, 255, 20);
-    } else if (node.type === "sab") {
-      doc.setFillColor(180, 180, 180);
-    } else {
-      doc.setFillColor(240, 240, 240);
-    }
-    doc.setDrawColor(50, 50, 50);
-    doc.setLineWidth(node.affected ? 0.6 : 0.4);
-
-    if (node.type === "male") {
-      doc.rect(x - ns / 2, y - ns / 2, ns, ns, "FD");
-    } else if (node.type === "female") {
-      doc.circle(x, y, ns / 2, "FD");
-    } else if (node.type === "pregnancy") {
-      // 4-point diamond
-      const h = ns / 2;
-      doc.lines([[h, 0], [0, h], [-h, 0], [0, -h]], x, y - h, [1, 1], "FD", true);
-    } else if (node.type === "sab") {
-      // Downward-pointing filled triangle
-      doc.triangle(x, y + ns * 0.36, x - ns * 0.38, y - ns * 0.26, x + ns * 0.38, y - ns * 0.26, "FD");
-    } else {
-      // unknown — upward triangle
-      doc.setFillColor(
-        node.affected ? 57 : 220,
-        node.affected ? 255 : 220,
-        node.affected ? 20  : 220
-      );
-      doc.triangle(x, y - ns / 2, x + ns / 2, y + ns / 4, x - ns / 2, y + ns / 4, "FD");
-    }
-
-    // Carrier dot
-    if (node.carrier && !node.affected) {
-      doc.setFillColor(57, 255, 20);
-      doc.circle(x, y, ns / 6, "F");
-    }
-
-    // Deceased slash
-    if (node.deceased) {
-      doc.setDrawColor(80, 80, 80);
-      doc.setLineWidth(0.5);
-      doc.line(x - ns / 2 - 2, y + ns / 2 + 2, x + ns / 2 + 2, y - ns / 2 - 2);
-    }
-
-    // Proband arrow
-    if (node.proband) {
-      doc.setTextColor(57, 255, 20);
-      doc.setFontSize(8);
-      doc.text("→", x - ns / 2 - 6, y + 1.5);
-    }
-
-    // Label
-    if (node.label) {
-      doc.setTextColor(40, 40, 40);
-      doc.setFontSize(5.5);
-      doc.setFont("helvetica", node.affected ? "bold" : "normal");
-      doc.text(node.label, x, y + ns / 2 + 3.5, { align: "center", maxWidth: 20 });
-    }
-
-    // Age
-    if (node.age) {
-      doc.setTextColor(100, 100, 100);
-      doc.setFontSize(4.5);
-      doc.setFont("helvetica", "normal");
-      doc.text(`${node.age}y`, x, y + ns / 2 + 7, { align: "center" });
-    }
-  }
-
-  // Annotations
-  doc.setFont("helvetica", "normal");
-  for (const ann of canvas.annotations ?? []) {
-    const node = byId.get(ann.nodeId);
-    if (!node) continue;
-    const p  = map(node.x, node.y);
-    const sc = p.scale ?? 1;
-    const ns = NS * Math.min(1, sc * 0.1 + 0.4);
-    const fs = Math.max(3.5, ann.fontSize * 0.38);
-    const approxW = ann.text.length * fs * 0.58 + 2.5;
-    const boxH = fs + 1.5;
-
-    let tx = p.x;
-    let ty = p.y;
-    if (ann.position === "above")  { tx = p.x; ty = p.y - ns / 2 - boxH - 1.5; }
-    if (ann.position === "below")  { tx = p.x; ty = p.y + ns / 2 + 1.5; }
-    if (ann.position === "left")   { tx = p.x - ns / 2 - approxW - 2; ty = p.y - boxH / 2; }
-    if (ann.position === "right")  { tx = p.x + ns / 2 + 2; ty = p.y - boxH / 2; }
-
-    const r = parseInt(ann.color.slice(1, 3), 16) || 57;
-    const g = parseInt(ann.color.slice(3, 5), 16) || 255;
-    const b = parseInt(ann.color.slice(5, 7), 16) || 20;
-
-    doc.setFillColor(r, g, b);
-    doc.setDrawColor(r, g, b);
-    doc.setLineWidth(0.25);
-    doc.roundedRect(tx - approxW / 2, ty, approxW, boxH, 0.5, 0.5, "D");
-    doc.setTextColor(r, g, b);
-    doc.setFontSize(fs);
-    doc.text(ann.text, tx, ty + boxH * 0.72, { align: "center" });
-  }
+  doc.addImage(dataUrl, "PNG", offsetX, offsetY, drawW, drawH);
 
   doc.save(`${safeFilename(info.title)}.pdf`);
 }
@@ -448,6 +437,10 @@ export async function exportPPTX(info: ExportInfo, canvas: ExportCanvas) {
   } catch {
     throw new Error("PPTX export requires the pptxgenjs library. Run: pnpm add pptxgenjs");
   }
+
+  const dataUrl = await capturePedigreeImage(canvas.nodes);
+  const vb = computeExportViewBox(canvas.nodes);
+
   const pptx = new PptxGenJs();
   pptx.layout = "LAYOUT_WIDE";
   const SW = 13.33;
@@ -479,46 +472,47 @@ export async function exportPPTX(info: ExportInfo, canvas: ExportCanvas) {
 
   // ── SLIDE 1 — Cover ─────────────────────────────────────────────────────
   const cover = pptx.addSlide();
-  cover.background = { color: "060A06" };
+  cover.background = { color: "FFFFFF" };
 
   // Left panel
-  cover.addShape(pptx.ShapeType.rect, { x: 0, y: 0, w: 7.2, h: SH, fill: { color: "080E08" }, line: { color: "1A2A1A", width: 0.5 } });
+  cover.addShape(pptx.ShapeType.rect, { x: 0, y: 0, w: 7.2, h: SH, fill: { color: "F5F5F5" }, line: { color: "DDDDDD", width: 0.5 } });
 
-  cover.addText("Pedigree PRO", { x: 0.55, y: 1.1, w: 6.2, h: 0.7, fontSize: 38, bold: true, color: "39FF14", fontFace: "Courier New" });
-  cover.addText("Genetic Counseling Pedigree Report", { x: 0.55, y: 1.85, w: 6.2, h: 0.3, fontSize: 11, color: "336633", fontFace: "Courier New" });
+  cover.addText("Pedigree PRO", { x: 0.55, y: 1.1, w: 6.2, h: 0.7, fontSize: 38, bold: true, color: "1E1E1E", fontFace: "Courier New" });
+  cover.addText("Genetic Counseling Pedigree Report", { x: 0.55, y: 1.85, w: 6.2, h: 0.3, fontSize: 11, color: "666666", fontFace: "Courier New" });
 
   // Divider line
-  cover.addShape(pptx.ShapeType.rect, { x: 0.55, y: 2.3, w: 6.2, h: 0.025, fill: { color: "1E3A1E" }, line: { color: "1E3A1E", width: 0 } });
+  cover.addShape(pptx.ShapeType.rect, { x: 0.55, y: 2.3, w: 6.2, h: 0.025, fill: { color: "2563EB" }, line: { color: "2563EB", width: 0 } });
 
-  cover.addText(info.title, { x: 0.55, y: 2.5, w: 6.2, h: 0.55, fontSize: 22, bold: true, color: "D8EDD8", fontFace: "Courier New" });
+  cover.addText(info.title, { x: 0.55, y: 2.5, w: 6.2, h: 0.55, fontSize: 22, bold: true, color: "1E1E1E", fontFace: "Courier New" });
   if (info.patientId) {
-    cover.addText(`Patient ID: #${info.patientId}`, { x: 0.55, y: 3.1, w: 6.2, h: 0.25, fontSize: 10, color: "557755", fontFace: "Courier New" });
+    cover.addText(`Patient ID: #${info.patientId}`, { x: 0.55, y: 3.1, w: 6.2, h: 0.25, fontSize: 10, color: "666666", fontFace: "Courier New" });
   }
-  cover.addText(`Generated: ${today}`, { x: 0.55, y: info.patientId ? 3.42 : 3.1, w: 6.2, h: 0.22, fontSize: 9, color: "3A5A3A", fontFace: "Courier New" });
+  cover.addText(`Generated: ${today}`, { x: 0.55, y: info.patientId ? 3.42 : 3.1, w: 6.2, h: 0.22, fontSize: 9, color: "888888", fontFace: "Courier New" });
 
   cover.addNotes(JSON.stringify({ ...PIX_EXPORT_META, slide: "cover", title: info.title, patientId: info.patientId, nodeCount: canvas.nodes.length, edgeCount: canvas.edges.length, proband: proband ? { label: proband.label, type: proband.type, affected: proband.affected } : null }));
 
   // Proband box
   if (proband) {
     const probandY = info.patientId ? 4.05 : 3.75;
-    cover.addShape(pptx.ShapeType.rect, { x: 0.55, y: probandY, w: 6.2, h: 0.85, fill: { color: "0D1A0D" }, line: { color: "2A5A2A", width: 0.75 } });
-    cover.addText("→  PROBAND", { x: 0.75, y: probandY + 0.1, w: 2.5, h: 0.22, fontSize: 7.5, bold: true, color: "39FF14", fontFace: "Courier New" });
+    cover.addShape(pptx.ShapeType.rect, { x: 0.55, y: probandY, w: 6.2, h: 0.85, fill: { color: "EFF6FF" }, line: { color: "2563EB", width: 0.75 } });
+    cover.addText("\u2192  PROBAND", { x: 0.75, y: probandY + 0.1, w: 2.5, h: 0.22, fontSize: 7.5, bold: true, color: "16A34A", fontFace: "Courier New" });
     const pDetails = [
       proband.label && `Label: ${proband.label}`,
       proband.age   && `Age: ${proband.age}`,
       proband.condition && `Dx: ${proband.condition}`,
     ].filter(Boolean).join("     ");
-    cover.addText(pDetails || `ID: ${proband.id}`, { x: 0.75, y: probandY + 0.38, w: 5.9, h: 0.35, fontSize: 9.5, color: "BBDDBB", fontFace: "Courier New" });
+    cover.addText(pDetails || `ID: ${proband.id}`, { x: 0.75, y: probandY + 0.38, w: 5.9, h: 0.35, fontSize: 9.5, color: "444444", fontFace: "Courier New" });
   }
 
   // Right panel — stats
-  cover.addShape(pptx.ShapeType.rect, { x: 7.3, y: 0, w: 6.03, h: SH, fill: { color: "050905" }, line: { color: "1A2A1A", width: 0.5 } });
-  cover.addText("PEDIGREE STATISTICS", { x: 7.6, y: 0.65, w: 5.5, h: 0.28, fontSize: 8.5, bold: true, color: "2A4A2A", fontFace: "Courier New" });
-  cover.addShape(pptx.ShapeType.rect, { x: 7.6, y: 0.98, w: 5.5, h: 0.02, fill: { color: "1E3A1E" }, line: { color: "1E3A1E", width: 0 } });
+  cover.addShape(pptx.ShapeType.rect, { x: 7.3, y: 0, w: 6.03, h: SH, fill: { color: "FAFAFA" }, line: { color: "DDDDDD", width: 0.5 } });
+
+  cover.addText("PEDIGREE STATISTICS", { x: 7.6, y: 0.65, w: 5.5, h: 0.28, fontSize: 8.5, bold: true, color: "888888", fontFace: "Courier New" });
+  cover.addShape(pptx.ShapeType.rect, { x: 7.6, y: 0.98, w: 5.5, h: 0.02, fill: { color: "CCCCCC" }, line: { color: "CCCCCC", width: 0 } });
 
   const statsRows: [string, string, boolean][] = [
     ["Total individuals",  `${canvas.nodes.length}`,            false],
-    ["Generations",        maxGen > 0 ? `${maxGen}` : "—",      false],
+    ["Generations",        maxGen > 0 ? `${maxGen}` : "\u2014", false],
     ["Couple pairs",       `${couples}`,                         false],
     ["",                   "",                                   false],
     ["Affected",           `${affected.length}`,                 affected.length > 0],
@@ -535,247 +529,117 @@ export async function exportPPTX(info: ExportInfo, canvas: ExportCanvas) {
   statsRows.forEach(([label, value, highlight], i) => {
     if (!label) return;
     const y = 1.1 + i * 0.35;
-    cover.addText(label, { x: 7.6, y, w: 4.2, h: 0.28, fontSize: 9, color: "557755", fontFace: "Courier New" });
-    cover.addText(value, { x: 11.9, y, w: 1.2, h: 0.28, fontSize: 9, bold: highlight, color: highlight ? "39FF14" : "889988", fontFace: "Courier New", align: "right" });
+    cover.addText(label, { x: 7.6, y, w: 4.2, h: 0.28, fontSize: 9, color: "666666", fontFace: "Courier New" });
+    cover.addText(value, { x: 11.9, y, w: 1.2, h: 0.28, fontSize: 9, bold: highlight, color: highlight ? "16A34A" : "444444", fontFace: "Courier New", align: "right" });
   });
 
   // ── SLIDE 2 — Pedigree diagram ───────────────────────────────────────────
   const slide = pptx.addSlide();
-  slide.background = { color: "080808" };
+  slide.background = { color: "FFFFFF" };
 
   // Header
-  slide.addShape(pptx.ShapeType.rect, { x: 0, y: 0, w: SW, h: 0.52, fill: { color: "0F0F0F" }, line: { color: "1E1E1E", width: 0.5 } });
-  slide.addText("Pedigree PRO", { x: 0.2, y: 0.08, w: 3.5, h: 0.28, fontSize: 11, bold: true, color: "39FF14", fontFace: "Courier New" });
+  slide.addShape(pptx.ShapeType.rect, { x: 0, y: 0, w: SW, h: 0.52, fill: { color: "F5F5F5" }, line: { color: "DDDDDD", width: 0.5 } });
+  slide.addText("Pedigree PRO", { x: 0.2, y: 0.08, w: 3.5, h: 0.28, fontSize: 11, bold: true, color: "1E1E1E", fontFace: "Courier New" });
   slide.addText(info.title, { x: 3.8, y: 0.12, w: 5.5, h: 0.22, fontSize: 9, color: "666666", fontFace: "Courier New" });
-  slide.addText(`${today}  ·  ${canvas.nodes.length} individuals  ·  ${maxGen} generation${maxGen !== 1 ? "s" : ""}`, {
-    x: SW - 4, y: 0.12, w: 3.8, h: 0.22, fontSize: 7.5, color: "444444", align: "right", fontFace: "Courier New",
+  slide.addText(`${today}  \u00B7  ${canvas.nodes.length} individuals  \u00B7  ${maxGen} generation${maxGen !== 1 ? "s" : ""}`, {
+    x: SW - 4, y: 0.12, w: 3.8, h: 0.22, fontSize: 7.5, color: "888888", align: "right", fontFace: "Courier New",
   });
 
   // Legend bar
   const LEG_Y = SH - 0.58;
-  slide.addShape(pptx.ShapeType.rect, { x: 0, y: LEG_Y, w: SW, h: 0.58, fill: { color: "0F0F0F" }, line: { color: "1E1E1E", width: 0.5 } });
+  slide.addShape(pptx.ShapeType.rect, { x: 0, y: LEG_Y, w: SW, h: 0.58, fill: { color: "F5F5F5" }, line: { color: "DDDDDD", width: 0.5 } });
   const legendItems = computeLegendItems(canvas);
   const legendDefs = legendItems.map((item) => {
-    if (item.shape === "filled")    return { label: `● ${item.label}`, color: "39FF14" };
-    if (item.shape === "carrier")   return { label: `◉ ${item.label}`, color: "39FF14" };
-    if (item.shape === "arrow")     return { label: `→ ${item.label}`, color: "39FF14" };
-    if (item.shape === "square")    return { label: `□ ${item.label}`, color: "AAAAAA" };
-    if (item.shape === "circle")    return { label: `○ ${item.label}`, color: "AAAAAA" };
-    if (item.shape === "diamond")   return { label: `◇ ${item.label}`, color: "AAAAAA" };
-    if (item.shape === "pregnancy") return { label: `⬦ ${item.label}`, color: "AAAAAA" };
-    if (item.shape === "sab")       return { label: `▽ ${item.label}`, color: "888888" };
-    if (item.shape === "slash")     return { label: `⊘ ${item.label}`, color: "888888" };
-    if (item.shape === "dbl-line")  return { label: `╪ ${item.label}`, color: "888888" };
-    return { label: item.label, color: "AAAAAA" };
+    if (item.shape === "filled")    return { label: `\u25CF ${item.label}`, color: "16A34A" };
+    if (item.shape === "carrier")   return { label: `\u25C9 ${item.label}`, color: "16A34A" };
+    if (item.shape === "arrow")     return { label: `\u2192 ${item.label}`, color: "16A34A" };
+    if (item.shape === "square")    return { label: `\u25A1 ${item.label}`, color: "555555" };
+    if (item.shape === "circle")    return { label: `\u25CB ${item.label}`, color: "555555" };
+    if (item.shape === "diamond")   return { label: `\u25C7 ${item.label}`, color: "555555" };
+    if (item.shape === "pregnancy") return { label: `\u2B26 ${item.label}`, color: "555555" };
+    if (item.shape === "sab")       return { label: `\u25BD ${item.label}`, color: "777777" };
+    if (item.shape === "slash")     return { label: `\u2298 ${item.label}`, color: "777777" };
+    if (item.shape === "dbl-line")  return { label: `\u256A ${item.label}`, color: "777777" };
+    return { label: item.label, color: "555555" };
   });
   const colW = Math.min(2.0, (SW - 0.6) / Math.max(legendDefs.length, 1));
   legendDefs.forEach((item, i) => {
-    slide.addText(item.label, { x: 0.3 + i * colW, y: LEG_Y + 0.16, w: colW, h: 0.24, fontSize: 7, color: item.color, fontFace: "Courier New" });
+    slide.addText(item.label, { x: 0.3 + i * colW, y: LEG_Y + 0.16, w: colW, h: 0.24, fontSize: 8, color: item.color, fontFace: "Courier New" });
   });
   if (info.notes) {
-    slide.addText(`Notes: ${info.notes.slice(0, 130)}`, { x: 0.3, y: LEG_Y + 0.42, w: SW - 0.6, h: 0.13, fontSize: 5.5, color: "3A3A3A", fontFace: "Courier New" });
+    slide.addText(`Notes: ${info.notes.slice(0, 130)}`, { x: 0.3, y: LEG_Y + 0.42, w: SW - 0.6, h: 0.13, fontSize: 5.5, color: "888888", fontFace: "Courier New" });
   }
 
-  // Canvas area — with left margin for generation labels
-  const GEN_W      = 0.5;
-  const CANVAS_TOP    = 0.62;
+  // Pedigree image — captured from live SVG
+  const CANVAS_TOP = 0.62;
   const CANVAS_BOTTOM = LEG_Y - 0.08;
-  const CANVAS_H      = CANVAS_BOTTOM - CANVAS_TOP;
-  const CANVAS_W      = SW - GEN_W - 0.15;
-  const PAD_X         = GEN_W + 0.1;
-  const NS_IN         = 0.38;
+  const CANVAS_H = CANVAS_BOTTOM - CANVAS_TOP;
+  const CANVAS_W = SW - 0.2;
 
-  const map  = makeMapper(canvas.nodes, CANVAS_W, CANVAS_H, PAD_X, CANVAS_TOP);
-  const byId = new Map(canvas.nodes.map((n) => [n.id, n]));
+  const imgW = vb.w;
+  const imgH = vb.h;
+  const imgScale = Math.min(CANVAS_W / imgW, CANVAS_H / imgH);
+  const drawW = imgW * imgScale;
+  const drawH = imgH * imgScale;
+  const imgX = 0.1 + (CANVAS_W - drawW) / 2;
+  const imgY = CANVAS_TOP + (CANVAS_H - drawH) / 2;
 
-  // Generation labels on left margin
-  if (genMap.size > 0) {
-    const genYs = new Map<number, number[]>();
-    for (const node of canvas.nodes) {
-      const g = genMap.get(node.id) ?? 1;
-      genYs.set(g, [...(genYs.get(g) ?? []), map(node.x, node.y).y]);
-    }
-    for (const [gen, ys] of genYs) {
-      const avgY = ys.reduce((a, b) => a + b, 0) / ys.length;
-      slide.addText(toRoman(gen), {
-        x: 0.02, y: avgY - 0.14, w: GEN_W - 0.06, h: 0.28,
-        fontSize: 9, bold: true, color: "2A4A2A", fontFace: "Courier New", align: "right",
-      });
-    }
-  }
-
-  // Edges
-  for (const edge of canvas.edges) {
-    const src = byId.get(edge.sourceId);
-    const tgt = byId.get(edge.targetId);
-    if (!src || !tgt) continue;
-    const sp = map(src.x, src.y);
-    const tp = map(tgt.x, tgt.y);
-    const ns = NS_IN;
-    if (edge.type === "couple") {
-      addLine(slide, pptx, sp.x + ns / 2, sp.y, tp.x - ns / 2, tp.y, "3A3A3A", 0.75);
-    } else if (edge.type === "consanguinity") {
-      const dx = (tp.x - ns / 2) - (sp.x + ns / 2);
-      const dy = tp.y - sp.y;
-      const len = Math.sqrt(dx * dx + dy * dy) || 0.001;
-      const ox = (-dy / len) * 0.022;
-      const oy = (dx / len) * 0.022;
-      addLine(slide, pptx, sp.x + ns / 2 + ox, sp.y + oy, tp.x - ns / 2 + ox, tp.y + oy, "3A3A3A", 0.75);
-      addLine(slide, pptx, sp.x + ns / 2 - ox, sp.y - oy, tp.x - ns / 2 - ox, tp.y - oy, "3A3A3A", 0.75);
-    } else {
-      const dropY = sp.y + ns / 2 + 0.1;
-      addLine(slide, pptx, sp.x, sp.y + ns / 2, sp.x, dropY, "3A3A3A", 0.75);
-      addLine(slide, pptx, sp.x, dropY, tp.x, dropY, "3A3A3A", 0.75);
-      addLine(slide, pptx, tp.x, dropY, tp.x, tp.y - ns / 2, "3A3A3A", 0.75);
-    }
-  }
-
-  // Nodes
-  for (const node of canvas.nodes) {
-    const p    = map(node.x, node.y);
-    const { x, y } = p;
-    const ns   = NS_IN;
-    const half = ns / 2;
-    const fillColor = affectedPPTXColor(node);
-    const lineColor = node.affected ? "39FF14" : node.deceased ? "555555" : "484848";
-    const lineW = node.affected ? 1.5 : node.proband ? 2.0 : 1.0;
-
-    if (node.type === "male") {
-      slide.addShape(pptx.ShapeType.rect,    { x: x-half, y: y-half, w: ns, h: ns, fill: { color: fillColor }, line: { color: lineColor, width: lineW } });
-    } else if (node.type === "female") {
-      slide.addShape(pptx.ShapeType.ellipse, { x: x-half, y: y-half, w: ns, h: ns, fill: { color: fillColor }, line: { color: lineColor, width: lineW } });
-    } else if (node.type === "pregnancy") {
-      slide.addShape(pptx.ShapeType.diamond, { x: x-half, y: y-half, w: ns, h: ns, fill: { color: fillColor }, line: { color: lineColor, width: 1.0 } });
-    } else if (node.type === "sab") {
-      slide.addShape(pptx.ShapeType.triangle, { x: x-half, y: y-half, w: ns, h: ns, fill: { color: fillColor }, line: { color: lineColor, width: 1.0 }, rotate: 180 });
-    } else {
-      slide.addShape(pptx.ShapeType.triangle, { x: x-half, y: y-half, w: ns, h: ns, fill: { color: fillColor }, line: { color: lineColor, width: lineW } });
-    }
-    if (node.carrier && !node.affected) {
-      slide.addShape(pptx.ShapeType.ellipse, { x: x-ns*0.12, y: y-ns*0.12, w: ns*0.24, h: ns*0.24, fill: { color: "39FF14" }, line: { color: "39FF14", width: 0 } });
-    }
-    if (node.deceased) {
-      addLine(slide, pptx, x-half-0.06, y+half+0.06, x+half+0.06, y-half-0.06, "666666", 1.0);
-    }
-    if (node.proband) {
-      slide.addText("→", { x: x-half-0.34, y: y-0.11, w: 0.3, h: 0.22, fontSize: 12, bold: true, color: "39FF14", fontFace: "Courier New" });
-    }
-    if (node.label) {
-      slide.addText(node.label, {
-        x: x-0.52, y: y+half+0.03, w: 1.04, h: 0.18,
-        fontSize: 6.5, color: node.affected ? "39FF14" : "888888", align: "center", fontFace: "Courier New", bold: node.affected,
-      });
-    }
-    if (node.age) {
-      slide.addText(`${node.age}y`, {
-        x: x-0.32, y: y+half+(node.label ? 0.22 : 0.04), w: 0.64, h: 0.14,
-        fontSize: 5.5, color: "505050", align: "center", fontFace: "Courier New",
-      });
-    }
-    if (node.condition) {
-      const condY = y+half+(node.label?0.22:0.04)+(node.age?0.15:0);
-      slide.addText(node.condition.slice(0, 20), {
-        x: x-0.6, y: condY, w: 1.2, h: 0.14,
-        fontSize: 5, color: "997733", align: "center", fontFace: "Courier New", italic: true,
-      });
-    }
-  }
-
-  // Annotations
-  for (const ann of canvas.annotations ?? []) {
-    const node = byId.get(ann.nodeId);
-    if (!node) continue;
-    const p   = map(node.x, node.y);
-    const ns  = NS_IN;
-    const fs  = Math.max(5, ann.fontSize * 0.42);
-    const approxW = Math.max(0.4, ann.text.length * fs * 0.007 + 0.15);
-    const boxH = 0.18;
-    let tx = p.x - approxW / 2;
-    let ty = p.y;
-    if (ann.position === "above") { ty = p.y - ns/2 - boxH - 0.05; }
-    if (ann.position === "below") { ty = p.y + ns/2 + 0.05; }
-    if (ann.position === "left")  { tx = p.x - ns/2 - approxW - 0.06; ty = p.y - boxH/2; }
-    if (ann.position === "right") { tx = p.x + ns/2 + 0.06; ty = p.y - boxH/2; }
-    const hex = ann.color.replace("#", "").padEnd(6, "0");
-    slide.addText(ann.text, { x: tx, y: ty, w: approxW, h: boxH, fontSize: fs, color: hex, fontFace: "Courier New", align: "center" } as any);
-  }
+  slide.addImage({ data: dataUrl, x: imgX, y: imgY, w: drawW, h: drawH });
 
   slide.addNotes(JSON.stringify({ ...PIX_EXPORT_META, slide: "pedigree-diagram", nodeCount: canvas.nodes.length, edgeCount: canvas.edges.length, generationCount: maxGen }));
 
   // ── SLIDE 3 — Clinical Roster ────────────────────────────────────────────
   if (notable.length > 0) {
     const s3 = pptx.addSlide();
-    s3.background = { color: "060A06" };
-    s3.addShape(pptx.ShapeType.rect, { x: 0, y: 0, w: SW, h: 0.52, fill: { color: "0F0F0F" }, line: { color: "1E1E1E", width: 0.5 } });
-    s3.addText("Pedigree PRO", { x: 0.2, y: 0.1, w: 3.5, h: 0.28, fontSize: 11, bold: true, color: "39FF14", fontFace: "Courier New" });
-    s3.addText("Clinical Roster — Affected & Notable Individuals", { x: 3.9, y: 0.13, w: 7.5, h: 0.24, fontSize: 9, color: "557755", fontFace: "Courier New" });
-    s3.addText(`${info.title}  ·  ${today}`, { x: SW-4, y: 0.13, w: 3.8, h: 0.24, fontSize: 7, color: "3A5A3A", align: "right", fontFace: "Courier New" });
+    s3.background = { color: "FFFFFF" };
+    s3.addShape(pptx.ShapeType.rect, { x: 0, y: 0, w: SW, h: 0.52, fill: { color: "F5F5F5" }, line: { color: "DDDDDD", width: 0.5 } });
+    s3.addText("Pedigree PRO", { x: 0.2, y: 0.1, w: 3.5, h: 0.28, fontSize: 11, bold: true, color: "1E1E1E", fontFace: "Courier New" });
+    s3.addText("Clinical Roster \u2014 Affected & Notable Individuals", { x: 3.9, y: 0.13, w: 7.5, h: 0.24, fontSize: 9, color: "666666", fontFace: "Courier New" });
+    s3.addText(`${info.title}  \u00B7  ${today}`, { x: SW-4, y: 0.13, w: 3.8, h: 0.24, fontSize: 7, color: "888888", align: "right", fontFace: "Courier New" });
 
     const colXs = [0.25, 1.35, 2.2,  3.05, 4.45, 5.25, 9.6 ];
     const colWs = [1.05, 0.8,  0.8,  1.35, 0.75, 4.3,  3.5 ];
     const heads = ["Label","Type","Gen.","Status","Age","Diagnosis","Notes"];
     const hY = 0.68;
-    s3.addShape(pptx.ShapeType.rect, { x: 0.2, y: hY, w: SW-0.4, h: 0.3, fill: { color: "0C180C" }, line: { color: "1A2A1A", width: 0.5 } });
-    heads.forEach((h, ci) => s3.addText(h.toUpperCase(), { x: colXs[ci], y: hY+0.05, w: colWs[ci], h: 0.2, fontSize: 6.5, bold: true, color: "2E6A2E", fontFace: "Courier New" }));
+    s3.addShape(pptx.ShapeType.rect, { x: 0.2, y: hY, w: SW-0.4, h: 0.3, fill: { color: "E5E5E5" }, line: { color: "CCCCCC", width: 0.5 } });
+    heads.forEach((h, ci) => s3.addText(h.toUpperCase(), { x: colXs[ci], y: hY+0.05, w: colWs[ci], h: 0.2, fontSize: 6.5, bold: true, color: "444444", fontFace: "Courier New" }));
 
     notable.forEach((node, ri) => {
       const rowY = hY + 0.32 + ri * 0.31;
       if (rowY > SH - 0.35) return;
-      s3.addShape(pptx.ShapeType.rect, { x: 0.2, y: rowY, w: SW-0.4, h: 0.29, fill: { color: ri%2===0 ? "090D09" : "070B07" }, line: { color: "131913", width: 0.3 } });
+      s3.addShape(pptx.ShapeType.rect, { x: 0.2, y: rowY, w: SW-0.4, h: 0.29, fill: { color: ri%2===0 ? "FAFAFA" : "F0F0F0" }, line: { color: "E0E0E0", width: 0.3 } });
       const gen = genMap.get(node.id);
       const statusParts = [node.affected&&"Affected",node.carrier&&"Carrier",node.proband&&"Proband",node.deceased&&"Deceased"].filter(Boolean).join(", ");
-      const typeLabel = ({male:"Male □",female:"Female ○",unknown:"Unknown ◇",pregnancy:"Pregnancy ◈",sab:"SAB △"} as Record<string,string>)[node.type] ?? node.type;
+      const typeLabel = ({male:"Male \u25A1",female:"Female \u25CB",unknown:"Unknown \u25C7",pregnancy:"Pregnancy \u25C8",sab:"SAB \u25B3"} as Record<string,string>)[node.type] ?? node.type;
       const cells = [
-        node.label||"—", typeLabel, gen?toRoman(gen):"—",
-        statusParts||"—", node.age?`${node.age}y`:(node.dob??"—"),
-        node.condition||"—", node.notes?(node.notes.slice(0,60)):"—",
+        node.label||"\u2014", typeLabel, gen?toRoman(gen):"\u2014",
+        statusParts||"\u2014", node.age?`${node.age}y`:(node.dob??"\u2014"),
+        node.condition||"\u2014", node.notes?(node.notes.slice(0,60)):"\u2014",
       ];
       cells.forEach((cell, ci) => {
         const hl = ci===3 && node.affected;
         s3.addText(cell, {
           x: colXs[ci], y: rowY+0.05, w: colWs[ci], h: 0.2,
-          fontSize: 7, color: hl?"39FF14":ci===0?"88CC88":ci===5&&node.condition?"997733":"5A6A5A",
+          fontSize: 7, color: hl?"16A34A":ci===0?"444444":ci===5&&node.condition?"B47820":"555555",
           fontFace: "Courier New", bold: ci===0||hl, italic: ci===5&&!!node.condition,
         });
       });
     });
-    s3.addText("Only affected, carrier, and proband individuals listed.", { x: 0.3, y: SH-0.3, w: SW-0.6, h: 0.2, fontSize: 5.5, color: "2A3A2A", fontFace: "Courier New", italic: true });
+    s3.addText("Only affected, carrier, and proband individuals listed.", { x: 0.3, y: SH-0.3, w: SW-0.6, h: 0.2, fontSize: 5.5, color: "999999", fontFace: "Courier New", italic: true });
   }
 
   // ── SLIDE 4 — Clinical Notes ─────────────────────────────────────────────
   if (info.notes && info.notes.length > 10) {
     const s4 = pptx.addSlide();
-    s4.background = { color: "060A06" };
-    s4.addShape(pptx.ShapeType.rect, { x: 0, y: 0, w: SW, h: 0.52, fill: { color: "0F0F0F" }, line: { color: "1E1E1E", width: 0.5 } });
-    s4.addText("Pedigree PRO", { x: 0.2, y: 0.1, w: 3.5, h: 0.28, fontSize: 11, bold: true, color: "39FF14", fontFace: "Courier New" });
-    s4.addText("Clinical Notes", { x: 3.9, y: 0.13, w: 6, h: 0.24, fontSize: 9, color: "557755", fontFace: "Courier New" });
-    s4.addShape(pptx.ShapeType.rect, { x: 0.4, y: 0.72, w: SW-0.8, h: SH-1.15, fill: { color: "080C08" }, line: { color: "1A2A1A", width: 0.5 } });
-    s4.addText(info.notes, { x: 0.65, y: 0.88, w: SW-1.3, h: SH-1.4, fontSize: 11, color: "99BB99", fontFace: "Courier New", wrap: true, valign: "top" });
+    s4.background = { color: "FFFFFF" };
+    s4.addShape(pptx.ShapeType.rect, { x: 0, y: 0, w: SW, h: 0.52, fill: { color: "F5F5F5" }, line: { color: "DDDDDD", width: 0.5 } });
+    s4.addText("Pedigree PRO", { x: 0.2, y: 0.1, w: 3.5, h: 0.28, fontSize: 11, bold: true, color: "1E1E1E", fontFace: "Courier New" });
+    s4.addText("Clinical Notes", { x: 3.9, y: 0.13, w: 6, h: 0.24, fontSize: 9, color: "666666", fontFace: "Courier New" });
+    s4.addShape(pptx.ShapeType.rect, { x: 0.4, y: 0.72, w: SW-0.8, h: SH-1.15, fill: { color: "FAFAFA" }, line: { color: "DDDDDD", width: 0.5 } });
+    s4.addText(info.notes, { x: 0.65, y: 0.88, w: SW-1.3, h: SH-1.4, fontSize: 11, color: "444444", fontFace: "Courier New", wrap: true, valign: "top" });
   }
 
   await pptx.writeFile({ fileName: `${safeFilename(info.title)}.pptx` });
-}
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-function addLine(
-  slide: ReturnType<InstanceType<typeof import("pptxgenjs").default>["addSlide"]>,
-  pptx: InstanceType<typeof import("pptxgenjs").default>,
-  x1: number, y1: number, x2: number, y2: number,
-  color: string, width: number
-) {
-  const lx    = Math.min(x1, x2);
-  const ly    = Math.min(y1, y2);
-  const lw    = Math.abs(x2 - x1) || 0.001;
-  const lh    = Math.abs(y2 - y1) || 0.001;
-  const flipH = x2 < x1;
-  const flipV = y2 < y1;
-  slide.addShape(pptx.ShapeType.line, {
-    x: lx, y: ly, w: lw, h: lh,
-    flipH, flipV,
-    line: { color, width, dashType: "solid" },
-  });
 }
 
 // ---------------------------------------------------------------------------
@@ -795,15 +659,20 @@ export async function exportClinicalReport(info: ExportInfo, canvas: ExportCanva
   const M  = 12;
   const CW = PW - 2 * M;
 
-  const NR = 57, NG = 255, NB = 20; // neon green
+  const dataUrl = await capturePedigreeImage(canvas.nodes);
+
+  const NR = 22, NG = 163, NB = 74;
   const today = new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
   const byId  = new Map(canvas.nodes.map((n) => [n.id, n]));
 
   // ── shared helpers ────────────────────────────────────────────────────────
   function pageHeader(subtitle: string, showTitle = true) {
-    doc.setFillColor(10, 10, 10);
+    doc.setFillColor(245, 245, 245);
     doc.rect(0, 0, PW, 20, "F");
-    doc.setTextColor(NR, NG, NB);
+    doc.setDrawColor(37, 99, 235);
+    doc.setLineWidth(1.2);
+    doc.line(0, 0, PW, 0);
+    doc.setTextColor(30, 30, 30);
     doc.setFontSize(11);
     doc.setFont("helvetica", "bold");
     doc.text("Pedigree PRO", M, 8);
@@ -812,39 +681,41 @@ export async function exportClinicalReport(info: ExportInfo, canvas: ExportCanva
     doc.setTextColor(100, 100, 100);
     doc.text(subtitle, M, 14);
     if (showTitle) {
-      doc.setTextColor(190, 190, 190);
+      doc.setTextColor(50, 50, 50);
       doc.setFontSize(8);
       doc.text(info.title, PW - M, 8, { align: "right" });
     }
-    doc.setTextColor(110, 110, 110);
+    doc.setTextColor(80, 80, 80);
     doc.setFontSize(6.5);
     doc.text(today, PW - M, 14, { align: "right" });
   }
 
-  function pageFooter(page: number, total: number) {
+  function pageFooter(page: number) {
     const fy = PH - 8;
-    doc.setDrawColor(28, 28, 28);
+    doc.setDrawColor(200, 200, 200);
     doc.setLineWidth(0.3);
     doc.line(M, fy, PW - M, fy);
-    doc.setTextColor(65, 65, 65);
+    doc.setTextColor(120, 120, 120);
     doc.setFontSize(5.5);
     doc.setFont("helvetica", "normal");
     doc.text("For use by licensed genetic counselors only. Not for independent patient distribution.", M, fy + 4);
-    doc.text(`Page ${page} of ${total}`, PW - M, fy + 4, { align: "right" });
+    doc.text(`Page ${page}`, PW - M, fy + 4, { align: "right" });
   }
 
   function sectionBar(title: string, y: number): number {
-    doc.setFillColor(20, 20, 20);
+    doc.setFillColor(240, 240, 240);
     doc.rect(0, y, PW, 7, "F");
-    doc.setDrawColor(NR, NG, NB);
+    doc.setDrawColor(37, 99, 235);
     doc.setLineWidth(0.4);
     doc.line(M, y + 7, PW - M, y + 7);
-    doc.setTextColor(NR, NG, NB);
+    doc.setTextColor(30, 30, 30);
     doc.setFontSize(7);
     doc.setFont("helvetica", "bold");
     doc.text(title, M, y + 5);
     return y + 9;
   }
+
+  let pageNum = 1;
 
   // ══════════════════════════════════════════════════════════════════════════
   // PAGE 1 — Pedigree Diagram
@@ -852,9 +723,9 @@ export async function exportClinicalReport(info: ExportInfo, canvas: ExportCanva
   pageHeader("Genetic Counseling Pedigree Report");
 
   // Title strip
-  doc.setFillColor(18, 18, 18);
+  doc.setFillColor(245, 245, 245);
   doc.rect(0, 20, PW, 9, "F");
-  doc.setTextColor(215, 215, 215);
+  doc.setTextColor(30, 30, 30);
   doc.setFontSize(9);
   doc.setFont("helvetica", "bold");
   doc.text(info.title, M, 26.5);
@@ -865,132 +736,57 @@ export async function exportClinicalReport(info: ExportInfo, canvas: ExportCanva
     doc.text(`Patient #${info.patientId}`, PW - M, 26.5, { align: "right" });
   }
 
-  // White pedigree area
+  // White pedigree area — captured from live SVG
   const DT = 29, DH = 150;
   doc.setFillColor(255, 255, 255);
   doc.rect(0, DT, PW, DH, "F");
 
-  const map = makeMapper(canvas.nodes, CW, DH - 4, M, DT + 2);
-  const NS  = 6;
+  const vb = computeExportViewBox(canvas.nodes);
+  const imgW = vb.w;
+  const imgH = vb.h;
+  const imgCW = CW;
+  const imgCH = DH - 4;
+  const imgScale = Math.min(imgCW / imgW, imgCH / imgH);
+  const drawW = imgW * imgScale;
+  const drawH = imgH * imgScale;
+  const imgX = M + (imgCW - drawW) / 2;
+  const imgY = DT + 2 + (imgCH - drawH) / 2;
 
-  // Edges
-  doc.setLineWidth(0.35);
-  for (const edge of canvas.edges) {
-    const src = byId.get(edge.sourceId);
-    const tgt = byId.get(edge.targetId);
-    if (!src || !tgt) continue;
-    const sp = map(src.x, src.y);
-    const tp = map(tgt.x, tgt.y);
-    const sc = sp.scale ?? 1;
-    const ns = NS * Math.min(1, sc * 0.1 + 0.4);
-    doc.setDrawColor(80, 80, 80);
-    if (edge.type === "couple") {
-      doc.line(sp.x + ns / 2, sp.y, tp.x - ns / 2, tp.y);
-    } else if (edge.type === "consanguinity") {
-      const dx = (tp.x - ns / 2) - (sp.x + ns / 2);
-      const dy = tp.y - sp.y;
-      const len = Math.sqrt(dx * dx + dy * dy) || 1;
-      const ox = (-dy / len) * 0.55; const oy = (dx / len) * 0.55;
-      doc.line(sp.x + ns / 2 + ox, sp.y + oy, tp.x - ns / 2 + ox, tp.y + oy);
-      doc.line(sp.x + ns / 2 - ox, sp.y - oy, tp.x - ns / 2 - ox, tp.y - oy);
-    } else {
-      const dropY = sp.y + ns / 2 + 3;
-      doc.line(sp.x, sp.y + ns / 2, sp.x, dropY);
-      doc.line(sp.x, dropY, tp.x, dropY);
-      doc.line(tp.x, dropY, tp.x, tp.y - ns / 2);
-    }
-  }
-
-  // Nodes
-  for (const node of canvas.nodes) {
-    const p = map(node.x, node.y); const sc = p.scale ?? 1;
-    const ns = NS * Math.min(1, sc * 0.1 + 0.4);
-    const { x, y } = p;
-    const fillC = affectedFillColors(node);
-    doc.setFillColor(fillC.r, fillC.g, fillC.b);
-    doc.setDrawColor(60, 60, 60);
-    doc.setLineWidth(node.affected ? 0.55 : 0.35);
-    if (node.type === "male") {
-      doc.rect(x - ns / 2, y - ns / 2, ns, ns, "FD");
-    } else if (node.type === "female") {
-      doc.circle(x, y, ns / 2, "FD");
-    } else if (node.type === "pregnancy") {
-      const h = ns / 2;
-      doc.lines([[h, 0], [0, h], [-h, 0], [0, -h]], x, y - h, [1, 1], "FD", true);
-    } else if (node.type === "sab") {
-      doc.triangle(x, y + ns * 0.36, x - ns * 0.38, y - ns * 0.26, x + ns * 0.38, y - ns * 0.26, "FD");
-    } else {
-      doc.setFillColor(node.affected ? fillC.r : 215, node.affected ? fillC.g : 215, node.affected ? fillC.b : 215);
-      doc.triangle(x, y - ns / 2, x + ns / 2, y + ns / 4, x - ns / 2, y + ns / 4, "FD");
-    }
-    if (node.carrier && !node.affected) {
-      doc.setFillColor(NR, NG, NB); doc.circle(x, y, ns / 6, "F");
-    }
-    if (node.deceased) {
-      doc.setDrawColor(80, 80, 80); doc.setLineWidth(0.45);
-      doc.line(x - ns / 2 - 1, y + ns / 2 + 1, x + ns / 2 + 1, y - ns / 2 - 1);
-    }
-    if (node.proband) {
-      doc.setTextColor(NR, NG, NB); doc.setFontSize(7);
-      doc.text("→", x - ns / 2 - 5, y + 1.5);
-    }
-    if (node.label) {
-      doc.setTextColor(40, 40, 40); doc.setFontSize(4.5);
-      doc.setFont("helvetica", node.affected ? "bold" : "normal");
-      doc.text(node.label, x, y + ns / 2 + 3, { align: "center", maxWidth: 18 });
-    }
-    if (node.age) {
-      doc.setTextColor(110, 110, 110); doc.setFontSize(3.5);
-      doc.setFont("helvetica", "normal");
-      doc.text(`${node.age}y`, x, y + ns / 2 + 6.5, { align: "center" });
-    }
-  }
-
-  // Annotations in diagram
-  doc.setFont("helvetica", "normal");
-  for (const ann of canvas.annotations ?? []) {
-    const node = byId.get(ann.nodeId);
-    if (!node) continue;
-    const p = map(node.x, node.y); const sc = p.scale ?? 1;
-    const ns = NS * Math.min(1, sc * 0.1 + 0.4);
-    const fs = Math.max(3, ann.fontSize * 0.3);
-    const approxW = ann.text.length * fs * 0.58 + 2;
-    const boxH = fs + 1.4;
-    let tx = p.x; let ty = p.y;
-    if (ann.position === "above")  { ty = p.y - ns / 2 - boxH - 1.2; }
-    if (ann.position === "below")  { ty = p.y + ns / 2 + 1.2; }
-    if (ann.position === "left")   { tx = p.x - ns / 2 - approxW - 1.5; ty = p.y - boxH / 2; }
-    if (ann.position === "right")  { tx = p.x + ns / 2 + 1.5; ty = p.y - boxH / 2; }
-    const r = parseInt(ann.color.slice(1, 3), 16) || 80;
-    const g = parseInt(ann.color.slice(3, 5), 16) || 130;
-    const b = parseInt(ann.color.slice(5, 7), 16) || 80;
-    doc.setDrawColor(r, g, b); doc.setLineWidth(0.18);
-    doc.roundedRect(tx - approxW / 2, ty, approxW, boxH, 0.35, 0.35, "D");
-    doc.setTextColor(r, g, b); doc.setFontSize(fs);
-    doc.text(ann.text, tx, ty + boxH * 0.72, { align: "center" });
-  }
+  doc.addImage(dataUrl, "PNG", imgX, imgY, drawW, drawH);
 
   // Legend bar
   const LY0 = DT + DH;
-  doc.setFillColor(16, 16, 16);
+  doc.setFillColor(245, 245, 245);
   doc.rect(0, LY0, PW, 13, "F");
+  doc.setDrawColor(200, 200, 200);
+  doc.setLineWidth(0.2);
+  doc.line(0, LY0, PW, LY0);
   const legendItems = computeLegendItems(canvas);
   let lx = M; const LYc = LY0 + 7.5; const LS = 3.8;
   doc.setFontSize(5.5);
   for (const item of legendItems) {
-    doc.setFillColor(205, 205, 205); doc.setDrawColor(150, 150, 150); doc.setLineWidth(0.25);
+    doc.setFillColor(205, 205, 205); doc.setDrawColor(100, 100, 100); doc.setLineWidth(0.25);
     if (item.shape === "square")   { doc.rect(lx, LYc - LS / 2, LS, LS); }
     else if (item.shape === "circle")   { doc.circle(lx + LS / 2, LYc, LS / 2); }
-    else if (item.shape === "diamond")  { const dc = lx + LS / 2; doc.lines([[LS / 2, -LS / 2], [LS / 2, LS / 2], [-LS / 2, LS / 2], [-LS / 2, -LS / 2]], dc, LYc, [1, 1], "S", true); }
-    else if (item.shape === "pregnancy"){ const dc = lx + LS / 2; doc.lines([[LS / 2, 0], [0, LS / 2], [-LS / 2, 0], [0, -LS / 2]], dc, LYc - LS / 2, [1, 1], "S", true); }
-    else if (item.shape === "sab")      { doc.setFillColor(165, 165, 165); doc.triangle(lx + LS / 2, LYc + LS / 2, lx, LYc - LS / 3, lx + LS, LYc - LS / 3, "FD"); }
+    else if (item.shape === "diamond")  { const dc = lx + LS / 2; doc.lines([[0, -LS / 2], [LS / 2, LS / 2], [-LS / 2, LS / 2], [-LS / 2, -LS / 2]], dc, LYc, [1, 1], "S", true); }
+    else if (item.shape === "pregnancy"){ const dc = lx + LS / 2; doc.lines([[0, -LS / 2], [LS / 2, LS / 2], [-LS / 2, LS / 2], [-LS / 2, -LS / 2]], dc, LYc, [1, 1], "S", true); }
+    else if (item.shape === "sab")      { doc.setFillColor(165, 165, 165); const tx = lx + LS / 2; const ty = LYc + LS / 6; doc.triangle(tx, ty + LS / 2, tx - LS / 2, ty - LS / 3, tx + LS / 2, ty - LS / 3, "FD"); }
     else if (item.shape === "filled")   { doc.setFillColor(NR, NG, NB); doc.circle(lx + LS / 2, LYc, LS / 2, "F"); doc.setFillColor(205, 205, 205); }
     else if (item.shape === "carrier")  { doc.circle(lx + LS / 2, LYc, LS / 2); doc.setFillColor(NR, NG, NB); doc.circle(lx + LS / 2, LYc, LS / 5, "F"); doc.setFillColor(205, 205, 205); }
     else if (item.shape === "slash")    { doc.rect(lx, LYc - LS / 2, LS, LS); doc.line(lx, LYc + LS / 2, lx + LS, LYc - LS / 2); }
-    else if (item.shape === "arrow")    { doc.setTextColor(NR, NG, NB); doc.text("→", lx, LYc + 1.5); doc.setTextColor(145, 145, 145); }
+    else if (item.shape === "arrow")    {
+      doc.setTextColor(NR, NG, NB);
+      const arrowLabel = "-> ";
+      doc.text(arrowLabel, lx, LYc + 0.8);
+      const aw = doc.getTextWidth(arrowLabel);
+      doc.setTextColor(80, 80, 80);
+      doc.text(item.label, lx + aw, LYc + 0.8);
+      lx += aw + doc.getTextWidth(item.label) + 4;
+      continue;
+    }
     else if (item.shape === "dbl-line") { doc.line(lx, LYc - 0.6, lx + LS, LYc - 0.6); doc.line(lx, LYc + 0.6, lx + LS, LYc + 0.6); }
-    doc.setTextColor(140, 140, 140);
-    doc.text(item.label, lx + LS + 1.5, LYc + 1.5);
+    doc.setTextColor(80, 80, 80);
+    doc.text(item.label, lx + LS + 1.5, LYc + 0.8);
     lx += LS + doc.getTextWidth(item.label) + 5;
     if (lx > PW - 25) break;
   }
@@ -998,19 +794,20 @@ export async function exportClinicalReport(info: ExportInfo, canvas: ExportCanva
   // Notes strip
   const notesY = LY0 + 13;
   const notesH = info.notes ? 22 : 6;
-  doc.setFillColor(13, 13, 13);
+  doc.setFillColor(250, 250, 250);
   doc.rect(0, notesY, PW, notesH, "F");
   if (info.notes) {
-    doc.setTextColor(95, 95, 95); doc.setFontSize(6); doc.setFont("helvetica", "italic");
+    doc.setTextColor(80, 80, 80); doc.setFontSize(6); doc.setFont("helvetica", "italic");
     const noteLines = doc.splitTextToSize(`Clinical Notes: ${info.notes}`, CW);
     doc.text(noteLines.slice(0, 3), M, notesY + 5);
   }
 
-  pageFooter(1, 2);
+  pageFooter(pageNum);
 
   // ══════════════════════════════════════════════════════════════════════════
   // PAGE 2 — Clinical Analysis
   // ══════════════════════════════════════════════════════════════════════════
+  pageNum++;
   doc.addPage();
   pageHeader("Clinical Analysis Report");
 
@@ -1026,7 +823,7 @@ export async function exportClinicalReport(info: ExportInfo, canvas: ExportCanva
   if (proband) {
     const probLabel = proband.label || `Individual (${proband.type})`;
     const probTag   = proband.proband ? " — Proband" : proband.affected ? " — Affected" : "";
-    doc.setTextColor(155, 155, 155); doc.setFontSize(6.5); doc.setFont("helvetica", "italic");
+    doc.setTextColor(80, 80, 80); doc.setFontSize(6.5); doc.setFont("helvetica", "italic");
     doc.text(`Analysis subject: ${probLabel}${probTag}`, M, cy + 3.5);
     cy += 7;
 
@@ -1050,9 +847,9 @@ export async function exportClinicalReport(info: ExportInfo, canvas: ExportCanva
       let ly = startY;
       for (const { title, result } of items) {
         // Mode header
-        doc.setFillColor(26, 26, 26);
+        doc.setFillColor(235, 235, 235);
         doc.rect(startX, ly, colW, 5, "F");
-        doc.setTextColor(210, 210, 210); doc.setFontSize(6); doc.setFont("helvetica", "bold");
+        doc.setTextColor(30, 30, 30); doc.setFontSize(6); doc.setFont("helvetica", "bold");
         doc.text(title, startX + 2, ly + 3.5);
         // Confidence tag (right-aligned)
         const confC = result.confidence === "strong"   ? [NR, NG, NB] as const
@@ -1065,7 +862,7 @@ export async function exportClinicalReport(info: ExportInfo, canvas: ExportCanva
         ly += 6;
 
         if (result.entries.length === 0) {
-          doc.setTextColor(75, 75, 75); doc.setFontSize(5.5);
+          doc.setTextColor(120, 120, 120); doc.setFontSize(5.5);
           doc.text("No result available.", startX + 2, ly + 3);
           ly += 6;
         }
@@ -1077,13 +874,13 @@ export async function exportClinicalReport(info: ExportInfo, canvas: ExportCanva
           // Label + percent on same row
           const labelW = bW - doc.getTextWidth(e.percent) - 2;
           const labelLines = doc.splitTextToSize(e.label, labelW);
-          doc.setTextColor(130, 130, 130); doc.setFontSize(5.5); doc.setFont("helvetica", "normal");
+          doc.setTextColor(80, 80, 80); doc.setFontSize(5.5); doc.setFont("helvetica", "normal");
           doc.text(labelLines[0], startX + 2, ly + 3.5);
           doc.setTextColor(tC[0], tC[1], tC[2]); doc.setFontSize(5.5); doc.setFont("helvetica", "bold");
           doc.text(e.percent, startX + 2 + bW, ly + 3.5, { align: "right" });
           ly += 4.5;
           // Bar
-          doc.setFillColor(34, 34, 34);
+          doc.setFillColor(220, 220, 220);
           doc.rect(startX + 2, ly, bW, 1.3, "F");
           if (e.value > 0) {
             doc.setFillColor(tC[0], tC[1], tC[2]);
@@ -1094,7 +891,7 @@ export async function exportClinicalReport(info: ExportInfo, canvas: ExportCanva
         // Basis (first line only)
         if (result.basis.length > 0 && result.basis[0]) {
           const bLines = doc.splitTextToSize(result.basis[0], colW - 3);
-          doc.setTextColor(65, 65, 65); doc.setFontSize(4.5); doc.setFont("helvetica", "italic");
+          doc.setTextColor(100, 100, 100); doc.setFontSize(4.5); doc.setFont("helvetica", "italic");
           doc.text(bLines[0], startX + 2, ly + 2.5);
           ly += 5;
         }
@@ -1107,7 +904,7 @@ export async function exportClinicalReport(info: ExportInfo, canvas: ExportCanva
     const rightEnd = drawCol(results.slice(2, 4), col2X, cy);
     cy = Math.max(leftEnd, rightEnd) + 2;
   } else {
-    doc.setTextColor(75, 75, 75); doc.setFontSize(6.5);
+    doc.setTextColor(120, 120, 120); doc.setFontSize(6.5);
     doc.text("No individuals present in pedigree.", M, cy + 4);
     cy += 10;
   }
@@ -1131,9 +928,9 @@ export async function exportClinicalReport(info: ExportInfo, canvas: ExportCanva
     const { l, v } = item;
     const sx = M + (i % 3) * SC;
     const sy = cy + Math.floor(i / 3) * 8;
-    doc.setTextColor(90, 90, 90); doc.setFontSize(5.5); doc.setFont("helvetica", "normal");
+    doc.setTextColor(80, 80, 80); doc.setFontSize(5.5); doc.setFont("helvetica", "normal");
     doc.text(l, sx, sy + 3);
-    doc.setTextColor(195, 195, 195); doc.setFontSize(9); doc.setFont("helvetica", "bold");
+    doc.setTextColor(30, 30, 30); doc.setFontSize(9); doc.setFont("helvetica", "bold");
     doc.text(v, sx, sy + 8.5);
   }
   cy += 20;
@@ -1155,18 +952,18 @@ export async function exportClinicalReport(info: ExportInfo, canvas: ExportCanva
       doc.setTextColor(isErr ? 255 : 250, isErr ? 64 : 204, isErr ? 64 : 21);
       doc.setFontSize(6.5); doc.setFont("helvetica", "bold");
       doc.text(isErr ? "✕" : "⚠", M, cy + 3.5);
-      doc.setFont("helvetica", "normal"); doc.setTextColor(175, 175, 175);
-      doc.text(iss.message, M + 5, cy + 3.5);
+    doc.setFont("helvetica", "normal"); doc.setTextColor(50, 50, 50);
+    doc.text(iss.message, M + 5, cy + 3.5);
       cy += 5.5;
       if (iss.detail) {
-        doc.setTextColor(90, 90, 90); doc.setFontSize(5);
-        doc.text(iss.detail, M + 5, cy + 2.5);
+      doc.setTextColor(100, 100, 100); doc.setFontSize(5);
+      doc.text(iss.detail, M + 5, cy + 2.5);
         cy += 4;
       }
     }
     if (vResult.issues.length > maxShow) {
-      doc.setTextColor(75, 75, 75); doc.setFontSize(5.5);
-      doc.text(`… and ${vResult.issues.length - maxShow} more issue(s)`, M, cy + 3);
+      doc.setTextColor(120, 120, 120); doc.setFontSize(5.5);
+      doc.text(`\u2026 and ${vResult.issues.length - maxShow} more issue(s)`, M, cy + 3);
       cy += 6;
     }
     cy += 2;
@@ -1177,26 +974,26 @@ export async function exportClinicalReport(info: ExportInfo, canvas: ExportCanva
   if (nodesWithData.length > 0) {
     cy = sectionBar("CLINICAL DATA", cy + 2);
     for (const n of nodesWithData) {
-      if (cy > PH - 28) { doc.addPage(); pageHeader("Clinical Data (continued)", false); pageFooter(2, 2); cy = 26; }
+      if (cy > PH - 28) { pageFooter(pageNum); pageNum++; doc.addPage(); pageHeader("Clinical Data (continued)", false); cy = 26; }
       const nameLabel = n.label ? `${n.label}` : n.type;
-      doc.setFillColor(20, 20, 20);
+      doc.setFillColor(235, 235, 235);
       doc.rect(M, cy, CW, 6.5, "F");
-      doc.setTextColor(195, 195, 195); doc.setFontSize(6.5); doc.setFont("helvetica", "bold");
+      doc.setTextColor(30, 30, 30); doc.setFontSize(6.5); doc.setFont("helvetica", "bold");
       doc.text(nameLabel, M + 2, cy + 4.5);
       if (n.age)  { doc.setTextColor(100, 100, 100); doc.setFontSize(5.5); doc.text(`${n.age}y`, M + 28, cy + 4.5); }
-      if (n.dob)  { doc.setTextColor(80,  80,  80);  doc.setFontSize(5);   doc.text(`b.${n.dob.slice(0, 4)}`, M + 38, cy + 4.5); }
+      if (n.dob)  { doc.setTextColor(120, 120, 120);  doc.setFontSize(5);   doc.text(`b.${n.dob.slice(0, 4)}`, M + 38, cy + 4.5); }
       const flags = [n.affected && "affected", n.carrier && "carrier", n.deceased && "deceased", n.proband && "proband"].filter(Boolean).join(", ");
       if (flags) { doc.setTextColor(NR, NG, NB); doc.setFontSize(5.5); doc.text(flags, PW - M - 2, cy + 4.5, { align: "right" }); }
       cy += 7;
       if (n.condition) {
-        doc.setTextColor(200, 160, 20); doc.setFontSize(6); doc.setFont("helvetica", "bolditalic");
+        doc.setTextColor(180, 120, 20); doc.setFontSize(6); doc.setFont("helvetica", "bolditalic");
         doc.text("Condition:", M + 2, cy + 3.5);
-        doc.setFont("helvetica", "italic"); doc.setTextColor(185, 150, 20);
+        doc.setFont("helvetica", "italic"); doc.setTextColor(160, 110, 20);
         doc.text(n.condition, M + 22, cy + 3.5);
         cy += 6;
       }
       if (n.notes) {
-        doc.setTextColor(90, 90, 90); doc.setFontSize(5.5); doc.setFont("helvetica", "normal");
+        doc.setTextColor(100, 100, 100); doc.setFontSize(5.5); doc.setFont("helvetica", "normal");
         const noteLines = doc.splitTextToSize(n.notes, CW - 4);
         for (const line of noteLines.slice(0, 6)) {
           if (cy > PH - 28) break;
@@ -1225,20 +1022,20 @@ export async function exportClinicalReport(info: ExportInfo, canvas: ExportCanva
       doc.setTextColor(r, g, b); doc.setFontSize(6); doc.setFont("helvetica", "bold");
       doc.text(`${nl}:`, M, cy + 3.5);
       const nlW = doc.getTextWidth(`${nl}: `);
-      doc.setFont("helvetica", "normal"); doc.setTextColor(155, 155, 155);
-      const annLines = doc.splitTextToSize(ann.text, CW - nlW - 12);
-      if (annLines[0]) doc.text(annLines[0], M + nlW + 1, cy + 3.5);
-      doc.setTextColor(70, 70, 70); doc.setFontSize(5);
+    doc.setFont("helvetica", "normal"); doc.setTextColor(80, 80, 80);
+    const annLines = doc.splitTextToSize(ann.text, CW - nlW - 12);
+    if (annLines[0]) doc.text(annLines[0], M + nlW + 1, cy + 3.5);
+    doc.setTextColor(120, 120, 120); doc.setFontSize(5);
       doc.text(`(${ann.position})`, PW - M, cy + 3.5, { align: "right" });
       cy += 6;
     }
     if (allAnns.length > maxAnns) {
-      doc.setTextColor(65, 65, 65); doc.setFontSize(5.5);
-      doc.text(`… and ${allAnns.length - maxAnns} more annotation(s)`, M, cy + 3);
+      doc.setTextColor(120, 120, 120); doc.setFontSize(5.5);
+      doc.text(`\u2026 and ${allAnns.length - maxAnns} more annotation(s)`, M, cy + 3);
     }
   }
 
-  pageFooter(2, 2);
+  pageFooter(pageNum);
   doc.save(`${safeFilename(info.title)}_clinical_report.pdf`);
 }
 

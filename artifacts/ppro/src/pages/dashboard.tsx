@@ -1,7 +1,7 @@
-import { useCallback } from "react";
-import { useGetDashboardStats, useGetRecentActivity, useListPedigrees } from "@workspace/api-client-react";
+import { useCallback, useState } from "react";
+import { useGetDashboardStats, useGetRecentActivity, useListPedigrees, useClearActivity } from "@workspace/api-client-react";
 import { Link } from "wouter";
-import { UserCircle, Activity, TrendingUp, Clock, ChevronRight, Dna, Plus, Upload, UserPlus, Calendar, GitBranch } from "lucide-react";
+import { UserCircle, Activity, TrendingUp, Clock, ChevronRight, ChevronDown, Dna, Plus, Upload, UserPlus, Calendar, GitBranch, Trash2 } from "lucide-react";
 import { StatsGrid } from "@/components/shared/StatsGrid";
 
 function ScrollFade({ children }: { children: React.ReactNode }) {
@@ -29,6 +29,8 @@ export default function Dashboard() {
   const { data: stats, isLoading: statsLoading } = useGetDashboardStats();
   const { data: recent, isLoading: recentLoading } = useGetRecentActivity(20);
   const { data: pedigrees, isLoading: pedigreesLoading } = useListPedigrees();
+  const clearActivity = useClearActivity();
+  const [showAllActivity, setShowAllActivity] = useState(false);
 
   const renderActivitySkeleton = useCallback((count: number) => [...Array(count)].map((_, i) => (
     <div key={i} className="px-5 py-3.5 flex items-center gap-4 animate-pulse">
@@ -137,16 +139,39 @@ export default function Dashboard() {
         {/* Left: Recent Activity */}
         <div className="lg:col-span-2 border border-border rounded-xl bg-card flex flex-col overflow-hidden">
           <div className="px-5 py-3.5 border-b border-border flex items-center justify-between flex-shrink-0">
-            <span className="text-sm font-medium text-foreground">Recent Activity</span>
-            <Link href="/pedigrees">
-              <span className="text-xs flex items-center gap-1 cursor-pointer text-primary hover:opacity-80 transition-opacity">
-                View All <ChevronRight className="w-3 h-3" />
-              </span>
-            </Link>
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium text-foreground">Recent Activity</span>
+              {recent && recent.length > 0 && (
+                <span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
+                  {Math.min(showAllActivity ? 20 : 10, recent.length)} of {recent.length}
+                </span>
+              )}
+            </div>
+            <div className="flex items-center gap-3">
+              {recent && recent.length > 10 && (
+                <button
+                  type="button"
+                  onClick={() => setShowAllActivity(!showAllActivity)}
+                  className={`text-xs flex items-center gap-1 cursor-pointer transition-opacity ${showAllActivity ? "text-primary font-semibold" : "text-primary hover:opacity-80"}`}
+                >
+                  {showAllActivity ? "Show Less" : "View All"}
+                  {showAllActivity ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
+                </button>
+              )}
+              {recent && recent.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => { if (confirm("Clear all activity history?")) clearActivity.mutate(); }}
+                  className="text-xs flex items-center gap-1 cursor-pointer text-muted-foreground hover:text-destructive transition-colors"
+                >
+                  <Trash2 className="w-3 h-3" /> Clear All
+                </button>
+              )}
+            </div>
           </div>
 
           <ScrollFade>
-            {recentLoading ? renderActivitySkeleton(5) : renderActivityItems(recent, 10)}
+            {recentLoading ? renderActivitySkeleton(5) : renderActivityItems(recent, showAllActivity ? 20 : 10)}
           </ScrollFade>
         </div>
 
