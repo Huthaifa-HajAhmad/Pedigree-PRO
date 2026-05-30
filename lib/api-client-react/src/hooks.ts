@@ -36,6 +36,7 @@ import {
   deleteVersion,
   getDashboardStats,
   getRecentActivity,
+  clearActivityLog,
   getPreferences,
   savePreferences,
   sharePedigree,
@@ -323,6 +324,14 @@ export function useGetRecentActivity(limit?: number) {
     queryFn: () => getRecentActivity(limit),
     refetchInterval: 15_000,
     refetchIntervalInBackground: false,
+  });
+}
+
+export function useClearActivity() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => clearActivityLog(),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: queryKeys.recentActivity }); },
   });
 }
 

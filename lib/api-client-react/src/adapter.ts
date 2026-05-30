@@ -42,7 +42,7 @@ type BrowserCommandName =
   | "list_patients" | "get_patient" | "create_patient" | "update_patient" | "delete_patient"
   | "list_pedigrees" | "get_pedigree" | "create_pedigree" | "update_pedigree" | "delete_pedigree"
   | "list_versions" | "save_version" | "restore_version" | "delete_version"
-  | "get_dashboard_stats" | "get_recent_activity"
+  | "get_dashboard_stats" | "get_recent_activity" | "clear_activity_log"
   | "get_preferences" | "save_preferences"
   | "share_pedigree" | "import_shared"
   | "import_pedigree_native" | "import_pedigree_legacy"
@@ -83,6 +83,7 @@ type CommandMap = {
   delete_version: (args: { pedigree_id: number; version_id: number }) => Promise<{ deleted: boolean }>;
   get_dashboard_stats: () => import("@workspace/browser-backend").DashboardStats;
   get_recent_activity: (args?: { limit?: number }) => import("@workspace/browser-backend").ActivityItem[];
+  clear_activity_log: () => Promise<void>;
   get_preferences: () => import("@workspace/browser-backend").Preferences;
   save_preferences: (args: { theme: string }) => import("@workspace/browser-backend").Preferences;
   share_pedigree: (args: { pedigree_id: number; recipient_key: string }) => import("@workspace/browser-backend").ShareResult;

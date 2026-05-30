@@ -43,6 +43,10 @@ export function ShareGroup({
 
   const [expandClinical, setExpandClinical] = useState(false);
   const [expandData, setExpandData] = useState(false);
+
+  useEffect(() => {
+    if (!showExportMenu) { setExpandClinical(false); setExpandData(false); }
+  }, [showExportMenu]);
   const clinicalRowRef = useRef<HTMLButtonElement>(null);
   const dataRowRef = useRef<HTMLButtonElement>(null);
   const [clinicalFlyoutPos, setClinicalFlyoutPos] = useState<{ top: number; left: number } | null>(null);

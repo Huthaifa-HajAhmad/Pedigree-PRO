@@ -194,6 +194,17 @@ export function PedigreeCanvasBody() {
     preventDefault: () => {}, stopPropagation: () => {},
   } as unknown as React.MouseEvent), []);
 
+  useEffect(() => {
+    if (!showRiskPanel && !showValidation && !showVersions) return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        dispatch({ type: "SET_STATE", patch: { showRiskPanel: false, showValidation: false, showVersions: false } });
+      }
+    };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [showRiskPanel, showValidation, showVersions, dispatch]);
+
   const handleCloseContextMenu = useCallback(() => dispatch({ type: "SET_STATE", patch: { contextMenu: null } }), [dispatch]);
 
   const { onTouchStart, onTouchMove, onTouchEnd } = useCanvasTouch({

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Link2, GitBranch, GitMerge, Baby, ChevronDown } from "lucide-react";
+import { Link2, GitBranch, GitMerge, MoreHorizontal } from "lucide-react";
 import type { PedigreeNode } from "@/features/pedigree-editor/canvas/types";
 
 interface ConnectGroupProps {
@@ -158,8 +158,13 @@ export function ConnectGroup({
           aria-pressed={twinSelectMode}
           className={`flex flex-col items-center gap-1.5 min-w-[44px] min-h-[44px] py-1 rounded text-[11px] leading-tight font-medium transition-colors ${twinSelectMode ? "bg-amber-500/10 text-amber-500" : "text-muted-foreground hover:bg-accent hover:text-foreground"}`}
         >
-          <div className="relative">
-            <Baby className="w-5 h-5" />
+          <div className="relative w-5 h-5">
+            <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="7.8" cy="7.8" r="3.84" />
+              <path d="M7.8 12 v5.4 M5.4 16.2 h4.8" />
+              <circle cx="16.2" cy="7.8" r="3.84" />
+              <path d="M16.2 12 v5.4 M13.8 16.2 h4.8" />
+            </svg>
             {twinSelectMode && twinCandidateIds.size > 0 && (
               <span className="absolute -top-1 -right-1.5 bg-amber-500 text-white text-[9px] font-bold rounded-full min-w-[14px] h-[14px] flex items-center justify-center px-0.5">
                 {twinCandidateIds.size}
@@ -178,7 +183,9 @@ export function ConnectGroup({
           aria-expanded={showMoreDropdown}
           className={`flex flex-col items-center gap-1.5 min-w-[44px] min-h-[44px] py-1 rounded text-[11px] leading-tight font-medium transition-colors ${showMoreDropdown ? "bg-accent text-foreground" : "text-muted-foreground hover:bg-accent hover:text-foreground"}`}
         >
-          <ChevronDown className="w-5 h-5" />
+          <div className="w-5 h-5 flex items-center justify-center">
+            <MoreHorizontal className="w-5 h-5" />
+          </div>
           <span>More</span>
         </button>
       </div>

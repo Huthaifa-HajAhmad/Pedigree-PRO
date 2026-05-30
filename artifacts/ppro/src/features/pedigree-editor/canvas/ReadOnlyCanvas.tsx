@@ -25,7 +25,9 @@ function computeViewBox(nodes: PedigreeNode[]): { x: number; y: number; w: numbe
   const minY = Math.min(...ys) - padY;
   const maxX = Math.max(...xs) + padX;
   const maxY = Math.max(...ys) + padY;
-  return { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
+  const w = Math.max(maxX - minX, 800);
+  const h = Math.max(maxY - minY, 500);
+  return { x: minX, y: minY, w, h };
 }
 
 function AnnotationReadOnly({ canvas }: { canvas: CanvasData }) {

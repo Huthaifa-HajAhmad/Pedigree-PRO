@@ -857,6 +857,14 @@ pub fn get_recent_activity(
     Ok(activities)
 }
 
+#[tauri::command]
+pub fn clear_activity_log(state: State<AppState>) -> Result<(), String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    db.execute("DELETE FROM activity_log", [])
+        .map_err(|e| format!("Delete error: {}", e))?;
+    Ok(())
+}
+
 // =============================================================================
 // Preferences Commands
 // =============================================================================

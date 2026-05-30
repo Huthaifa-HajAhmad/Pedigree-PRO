@@ -435,7 +435,7 @@ export function usePedigreeCanvas(params: UsePedigreeCanvasParams) {
         }
         dispatch({ type: "SET_STATE", patch: { selectedIds: newSelectedIds } });
       } else {
-        dispatch({ type: "SET_STATE", patch: { selectedIds: new Set(), selectedAnnotationId: null } });
+        dispatch({ type: "SET_STATE", patch: { selectedIds: new Set(), selectedAnnotationId: null, showRiskPanel: false, showValidation: false, showVersions: false } });
       }
     }
     lassoRef.current = null; isLassoingRef.current = false; lassoCTMInverseRef.current = null;

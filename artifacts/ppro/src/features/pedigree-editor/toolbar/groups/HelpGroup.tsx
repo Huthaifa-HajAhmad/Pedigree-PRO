@@ -1,10 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import {
-  LifeBuoy, Keyboard, Lightbulb, Grid3x3, Eye,
-  LayoutTemplate, Stethoscope, History, Share2, FolderOpen, Wifi, Clock,
-  Search, Move, Type, AlertCircle, Dna, Square, Circle, Diamond, Baby,
-  GitBranch, Pencil, Undo2, Redo2, Trash2, ZoomIn, Grid, Wand2, Maximize,
-  FileText, Download, HelpCircle
+  LifeBuoy, Keyboard, Lightbulb, Grid3x3,
+  Stethoscope, Clock,
+  AlertCircle, Wand2, HelpCircle, Shield
 } from "lucide-react";
 
 interface HelpGroupProps {
@@ -35,87 +33,12 @@ const TABS: { id: TabId; label: string; icon: React.ElementType }[] = [
   { id: "tips", label: "Tips", icon: Lightbulb },
 ];
 
-const FEATURE_GROUPS = [
-  {
-    title: "Nodes",
-    icon: Dna,
-    items: [
-      { icon: Square, label: "Male (M)", desc: "Square node" },
-      { icon: Circle, label: "Female (F)", desc: "Circle node" },
-      { icon: Diamond, label: "Unknown (U)", desc: "Diamond node" },
-      { icon: Baby, label: "Pregnancy (P)", desc: "Pregnancy marker" },
-    ],
-  },
-  {
-    title: "Connections",
-    icon: GitBranch,
-    items: [
-      { icon: GitBranch, label: "Couple", desc: "Partner link" },
-      { icon: Type, label: "Parent-child", desc: "Offspring line" },
-      { icon: AlertCircle, label: "Consanguinity", desc: "Close-relative link" },
-    ],
-  },
-  {
-    title: "Edit",
-    icon: Pencil,
-    items: [
-      { icon: Undo2, label: "Undo", desc: "Ctrl+Z" },
-      { icon: Redo2, label: "Redo", desc: "Ctrl+Y" },
-      { icon: Trash2, label: "Delete", desc: "Del key" },
-    ],
-  },
-  {
-    title: "View",
-    icon: Eye,
-    items: [
-      { icon: ZoomIn, label: "Zoom / Pan", desc: "Wheel / Space+drag" },
-      { icon: Grid, label: "Grid & Snap", desc: "Align to rows" },
-      { icon: Search, label: "Search", desc: "/ to find" },
-    ],
-  },
-  {
-    title: "Arrange",
-    icon: LayoutTemplate,
-    items: [
-      { icon: Wand2, label: "Auto-layout", desc: "Ctrl+L" },
-      { icon: Maximize, label: "Fit screen", desc: "Center canvas" },
-      { icon: Move, label: "Snap mode", desc: "Generation rows" },
-    ],
-  },
-  {
-    title: "Clinical",
-    icon: Stethoscope,
-    items: [
-      { icon: FileText, label: "Risk panel", desc: "Recurrence risk" },
-      { icon: AlertCircle, label: "Validation", desc: "Error checking" },
-      { icon: Type, label: "Annotations", desc: "Notes & labels" },
-    ],
-  },
-  {
-    title: "Collaborate",
-    icon: History,
-    items: [
-      { icon: Clock, label: "Timeline", desc: "Version history" },
-      { icon: History, label: "Follow", desc: "Playback changes" },
-    ],
-  },
-  {
-    title: "Share",
-    icon: Share2,
-    items: [
-      { icon: Share2, label: "Share link", desc: "Encrypted token" },
-      { icon: Wifi, label: "LAN share", desc: "P2P transfer" },
-      { icon: Download, label: "Export", desc: "PDF, SVG, PPTX" },
-    ],
-  },
-  {
-    title: "File",
-    icon: FolderOpen,
-    items: [
-      { icon: FileText, label: "Save version", desc: "Snapshot" },
-      { icon: History, label: "Versions", desc: "Browse history" },
-    ],
-  },
+const FEATURE_HIGHLIGHTS = [
+  { icon: Wand2, title: "Auto-layout", desc: "Instantly tidy complex pedigrees with generation-aligned layout.", shortcut: "Ctrl+L" },
+  { icon: Stethoscope, title: "Risk Calculator", desc: "Compute recurrence risks from pedigree structure and inheritance patterns.", shortcut: null },
+  { icon: AlertCircle, title: "Validation", desc: "Detect pedigree errors: disconnected nodes, missing parents, age inconsistencies.", shortcut: null },
+  { icon: Shield, title: "Encrypted Sharing", desc: "End-to-end encrypt share links with a recipient's Ed25519 public key.", shortcut: null },
+  { icon: Clock, title: "Version Timeline", desc: "Browse, preview, and restore any past version of your pedigree.", shortcut: null },
 ];
 
 const SHORTCUTS = [
@@ -232,28 +155,20 @@ export function HelpGroup({ labelHidden = false }: HelpGroupProps) {
               <div className="flex-1 overflow-y-auto p-3">
                 {tab === "features" && (
                   <div className="space-y-3">
-                    <p className="text-[10px] text-muted-foreground/70 uppercase tracking-wider">Ribbon groups and their key features</p>
-                    {FEATURE_GROUPS.map((group) => {
-                      const GroupIcon = group.icon;
+                    <p className="text-[10px] text-muted-foreground/70 uppercase tracking-wider">Key features to explore</p>
+                    {FEATURE_HIGHLIGHTS.map((feat) => {
+                      const Icon = feat.icon;
                       return (
-                        <div key={group.title}>
-                          <div className="flex items-center gap-1.5 mb-1.5">
-                            <GroupIcon className="w-3 h-3 text-primary" />
-                            <span className="text-xs font-semibold text-foreground">{group.title}</span>
+                        <div key={feat.title} className="flex gap-3 p-2.5 rounded-lg bg-muted/30 border border-border/40">
+                          <div className="w-7 h-7 rounded-md bg-primary/10 flex items-center justify-center flex-shrink-0">
+                            <Icon className="w-3.5 h-3.5 text-primary" />
                           </div>
-                          <div className="grid grid-cols-3 gap-1.5">
-                            {group.items.map((item) => {
-                              const ItemIcon = item.icon;
-                              return (
-                                <div key={item.label} className="flex items-center gap-1.5 px-2 py-1.5 rounded bg-muted/40 border border-border/40">
-                                  <ItemIcon className="w-3 h-3 text-muted-foreground flex-shrink-0" />
-                                  <div className="min-w-0">
-                                    <div className="text-[10px] font-medium text-foreground truncate">{item.label}</div>
-                                    <div className="text-[9px] text-muted-foreground/60 truncate">{item.desc}</div>
-                                  </div>
-                                </div>
-                              );
-                            })}
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2 mb-0.5">
+                              <span className="text-xs font-semibold text-foreground">{feat.title}</span>
+                              {feat.shortcut && <kbd className="inline-block text-[10px] font-mono bg-muted px-1.5 py-0.5 rounded border border-border leading-none">{feat.shortcut}</kbd>}
+                            </div>
+                            <p className="text-[11px] text-muted-foreground leading-relaxed">{feat.desc}</p>
                           </div>
                         </div>
                       );

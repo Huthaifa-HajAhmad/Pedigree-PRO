@@ -83,6 +83,7 @@ pub fn run() {
             // ─── Dashboard ────────────────────────────────────
             commands::get_dashboard_stats,
             commands::get_recent_activity,
+            commands::clear_activity_log,
             // ─── Preferences ──────────────────────────────────
             commands::get_preferences,
             commands::save_preferences,
