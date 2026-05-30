@@ -16,7 +16,7 @@ use crate::signatures;
 use crate::AppState;
 use rusqlite::params;
 use serde::{Deserialize, Serialize};
-use tauri::State;
+use tauri::{Manager, State};
 
 // =============================================================================
 // Type Definitions
@@ -41,7 +41,6 @@ pub struct ProfileInput {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Patient {
     pub id: i64,
-    pub mrn: String,
     pub first_name: String,
     pub last_name: String,
     pub date_of_birth: Option<String>,
@@ -55,7 +54,6 @@ pub struct Patient {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct PatientInput {
-    pub mrn: String,
     pub first_name: String,
     pub last_name: String,
     pub date_of_birth: Option<String>,
@@ -347,13 +345,13 @@ pub fn list_patients(
     let db = state.db.lock().map_err(|e| e.to_string())?;
 
     let query = if search.is_some() {
-        "SELECT id, mrn, first_name, last_name, date_of_birth, sex, ethnicity, referral_reason,
+        "SELECT id, first_name, last_name, date_of_birth, sex, ethnicity, referral_reason,
                 clinician_key, created_at, updated_at
          FROM patients
-         WHERE first_name LIKE ?1 OR last_name LIKE ?1 OR mrn LIKE ?1
+         WHERE first_name LIKE ?1 OR last_name LIKE ?1
          ORDER BY last_name, first_name"
     } else {
-        "SELECT id, mrn, first_name, last_name, date_of_birth, sex, ethnicity, referral_reason,
+        "SELECT id, first_name, last_name, date_of_birth, sex, ethnicity, referral_reason,
                 clinician_key, created_at, updated_at
          FROM patients ORDER BY last_name, first_name"
     };
@@ -380,7 +378,7 @@ pub fn list_patients(
 pub fn get_patient(state: State<AppState>, id: i64) -> Result<Patient, String> {
     let db = state.db.lock().map_err(|e| e.to_string())?;
     db.query_row(
-        "SELECT id, mrn, first_name, last_name, date_of_birth, sex, ethnicity, referral_reason,
+        "SELECT id, first_name, last_name, date_of_birth, sex, ethnicity, referral_reason,
                 clinician_key, created_at, updated_at
          FROM patients WHERE id = ?1",
         params![id],
@@ -396,11 +394,10 @@ pub fn create_patient(
 ) -> Result<Patient, String> {
     let db = state.db.lock().map_err(|e| e.to_string())?;
     db.execute(
-        "INSERT INTO patients (mrn, first_name, last_name, date_of_birth, sex, ethnicity,
+        "INSERT INTO patients (first_name, last_name, date_of_birth, sex, ethnicity,
          referral_reason, clinician_key, created_at, updated_at)
          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, datetime('now'), datetime('now'))",
         params![
-            input.mrn,
             input.first_name,
             input.last_name,
             input.date_of_birth,
@@ -425,12 +422,11 @@ pub fn update_patient(
 ) -> Result<Patient, String> {
     let db = state.db.lock().map_err(|e| e.to_string())?;
     db.execute(
-        "UPDATE patients SET mrn = ?1, first_name = ?2, last_name = ?3, date_of_birth = ?4,
-         sex = ?5, ethnicity = ?6, referral_reason = ?7, clinician_key = ?8,
+        "UPDATE patients SET first_name = ?1, last_name = ?2, date_of_birth = ?3,
+         sex = ?4, ethnicity = ?5, referral_reason = ?6, clinician_key = ?7,
          updated_at = datetime('now')
-         WHERE id = ?9",
+         WHERE id = ?8",
         params![
-            input.mrn,
             input.first_name,
             input.last_name,
             input.date_of_birth,
@@ -780,6 +776,24 @@ pub fn restore_version(
     get_pedigree(state, pedigree_id)
 }
 
+#[tauri::command]
+pub fn delete_version(
+    state: State<AppState>,
+    pedigree_id: i64,
+    version_id: i64,
+) -> Result<serde_json::Value, String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+
+    let affected = db
+        .execute(
+            "DELETE FROM pedigree_versions WHERE id = ?1 AND pedigree_id = ?2",
+            params![version_id, pedigree_id],
+        )
+        .map_err(|e| format!("Failed to delete version: {}", e))?;
+
+    Ok(serde_json::json!({ "deleted": affected > 0 }))
+}
+
 // =============================================================================
 // Dashboard Commands
 // =============================================================================
@@ -889,13 +903,13 @@ pub fn get_preferences(state: State<AppState>) -> Result<Preferences, String> {
     )
     .or_else(|_| {
         let _ = db.execute(
-            "INSERT OR IGNORE INTO app_preferences (device_id, theme, updated_at)
-             VALUES (?1, 'terminal', datetime('now'))",
-            params![device_id],
-        );
-        Ok(Preferences {
-            device_id: device_id.to_string(),
-            theme: "terminal".to_string(),
+             "INSERT OR IGNORE INTO app_preferences (device_id, theme, updated_at)
+              VALUES (?1, 'clinical', datetime('now'))",
+             params![device_id],
+         );
+         Ok(Preferences {
+             device_id: device_id.to_string(),
+             theme: "clinical".to_string(),
             updated_at: chrono::Utc::now().to_rfc3339(),
         })
     })
@@ -929,7 +943,7 @@ pub async fn share_pedigree(
     pedigree_id: i64,
     _recipient_key: String,
 ) -> Result<String, String> {
-    let ppro_json = crate::export::export_pedigree_ppro(&state.db, pedigree_id, &_recipient_key)?;
+    let ppro_json = crate::export::export_pedigree_ppro_inner(&state.db, pedigree_id, &_recipient_key)?;
     Ok(ppro_json)
 }
 
@@ -1085,16 +1099,15 @@ fn validate_import_path(app: &tauri::AppHandle, path: &str) -> Result<(), String
 fn map_patient(row: &rusqlite::Row) -> rusqlite::Result<Patient> {
     Ok(Patient {
         id: row.get(0)?,
-        mrn: row.get(1)?,
-        first_name: row.get(2)?,
-        last_name: row.get(3)?,
-        date_of_birth: row.get(4)?,
-        sex: row.get(5)?,
-        ethnicity: row.get(6)?,
-        referral_reason: row.get(7)?,
-        clinician_key: row.get(8)?,
-        created_at: row.get(9)?,
-        updated_at: row.get(10)?,
+        first_name: row.get(1)?,
+        last_name: row.get(2)?,
+        date_of_birth: row.get(3)?,
+        sex: row.get(4)?,
+        ethnicity: row.get(5)?,
+        referral_reason: row.get(6)?,
+        clinician_key: row.get(7)?,
+        created_at: row.get(8)?,
+        updated_at: row.get(9)?,
     })
 }
 

@@ -19,7 +19,6 @@ import { EmptyState } from "@/components/shared/EmptyState";
 import { ErrorDialog } from "@/components/shared/ErrorDialog";
 
 const createPatientSchema = z.object({
-  mrn: z.string().default(""),
   firstName: z.string().min(1, "First name required"),
   lastName: z.string().min(1, "Last name required"),
   dateOfBirth: z.string().optional(),
@@ -72,13 +71,12 @@ export default function Patients() {
 
   const form = useForm<CreatePatientForm>({
     resolver: zodResolver(createPatientSchema),
-    defaultValues: { mrn: "", firstName: "", lastName: "", dateOfBirth: "", sex: undefined, ethnicity: "" },
+    defaultValues: { firstName: "", lastName: "", dateOfBirth: "", sex: undefined, ethnicity: "" },
   });
 
     const onSubmit = (data: CreatePatientForm) => {
       createPatient.mutate(
         {
-          mrn: data.mrn,
           first_name: data.firstName,
           last_name: data.lastName,
           date_of_birth: data.dateOfBirth ?? undefined,
@@ -241,7 +239,7 @@ export default function Patients() {
       <SearchBar
         value={search}
         onChange={(e) => setSearch(e.target.value)}
-        placeholder="Search by name or MRN..."
+        placeholder="Search by name..."
         testId="input-search-patients"
       />
 

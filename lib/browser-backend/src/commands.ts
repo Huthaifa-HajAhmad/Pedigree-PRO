@@ -101,7 +101,6 @@ export function delete_profile(args: { profile_id: string }): void {
 
 export interface Patient {
   id: number;
-  mrn: string;
   first_name: string;
   last_name: string;
   date_of_birth: string | null;
@@ -114,7 +113,6 @@ export interface Patient {
 }
 
 export interface CreatePatientInput {
-  mrn: string;
   first_name: string;
   last_name: string;
   date_of_birth?: string | null;
@@ -129,18 +127,18 @@ export function list_patients(args?: { search?: string }): Patient[] {
   if (search) {
     const pattern = `%${search}%`;
     return query<Patient>(
-      "SELECT id, mrn, first_name, last_name, date_of_birth, sex, ethnicity, referral_reason, clinician_key, created_at, updated_at FROM patients WHERE first_name LIKE ? OR last_name LIKE ? OR mrn LIKE ? ORDER BY last_name, first_name",
-      [pattern, pattern, pattern]
+      "SELECT id, first_name, last_name, date_of_birth, sex, ethnicity, referral_reason, clinician_key, created_at, updated_at FROM patients WHERE first_name LIKE ? OR last_name LIKE ? ORDER BY last_name, first_name",
+      [pattern, pattern]
     );
   }
   return query<Patient>(
-    "SELECT id, mrn, first_name, last_name, date_of_birth, sex, ethnicity, referral_reason, clinician_key, created_at, updated_at FROM patients ORDER BY last_name, first_name"
+    "SELECT id, first_name, last_name, date_of_birth, sex, ethnicity, referral_reason, clinician_key, created_at, updated_at FROM patients ORDER BY last_name, first_name"
   );
 }
 
 export function get_patient(args: { id: number }): Patient {
   const patient = queryOne<Patient>(
-    "SELECT id, mrn, first_name, last_name, date_of_birth, sex, ethnicity, referral_reason, clinician_key, created_at, updated_at FROM patients WHERE id = ?",
+    "SELECT id, first_name, last_name, date_of_birth, sex, ethnicity, referral_reason, clinician_key, created_at, updated_at FROM patients WHERE id = ?",
     [args.id]
   );
   if (!patient) throw new Error("Patient not found");
@@ -149,9 +147,8 @@ export function get_patient(args: { id: number }): Patient {
 
 export function create_patient(args: CreatePatientInput): Patient {
   exec(
-    "INSERT INTO patients (mrn, first_name, last_name, date_of_birth, sex, ethnicity, referral_reason, clinician_key, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))",
+    "INSERT INTO patients (first_name, last_name, date_of_birth, sex, ethnicity, referral_reason, clinician_key, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))",
     [
-      args.mrn,
       args.first_name,
       args.last_name,
       args.date_of_birth ?? null,
@@ -172,9 +169,8 @@ export function update_patient(args: {
   const existing = get_patient({ id: args.id });
   const merged = { ...existing, ...args.input };
   exec(
-    "UPDATE patients SET mrn = ?, first_name = ?, last_name = ?, date_of_birth = ?, sex = ?, ethnicity = ?, referral_reason = ?, clinician_key = ?, updated_at = datetime('now') WHERE id = ?",
+    "UPDATE patients SET first_name = ?, last_name = ?, date_of_birth = ?, sex = ?, ethnicity = ?, referral_reason = ?, clinician_key = ?, updated_at = datetime('now') WHERE id = ?",
     [
-      merged.mrn,
       merged.first_name,
       merged.last_name,
       merged.date_of_birth ?? null,
@@ -538,12 +534,12 @@ export function get_preferences(): Preferences {
   if (pref) return pref;
 
   exec(
-    "INSERT OR IGNORE INTO app_preferences (device_id, theme, updated_at) VALUES (?, 'terminal', datetime('now'))",
+    "INSERT OR IGNORE INTO app_preferences (device_id, theme, updated_at) VALUES (?, 'clinical', datetime('now'))",
     [device_id]
   );
   return {
     device_id,
-    theme: "terminal",
+    theme: "clinical",
     updated_at: new Date().toISOString(),
   };
 }

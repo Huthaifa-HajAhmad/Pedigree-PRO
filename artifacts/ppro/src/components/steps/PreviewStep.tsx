@@ -13,7 +13,7 @@ interface PreviewStepProps {
   error: string | null;
   onBack: () => void;
   onImport: () => void;
-  patients?: Array<{ id: number; first_name: string; last_name: string; mrn: string }> | null;
+  patients?: Array<{ id: number; first_name: string; last_name: string }> | null;
 }
 
 export function PreviewStep({ importMode, filename, title, setTitle, patientId, setPatientId, result, error, onBack, onImport, patients }: PreviewStepProps) {
@@ -75,7 +75,7 @@ export function PreviewStep({ importMode, filename, title, setTitle, patientId, 
         <label htmlFor={`import-patient-${importMode}`} className="text-xs text-muted-foreground uppercase tracking-wider block mb-1">Link to Patient (optional)</label>
         <select id={`import-patient-${importMode}`} data-testid="select-import-patient" value={patientId} onChange={(e) => setPatientId(e.target.value)} className="w-full bg-muted border border-border rounded px-3 py-2 text-sm outline-none focus:border-primary transition-colors text-foreground">
           <option value="">No patient</option>
-          {patients?.map((p) => <option key={p.id} value={String(p.id)}>{p.last_name}, {p.first_name} ({p.mrn})</option>)}
+          {patients?.map((p) => <option key={p.id} value={String(p.id)}>{p.last_name}, {p.first_name}</option>)}
         </select>
       </div>
 

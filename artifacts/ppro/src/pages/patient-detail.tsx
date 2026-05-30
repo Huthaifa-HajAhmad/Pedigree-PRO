@@ -85,7 +85,6 @@ export default function PatientDetail() {
             <h1 className="text-2xl font-bold tracking-tight mb-1">
               {patient.last_name}, {patient.first_name}
             </h1>
-            <div className="text-sm text-muted-foreground font-mono">{patient.mrn}</div>
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

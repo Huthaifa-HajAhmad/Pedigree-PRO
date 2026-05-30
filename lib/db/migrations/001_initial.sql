@@ -2,28 +2,25 @@
 -- SQLite-compatible (run by Rust migration runner at app startup)
 --
 -- All tables use Ed25519 *_key + *_signature columns for provenance
--- (ADR-002). The deprecated *ById columns and share_token are removed
--- in migration 003.
+-- (ADR-002). Deprecated *ById columns and share_token were removed
+-- in Phase 0-D and are no longer created.
 
 -- ============================================================================
 -- patients
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS patients (
   id               INTEGER PRIMARY KEY AUTOINCREMENT,
-  mrn              TEXT NOT NULL UNIQUE,
   first_name       TEXT NOT NULL,
   last_name        TEXT NOT NULL,
   date_of_birth    TEXT,
   sex              TEXT DEFAULT 'unknown',
   ethnicity        TEXT,
   referral_reason  TEXT,
-  clinician_id     INTEGER,
   clinician_key    TEXT,
   created_at       TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at       TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_patients_clinician_key ON patients(clinician_key);
-CREATE INDEX IF NOT EXISTS idx_patients_mrn ON patients(mrn);
 CREATE INDEX IF NOT EXISTS idx_patients_name ON patients(last_name, first_name);
 
 -- ============================================================================
@@ -36,17 +33,14 @@ CREATE TABLE IF NOT EXISTS pedigrees (
   canvas_data        TEXT,
   canvas_hash        TEXT,
   notes              TEXT,
-  created_by_id      INTEGER,
   creator_key        TEXT,
   creator_signature  TEXT,
-  share_token        TEXT,
   created_at         TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at         TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_pedigrees_patient_id ON pedigrees(patient_id);
 CREATE INDEX IF NOT EXISTS idx_pedigrees_creator_key ON pedigrees(creator_key);
 CREATE INDEX IF NOT EXISTS idx_pedigrees_updated_at ON pedigrees(updated_at);
-CREATE INDEX IF NOT EXISTS idx_pedigrees_share_token ON pedigrees(share_token);
 
 -- ============================================================================
 -- pedigree_versions
@@ -59,7 +53,6 @@ CREATE TABLE IF NOT EXISTS pedigree_versions (
   canvas_data      TEXT NOT NULL,
   canvas_hash      TEXT,
   thumbnail        TEXT,
-  saved_by_id      INTEGER,
   saver_key        TEXT,
   saver_signature  TEXT,
   created_at       TEXT NOT NULL DEFAULT (datetime('now'))
@@ -74,7 +67,6 @@ CREATE TABLE IF NOT EXISTS activity_log (
   id               INTEGER PRIMARY KEY AUTOINCREMENT,
   action           TEXT NOT NULL,
   subject          TEXT NOT NULL,
-  user_id          INTEGER,
   actor_key        TEXT,
   actor_signature  TEXT,
   timestamp        TEXT NOT NULL DEFAULT (datetime('now'))
@@ -83,16 +75,16 @@ CREATE INDEX IF NOT EXISTS idx_activity_log_timestamp ON activity_log(timestamp 
 CREATE INDEX IF NOT EXISTS idx_activity_log_actor_key ON activity_log(actor_key);
 
 -- ============================================================================
--- app_preferences (unchanged — already device-centric)
+-- app_preferences
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS app_preferences (
   device_id  TEXT PRIMARY KEY,
-  theme      TEXT NOT NULL DEFAULT 'terminal',
+  theme      TEXT NOT NULL DEFAULT 'clinical',
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
 -- ============================================================================
--- local_profiles (NEW — device-only, never synced)
+-- local_profiles (device-only, never synced)
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS local_profiles (
   id            TEXT PRIMARY KEY,
@@ -101,16 +93,4 @@ CREATE TABLE IF NOT EXISTS local_profiles (
   public_key    TEXT NOT NULL UNIQUE,
   created_at    TEXT NOT NULL DEFAULT (datetime('now')),
   last_used_at  TEXT NOT NULL DEFAULT (datetime('now'))
-);
-
--- ============================================================================
--- users (DEPRECATED — kept for migration window, removed in Phase 0-D)
--- ============================================================================
-CREATE TABLE IF NOT EXISTS users (
-  id         INTEGER PRIMARY KEY AUTOINCREMENT,
-  name       TEXT NOT NULL,
-  email      TEXT NOT NULL,
-  role       TEXT NOT NULL DEFAULT 'counselor',
-  department TEXT,
-  created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );

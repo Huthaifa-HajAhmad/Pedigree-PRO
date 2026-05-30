@@ -3,7 +3,7 @@ import { sql } from "drizzle-orm";
 
 export const appPreferencesTable = sqliteTable("app_preferences", {
   deviceId: text("device_id").primaryKey(),
-  theme: text("theme").notNull().default("terminal"),
+  theme: text("theme").notNull().default("clinical"),
   updatedAt: text("updated_at").notNull().default(sql`(datetime('now'))`),
 });
 

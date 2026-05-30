@@ -1,17 +1,15 @@
--- Pedigree PRO — Migration 003: Drop deprecated Phase 0-D columns and tables.
--- The *ById columns and share_token have been replaced by *_key/*_signature
--- and zero-knowledge relay tokens respectively. The `users` table has been
--- replaced by `local_profiles`.
+-- Pedigree PRO — Migration 003: Cleanup of deprecated Phase 0-D artifacts.
+--
+-- The deprecated *ById columns, share_token, and users table were part of
+-- the original HaploPainter schema (Phase 0-B) and are no longer used.
+-- New databases (created after this migration) never have these columns
+-- because migration 001 omits them.
+--
+-- For EXISTING databases that still have these artifacts:
+--   - DROP COLUMN requires SQLite >= 3.35.0 (not available in SQLCipher).
+--     The deprecated columns are harmless — SQLite ignores unknown columns
+--     in queries — so we leave them as inert residue.
+--   - DROP INDEX and DROP TABLE are safe on all SQLite versions.
 
--- Drop deprecated columns from existing tables
-ALTER TABLE patients DROP COLUMN IF EXISTS clinician_id;
-ALTER TABLE pedigrees DROP COLUMN IF EXISTS created_by_id;
-ALTER TABLE pedigrees DROP COLUMN IF EXISTS share_token;
-ALTER TABLE pedigree_versions DROP COLUMN IF EXISTS saved_by_id;
-ALTER TABLE activity_log DROP COLUMN IF EXISTS user_id;
-
--- Drop deprecated index
 DROP INDEX IF EXISTS idx_pedigrees_share_token;
-
--- Drop deprecated users table
 DROP TABLE IF EXISTS users;

@@ -64,13 +64,14 @@ pub fn run() {
             commands::list_versions,
             commands::save_version,
             commands::restore_version,
+            commands::delete_version,
             // ─── Import (Native .ppro) ────────────────────────
             commands::import_pedigree_native,
             commands::import_pedigree_from_json,
             // ─── Import (Legacy HaploPainter) ─────────────────
             commands::import_pedigree_legacy,
             // ─── Export ────────────────────────────────────────
-            commands::export_pedigree_ppro,
+            export::export_pedigree_ppro,
             // ─── Database Management ──────────────────────────
             commands::backup_database,
             commands::restore_database,
