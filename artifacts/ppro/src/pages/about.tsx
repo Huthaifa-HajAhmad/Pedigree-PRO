@@ -94,7 +94,7 @@ export default function AboutPage() {
 
           <div className="flex items-center gap-1.5 text-xs text-muted-foreground/60">
             <Heart className="w-3 h-3" />
-            <span>Pedigree PRO v0.1.0 · Built for clinical genetics</span>
+            <span>Pedigree PRO v1.0.0-1 · Built for clinical genetics</span>
           </div>
         </div>
       </div>
