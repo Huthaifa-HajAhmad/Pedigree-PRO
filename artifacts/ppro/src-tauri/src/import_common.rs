@@ -126,7 +126,6 @@ pub fn insert_phenotype(
 /// Inserts a patient row and returns the new ID.
 pub fn insert_patient(
     conn: &Connection,
-    mrn: &str,
     first_name: &str,
     last_name: &str,
     date_of_birth: &Option<String>,
@@ -136,11 +135,10 @@ pub fn insert_patient(
     clinician_key: &Option<String>,
 ) -> Result<i64, String> {
     conn.execute(
-        "INSERT INTO patients (mrn, first_name, last_name, date_of_birth, sex, ethnicity,
+        "INSERT INTO patients (first_name, last_name, date_of_birth, sex, ethnicity,
          referral_reason, clinician_key, created_at, updated_at)
          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, datetime('now'), datetime('now'))",
         params![
-            mrn,
             first_name,
             last_name,
             date_of_birth,
@@ -170,22 +168,4 @@ pub fn log_activity(
     .map_err(|e| format!("Failed to log activity: {}", e))?;
 
     Ok(())
-}
-
-/// Counts nodes in a canvas_data JSON string.
-/// Returns 0 if the data is missing or unparseable.
-pub fn count_nodes(canvas_data: &Option<String>) -> i64 {
-    match canvas_data {
-        None => 0,
-        Some(data) => {
-            match serde_json::from_str::<serde_json::Value>(data) {
-                Ok(json) => json
-                    .get("nodes")
-                    .and_then(|n| n.as_array())
-                    .map(|arr| arr.len() as i64)
-                    .unwrap_or(0),
-                Err(_) => 0,
-            }
-        }
-    }
 }

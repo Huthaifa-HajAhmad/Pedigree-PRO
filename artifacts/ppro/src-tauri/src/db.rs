@@ -49,13 +49,55 @@ pub fn init_db(app: &AppHandle) -> Result<Connection, String> {
     conn.execute_batch(&format!("PRAGMA key = \"x'{}'\";", key_hex))
         .map_err(|e| format!("Failed to set SQLCipher key: {}", e))?;
 
-    conn.execute_batch("SELECT count(*) FROM sqlite_master;")
-        .map_err(|_| {
-            format!(
-                "Database appears corrupt or wrong key. Delete {} and restart.",
+    let integrity_ok = conn.execute_batch("SELECT count(*) FROM sqlite_master;").is_ok();
+
+    if !integrity_ok {
+        if db_exists {
+            eprintln!(
+                "WARNING: Database at {} is corrupt or key mismatch. Recreating from scratch.",
                 db_path.display()
-            )
-        })?;
+            );
+            drop(conn);
+            let _ = fs::remove_file(&db_path);
+            let _ = fs::remove_file(db_path.with_extension("db-wal"));
+            let _ = fs::remove_file(db_path.with_extension("db-shm"));
+            let _ = fs::remove_file(&key_path);
+
+            let master_secret = get_or_create_master_secret(&key_path)?;
+            let device_id = get_or_create_device_id(&db_path, false)?;
+
+            let mut derived_key = vec![0u8; KEY_LEN];
+            pbkdf2_hmac::<Sha512>(
+                &master_secret,
+                device_id.as_bytes(),
+                PBKDF2_ITERATIONS,
+                &mut derived_key,
+            );
+            let key_hex = hex::encode(&derived_key);
+
+            let conn = Connection::open(&db_path)
+                .map_err(|e| format!("Failed to open database: {}", e))?;
+
+            conn.execute_batch(&format!("PRAGMA key = \"x'{}'\";", key_hex))
+                .map_err(|e| format!("Failed to set SQLCipher key: {}", e))?;
+
+            run_migrations(&conn)?;
+
+            conn.execute_batch("PRAGMA journal_mode=WAL;")
+                .map_err(|e| format!("Failed to set WAL mode: {}", e))?;
+
+            conn.execute_batch("PRAGMA foreign_keys=ON;")
+                .map_err(|e| format!("Failed to enable foreign keys: {}", e))?;
+
+            persist_device_id(&conn, &device_id)?;
+
+            return Ok(conn);
+        }
+        return Err(format!(
+            "Database appears corrupt or wrong key and cannot be recreated. Delete {} and restart.",
+            db_path.display()
+        ));
+    }
 
     run_migrations(&conn)?;
 
@@ -215,7 +257,7 @@ pub fn restore_database(app: &tauri::AppHandle, backup_path: &str) -> Result<(),
 fn persist_device_id(conn: &Connection, device_id: &str) -> Result<(), String> {
     conn.execute(
         "INSERT INTO app_preferences (device_id, theme, updated_at)
-         VALUES (?1, 'terminal', datetime('now'))
+         VALUES (?1, 'clinical', datetime('now'))
          ON CONFLICT(device_id) DO UPDATE
          SET device_id = ?1, updated_at = datetime('now')",
         rusqlite::params![device_id],
@@ -249,6 +291,16 @@ fn run_migrations(conn: &Connection) -> Result<(), String> {
             3,
             "003_drop_deprecated_columns",
             include_str!("../../../../lib/db/migrations/003_drop_deprecated_columns.sql"),
+        ),
+        (
+            4,
+            "004_share_log",
+            include_str!("../../../../lib/db/migrations/004_share_log.sql"),
+        ),
+        (
+            5,
+            "005_share_links",
+            include_str!("../../../../lib/db/migrations/005_share_links.sql"),
         ),
     ];
 

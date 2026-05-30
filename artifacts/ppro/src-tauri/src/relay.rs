@@ -100,16 +100,27 @@ pub async fn relay_share(
     }
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+pub struct RelayReceiveRequest {
+    pub share_token: String,
+}
+
 /// Fetches an encrypted share from the relay service by token.
+/// Uses POST to avoid exposing the token in URL/logs (M1 security fix).
 pub async fn relay_receive(
     share_token: &str,
 ) -> Result<RelayReceiveResponse, String> {
     let base_url = relay_base_url();
-    let url = format!("{}/api/relay/receive/{}", base_url, share_token);
+    let url = format!("{}/api/relay/receive", base_url);
+
+    let request_body = RelayReceiveRequest {
+        share_token: share_token.to_string(),
+    };
 
     let client = reqwest::Client::new();
     let response = client
-        .get(&url)
+        .post(&url)
+        .json(&request_body)
         .send()
         .await
         .map_err(|e| format!("Failed to connect to relay: {}", e))?;
@@ -125,34 +136,6 @@ pub async fn relay_receive(
         Err("Share token expired or not found".to_string())
     } else if status.as_u16() == 410 {
         Err("Share token already consumed".to_string())
-    } else {
-        let error = response
-            .json::<RelayErrorResponse>()
-            .await
-            .map(|e| e.error)
-            .unwrap_or_else(|_| format!("HTTP {}", status));
-        Err(format!("Relay error: {}", error))
-    }
-}
-
-/// Revokes a share token (sender-initiated deletion).
-pub async fn relay_revoke(share_token: &str) -> Result<(), String> {
-    let base_url = relay_base_url();
-    let url = format!("{}/api/relay/receive/{}", base_url, share_token);
-
-    let client = reqwest::Client::new();
-    let response = client
-        .delete(&url)
-        .send()
-        .await
-        .map_err(|e| format!("Failed to connect to relay: {}", e))?;
-
-    let status = response.status();
-
-    if status.is_success() || status.as_u16() == 204 {
-        Ok(())
-    } else if status.as_u16() == 404 {
-        Err("Share token not found or already consumed".to_string())
     } else {
         let error = response
             .json::<RelayErrorResponse>()

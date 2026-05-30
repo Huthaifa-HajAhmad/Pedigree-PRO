@@ -36,63 +36,40 @@ use std::sync::Mutex;
 struct LegacyUser {
     id: i64,
     name: String,
-    #[allow(dead_code)]
-    email: String,
-    #[allow(dead_code)]
-    role: String,
-    #[allow(dead_code)]
-    department: Option<String>,
 }
 
 /// A row from the legacy `patients` table.
 struct LegacyPatient {
-    id: i64,
-    mrn: String,
     first_name: String,
     last_name: String,
     date_of_birth: Option<String>,
     sex: Option<String>,
     ethnicity: Option<String>,
     referral_reason: Option<String>,
-    clinician_id: Option<i64>,
-    created_at: String,
-    updated_at: String,
 }
 
 /// A row from the legacy `pedigrees` table.
 struct LegacyPedigree {
-    id: i64,
     title: String,
-    patient_id: Option<i64>,
     canvas_data: Option<String>,
     notes: Option<String>,
     created_by_id: Option<i64>,
-    share_token: Option<String>,
-    created_at: String,
-    updated_at: String,
 }
 
 /// A row from the legacy `pedigree_versions` table.
 struct LegacyVersion {
-    #[allow(dead_code)]
-    id: i64,
     pedigree_id: i64,
     version_number: i64,
     label: Option<String>,
     canvas_data: String,
-    thumbnail: Option<String>,
-    saved_by_id: Option<i64>,
     created_at: String,
 }
 
 /// A row from the legacy `activity_log` table.
 struct LegacyActivity {
-    #[allow(dead_code)]
-    id: i64,
     action: String,
     subject: String,
     user_id: Option<i64>,
-    timestamp: String,
 }
 
 // =============================================================================
@@ -164,7 +141,6 @@ pub fn import_legacy_database(
     for p in &patients {
         import_common::insert_patient(
             &conn,
-            &p.mrn,
             &p.first_name,
             &p.last_name,
             &p.date_of_birth,
@@ -272,7 +248,7 @@ pub fn import_legacy_database(
 
 fn read_legacy_users(conn: &Connection) -> Result<HashMap<i64, String>, String> {
     let mut stmt = conn
-        .prepare("SELECT id, name, email, role, department FROM users")
+        .prepare("SELECT id, name FROM users")
         .map_err(|e| format!("Failed to read legacy users: {}", e))?;
 
     let users: Vec<LegacyUser> = stmt
@@ -280,9 +256,6 @@ fn read_legacy_users(conn: &Connection) -> Result<HashMap<i64, String>, String> 
             Ok(LegacyUser {
                 id: row.get(0)?,
                 name: row.get(1)?,
-                email: row.get(2)?,
-                role: row.get(3)?,
-                department: row.get(4)?,
             })
         })
         .map_err(|e| format!("Failed to query legacy users: {}", e))?
@@ -299,8 +272,8 @@ fn read_legacy_users(conn: &Connection) -> Result<HashMap<i64, String>, String> 
 fn read_legacy_patients(conn: &Connection) -> Result<Vec<LegacyPatient>, String> {
     let mut stmt = conn
         .prepare(
-            "SELECT id, mrn, first_name, last_name, date_of_birth, sex, ethnicity,
-                    referral_reason, clinician_id, created_at, updated_at
+            "SELECT first_name, last_name, date_of_birth, sex, ethnicity,
+                    referral_reason
              FROM patients",
         )
         .map_err(|e| format!("Failed to read legacy patients: {}", e))?;
@@ -308,17 +281,12 @@ fn read_legacy_patients(conn: &Connection) -> Result<Vec<LegacyPatient>, String>
     let patients = stmt
         .query_map([], |row| {
             Ok(LegacyPatient {
-                id: row.get(0)?,
-                mrn: row.get(1)?,
-                first_name: row.get(2)?,
-                last_name: row.get(3)?,
-                date_of_birth: row.get(4)?,
-                sex: row.get(5)?,
-                ethnicity: row.get(6)?,
-                referral_reason: row.get(7)?,
-                clinician_id: row.get(8)?,
-                created_at: row.get(9)?,
-                updated_at: row.get(10)?,
+                first_name: row.get(0)?,
+                last_name: row.get(1)?,
+                date_of_birth: row.get(2)?,
+                sex: row.get(3)?,
+                ethnicity: row.get(4)?,
+                referral_reason: row.get(5)?,
             })
         })
         .map_err(|e| format!("Failed to query legacy patients: {}", e))?
@@ -331,8 +299,7 @@ fn read_legacy_patients(conn: &Connection) -> Result<Vec<LegacyPatient>, String>
 fn read_legacy_pedigrees(conn: &Connection) -> Result<Vec<LegacyPedigree>, String> {
     let mut stmt = conn
         .prepare(
-            "SELECT id, title, patient_id, canvas_data, notes, created_by_id,
-                    share_token, created_at, updated_at
+            "SELECT title, canvas_data, notes, created_by_id
              FROM pedigrees",
         )
         .map_err(|e| format!("Failed to read legacy pedigrees: {}", e))?;
@@ -340,15 +307,10 @@ fn read_legacy_pedigrees(conn: &Connection) -> Result<Vec<LegacyPedigree>, Strin
     let pedigrees = stmt
         .query_map([], |row| {
             Ok(LegacyPedigree {
-                id: row.get(0)?,
-                title: row.get(1)?,
-                patient_id: row.get(2)?,
-                canvas_data: row.get(3)?,
-                notes: row.get(4)?,
-                created_by_id: row.get(5)?,
-                share_token: row.get(6)?,
-                created_at: row.get(7)?,
-                updated_at: row.get(8)?,
+                title: row.get(0)?,
+                canvas_data: row.get(1)?,
+                notes: row.get(2)?,
+                created_by_id: row.get(3)?,
             })
         })
         .map_err(|e| format!("Failed to query legacy pedigrees: {}", e))?
@@ -361,8 +323,7 @@ fn read_legacy_pedigrees(conn: &Connection) -> Result<Vec<LegacyPedigree>, Strin
 fn read_legacy_versions(conn: &Connection) -> Result<Vec<LegacyVersion>, String> {
     let mut stmt = conn
         .prepare(
-            "SELECT id, pedigree_id, version_number, label, canvas_data,
-                    thumbnail, saved_by_id, created_at
+            "SELECT pedigree_id, version_number, label, canvas_data, created_at
              FROM pedigree_versions
              ORDER BY pedigree_id, version_number",
         )
@@ -371,14 +332,11 @@ fn read_legacy_versions(conn: &Connection) -> Result<Vec<LegacyVersion>, String>
     let versions = stmt
         .query_map([], |row| {
             Ok(LegacyVersion {
-                id: row.get(0)?,
-                pedigree_id: row.get(1)?,
-                version_number: row.get(2)?,
-                label: row.get(3)?,
-                canvas_data: row.get(4)?,
-                thumbnail: row.get(5)?,
-                saved_by_id: row.get(6)?,
-                created_at: row.get(7)?,
+                pedigree_id: row.get(0)?,
+                version_number: row.get(1)?,
+                label: row.get(2)?,
+                canvas_data: row.get(3)?,
+                created_at: row.get(4)?,
             })
         })
         .map_err(|e| format!("Failed to query legacy versions: {}", e))?
@@ -391,7 +349,7 @@ fn read_legacy_versions(conn: &Connection) -> Result<Vec<LegacyVersion>, String>
 fn read_legacy_activities(conn: &Connection) -> Result<Vec<LegacyActivity>, String> {
     let mut stmt = conn
         .prepare(
-            "SELECT id, action, subject, user_id, timestamp
+            "SELECT action, subject, user_id
              FROM activity_log
              ORDER BY timestamp ASC",
         )
@@ -400,11 +358,9 @@ fn read_legacy_activities(conn: &Connection) -> Result<Vec<LegacyActivity>, Stri
     let activities = stmt
         .query_map([], |row| {
             Ok(LegacyActivity {
-                id: row.get(0)?,
-                action: row.get(1)?,
-                subject: row.get(2)?,
-                user_id: row.get(3)?,
-                timestamp: row.get(4)?,
+                action: row.get(0)?,
+                subject: row.get(1)?,
+                user_id: row.get(2)?,
             })
         })
         .map_err(|e| format!("Failed to query legacy activities: {}", e))?

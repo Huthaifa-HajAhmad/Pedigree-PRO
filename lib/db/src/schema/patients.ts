@@ -6,7 +6,6 @@ export const sexEnum = pgEnum("sex", ["male", "female", "unknown"]);
 
 export const patientsTable = pgTable("patients", {
   id: serial("id").primaryKey(),
-  mrn: text("mrn").notNull().unique(),
   firstName: text("first_name").notNull(),
   lastName: text("last_name").notNull(),
   dateOfBirth: text("date_of_birth"),

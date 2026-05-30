@@ -14,14 +14,14 @@ if (Number.isNaN(port) || port <= 0) {
 
 const basePath = process.env.BASE_PATH ?? "/";
 
-// Custom middleware to serve sql.js WASM file from node_modules
-function sqljsWASMiddleware() {
+function sqljsWasmPlugin() {
+  const wasmRel = path.join("..", "..", "node_modules", "sql.js", "dist", "sql-wasm-browser.wasm");
+
   return {
     name: "sqljs-wasm",
     configureServer(server: any) {
-      server.middlewares.use("/sql-wasm-browser.wasm", (req: any, res: any, next: any) => {
-        // Go up two levels to monorepo root node_modules
-        const wasmPath = path.join(import.meta.dirname, "..", "..", "node_modules", "sql.js", "dist", "sql-wasm-browser.wasm");
+      server.middlewares.use("/sql-wasm-browser.wasm", (req: any, res: any, _next: any) => {
+        const wasmPath = path.join(import.meta.dirname, wasmRel);
         if (fs.existsSync(wasmPath)) {
           res.setHeader("Content-Type", "application/wasm");
           res.setHeader("Access-Control-Allow-Origin", "*");
@@ -32,6 +32,15 @@ function sqljsWASMiddleware() {
           res.end("WASM file not found: " + wasmPath);
         }
       });
+    },
+    writeBundle() {
+      const wasmPath = path.join(import.meta.dirname, wasmRel);
+      if (!fs.existsSync(wasmPath)) {
+        throw new Error("sql.js WASM not found: " + wasmPath);
+      }
+      const outDir = path.join(import.meta.dirname, "dist", "public");
+      fs.mkdirSync(outDir, { recursive: true });
+      fs.copyFileSync(wasmPath, path.join(outDir, "sql-wasm-browser.wasm"));
     },
   };
 }
@@ -46,7 +55,7 @@ export default defineConfig({
       open: false,
       gzipSize: true,
     }),
-    sqljsWASMiddleware(),
+    sqljsWasmPlugin(),
   ],
   resolve: {
     alias: {

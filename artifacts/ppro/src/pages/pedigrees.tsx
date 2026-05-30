@@ -196,7 +196,7 @@ export default function Pedigrees() {
                         <SelectItem value="none">No patient</SelectItem>
                         {patients?.map((p) => (
                           <SelectItem key={p.id} value={String(p.id)}>
-                            {p.last_name}, {p.first_name} ({p.mrn})
+                            {p.last_name}, {p.first_name}
                           </SelectItem>
                         ))}
                       </SelectContent>

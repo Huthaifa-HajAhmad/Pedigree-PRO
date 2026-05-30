@@ -12,6 +12,9 @@ use rusqlite::params;
 use serde::{Deserialize, Serialize};
 use std::sync::Mutex;
 
+use crate::AppState;
+use tauri::State;
+
 // =============================================================================
 // .ppro Format Type Definitions (ADR-004 §4.3)
 // =============================================================================
@@ -63,8 +66,8 @@ pub struct PproProvenance {
 ///
 /// Serializes the pedigree record, its version history, clinical annotations,
 /// and phenotypes into a structured JSON document with cryptographic provenance.
-#[tauri::command]
-pub fn export_pedigree_ppro(
+/// Core export logic (not a Tauri command — callable from other Rust code).
+pub fn export_pedigree_ppro_inner(
     db: &Mutex<rusqlite::Connection>,
     pedigree_id: i64,
     exporter_key: &str,
@@ -217,51 +220,12 @@ pub fn export_pedigree_ppro(
         .map_err(|e| format!("Failed to serialize export: {}", e))
 }
 
-// =============================================================================
-// Profile Export (for device migration)
-// =============================================================================
-
-/// Exports a profile for device migration.
-///
-/// Returns a JSON object containing the profile's public key
-/// and display metadata. The private key must be retrieved from the OS keychain
-/// by the frontend and bundled by the caller.
-pub fn export_profile_data(
-    db: &Mutex<rusqlite::Connection>,
-    profile_id: &str,
+/// Tauri command wrapper for export_pedigree_ppro.
+#[tauri::command]
+pub fn export_pedigree_ppro(
+    state: State<AppState>,
+    pedigree_id: i64,
+    exporter_key: String,
 ) -> Result<String, String> {
-    let conn = db.lock().map_err(|e| e.to_string())?;
-
-    let profile: (String, String, String, String, String) = conn
-        .query_row(
-            "SELECT display_name, role_label, public_key, created_at, last_used_at
-             FROM local_profiles WHERE id = ?1",
-            params![profile_id],
-            |row| {
-                Ok((
-                    row.get(0)?,
-                    row.get(1)?,
-                    row.get(2)?,
-                    row.get(3)?,
-                    row.get(4)?,
-                ))
-            },
-        )
-        .map_err(|e| format!("Profile not found: {}", e))?;
-
-    let export = serde_json::json!({
-        "format_version": "1.0",
-        "export_type": "profile",
-        "profile": {
-            "id": profile_id,
-            "display_name": profile.0,
-            "role_label": profile.1,
-            "public_key": profile.2,
-            "created_at": profile.3,
-            "last_used_at": profile.4,
-        },
-    });
-
-    serde_json::to_string_pretty(&export)
-        .map_err(|e| format!("Failed to serialize profile export: {}", e))
+    export_pedigree_ppro_inner(&state.db, pedigree_id, &exporter_key)
 }

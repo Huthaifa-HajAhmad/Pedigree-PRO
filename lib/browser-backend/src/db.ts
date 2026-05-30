@@ -271,7 +271,6 @@ async function runMigrations(): Promise<void> {
 const MIGRATION_001 = `
 CREATE TABLE IF NOT EXISTS patients (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
-  mrn TEXT NOT NULL UNIQUE,
   first_name TEXT NOT NULL,
   last_name TEXT NOT NULL,
   date_of_birth TEXT,
@@ -320,7 +319,7 @@ CREATE TABLE IF NOT EXISTS activity_log (
 
 CREATE TABLE IF NOT EXISTS app_preferences (
   device_id TEXT PRIMARY KEY,
-  theme TEXT NOT NULL DEFAULT 'terminal',
+  theme TEXT NOT NULL DEFAULT 'clinical',
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
@@ -333,7 +332,6 @@ CREATE TABLE IF NOT EXISTS local_profiles (
   last_used_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
-CREATE INDEX IF NOT EXISTS idx_patients_mrn ON patients(mrn);
 CREATE INDEX IF NOT EXISTS idx_patients_name ON patients(last_name, first_name);
 CREATE INDEX IF NOT EXISTS idx_pedigrees_patient_id ON pedigrees(patient_id);
 CREATE INDEX IF NOT EXISTS idx_pedigrees_creator_key ON pedigrees(creator_key);

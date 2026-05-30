@@ -15,6 +15,13 @@ interface ErrorDialogProps {
 
 export function ErrorDialog({ open, onOpenChange, title = "Error Occurred", message, error, details }: ErrorDialogProps) {
   const [copied, setCopied] = useState(false);
+  const [showDetails, setShowDetails] = useState(false);
+
+  const shortMessage = error?.message
+    ? error.message.length > 200
+      ? error.message.substring(0, 200) + "…"
+      : error.message
+    : null;
 
   const errorLog = [
     `Title: ${title}`,
@@ -63,14 +70,23 @@ export function ErrorDialog({ open, onOpenChange, title = "Error Occurred", mess
           {error && (
             <div className="bg-muted/50 border border-border rounded p-3">
               <p className="text-xs font-mono text-destructive break-all">
-                {error.message}
+                {showDetails ? error.message : shortMessage}
               </p>
+              {error.message && error.message.length > 200 && (
+                <button
+                  type="button"
+                  onClick={() => setShowDetails(!showDetails)}
+                  className="text-xs text-primary underline mt-1"
+                >
+                  {showDetails ? "Show less" : "Show full message"}
+                </button>
+              )}
             </div>
           )}
 
           {details && (
             <div className="bg-muted/50 border border-border rounded p-3">
-              <pre className="text-xs font-mono text-muted-foreground whitespace-pre-wrap break-all max-h-48 overflow-y-auto">
+              <pre className="text-xs font-mono text-muted-foreground whitespace-pre-wrap break-all max-h-32 overflow-y-auto">
                 {details}
               </pre>
             </div>

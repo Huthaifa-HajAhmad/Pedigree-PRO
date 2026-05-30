@@ -69,7 +69,6 @@ export function deleteProfile(profileId: string): Promise<void> {
 
 export interface Patient {
   id: number;
-  mrn: string;
   first_name: string;
   last_name: string;
   date_of_birth: string | null;
@@ -82,7 +81,6 @@ export interface Patient {
 }
 
 export interface CreatePatientInput {
-  mrn: string;
   first_name: string;
   last_name: string;
   date_of_birth?: string | null;
