@@ -109,7 +109,6 @@ export interface RibbonToolbarProps {
   handleExportPPTX: () => void;
   handleExportPNG: () => void;
   handleExportSVG: () => void;
-  handleExportJSON: () => void;
   handleExportPPRO: () => void;
   pedigreeTitle: string;
   onDeletePedigree: () => void;
@@ -239,7 +238,6 @@ export function RibbonToolbar(props: RibbonToolbarProps) {
           handleExportPPTX={props.handleExportPPTX}
           handleExportPNG={props.handleExportPNG}
           handleExportSVG={props.handleExportSVG}
-          handleExportJSON={props.handleExportJSON}
           handleExportPPRO={props.handleExportPPRO} labelHidden={hideLabels || compactSecondaries} />
 
         <div className="w-px self-stretch bg-border mx-1 flex-shrink-0" />

@@ -3,7 +3,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useGetSharedPedigree, useImportShared } from "@workspace/api-client-react";
 import { ReadOnlyCanvas } from "@/features/pedigree-editor/canvas/ReadOnlyCanvas";
 import type { CanvasData } from "@/features/pedigree-editor/canvas/types";
-import { ShieldAlert, KeyRound, Loader2 } from "lucide-react";
+import { ShieldAlert, KeyRound, Loader2, RefreshCw } from "lucide-react";
 
 function parseCanvas(raw: string | null | undefined): CanvasData {
   if (!raw) return { nodes: [], edges: [], annotations: [] };
@@ -32,10 +32,15 @@ export default function PedigreeShare() {
   const accessMode = useAccessMode();
   const importMutation = useImportShared();
   const [importAttempted, setImportAttempted] = useState(false);
+  const [retryKey, setRetryKey] = useState(0);
 
-  const { data: pedigree, isLoading, isError } = useGetSharedPedigree(token ?? "");
+  const { data: pedigree, isLoading, isError, refetch } = useGetSharedPedigree(token ?? "");
 
-  // Callback: triggers import-then-redirect (used by both "Open in Editor" button and edit auto-redirect)
+  const handleRetry = useCallback(() => {
+    setRetryKey((k) => k + 1);
+    refetch();
+  }, [refetch]);
+
   const importAndEdit = useCallback(() => {
     if (importAttempted || importMutation.isPending) return false;
     setImportAttempted(true);
@@ -45,14 +50,13 @@ export default function PedigreeShare() {
         if (id) navigate(`/pedigrees/${id}`);
       },
       onError: (err) => {
-        setImportAttempted(false); // allow retry
+        setImportAttempted(false);
         console.error("[PedigreeShare] Failed to import:", err);
       },
     });
     return true;
   }, [token, navigate, importMutation, importAttempted]);
 
-  // Auto-redirect to editor when access=edit and data is available
   useEffect(() => {
     if (
       accessMode === "edit" &&
@@ -77,7 +81,6 @@ export default function PedigreeShare() {
     );
   }
 
-  // Specific error states (not generic 404)
   if (isError || !pedigree || pedigree.decryptError) {
     const errorMessage = pedigree?.decryptError
       ?? (isError ? "An unexpected error occurred while loading this share link." : "No data received.");
@@ -85,7 +88,7 @@ export default function PedigreeShare() {
     const isEncrypted = pedigree?.encrypted ?? false;
 
     return (
-      <div className="flex flex-col items-center justify-center h-dvh gap-4 bg-background px-6">
+      <div className="flex flex-col items-center justify-center h-dvh gap-4 bg-background px-6" key={retryKey}>
         {isEncrypted ? (
           <>
             <KeyRound className="w-12 h-12 text-primary/50" />
@@ -106,11 +109,21 @@ export default function PedigreeShare() {
             </p>
           </div>
         )}
-        <Link href="/">
-          <button type="button" className="mt-4 px-4 py-2 rounded border border-border text-xs text-muted-foreground hover:border-primary hover:text-primary transition-colors font-mono">
-            ← Back to Pedigree PRO
+        <div className="flex items-center gap-3 mt-2">
+          <button
+            type="button"
+            onClick={handleRetry}
+            className="flex items-center gap-1.5 px-4 py-2 rounded border border-border text-xs text-muted-foreground hover:border-primary hover:text-primary transition-colors font-mono"
+          >
+            <RefreshCw className="w-3 h-3" />
+            Retry
           </button>
-        </Link>
+          <Link href="/">
+            <button type="button" className="px-4 py-2 rounded border border-border text-xs text-muted-foreground hover:border-primary hover:text-primary transition-colors font-mono">
+              ← Back to Pedigree PRO
+            </button>
+          </Link>
+        </div>
       </div>
     );
   }

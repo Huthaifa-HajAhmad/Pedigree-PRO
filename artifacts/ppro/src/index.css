@@ -108,12 +108,47 @@
 @import "./themes/amber.css";
 @import "./themes/rose.css";
 @import "./themes/arctic.css";
+@import "./themes/daylight.css";
+@import "./themes/warm.css";
 @import "./styles/elevate.css";
 @import "./styles/components.css";
 
 @layer base {
   * {
     @apply border-border;
+  }
+
+  html {
+    background-color: hsl(0 0% 98%);
+  }
+
+  html[data-theme="terminal"],
+  html[data-theme="obsidian"] {
+    background-color: hsl(222 28% 6.5%);
+  }
+
+  html[data-theme="midnight"] {
+    background-color: hsl(215 66% 7%);
+  }
+
+  html[data-theme="amber"] {
+    background-color: hsl(40 17% 5%);
+  }
+
+  html[data-theme="rose"] {
+    background-color: hsl(328 20% 5%);
+  }
+
+  html[data-theme="arctic"] {
+    background-color: hsl(200 33% 97%);
+  }
+
+  html[data-theme="daylight"] {
+    background-color: hsl(210 20% 97%);
+  }
+
+  html[data-theme="warm"] {
+    background-color: hsl(30 25% 97%);
   }
 
   body {

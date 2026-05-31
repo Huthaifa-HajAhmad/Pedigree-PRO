@@ -8,6 +8,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { DatePicker } from "@/components/ui/date-picker";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/shared/PageHeader";
@@ -17,6 +18,7 @@ import { FormLayout } from "@/components/shared/FormLayout";
 import { TableSkeleton } from "@/components/shared/Skeleton";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { ErrorDialog } from "@/components/shared/ErrorDialog";
+import { calculateAgeFromDob } from "@/lib/utils";
 
 const createPatientSchema = z.object({
   firstName: z.string().min(1, "First name required"),
@@ -205,7 +207,7 @@ export default function Patients() {
               <FormField control={form.control} name="dateOfBirth" render={({ field }) => (
                 <FormItem>
                   <FormLabel className="text-xs text-muted-foreground uppercase tracking-wider">Date of Birth</FormLabel>
-                  <FormControl><Input {...field} type="date" data-testid="input-dob" className="bg-muted border-border text-sm" /></FormControl>
+                  <FormControl><DatePicker value={field.value ?? ""} onChange={field.onChange} maxDate={new Date()} placeholder="Select date..." data-testid="input-dob" aria-label="Date of birth" className="bg-muted border-border text-sm" /></FormControl>
                 </FormItem>
               )} />
               <FormField control={form.control} name="sex" render={({ field }) => (
@@ -246,8 +248,8 @@ export default function Patients() {
       <div className="border border-border rounded overflow-hidden bg-card">
         <div className="grid grid-cols-2 md:grid-cols-5 gap-4 px-4 py-3 border-b border-border text-xs text-muted-foreground uppercase tracking-widest">
           <button type="button" onClick={() => toggleSort("name")} className="col-span-2 flex items-center gap-1 hover:text-foreground transition-colors">Name<SortIcon field="name" /></button>
-          <button type="button" onClick={() => toggleSort("sex")} className="flex items-center gap-1 hover:text-foreground transition-colors">Sex<SortIcon field="sex" /></button>
-          <div>Details</div>
+          <div>Sex / Age</div>
+          <div>Ancestry</div>
           <div>Actions</div>
         </div>
         <div className="divide-y divide-border">
@@ -259,8 +261,15 @@ export default function Patients() {
               sortedPatients.map((p) => (
               <div key={p.id} data-testid={`row-patient-${p.id}`} className="grid grid-cols-2 md:grid-cols-5 gap-4 px-4 py-3 text-sm hover:bg-accent transition-colors items-center">
                 <div className="col-span-2 font-medium">{p.last_name}, {p.first_name}</div>
-                <div className="text-muted-foreground text-xs">{sexBadge(p.sex, true)}</div>
-                <div className="text-muted-foreground text-xs">{p.date_of_birth ?? "—"}</div>
+                <div className="text-muted-foreground text-xs flex items-center gap-1.5">
+                  {sexBadge(p.sex, true)}
+                  <span className="text-muted-foreground/60" title={p.date_of_birth ?? undefined}>
+                    {(() => { const a = calculateAgeFromDob(p.date_of_birth); return a ? `${a}y` : "—"; })()}
+                  </span>
+                </div>
+                <div className="text-muted-foreground text-xs truncate" title={p.ethnicity ?? undefined}>
+                  {p.ethnicity || "—"}
+                </div>
                 <div className="flex items-center gap-1.5 flex-wrap">
                   <button
                     type="button"
@@ -334,7 +343,7 @@ export default function Patients() {
           <FormField control={editForm.control} name="dateOfBirth" render={({ field }) => (
             <FormItem>
               <FormLabel className="text-xs text-muted-foreground uppercase tracking-wider">Date of Birth</FormLabel>
-              <FormControl><Input {...field} type="date" className="bg-muted border-border text-sm" /></FormControl>
+              <FormControl><DatePicker value={field.value ?? ""} onChange={field.onChange} maxDate={new Date()} placeholder="Select date..." className="bg-muted border-border text-sm" /></FormControl>
             </FormItem>
           )} />
           <FormField control={editForm.control} name="sex" render={({ field }) => (

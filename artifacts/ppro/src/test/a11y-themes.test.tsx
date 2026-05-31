@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { Dna } from "lucide-react";
 
-const themes = ["obsidian", "clinical", "midnight", "amber", "rose", "arctic"] as const;
+const themes = ["obsidian", "clinical", "midnight", "amber", "rose", "arctic", "daylight", "warm"] as const;
 
 function ThemeWrapper({ theme, children }: { theme: string; children: React.ReactNode }) {
   return <div data-theme={theme === "obsidian" ? undefined : theme}>{children}</div>;

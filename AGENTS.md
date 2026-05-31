@@ -91,6 +91,20 @@ pnpm --filter @workspace/ppro run test
 - **Do not add `/api` proxies to Vite config.** The project is serverless.
 - Keep `lib/db/src/index.ts` top-level await pattern for conditional Postgres/SQLite loading, but verify bundler compatibility before changing.
 
+### Dual-Build Parity Rule (HARD)
+
+Every feature, bug fix, or code change in `artifacts/ppro/src/` or `lib/` MUST be implemented and verified for **both Browser standalone mode** and **Tauri desktop mode**. Agents must never assume `window.__TAURI__` presence or absence.
+
+- **If a feature relies on a browser-only API** (e.g., WebRTC, `CompressionStream`, DOM `getBBox`, `<a target="_blank">`), it MUST have a Tauri-compatible fallback (e.g., Rust command, `@tauri-apps/plugin-shell`, native dialog, inline modal rendering).
+- **If a feature relies on a Tauri-only API** (e.g., filesystem, OS keychain, `tauri::api::dialog`), it MUST have a browser-compatible fallback (e.g., IndexedDB, Web Crypto, `<input type="file">`).
+- **When modifying `lib/api-client-react/src/adapter.ts` or adding a new `apiCall()` command:** you MUST update BOTH backends:
+  - Browser: `lib/browser-backend/src/commands.ts`
+  - Tauri: `artifacts/ppro/src-tauri/src/commands.rs`
+  - AND add the command name to `BrowserCommandName` / `CommandMap` in `adapter.ts`.
+- **When modifying export, share, or any file-I/O logic:** you MUST handle both the browser Blob/download path AND the Tauri native file-save path (via `tauri-apps/plugin-fs` or `tauri-apps/plugin-dialog`).
+- **Never add a command to one backend without adding it (or a meaningful fallback/error) to the other.**
+- **Test assumption:** if you cannot test Tauri locally, you MUST at minimum audit the Rust command surface in `commands.rs` for the equivalent command and document the fallback in a code comment.
+
 ## Development Server
 
 ```bash

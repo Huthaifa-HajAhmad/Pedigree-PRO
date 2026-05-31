@@ -2,7 +2,8 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import {
   LifeBuoy, Keyboard, Lightbulb, Grid3x3,
   Stethoscope, Clock,
-  AlertCircle, Wand2, HelpCircle, Shield
+  AlertCircle, Wand2, HelpCircle, Shield,
+  Share2, Wifi, GitMerge, FileDown
 } from "lucide-react";
 
 interface HelpGroupProps {
@@ -25,12 +26,13 @@ function useDropdownPosition(ref: React.RefObject<HTMLButtonElement | null>) {
   return { pos, measure };
 }
 
-type TabId = "features" | "shortcuts" | "tips";
+type TabId = "features" | "shortcuts" | "tips" | "collaborate";
 
 const TABS: { id: TabId; label: string; icon: React.ElementType }[] = [
   { id: "features", label: "Features", icon: Grid3x3 },
   { id: "shortcuts", label: "Shortcuts", icon: Keyboard },
   { id: "tips", label: "Tips", icon: Lightbulb },
+  { id: "collaborate", label: "Collaborate", icon: Share2 },
 ];
 
 const FEATURE_HIGHLIGHTS = [
@@ -73,6 +75,60 @@ const TIPS = [
   { title: "Snap & auto-layout", body: "Enable Snap mode to keep generations aligned. Use Ctrl+L to tidy complex pedigrees instantly." },
   { title: "Share securely", body: "Paste a colleague's Ed25519 public key to encrypt the share link. No key = open link (not HIPAA-safe)." },
   { title: "Annotations", body: "Double-click any annotation to edit text. Drag to reposition. They snap to canonical spots near nodes." },
+];
+
+const COLLABORATE_SECTIONS = [
+  {
+    icon: Share2,
+    title: "Share Link",
+    items: [
+      "Generate a shareable link — choose view-only or editable.",
+      "Paste a recipient's Ed25519 public key for end-to-end encryption.",
+      "Links expire after 7 days. Use LAN Share for direct transfer.",
+    ],
+  },
+  {
+    icon: Wifi,
+    title: "LAN Share",
+    items: [
+      "Direct peer-to-peer transfer over local network. No internet required.",
+      "Host creates a session, copies the offer code, sends it to the guest.",
+      "Guest pastes the offer, copies the answer code, sends it back to host.",
+      "Optional E2E encryption with recipient's public key.",
+      "HIPAA note: unencrypted transfers send plaintext over LAN.",
+    ],
+  },
+  {
+    icon: Clock,
+    title: "Version Timeline",
+    items: [
+      "Browse saved versions with thumbnail previews.",
+      "Click to preview, double-click to restore.",
+      "Auto-play cycles through versions every 2 seconds.",
+      "Shows saver identity via Ed25519 public key.",
+    ],
+  },
+  {
+    icon: GitMerge,
+    title: "Import & Merge",
+    items: [
+      "When importing a shared pedigree, review differences before applying.",
+      "Merge — apply incoming changes into your current version.",
+      "Branch — create an independent copy.",
+      "Reject — discard the import entirely.",
+      "Visual diff highlights added (green), removed (red), and modified (yellow) nodes.",
+    ],
+  },
+  {
+    icon: FileDown,
+    title: "Export Formats",
+    items: [
+      "PRO (.ppro) — complete archive with version history, clinical annotations, and provenance signatures. Recommended for backup and transfer.",
+      "Clinical Report — PDF with risk analysis and validation findings.",
+      "Diagram — PDF, SVG, or PNG for publication.",
+      "PowerPoint — editable slide deck.",
+    ],
+  },
 ];
 
 export function HelpGroup({ labelHidden = false }: HelpGroupProps) {
@@ -205,6 +261,32 @@ export function HelpGroup({ labelHidden = false }: HelpGroupProps) {
                         </div>
                       </div>
                     ))}
+                  </div>
+                )}
+
+                {tab === "collaborate" && (
+                  <div className="space-y-3">
+                    <p className="text-[10px] text-muted-foreground/70 uppercase tracking-wider">Sharing & collaboration</p>
+                    {COLLABORATE_SECTIONS.map((section) => {
+                      const SectionIcon = section.icon;
+                      return (
+                        <div key={section.title} className="flex gap-3 p-2.5 rounded-lg bg-muted/30 border border-border/40">
+                          <div className="w-7 h-7 rounded-md bg-primary/10 flex items-center justify-center flex-shrink-0">
+                            <SectionIcon className="w-3.5 h-3.5 text-primary" />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="text-xs font-semibold text-foreground mb-1">{section.title}</p>
+                            <ul className="space-y-0.5">
+                              {section.items.map((item, i) => (
+                                <li key={i} className="text-[11px] text-muted-foreground leading-relaxed">
+                                  {item}
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
               </div>

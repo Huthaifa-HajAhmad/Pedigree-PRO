@@ -1,5 +1,6 @@
-import { ShieldCheck, Server, Radio, Lock, Database, Fingerprint, Wifi, Hash, Code, Heart, Globe, GitBranch } from "lucide-react";
+import { ShieldCheck, Server, Radio, Lock, Database, Fingerprint, Wifi, Hash, Code, Heart, Globe, GitBranch, CloudOff } from "lucide-react";
 import { PanelSection } from "@/components/shared/panels/PanelSection";
+import { getAppVersion } from "@/lib/version";
 
 export default function AboutPage() {
   return (
@@ -12,7 +13,7 @@ export default function AboutPage() {
             </div>
             <div>
               <h1 className="text-lg font-semibold">Pedigree PRO</h1>
-              <p className="text-sm text-muted-foreground">Zero-server clinical pedigree editor</p>
+              <p className="text-sm text-muted-foreground">Local-first clinical pedigree editor</p>
             </div>
           </div>
 
@@ -21,9 +22,9 @@ export default function AboutPage() {
               <div className="flex items-start gap-3 p-3 rounded-lg border border-border bg-card">
                 <Server className="w-4 h-4 text-primary flex-shrink-0 mt-0.5" />
                 <div>
-                  <div className="text-sm font-medium">Zero-server architecture</div>
+                  <div className="text-sm font-medium">Local-first architecture</div>
                   <p className="text-xs text-muted-foreground mt-0.5">
-                    No cloud servers, no data leaves your device. All data stays in local SQLite (desktop) or browser IndexedDB.
+                    All data stays on your device in local SQLite (desktop) or browser IndexedDB. An optional zero-knowledge relay enables encrypted link sharing — it never sees plaintext data.
                   </p>
                 </div>
               </div>
@@ -56,6 +57,15 @@ export default function AboutPage() {
                   <div className="text-sm font-medium">WebRTC peer-to-peer</div>
                   <p className="text-xs text-muted-foreground mt-0.5">
                     Share pedigrees directly over your local network. No signaling server, no data leaves the LAN.
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-start gap-3 p-3 rounded-lg border border-border bg-card">
+                <CloudOff className="w-4 h-4 text-primary flex-shrink-0 mt-0.5" />
+                <div>
+                  <div className="text-sm font-medium">Zero-knowledge relay</div>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Optional encrypted link sharing via a relay that stores only encrypted blobs for 7 days. The relay never accesses plaintext. LAN sharing bypasses the relay entirely.
                   </p>
                 </div>
               </div>
@@ -94,7 +104,7 @@ export default function AboutPage() {
 
           <div className="flex items-center gap-1.5 text-xs text-muted-foreground/60">
             <Heart className="w-3 h-3" />
-            <span>Pedigree PRO v1.0.0-1 · Built for clinical genetics</span>
+            <span>Pedigree PRO {getAppVersion()} · Built for clinical genetics</span>
           </div>
         </div>
       </div>

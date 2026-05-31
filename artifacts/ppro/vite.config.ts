@@ -4,6 +4,7 @@ import tailwindcss from "@tailwindcss/vite";
 import { visualizer } from "rollup-plugin-visualizer";
 import path from "path";
 import fs from "fs";
+import pkg from "./package.json";
 
 const rawPort = process.env.PORT ?? "4173";
 const port = Number(rawPort);
@@ -45,8 +46,31 @@ function sqljsWasmPlugin() {
   };
 }
 
+const STATIC_EXT_RE = /\.(js|css|png|jpg|jpeg|gif|svg|ico|woff|woff2|ttf|eot|wasm|map|html|json|txt)$/i;
+
+function spaFallbackPlugin() {
+  const rewrite = (req: any, res: any, next: any) => {
+    if (req.method === "GET" && req.url && !STATIC_EXT_RE.test(req.url) && !req.url.startsWith("/@")) {
+      req.url = "/index.html";
+    }
+    next();
+  };
+  return {
+    name: "spa-fallback",
+    // NOTE: configureServer intentionally omitted. Vite's dev server already
+    // handles SPA fallback natively for unmatched routes. Adding our own
+    // rewrite causes vite:import-analysis to try parsing index.html as JS.
+    configurePreviewServer(server: any) {
+      server.middlewares.use(rewrite);
+    },
+  };
+}
+
 export default defineConfig({
   base: basePath,
+  define: {
+    __APP_VERSION__: JSON.stringify(`v${pkg.version}`),
+  },
   plugins: [
     react(),
     tailwindcss(),
@@ -56,6 +80,7 @@ export default defineConfig({
       gzipSize: true,
     }),
     sqljsWasmPlugin(),
+    spaFallbackPlugin(),
   ],
   resolve: {
     alias: {

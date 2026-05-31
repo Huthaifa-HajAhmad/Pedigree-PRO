@@ -30,7 +30,9 @@
     "@tailwindcss/vite": "catalog:",
     "@tanstack/react-query": "catalog:",
     "@tanstack/react-virtual": "^3.13.24",
+    "@tauri-apps/api": "^2",
     "@tauri-apps/cli": "^2.11.2",
+    "@tauri-apps/plugin-shell": "^2.2.1",
     "@testing-library/react": "^16.3.2",
     "@types/node": "catalog:",
     "@types/react": "catalog:",
@@ -55,9 +57,14 @@
     "zod": "catalog:"
   },
   "dependencies": {
+    "@radix-ui/react-popover": "^1.1.15",
+    "@tauri-apps/plugin-dialog": "^2",
+    "@tauri-apps/plugin-fs": "^2",
     "@workspace/browser-backend": "workspace:*",
+    "date-fns": "^4.4.0",
     "jspdf": "^4.2.1",
     "pptxgenjs": "^4.0.1",
+    "react-day-picker": "^10.0.1",
     "wouter": "^3.3.5"
   }
 }

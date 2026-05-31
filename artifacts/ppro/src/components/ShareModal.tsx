@@ -3,6 +3,10 @@ import { useSharePedigree, useListProfiles } from "@workspace/api-client-react";
 import { Link2, Copy, Check, X, ExternalLink, Share2, Shield, ShieldAlert, Key, AlertTriangle, Eye, Pencil, Mail, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
+function isTauriDesktop(): boolean {
+  return typeof window !== "undefined" && ("__TAURI_INTERNALS__" in window || "__TAURI__" in window);
+}
+
 interface ShareModalProps {
   pedigreeId: number;
   pedigreeTitle: string;
@@ -28,17 +32,22 @@ export function ShareModal({ pedigreeId, pedigreeTitle, onClose }: ShareModalPro
 
   const isEncrypted = !!recipientKey.trim();
 
+  const PUBLIC_APP_URL = "https://pedigreepro.app";
+
   const handleGenerate = () => {
     const key = recipientKey.trim();
     shareMutation.mutate(
       { pedigreeId, recipientKey: key },
       {
         onSuccess: (data: { share_token: string; share_url?: string }) => {
-          const base = window.location.origin + import.meta.env.BASE_URL.replace(/\/$/, "");
-          const rawUrl = data.share_url
-            ? data.share_url.replace(window.location.origin, base)
-            : `${base}/share/${data.share_token}`;
-          const shareUrl = accessMode === "edit" ? `${rawUrl}?access=edit` : rawUrl;
+          let shareUrl: string;
+          if (isTauriDesktop()) {
+            shareUrl = `${PUBLIC_APP_URL}/share/${data.share_token}`;
+          } else {
+            const base = window.location.origin + import.meta.env.BASE_URL.replace(/\/$/, "");
+            shareUrl = `${base}/share/${data.share_token}`;
+          }
+          if (accessMode === "edit") shareUrl += (shareUrl.includes("?") ? "&" : "?") + "access=edit";
           setShareData({ token: data.share_token, shareUrl });
         },
       }
@@ -57,6 +66,20 @@ export function ShareModal({ pedigreeId, pedigreeTitle, onClose }: ShareModalPro
     const subject = encodeURIComponent(`${senderName} shared a pedigree with you — Pedigree PRO`);
     const body = encodeURIComponent(`View the shared pedigree:\n\n${shareData.shareUrl}\n\n— Sent via Pedigree PRO`);
     window.location.href = `mailto:?subject=${subject}&body=${body}`;
+  };
+
+  const handlePreview = async () => {
+    if (!shareData) return;
+    try {
+      if (isTauriDesktop()) {
+        const { open } = await import("@tauri-apps/plugin-shell");
+        await open(shareData.shareUrl);
+      } else {
+        window.open(shareData.shareUrl, "_blank", "noopener,noreferrer");
+      }
+    } catch {
+      window.open(shareData.shareUrl, "_blank", "noopener,noreferrer");
+    }
   };
 
   const securityLabel = (() => {
@@ -196,14 +219,8 @@ export function ShareModal({ pedigreeId, pedigreeTitle, onClose }: ShareModalPro
                   <Mail className="w-3.5 h-3.5" />
                   Email
                 </Button>
-                <Button variant="outline" size="sm" asChild className="flex-1 no-underline">
-                  <a
-                    href={shareData.shareUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    <ExternalLink className="w-3.5 h-3.5" /> Preview
-                  </a>
+                <Button variant="outline" size="sm" onClick={handlePreview} className="flex-1">
+                  <ExternalLink className="w-3.5 h-3.5" /> Preview
                 </Button>
                 <Button variant="outline" size="sm" onClick={() => { setShareData(null); setRecipientKey(""); }} title="New link" aria-label="Generate new share link">
                   ↺ New

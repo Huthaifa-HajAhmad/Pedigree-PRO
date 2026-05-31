@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useRef, useState, createElement } from "react";
 import { getPreferences, savePreferences as savePreferencesApi } from "@workspace/api-client-react";
 
-export type ThemeId = "terminal" | "clinical" | "midnight" | "amber" | "rose" | "arctic";
+export type ThemeId = "terminal" | "clinical" | "midnight" | "amber" | "rose" | "arctic" | "daylight" | "warm";
 
 export interface Theme {
   id: ThemeId;
@@ -14,31 +14,48 @@ export interface Theme {
 }
 
 export const THEMES: Theme[] = [
-  { id: "clinical", name: "Clinical White", desc: "Clean medical light",  isDark: false, accent: "#2563EB", bg: "#FAFAFA", fg: "#0F172A" },
-  { id: "terminal", name: "Obsidian",       desc: "Modern indigo dark",   isDark: true,  accent: "#6475F7", bg: "#0B0D18", fg: "#EAECF4" },
-  { id: "midnight", name: "Midnight",       desc: "Deep navy & sky-blue", isDark: true,  accent: "#38BDF8", bg: "#060F1E", fg: "#DDE5EF" },
-  { id: "amber",    name: "Amber",          desc: "Warm dark & gold",     isDark: true,  accent: "#FBBF24", bg: "#0E0C09", fg: "#D1CEC9" },
-  { id: "rose",     name: "Rose",           desc: "Dark with rose glow",  isDark: true,  accent: "#FB7185", bg: "#10080C", fg: "#EDD8DD" },
-  { id: "arctic",   name: "Arctic",         desc: "Cool light & teal",    isDark: false, accent: "#0D9488", bg: "#F5F8FA", fg: "#1F2F45" },
+  { id: "clinical", name: "Clinical",     desc: "Clean medical light",     isDark: false, accent: "#2563EB", bg: "#FAFAFA", fg: "#0F172A" },
+  { id: "daylight", name: "Daylight",      desc: "Professional sky-blue",   isDark: false, accent: "#0369A1", bg: "#F8FAFC", fg: "#1E293B" },
+  { id: "arctic",   name: "Arctic",        desc: "Cool teal light",         isDark: false, accent: "#0D9488", bg: "#F0F8FA", fg: "#1A2E3F" },
+  { id: "warm",     name: "Warm Neutral",  desc: "Paper-like warm light",  isDark: false, accent: "#B45309", bg: "#FCF9F4", fg: "#2D1F0E" },
+  { id: "terminal", name: "Obsidian",      desc: "Modern indigo dark",      isDark: true,  accent: "#6475F7", bg: "#0B0D18", fg: "#EAECF4" },
+  { id: "midnight", name: "Midnight",      desc: "Deep navy & cyan",        isDark: true,  accent: "#38BDF8", bg: "#060F1E", fg: "#DDE5EF" },
 ];
+
+const LEGACY_THEME_MAP: Record<string, ThemeId> = {
+  amber: "warm",
+  rose: "daylight",
+};
 
 const THEME_IDS = new Set(THEMES.map((t) => t.id));
 const STORAGE_KEY = "ppro_theme";
 const LEGACY_STORAGE_KEY = "pedigree-pro-theme";
 
-// ── Local helpers ─────────────────────────────────────────────────────────────
+function resolveThemeId(raw: string): ThemeId | null {
+  const mapped = LEGACY_THEME_MAP[raw];
+  if (mapped && THEME_IDS.has(mapped)) return mapped;
+  if (THEME_IDS.has(raw as ThemeId)) return raw as ThemeId;
+  return null;
+}
+
 export function getStoredTheme(): ThemeId {
   try {
     const v = localStorage.getItem(STORAGE_KEY);
-    if (!v) {
-      const legacy = localStorage.getItem(LEGACY_STORAGE_KEY);
-      if (legacy && THEME_IDS.has(legacy as ThemeId)) {
-        localStorage.setItem(STORAGE_KEY, legacy);
-        localStorage.removeItem(LEGACY_STORAGE_KEY);
-        return legacy as ThemeId;
+    if (v) {
+      const resolved = resolveThemeId(v);
+      if (resolved) {
+        if (resolved !== v) localStorage.setItem(STORAGE_KEY, resolved);
+        return resolved;
       }
-    } else if (THEME_IDS.has(v as ThemeId)) {
-      return v as ThemeId;
+    }
+    const legacy = localStorage.getItem(LEGACY_STORAGE_KEY);
+    if (legacy) {
+      const resolved = resolveThemeId(legacy);
+      if (resolved) {
+        localStorage.setItem(STORAGE_KEY, resolved);
+        localStorage.removeItem(LEGACY_STORAGE_KEY);
+        return resolved;
+      }
     }
   } catch {}
   return "clinical";
@@ -63,7 +80,6 @@ export function getDefaultAnnotationColor(): string {
   return t?.isDark ? "#FFFFFF" : "#1F2937";
 }
 
-// ── Context ───────────────────────────────────────────────────────────────────
 export interface ThemeContextValue {
   themeId: ThemeId;
   theme: Theme;
@@ -83,16 +99,17 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [synced, setSynced] = useState(false);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Apply CSS on every theme change
   useEffect(() => {
     applyTheme(themeId);
   }, [themeId]);
 
-  // On mount: fetch saved theme from backend and apply if found
   useEffect(() => {
     getPreferences().then((prefs) => {
-      if (prefs?.theme && THEME_IDS.has(prefs.theme as ThemeId) && prefs.theme !== themeId) {
-        setThemeId(prefs.theme as ThemeId);
+      if (prefs?.theme) {
+        const resolved = resolveThemeId(prefs.theme);
+        if (resolved && resolved !== themeId) {
+          setThemeId(resolved);
+        }
       }
       setSynced(true);
     }).catch(() => {
@@ -104,7 +121,6 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const setTheme = (id: ThemeId) => {
     setThemeId(id);
     applyTheme(id);
-    // Debounce backend save by 600ms to avoid hammering during quick switching
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(() => {
       savePreferencesApi(id).catch(() => { /* silent */ });
