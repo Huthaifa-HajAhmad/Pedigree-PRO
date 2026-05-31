@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { useParams, useLocation } from "wouter";
 import { useGetPedigree } from "@workspace/api-client-react";
-import { exportJSON, exportPPRO, exportPDF, exportPPTX, exportClinicalReport, exportPNG, exportSVG } from "@/lib/export-pedigree";
+import { exportPPRO, exportPDF, exportPPTX, exportClinicalReport, exportPNG, exportSVG } from "@/lib/export-pedigree";
 import { PedigreeEditorProvider, usePedigreeEditor } from "@/features/pedigree-editor/context";
 import { PedigreeCanvasBody } from "@/features/pedigree-editor/PedigreeCanvasBody";
 import type { PedigreeNode, PedigreeEdge, PedigreeAnnotation, CanvasData, DragState } from "@/features/pedigree-editor/canvas/types";
@@ -64,15 +64,14 @@ function PedigreeCanvasInner() {
     setFollowIndex: (i: React.SetStateAction<number>) => ctx.dispatch({ type: "SET_STATE", patch: { followIndex: typeof i === "function" ? i(state.followIndex) : i } }),
   }), [ctx, state.snapEnabled, state.showGrid, state.showMinimap, state.showLayoutMenu, state.liveLayout, state.showAutoLabels, state.showLabelsMenu, state.showTemplates, state.showRiskPanel, state.showValidation, state.showLegend, state.showSaveModal, state.sessionLabel, state.showVersions, state.showShareModal, state.showExportMenu, state.showVersionTimeline, state.showFollowMode, state.showLanShare, state.viewBox, state.linkMode, state.linkSource, state.followIndex]);
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const he = (fn: (info: any, canvas: any) => Promise<void>, fmt: string) => async () => {
+  const he = (fn: () => void | Promise<void>, fmt: string) => async () => {
     ctx.dispatch({ type: "SET_STATE", patch: { showExportMenu: false, exportingFormat: fmt } });
-    try { await fn(getExportInfo(), state.canvas); } finally { ctx.dispatch({ type: "SET_STATE", patch: { exportingFormat: null } }); }
+    try { await fn(); } finally { ctx.dispatch({ type: "SET_STATE", patch: { exportingFormat: null } }); }
   };
 
   const getExportInfo = () => ({
     title: pedigree?.title ?? "Pedigree",
-    patient_id: pedigree?.patient_id ?? null,
+    patientId: pedigree?.patient_id ?? null,
     notes: pedigree?.notes ?? null,
   });
 
@@ -129,18 +128,16 @@ function PedigreeCanvasInner() {
         toggleTwinSelectMode={ops.toggleTwinSelectMode}
         clearTwinCandidates={ops.clearTwinCandidates}
         markAsTwins={ops.markAsTwins}
-        handleExportReport={he(exportClinicalReport, "Report")}
-        handleExportPDF={he(exportPDF, "PDF")}
-        handleExportPPTX={he(exportPPTX, "PPTX")}
-        handleExportPNG={he(exportPNG, "PNG")}
-        handleExportSVG={he(exportSVG, "SVG")}
-        handleExportJSON={() => { exportJSON(getExportInfo(), state.canvas); ctx.dispatch({ type: "SET_STATE", patch: { showExportMenu: false } }); }}
-        handleExportPPRO={() => {
+        handleExportReport={he(() => exportClinicalReport(getExportInfo(), state.canvas), "Report")}
+        handleExportPDF={he(() => exportPDF(getExportInfo(), state.canvas), "PDF")}
+        handleExportPPTX={he(() => exportPPTX(getExportInfo(), state.canvas), "PPTX")}
+        handleExportPNG={he(() => exportPNG(getExportInfo(), state.canvas), "PNG")}
+        handleExportSVG={he(() => exportSVG(getExportInfo(), state.canvas), "SVG")}
+        handleExportPPRO={he(async () => {
           const firstProfile = profiles && profiles.length > 0 ? profiles[0] : null;
           const exporterKey = firstProfile ? firstProfile.public_key : "";
-          exportPPRO(pedigree?.id ?? 0, exporterKey, getExportInfo().title);
-          ctx.dispatch({ type: "SET_STATE", patch: { showExportMenu: false } });
-        }}
+          await exportPPRO(pedigree?.id ?? 0, exporterKey, getExportInfo().title);
+        }, "PPRO")}
         clearSelection={() => ctx.dispatch({ type: "SET_STATE", patch: { selectedIds: new Set(), selectedAnnotationId: null } })}
         pedigreeTitle={pedigree?.title ?? ""}
         onDeletePedigree={() => ops.handleDeletePedigree(pedigree?.id ?? 0, pedigree?.title ?? "")}

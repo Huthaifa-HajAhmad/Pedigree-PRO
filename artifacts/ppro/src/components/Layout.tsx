@@ -3,6 +3,7 @@ import { Link, useLocation } from "wouter";
 import { Activity, LayoutDashboard, Dna, ChevronRight, UserCircle, LogOut, Wifi, WifiOff, Menu, X, Settings, ShieldCheck, Lock, Tag, User, CheckCircle2 } from "lucide-react";
 import { SkipToContent } from "@/components/SkipToContent";
 import { useTheme } from "@/lib/theme";
+import { getAppVersion } from "@/lib/version";
 import { useListProfiles, useSwitchProfile } from "@workspace/api-client-react";
 import { useIsMobile } from "@/hooks/use-mobile";
 
@@ -227,7 +228,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
             </span>
             <span className="inline-flex items-center gap-1.5">
               <Tag className="w-3 h-3 flex-shrink-0 opacity-50" />
-              <span>v2.4</span>
+              <span>{getAppVersion()}</span>
             </span>
           </div>
         </div>

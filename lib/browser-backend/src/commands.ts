@@ -563,7 +563,7 @@ export interface ShareResult {
 }
 
 // URL-safe base64url helpers for share tokens (avoid / and + in URL paths)
-function toBase64url(base64: string): string {
+export function toBase64url(base64: string): string {
   return base64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 
@@ -572,7 +572,7 @@ function toBase64url(base64: string): string {
  * This does NOT decode the base64 — it just restores the standard base64
  * alphabet so base64ToUnicode() can decode it properly.
  */
-function fromBase64urlToBase64(base64url: string): string {
+export function fromBase64urlToBase64(base64url: string): string {
   let base64 = base64url.replace(/-/g, "+").replace(/_/g, "/");
   while (base64.length % 4) base64 += "=";
   return base64;
@@ -582,7 +582,7 @@ function fromBase64urlToBase64(base64url: string): string {
 // Compression Helpers (Browser native CompressionStream API)
 // =============================================================================
 
-async function compressString(str: string): Promise<Uint8Array> {
+export async function compressString(str: string): Promise<Uint8Array> {
   const encoder = new TextEncoder();
   const stream = new CompressionStream("gzip");
   const writer = stream.writable.getWriter();
@@ -605,7 +605,7 @@ async function compressString(str: string): Promise<Uint8Array> {
   return result;
 }
 
-async function decompressBytes(bytes: Uint8Array): Promise<string> {
+export async function decompressBytes(bytes: Uint8Array): Promise<string> {
   const stream = new DecompressionStream("gzip");
   const writer = stream.writable.getWriter();
   writer.write(bytes as unknown as ArrayBufferView<ArrayBuffer>);
@@ -627,7 +627,7 @@ async function decompressBytes(bytes: Uint8Array): Promise<string> {
   return new TextDecoder().decode(result);
 }
 
-function bytesToBase64(bytes: Uint8Array): string {
+export function bytesToBase64(bytes: Uint8Array): string {
   let binary = "";
   const chunkSize = 0x8000;
   for (let i = 0; i < bytes.length; i += chunkSize) {
@@ -636,14 +636,14 @@ function bytesToBase64(bytes: Uint8Array): string {
   return btoa(binary);
 }
 
-function base64ToBytes(base64: string): Uint8Array {
+export function base64ToBytes(base64: string): Uint8Array {
   const binary = atob(base64);
   const bytes = new Uint8Array(binary.length);
   for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
   return bytes;
 }
 
-function isGzipCompressed(data: Uint8Array): boolean {
+export function isGzipCompressed(data: Uint8Array): boolean {
   return data.length >= 2 && data[0] === 0x1f && data[1] === 0x8b;
 }
 
@@ -696,9 +696,12 @@ export async function share_pedigree(args: {
   // Try relay first for short cross-browser links
   try {
     const relayResult = await relay_share({ ciphertext: compressedBase64, encrypted_key: "" });
+    const appBaseUrl = typeof window !== "undefined" && ("__TAURI_INTERNALS__" in window || "__TAURI__" in window)
+      ? "https://pedigreepro.app"
+      : window.location.origin;
     return {
       share_token: relayResult.share_token,
-      share_url: `${window.location.origin}/share/${relayResult.share_token}`,
+      share_url: `${appBaseUrl}/share/${relayResult.share_token}`,
     };
   } catch {
     // Relay offline/unavailable — fall back to self-contained compressed URL
@@ -717,9 +720,15 @@ export async function share_pedigree(args: {
   const { saveDb } = await import("./db");
   await saveDb();
 
+  // Use public app URL in Tauri (window.location.origin is tauri://localhost there),
+  // use window.location.origin in browser for local routing.
+  const shareBaseUrl = typeof window !== "undefined" && ("__TAURI_INTERNALS__" in window || "__TAURI__" in window)
+    ? "https://pedigreepro.app"
+    : window.location.origin;
+
   return {
     share_token: token,
-    share_url: `${window.location.origin}/share/${shortCode}`,
+    share_url: `${shareBaseUrl}/share/${shortCode}#${encodeURIComponent(token)}`,
   };
 }
 
@@ -1294,27 +1303,39 @@ export async function relay_receive(args: { share_token: string }): Promise<{
   }
 
   // Use POST instead of GET to avoid token in URL/logs (M1 fix)
-  const response = await fetch(`${RELAY_BASE_URL}/api/relay/receive`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ share_token: args.share_token }),
-    credentials: "omit",
-  });
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 10_000);
+  try {
+    const response = await fetch(`${RELAY_BASE_URL}/api/relay/receive`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ share_token: args.share_token }),
+      credentials: "omit",
+      signal: controller.signal,
+    });
+    clearTimeout(timeoutId);
 
-  if (!response.ok) {
-    if (response.status === 404) {
-      throw new Error("Share token expired or not found");
+    if (!response.ok) {
+      if (response.status === 404) {
+        throw new Error("Share token expired or not found");
+      }
+      if (response.status === 410) {
+        throw new Error("Share token already consumed");
+      }
+      const errorData = await response.json().catch(() => ({ error: `HTTP ${response.status}` }));
+      // Sanitize error messages in production (M3 fix)
+      const message = response.status >= 500 ? "Server error" : (errorData.error ?? errorData.message ?? response.statusText);
+      throw new Error(`Relay error: ${message}`);
     }
-    if (response.status === 410) {
-      throw new Error("Share token already consumed");
+
+    return response.json() as Promise<{ ciphertext: string; encrypted_key: string }>;
+  } catch (err) {
+    clearTimeout(timeoutId);
+    if (err instanceof Error && err.name === "AbortError") {
+      throw new Error("Relay request timed out — please check your connection and try again");
     }
-    const errorData = await response.json().catch(() => ({ error: `HTTP ${response.status}` }));
-    // Sanitize error messages in production (M3 fix)
-    const message = response.status >= 500 ? "Server error" : (errorData.error ?? errorData.message ?? response.statusText);
-    throw new Error(`Relay error: ${message}`);
+    throw err;
   }
-
-  return response.json() as Promise<{ ciphertext: string; encrypted_key: string }>;
 }
 
 /**

@@ -11,9 +11,11 @@
     <script>
       (function() {
         var theme = "clinical";
+        var legacyMap = { amber: "warm", rose: "daylight" };
         try {
           var v = localStorage.getItem("ppro_theme") || localStorage.getItem("pedigree-pro-theme");
-          if (v && ["terminal","clinical","midnight","amber","rose","arctic"].indexOf(v) !== -1) theme = v;
+          if (v) v = legacyMap[v] || v;
+          if (["terminal","clinical","midnight","arctic","daylight","warm"].indexOf(v) !== -1) theme = v;
         } catch(e) {}
         document.documentElement.setAttribute("data-theme", theme);
       })();

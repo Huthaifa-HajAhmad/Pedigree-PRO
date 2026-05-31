@@ -39,6 +39,7 @@ export {
   delete_version,
   get_dashboard_stats,
   get_recent_activity,
+  clear_activity_log,
   get_preferences,
   save_preferences,
   share_pedigree,
@@ -52,6 +53,16 @@ export {
   rotate_key,
   relay_share,
   relay_receive,
+} from "./commands";
+
+export {
+  compressString,
+  toBase64url,
+  fromBase64urlToBase64,
+  bytesToBase64,
+  base64ToBytes,
+  decompressBytes,
+  isGzipCompressed,
 } from "./commands";
 
 export type {

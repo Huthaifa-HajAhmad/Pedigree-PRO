@@ -117,7 +117,7 @@ export default function Dashboard() {
           </div>
           <h1 className="text-xl font-semibold tracking-tight text-foreground">Clinical Dashboard</h1>
         </div>
-        <p className="text-base text-muted-foreground ml-11">Family pedigree management and analysis</p>
+        <p className="text-base text-muted-foreground ml-11">Design family pedigrees, compute inheritance risks, and collaborate securely</p>
       </div>
 
       {/* Stat cards */}
@@ -125,10 +125,10 @@ export default function Dashboard() {
         <StatsGrid
           isLoading={statsLoading}
           stats={[
-            { label: "Total Patients",  value: stats?.total_patients ?? 0,     icon: Activity,    sub: "All time"       },
-            { label: "Pedigrees",       value: stats?.total_pedigrees ?? 0,    icon: Dna,         sub: "All families"   },
+            { label: "Total Patients",  value: stats?.total_patients ?? 0,     icon: Activity,    sub: "Registered"     },
+            { label: "Pedigrees",       value: stats?.total_pedigrees ?? 0,    icon: Dna,         sub: "Active"         },
             { label: "This Week",       value: stats?.pedigrees_this_week ?? 0, icon: TrendingUp, sub: "New pedigrees"  },
-            { label: "Profiles",        value: stats?.total_profiles ?? 0,     icon: UserCircle,  sub: "Device-local"   },
+            { label: "Profiles",        value: stats?.total_profiles ?? 0,     icon: UserCircle,  sub: "On this device" },
           ]}
         />
       </div>

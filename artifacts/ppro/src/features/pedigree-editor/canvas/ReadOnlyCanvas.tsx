@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { NodeShape } from "./NodeShape";
 import { EdgeLine } from "./EdgeLine";
-import { SibshipGroup } from "./SibshipGroup";
+import { SibshipGroup, computeFamilyChildYOffset } from "./SibshipGroup";
 import type { CanvasData, PedigreeNode } from "./types";
 import { NODE_SIZE } from "./types";
 
@@ -68,12 +68,13 @@ function AnnotationReadOnly({ canvas }: { canvas: CanvasData }) {
   );
 }
 
-function SibshipLayer({ edges, nodes, annotations = [], showAutoLabels = false, autoLabels }: {
+function SibshipLayer({ edges, nodes, annotations = [], showAutoLabels = false, autoLabels, familyOffsets }: {
   edges: CanvasData["edges"];
   nodes: PedigreeNode[];
   annotations?: CanvasData["annotations"];
   showAutoLabels?: boolean;
   autoLabels?: Map<string, string>;
+  familyOffsets?: Map<string, number>;
 }) {
   const groups = useMemo(() => {
     const pcEdges = edges.filter((e) => e.type === "parent-child");
@@ -118,6 +119,8 @@ function SibshipLayer({ edges, nodes, annotations = [], showAutoLabels = false, 
           annotations={annotations}
           showAutoLabels={showAutoLabels}
           autoLabels={autoLabels}
+          parentOffsets={familyOffsets}
+          childOffsets={familyOffsets}
         />
       ))}
     </g>
@@ -132,6 +135,27 @@ export function ReadOnlyCanvas({ canvas, showGrid = false, showAutoLabels = fals
     return ids;
   }, [canvas.edges]);
 
+  const familyOffsets = useMemo(() => {
+    const offsets = new Map<string, number>();
+    const pcEdges = canvas.edges.filter((e) => e.type === "parent-child");
+    const childParents = new Map<string, string[]>();
+    for (const e of pcEdges) {
+      if (!childParents.has(e.targetId)) childParents.set(e.targetId, []);
+      childParents.get(e.targetId)!.push(e.sourceId);
+    }
+    const families = new Map<string, { parentIds: string[]; childIds: string[] }>();
+    for (const [childId, pIds] of childParents) {
+      const key = [...pIds].sort().join("|");
+      if (!families.has(key)) families.set(key, { parentIds: [...pIds].sort(), childIds: [] });
+      families.get(key)!.childIds.push(childId);
+    }
+    for (const [, { parentIds, childIds }] of families) {
+      const familyMap = computeFamilyChildYOffset(parentIds, childIds, canvas.nodes, canvas.annotations, NODE_SIZE, showAutoLabels, autoLabels, offsets);
+      for (const [nid, delta] of familyMap) offsets.set(nid, delta);
+    }
+    return offsets;
+  }, [canvas.nodes, canvas.edges, canvas.annotations, showAutoLabels, autoLabels]);
+
   return (
     <div className={`flex-1 overflow-hidden relative ${showGrid ? "grid-bg" : ""}`}>
       <svg className="w-full h-full" viewBox={`${x} ${y} ${w} ${h}`} preserveAspectRatio="xMidYMid meet">
@@ -141,7 +165,7 @@ export function ReadOnlyCanvas({ canvas, showGrid = false, showAutoLabels = fals
           ))}
         </g>
 
-        <SibshipLayer edges={canvas.edges} nodes={canvas.nodes} annotations={canvas.annotations} showAutoLabels={showAutoLabels} autoLabels={autoLabels} />
+        <SibshipLayer edges={canvas.edges} nodes={canvas.nodes} annotations={canvas.annotations} showAutoLabels={showAutoLabels} autoLabels={autoLabels} familyOffsets={familyOffsets} />
 
         <g>
           {canvas.nodes.map((node) => (

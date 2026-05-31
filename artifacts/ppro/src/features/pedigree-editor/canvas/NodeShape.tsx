@@ -136,11 +136,11 @@ export const NodeShape = memo(function NodeShape({
       )}
       {showHint && hasEdges && (
         <>
-          <rect x={-52} y={-S / 2 - 22} width={104} height={14} rx={3}
-            fill="hsl(var(--popover))" stroke="hsl(var(--border))" strokeWidth={0.5} opacity={0.9}
-            style={{ pointerEvents: "none" }} />
-          <text x={0} y={-S / 2 - 12} textAnchor="middle" fontSize={7.5} fill="hsl(var(--foreground) / 0.7)"
-            style={{ userSelect: "none", fontFamily: "JetBrains Mono, monospace", pointerEvents: "none" }}>
+          <rect x={-66} y={-S / 2 - 32} width={132} height={26} rx={6}
+            fill="hsl(var(--popover))" stroke="hsl(var(--border))" strokeWidth={0.5} opacity={0.98}
+            style={{ pointerEvents: "none", filter: "drop-shadow(0 2px 4px hsl(var(--foreground) / 0.12))" }} />
+          <text x={0} y={-S / 2 - 15} textAnchor="middle" fontSize={10} fill="hsl(var(--foreground) / 0.9)"
+            style={{ userSelect: "none", fontFamily: "Inter, system-ui, sans-serif", pointerEvents: "none", fontWeight: 600, letterSpacing: "0.02em" }}>
             Ctrl+drag → extend line
           </text>
         </>

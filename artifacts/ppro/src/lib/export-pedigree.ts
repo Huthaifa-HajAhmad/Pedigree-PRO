@@ -124,26 +124,38 @@ function inlineComputedStyles(original: SVGSVGElement, clone: SVGSVGElement) {
     const cloneEl = cloneElements[i];
     if (!(origEl instanceof SVGElement) || !(cloneEl instanceof SVGElement)) return;
     const computed = getComputedStyle(origEl);
-    for (const attr of ["fill", "stroke", "stroke-width"]) {
+    for (const attr of ["fill", "stroke", "stroke-width", "stroke-dasharray", "stroke-linecap", "stroke-linejoin", "opacity", "font-size", "font-weight"]) {
       const val = cloneEl.getAttribute(attr);
-      if (val && val.includes("var(")) {
+      if (val && (val.includes("var(") || val.includes("hsl("))) {
         const resolved = computed.getPropertyValue(attr);
-        if (resolved) cloneEl.setAttribute(attr, resolved);
+        if (resolved && resolved !== "none") cloneEl.setAttribute(attr, resolved);
       }
     }
     if (cloneEl.style.length > 0) {
       for (let i = 0; i < cloneEl.style.length; i++) {
         const prop = cloneEl.style.item(i);
-        if (cloneEl.style.getPropertyValue(prop).includes("var(")) {
+        const val = cloneEl.style.getPropertyValue(prop);
+        if (val.includes("var(") || val.includes("hsl(")) {
           cloneEl.style.setProperty(prop, computed.getPropertyValue(prop));
         }
+      }
+    }
+    // Ensure text elements embed a safe font-family for external viewers
+    if (cloneEl.tagName === "text" || cloneEl.tagName === "tspan") {
+      const fontFamily = computed.getPropertyValue("font-family");
+      if (fontFamily) {
+        const ff = fontFamily.toLowerCase();
+        const needsFallback = ff.includes("inter") || ff.includes("manrope") || ff.includes("plus jakarta");
+        cloneEl.setAttribute("font-family", needsFallback ? "sans-serif" : fontFamily);
       }
     }
   });
 }
 
-async function capturePedigreeImage(nodes: ExportNode[]): Promise<string> {
-  const svgEl = document.querySelector('svg[data-canvas-svg="true"]') ?? document.querySelector("svg");
+function prepareSvgForExport(
+  svgEl: SVGSVGElement | null,
+  nodes: ExportNode[]
+): { clone: SVGSVGElement; vb: { x: number; y: number; w: number; h: number } } {
   if (!svgEl) throw new Error("No pedigree canvas SVG found on the page.");
 
   const clone = svgEl.cloneNode(true) as SVGSVGElement;
@@ -151,7 +163,7 @@ async function capturePedigreeImage(nodes: ExportNode[]): Promise<string> {
   // Resolve CSS custom properties (hsl(var(--…))) to concrete values
   // MUST run before any element removal — otherwise index-based matching
   // between original and clone breaks, producing wrong colors.
-  inlineComputedStyles(svgEl as SVGSVGElement, clone);
+  inlineComputedStyles(svgEl, clone);
 
   // Remove interactive/transient elements
   clone.querySelector("rect[lasso]")?.remove();
@@ -213,6 +225,13 @@ async function capturePedigreeImage(nodes: ExportNode[]): Promise<string> {
     }
   });
 
+  return { clone, vb };
+}
+
+async function capturePedigreeImage(nodes: ExportNode[]): Promise<string> {
+  const svgEl = document.querySelector('svg[data-canvas-svg="true"]') ?? document.querySelector("svg");
+  const { clone, vb } = prepareSvgForExport(svgEl as SVGSVGElement, nodes);
+
   const serializer = new XMLSerializer();
   const svgString = serializer.serializeToString(clone);
   const svgBlob = new Blob([svgString], { type: "image/svg+xml" });
@@ -243,7 +262,7 @@ async function capturePedigreeImage(nodes: ExportNode[]): Promise<string> {
 // ---------------------------------------------------------------------------
 // JSON export
 // ---------------------------------------------------------------------------
-export function exportJSON(info: ExportInfo, canvas: ExportCanvas) {
+export async function exportJSON(info: ExportInfo, canvas: ExportCanvas): Promise<void> {
   const payload = {
     format: "pedigree-pro-v1",
     exportedAt: new Date().toISOString(),
@@ -251,13 +270,13 @@ export function exportJSON(info: ExportInfo, canvas: ExportCanvas) {
     canvas,
   };
   const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
-  triggerDownload(blob, `${safeFilename(info.title)}.json`);
+  await triggerDownload(blob, `${safeFilename(info.title)}.json`);
 }
 
 export async function exportPPRO(pedigreeId: number, exporterKey: string, title: string): Promise<void> {
   const pproJson = await exportPedigreePpro(pedigreeId, exporterKey);
   const blob = new Blob([pproJson], { type: "application/json" });
-  triggerDownload(blob, `${safeFilename(title)}.ppro`);
+  await triggerDownload(blob, `${safeFilename(title)}.ppro`);
 }
 
 // ---------------------------------------------------------------------------
@@ -400,7 +419,8 @@ export async function exportPDF(info: ExportInfo, canvas: ExportCanvas) {
 
   doc.addImage(dataUrl, "PNG", offsetX, offsetY, drawW, drawH);
 
-  doc.save(`${safeFilename(info.title)}.pdf`);
+  const pdfBlob = doc.output("blob");
+  await triggerDownload(pdfBlob as Blob, `${safeFilename(info.title)}.pdf`);
 }
 
 // ---------------------------------------------------------------------------
@@ -639,7 +659,8 @@ export async function exportPPTX(info: ExportInfo, canvas: ExportCanvas) {
     s4.addText(info.notes, { x: 0.65, y: 0.88, w: SW-1.3, h: SH-1.4, fontSize: 11, color: "444444", fontFace: "Courier New", wrap: true, valign: "top" });
   }
 
-  await pptx.writeFile({ fileName: `${safeFilename(info.title)}.pptx` });
+  const blob = (await pptx.write({ outputType: "blob" })) as Blob;
+  await triggerDownload(blob, `${safeFilename(info.title)}.pptx`);
 }
 
 // ---------------------------------------------------------------------------
@@ -1036,7 +1057,8 @@ export async function exportClinicalReport(info: ExportInfo, canvas: ExportCanva
   }
 
   pageFooter(pageNum);
-  doc.save(`${safeFilename(info.title)}_clinical_report.pdf`);
+  const crBlob = doc.output("blob");
+  await triggerDownload(crBlob as Blob, `${safeFilename(info.title)}_clinical_report.pdf`);
 }
 
 /**
@@ -1044,71 +1066,68 @@ export async function exportClinicalReport(info: ExportInfo, canvas: ExportCanva
  * Serializes the current SVG DOM element on the pedigree canvas page
  * and downloads it as an .svg file.
  */
-export async function exportSVG(info: ExportInfo, _canvas: ExportCanvas): Promise<void> {
+export async function exportSVG(info: ExportInfo, canvas: ExportCanvas): Promise<void> {
   const svgEl = document.querySelector('svg[data-canvas-svg="true"]') ?? document.querySelector("svg");
-  if (!svgEl) {
+  try {
+    const { clone } = prepareSvgForExport(svgEl as SVGSVGElement, canvas.nodes);
+    const serializer = new XMLSerializer();
+    const svgString = serializer.serializeToString(clone);
+    const blob = new Blob([svgString], { type: "image/svg+xml" });
+    await triggerDownload(blob, `${safeFilename(info.title)}_pedigree.svg`);
+  } catch {
     alert("No pedigree canvas SVG found on the page.");
-    return;
   }
-  const clone = svgEl.cloneNode(true) as SVGSVGElement;
-  // Remove the lasso rectangle from the export
-  clone.querySelector("rect[lasso]")?.remove();
-  const serializer = new XMLSerializer();
-  const svgString = serializer.serializeToString(clone);
-  const blob = new Blob([svgString], { type: "image/svg+xml" });
-  triggerDownload(blob, `${safeFilename(info.title)}_pedigree.svg`);
 }
 
 /**
  * Export pedigree as PNG image.
  * Renders the current SVG DOM element to a canvas and downloads it as a .png file.
  */
-export async function exportPNG(info: ExportInfo, _canvas: ExportCanvas): Promise<void> {
+export async function exportPNG(info: ExportInfo, canvas: ExportCanvas): Promise<void> {
   const svgEl = document.querySelector('svg[data-canvas-svg="true"]') ?? document.querySelector("svg");
-  if (!svgEl) {
+  let svgBlobUrl: string | null = null;
+  try {
+    const { clone, vb } = prepareSvgForExport(svgEl as SVGSVGElement, canvas.nodes);
+    const serializer = new XMLSerializer();
+    const svgString = serializer.serializeToString(clone);
+    const img = new Image();
+    const blob = await new Promise<Blob>((resolve, reject) => {
+      img.onload = () => {
+        const scale = 2;
+        const cvs = document.createElement("canvas");
+        cvs.width = vb.w * scale;
+        cvs.height = vb.h * scale;
+        const ctx = cvs.getContext("2d");
+        if (!ctx) { reject(new Error("Canvas 2D context unavailable")); return; }
+        ctx.fillStyle = "#f8f9fa";
+        ctx.fillRect(0, 0, cvs.width, cvs.height);
+        ctx.drawImage(img, 0, 0, cvs.width, cvs.height);
+        cvs.toBlob((b) => {
+          if (b) resolve(b);
+          else reject(new Error("Canvas toBlob returned null"));
+        }, "image/png");
+      };
+      img.onerror = () => reject(new Error("Failed to render SVG to image"));
+      const svgBlob = new Blob([svgString], { type: "image/svg+xml" });
+      svgBlobUrl = URL.createObjectURL(svgBlob);
+      img.src = svgBlobUrl;
+    });
+    await triggerDownload(blob, `${safeFilename(info.title)}_pedigree.png`);
+  } catch {
     alert("No pedigree canvas SVG found on the page.");
-    return;
+  } finally {
+    if (svgBlobUrl) URL.revokeObjectURL(svgBlobUrl);
   }
-  const clone = svgEl.cloneNode(true) as SVGSVGElement;
-  clone.querySelector("rect[lasso]")?.remove();
-  const serializer = new XMLSerializer();
-  const svgString = serializer.serializeToString(clone);
-  const img = new Image();
-  const blob = await new Promise<Blob>((resolve, reject) => {
-    img.onload = () => {
-      // Scale 2x for retina-quality export
-      const w = clone.viewBox.baseVal.width || 1400;
-      const h = clone.viewBox.baseVal.height || 900;
-      const scale = 2;
-      const canvas = document.createElement("canvas");
-      canvas.width = w * scale;
-      canvas.height = h * scale;
-      const ctx = canvas.getContext("2d");
-      if (!ctx) { reject(new Error("Canvas 2D context unavailable")); return; }
-      ctx.fillStyle = "#f8f9fa";
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-      canvas.toBlob((b) => {
-        if (b) resolve(b);
-        else reject(new Error("Canvas toBlob returned null"));
-      }, "image/png");
-    };
-    img.onerror = () => reject(new Error("Failed to render SVG to image"));
-    const svgBlob = new Blob([svgString], { type: "image/svg+xml" });
-    img.src = URL.createObjectURL(svgBlob);
-  });
-  triggerDownload(blob, `${safeFilename(info.title)}_pedigree.png`);
-  URL.revokeObjectURL(img.src);
 }
 
 function safeFilename(title: string) {
   return title.replace(/[^a-z0-9\-_. ]/gi, "_").replace(/\s+/g, "_").slice(0, 60);
 }
 
-function triggerDownload(blob: Blob, filename: string) {
+function browserDownload(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob);
-  const a   = document.createElement("a");
-  a.href    = url;
+  const a = document.createElement("a");
+  a.href = url;
   a.download = filename;
   a.style.display = "none";
   document.body.appendChild(a);
@@ -1117,4 +1136,34 @@ function triggerDownload(blob: Blob, filename: string) {
     URL.revokeObjectURL(url);
     document.body.removeChild(a);
   }, 5000);
+}
+
+async function triggerDownload(blob: Blob, filename: string) {
+  if (typeof window !== "undefined" && ("__TAURI_INTERNALS__" in window || "__TAURI__" in window)) {
+    try {
+      const { save } = await import("@tauri-apps/plugin-dialog");
+      const ext = filename.split(".").pop() || "";
+      const path = await save({
+        defaultPath: filename,
+        filters: ext ? [{ name: ext.toUpperCase(), extensions: [ext] }] : undefined,
+      });
+      if (!path) return; // user cancelled
+
+      const { writeTextFile, writeFile } = await import("@tauri-apps/plugin-fs");
+      const isText = blob.type.startsWith("text/") || blob.type === "application/json" || blob.type === "image/svg+xml";
+
+      if (isText) {
+        const text = await blob.text();
+        await writeTextFile(path, text);
+      } else {
+        const buffer = await blob.arrayBuffer();
+        await writeFile(path, new Uint8Array(buffer));
+      }
+    } catch (err) {
+      console.error("Tauri save failed:", err);
+      browserDownload(blob, filename);
+    }
+  } else {
+    browserDownload(blob, filename);
+  }
 }

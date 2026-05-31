@@ -156,10 +156,10 @@ export function ConnectGroup({
           title={twinSelectMode ? `Twin select mode — ${twinCandidateIds.size} nodes selected` : "Mark twins — select 2+ siblings or enter twin select mode"}
           aria-label="Mark twins"
           aria-pressed={twinSelectMode}
-          className={`flex flex-col items-center gap-1.5 min-w-[44px] min-h-[44px] py-1 rounded text-[11px] leading-tight font-medium transition-colors ${twinSelectMode ? "bg-amber-500/10 text-amber-500" : "text-muted-foreground hover:bg-accent hover:text-foreground"}`}
+          className={`flex flex-col items-center gap-0.5 min-w-[44px] min-h-[44px] py-1 rounded text-[11px] leading-tight font-medium transition-colors ${twinSelectMode ? "bg-amber-500/10 text-amber-500" : "text-muted-foreground hover:bg-accent hover:text-foreground"}`}
         >
-          <div className="relative w-5 h-5">
-            <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+          <div className="relative w-6 h-6">
+            <svg viewBox="0 0 24 24" className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
               <circle cx="7.8" cy="7.8" r="3.84" />
               <path d="M7.8 12 v5.4 M5.4 16.2 h4.8" />
               <circle cx="16.2" cy="7.8" r="3.84" />

@@ -65,7 +65,7 @@ export function computeFamilyChildYOffset(
   const children = childIds.map((id) => nodeMap.get(id)).filter((n): n is PedigreeNode => !!n);
   if (children.length === 0) return result;
 
-  const childTopY = Math.min(...children.map((c) => c.y)) - nodeSize / 2;
+  const childTopY = Math.min(...children.map((c) => c.y + (parentOffsets?.get(c.id) ?? 0))) - nodeSize / 2;
   const maxAnnBottom = computeAnnotationMaxBottom(parentIds, annotations, nodeMap, nodeSize, showAutoLabels, autoLabels, parentOffsets);
   const barY = Math.max(childTopY - MIN_BAR_CHILD_GAP, maxAnnBottom + 10);
   const delta = Math.max(0, barY - (childTopY - MIN_BAR_CHILD_GAP));
@@ -105,7 +105,7 @@ export function SibshipGroup({ parentIds, childIds, nodes, edges = [], invalid, 
   if (parents.length === 0 || children.length === 0) return null;
 
   const paths: string[] = [];
-  const childTopY = Math.min(...children.map((c) => c.y)) - S / 2;
+  const childTopY = Math.min(...children.map((c) => c.y + (childOffsets?.get(c.id) ?? 0))) - S / 2;
   const maxAnnBottom = useMemo(
     () => computeAnnotationMaxBottom(parentIds, annotations, nodeMap, S, showAutoLabels, autoLabels, parentOffsets),
     [parentIds, annotations, nodeMap, S, showAutoLabels, autoLabels, parentOffsets],

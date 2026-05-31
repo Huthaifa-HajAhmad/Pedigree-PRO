@@ -617,7 +617,10 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
     return age > 0 ? String(age) : "";
   };
 
-  const addSiblings = useCallback((sourceId: string, siblings: Array<{ type: PedigreeNode["type"]; dob: string }>) => {
+  const addSiblingsBlockedRef = useRef(false);
+
+  const addSiblings = useCallback((sourceId: string, siblings: Array<{ type: PedigreeNode["type"]; dob: string; affected?: boolean; carrier?: boolean; condition?: string; notes?: string }>) => {
+    addSiblingsBlockedRef.current = false;
     dispatch({ type: "UPDATE_CANVAS", updater: (p) => {
       const s = p.nodes.find((n) => n.id === sourceId); if (!s) return p;
       const SY = GEN_GRID;
@@ -678,12 +681,17 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
         newNodes.push({
           id: nid,
           type: sb.type,
-          ...nd,
+          affected: sb.affected ?? false,
+          carrier: sb.carrier ?? false,
+          deceased: false,
+          proband: false,
+          label: "",
+          age,
           x: 0,
           y: s.y,
           dob: sb.dob || undefined,
-          age,
-          label: ""
+          condition: sb.condition || undefined,
+          notes: sb.notes || undefined,
         });
         allChildIds.add(nid);
         for (let pi = 0; pi < parentIds.length; pi++) {
@@ -705,31 +713,190 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
       const allChildren = [...childMap.values()];
       allChildren.sort((a, b) => parseDobYear(a.dob) - parseDobYear(b.dob));
 
-      const parentCenter = parents.length === 2
-        ? (parents[0]!.x + parents[1]!.x) / 2
-        : parents.length === 1 ? parents[0]!.x
-        : s.x;
+      const existingChildren = allChildren.filter((c) => !newNodes.some((nn) => nn.id === c.id));
 
-      const totalWidth = (allChildren.length - 1) * NODE_GAP;
-      const childStartX = parentCenter - totalWidth / 2;
+      // ── Helpers for collision checks ──
+      const rowY = s.y;
+      const Y_TOLERANCE = NODE_SIZE;
+      const HALF_S = NODE_SIZE / 2;
 
-      const positionMap = new Map<string, number>();
-      allChildren.forEach((child, i) => {
-        positionMap.set(child.id, childStartX + i * NODE_GAP);
-      });
+      const linesIntersect = (x1: number, y1: number, x2: number, y2: number, x3: number, y3: number, x4: number, y4: number): boolean => {
+        const d = (x2 - x1) * (y4 - y3) - (y2 - y1) * (x4 - x3);
+        if (d === 0) return false;
+        const t = ((x3 - x1) * (y4 - y3) - (y3 - y1) * (x4 - x3)) / d;
+        const u = ((x3 - x1) * (y2 - y1) - (y3 - y1) * (x2 - x1)) / d;
+        return t >= 0 && t <= 1 && u >= 0 && u <= 1;
+      };
+
+      const lineIntersectsRect = (x1: number, y1: number, x2: number, y2: number, rx: number, ry: number, rw: number, rh: number): boolean => {
+        const pointInRect = (px: number, py: number) =>
+          px >= rx && px <= rx + rw && py >= ry && py <= ry + rh;
+        if (pointInRect(x1, y1) || pointInRect(x2, y2)) return true;
+        const edges: [number, number, number, number][] = [[rx, ry, rx, ry + rh], [rx + rw, ry, rx + rw, ry + rh], [rx, ry, rx + rw, ry], [rx, ry + rh, rx + rw, ry + rh]];
+        for (const [ex1, ey1, ex2, ey2] of edges) {
+          if (linesIntersect(x1, y1, x2, y2, ex1, ey1, ex2, ey2)) return true;
+        }
+        return false;
+      };
+
+      // Check if a candidate position is free (no node collision, no edge intersection)
+      const isPositionFree = (x: number, y: number, excludeIds: Set<string>) => {
+        if (p.nodes.some((n) => !excludeIds.has(n.id) && Math.abs(n.x - x) < NODE_GAP && Math.abs(n.y - y) < Y_TOLERANCE)) {
+          return false;
+        }
+        for (const edge of p.edges) {
+          const src = p.nodes.find((n) => n.id === edge.sourceId);
+          const tgt = p.nodes.find((n) => n.id === edge.targetId);
+          if (!src || !tgt) continue;
+          if (edge.type === "parent-child" && allChildIds.has(edge.targetId)) continue;
+          if ((edge.type === "couple" || edge.type === "consanguinity") && (allChildIds.has(edge.sourceId) || allChildIds.has(edge.targetId))) continue;
+          if (lineIntersectsRect(src.x, src.y, tgt.x, tgt.y, x - HALF_S, y - HALF_S, NODE_SIZE, NODE_SIZE)) {
+            return false;
+          }
+        }
+        return true;
+      };
+
+      // ── Placement strategy ──
+      // 1. Place new siblings adjacent to existing children at their current X positions
+      // 2. Shift the entire group as a unit toward the parent center
+      // 3. If children can't center under parents, move parents to align over children
+
+      const finalPositions = new Map<string, number>();
+      let parentShift = 0; // how much to shift parents horizontally
+
+      if (existingChildren.length === 0) {
+        // No existing children — center all new siblings under parents
+        const parentCenter = parents.length === 2
+          ? (parents[0]!.x + parents[1]!.x) / 2
+          : parents.length === 1 ? parents[0]!.x : s.x;
+        const totalWidth = (allChildren.length - 1) * NODE_GAP;
+        let startX = parentCenter - totalWidth / 2;
+
+        const hasCollision = (sx: number) => {
+          for (let i = 0; i < allChildren.length; i++) {
+            if (!isPositionFree(sx + i * NODE_GAP, rowY, allChildIds)) return true;
+          }
+          return false;
+        };
+        if (hasCollision(startX)) {
+          for (let k = 1; k <= 20; k++) {
+            for (const dir of [-1, 1] as const) {
+              if (!hasCollision(startX + dir * k * NODE_GAP)) { startX += dir * k * NODE_GAP; break; }
+            }
+          }
+        }
+        allChildren.forEach((child, i) => finalPositions.set(child.id, startX + i * NODE_GAP));
+      } else {
+        // Place new siblings adjacent to existing children (preserving their positions)
+        const initialPositions = new Map<string, number>();
+        existingChildren.forEach((c) => initialPositions.set(c.id, c.x));
+
+        const existingXPositions = existingChildren.map((c) => c.x).sort((a, b) => a - b);
+        let leftmostX = existingXPositions[0]!;
+        let rightmostX = existingXPositions[existingXPositions.length - 1]!;
+
+        for (const child of allChildren) {
+          if (initialPositions.has(child.id)) continue;
+
+          const leftSlot = leftmostX - NODE_GAP;
+          const rightSlot = rightmostX + NODE_GAP;
+
+          const leftFree = isPositionFree(leftSlot, rowY, allChildIds);
+          const rightFree = isPositionFree(rightSlot, rowY, allChildIds);
+
+          if (leftFree && !rightFree) {
+            initialPositions.set(child.id, leftSlot);
+            leftmostX = leftSlot;
+          } else if (rightFree && !leftFree) {
+            initialPositions.set(child.id, rightSlot);
+            rightmostX = rightSlot;
+          } else if (leftFree) {
+            const idx = allChildren.indexOf(child);
+            const median = existingChildren.length / 2;
+            if (idx < median) {
+              initialPositions.set(child.id, leftSlot);
+              leftmostX = leftSlot;
+            } else {
+              initialPositions.set(child.id, rightSlot);
+              rightmostX = rightSlot;
+            }
+          } else {
+            rightmostX += NODE_GAP;
+            initialPositions.set(child.id, rightmostX);
+          }
+        }
+
+        // Preserve child positions — never shift children.
+        for (const [id, x] of initialPositions) {
+          finalPositions.set(id, x);
+        }
+
+        // ─ Always try to recenter parents over the expanded children group ──
+        const allXs = [...initialPositions.values()].sort((a, b) => a - b);
+        const parentCenter = parents.length === 2
+          ? (parents[0]!.x + parents[1]!.x) / 2
+          : parents.length === 1 ? parents[0]!.x : s.x;
+        const newGroupCenter = allXs.length >= 2
+          ? (allXs[0]! + allXs[allXs.length - 1]!) / 2
+          : allXs[0] ?? parentCenter;
+
+        const parentsCurrentCenter = parentCenter;
+
+        const candidateParentShift = newGroupCenter - parentsCurrentCenter;
+
+        // Check if shifting parents is safe (node collision only — edges move with parents)
+        const parentIdsSet = new Set(parentIds);
+        const parentShiftSafe = parents.every((par) => {
+          const shiftedParX = par.x + candidateParentShift;
+          for (const n of [...p.nodes, ...newNodes]) {
+            if (parentIdsSet.has(n.id)) continue;
+            if (allChildIds.has(n.id)) continue;
+            if (Math.abs(n.x - shiftedParX) < NODE_GAP && Math.abs(n.y - par.y) < Y_TOLERANCE) return false;
+          }
+          return true;
+        });
+
+        if (parentShiftSafe) {
+          parentShift = candidateParentShift;
+        }
+      }
+
+      const parentIdsSet = new Set(parentIds);
 
       const shiftedNodes = p.nodes.map((n) => {
-        const newX = allShifts.get(n.id) ?? positionMap.get(n.id);
-        return newX !== undefined ? { ...n, x: newX } : n;
+        const newX = allShifts.get(n.id) ?? finalPositions.get(n.id);
+        if (newX !== undefined) {
+          const extra = parentIdsSet.has(n.id) ? parentShift : 0;
+          return { ...n, x: newX + extra };
+        }
+        if (parentIdsSet.has(n.id)) {
+          return { ...n, x: n.x + parentShift };
+        }
+        return n;
       });
 
       newNodes = newNodes.map((n) => {
-        const newX = positionMap.get(n.id);
-        return newX !== undefined ? { ...n, x: newX } : n;
+        const newX = finalPositions.get(n.id);
+        if (newX !== undefined) {
+          const extra = parentIdsSet.has(n.id) ? parentShift : 0;
+          return { ...n, x: newX + extra };
+        }
+        if (parentIdsSet.has(n.id)) {
+          return { ...n, x: n.x + parentShift };
+        }
+        return n;
       });
 
       return { ...p, nodes: [...shiftedNodes, ...newNodes], edges: [...p.edges, ...newEdges] };
     } });
+
+    if (addSiblingsBlockedRef.current) {
+      toast({ title: "No free space nearby", description: "Please move existing nodes or use auto-layout to make room for siblings.", duration: 4000 });
+      addSiblingsBlockedRef.current = false;
+      return;
+    }
+
     dispatch({ type: "SET_STATE", patch: { showAddSiblingDialog: false, siblingSourceId: null } });
   }, [insertAndShiftRight, parentIdsFromEdges]);
 

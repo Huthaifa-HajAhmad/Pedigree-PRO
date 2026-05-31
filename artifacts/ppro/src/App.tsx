@@ -5,7 +5,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ErrorBoundary } from "@/components/shared/ErrorBoundary";
 import { Layout } from "@/components/Layout";
-import { Skeleton } from "@/components/shared/Skeleton";
+import { Loader2 } from "lucide-react";
 import { ThemeProvider } from "@/lib/theme";
 import { FontProvider } from "@/lib/font";
 import { CanvasConfigProvider } from "@/features/pedigree-editor/context/CanvasConfigContext";
@@ -23,8 +23,9 @@ const About = lazy(() => import("@/pages/about"));
 
 function PageLoader() {
   return (
-    <div className="flex items-center justify-center min-h-[60vh]">
-      <Skeleton className="h-8 w-48" />
+    <div className="flex flex-col items-center justify-center min-h-[60vh] gap-3 bg-background">
+      <Loader2 className="w-8 h-8 text-primary animate-spin" />
+      <div className="text-sm font-medium text-primary tracking-wider">Loading…</div>
     </div>
   );
 }
@@ -36,7 +37,12 @@ const queryClient = new QueryClient({
 });
 
 function Router() {
+  // In Tauri desktop mode, add a top border to visually separate the native
+  // title bar from the web toolbar / ribbon. This prevents the title bar
+  // from visually blending into the app chrome on Windows.
+  const isTauri = typeof window !== "undefined" && ("__TAURI_INTERNALS__" in window || "__TAURI__" in window);
   return (
+    <div className={isTauri ? "border-t border-border/60" : ""}>
     <Suspense fallback={<PageLoader />}>
       <Switch>
         <Route path="/pedigrees/:id" component={PedigreeCanvas} />
@@ -57,6 +63,7 @@ function Router() {
         </Route>
       </Switch>
     </Suspense>
+    </div>
   );
 }
 

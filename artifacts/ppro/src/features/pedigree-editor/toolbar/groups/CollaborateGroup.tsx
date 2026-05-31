@@ -13,7 +13,7 @@ export function CollaborateGroup({
   showFollowMode, setShowFollowMode, labelHidden = false,
 }: CollaborateGroupProps) {
   return (
-    <div className="flex flex-col justify-between h-full border-r border-border flex-shrink-0 px-2 pt-2 pb-2">
+    <div className="flex flex-col justify-between h-full flex-shrink-0 px-2 pt-2 pb-2">
       <div className="flex-1 flex items-center gap-1">
         <button type="button"
           data-testid="button-timeline"
