@@ -114,11 +114,13 @@ jobs:
         with: { version: '9' }
       - uses: actions/setup-node@v4
         with: { node-version: '22', cache: 'pnpm' }
-      - run: pnpm install --frozen-lockfile
+      - run: pnpm install --ignore-scripts
+      - run: pnpm --filter @workspace/api-client-react exec tsc --build
       - run: pnpm --filter @workspace/ppro build
+      - run: echo '/* /index.html 200' > artifacts/ppro/dist/public/_redirects
       - uses: cloudflare/pages-action@v1
         with:
           apiToken: ${{ secrets.CF_API_TOKEN }}
           accountId: ${{ secrets.CF_ACCOUNT_ID }}
-          projectName: pedigree-pro-web
-          directory: artifacts/ppro/dist
+          projectName: pedigree-pro
+          directory: artifacts/ppro/dist/public
