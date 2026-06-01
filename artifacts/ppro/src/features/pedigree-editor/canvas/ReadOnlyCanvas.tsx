@@ -4,6 +4,7 @@ import { EdgeLine } from "./EdgeLine";
 import { SibshipGroup, computeFamilyChildYOffset } from "./SibshipGroup";
 import type { CanvasData, PedigreeNode } from "./types";
 import { NODE_SIZE } from "./types";
+import { useCanvasConfig } from "@/features/pedigree-editor/context/CanvasConfigContext";
 
 const NOOP_EVENT = (_e: React.MouseEvent) => {};
 
@@ -31,6 +32,7 @@ function computeViewBox(nodes: PedigreeNode[]): { x: number; y: number; w: numbe
 }
 
 function AnnotationReadOnly({ canvas }: { canvas: CanvasData }) {
+  const cfg = useCanvasConfig();
   const nodeById = useMemo(() => {
     const map = new Map<string, PedigreeNode>();
     for (const n of canvas.nodes) map.set(n.id, n);
@@ -50,16 +52,17 @@ function AnnotationReadOnly({ canvas }: { canvas: CanvasData }) {
         const padY = 4;
         const boxW = textW + padX * 2;
         const boxH = fs + padY * 2;
-        const slot = 0; // simplified: no stacking offset for read-only
+        const slot = 0;
         const baseDy = -(NODE_SIZE / 2 + boxH + 4) - slot;
         const bx = node.x + (ann.offsetX ?? 0);
         const by = node.y + baseDy + (ann.offsetY ?? 0);
+        const text = cfg.config.annUppercase ? ann.text.toUpperCase() : ann.text;
         return (
           <g key={ann.id}>
             <rect x={bx} y={by} width={boxW} height={boxH} rx={3} fill="transparent" stroke="none" />
             <text x={bx + padX} y={by + padY + fs * 0.78} fontSize={fs} fill={ann.color}
-              style={{ userSelect: "none", pointerEvents: "none" }}>
-              {ann.text}
+              style={{ fontFamily: cfg.config.annFontFamily, userSelect: "none", pointerEvents: "none", fontWeight: cfg.config.annBold ? 600 : 400, textTransform: cfg.config.annUppercase ? "uppercase" : "none" }}>
+              {text}
             </text>
           </g>
         );

@@ -345,12 +345,12 @@ export function computeAutoLayout(
     }
   }
 
-  // ── Apply positions ─────────────────────────────────────────────────────
+  // ── Apply positions, clamping minimum X to NODE_GAP ──
   return nodes.map((n) => {
     if (respectPinned && n.pinned) return n;
     const pos = knownPos.get(n.id);
     if (!pos) return n;
-    return { ...n, x: pos.x, y: pos.y };
+    return { ...n, x: Math.max(GEN_GRID, pos.x), y: pos.y };
   });
 }
 

@@ -47,6 +47,18 @@ export function pedigreeEditorReducer(
       };
     }
 
+    case "REMOVE_EDGES": {
+      const removeSet = new Set(action.edgeIds);
+      const newEdges = state.canvas.edges.filter((e) => !removeSet.has(e.id));
+      const prev = state.canvas;
+      return {
+        ...state,
+        canvas: { ...state.canvas, edges: newEdges },
+        history: [...state.history.slice(-49), prev],
+        future: [],
+      };
+    }
+
     default:
       return state;
   }

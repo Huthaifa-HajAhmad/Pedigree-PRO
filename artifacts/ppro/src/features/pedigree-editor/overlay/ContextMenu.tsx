@@ -58,7 +58,7 @@ export function ContextMenu({
 
   const { partnerEdges, hasPartner, hasParents, hasChildren, otherProband } = useMemo(() => {
     const pEdges = canvasEdges.filter(
-      (e) => e.type === "couple" && (e.sourceId === ctxNode.id || e.targetId === ctxNode.id)
+      (e) => (e.type === "couple" || e.type === "consanguinity") && (e.sourceId === ctxNode.id || e.targetId === ctxNode.id)
     );
     return {
       partnerEdges: pEdges,

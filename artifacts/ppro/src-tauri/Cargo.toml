@@ -1,6 +1,6 @@
 [package]
 name = "pedigree-pro"
-version = "1.0.0-1"
+version = "1.0.0-3"
 description = "Pedigree PRO — Secure Clinical Pedigree Platform"
 authors = ["Pedigree PRO Contributors"]
 edition = "2021"
@@ -32,3 +32,7 @@ tokio = { version = "1", features = ["full"] }
 chrono = { version = "0.4", features = ["serde"] }
 base64 = "0.22"
 pbkdf2 = { version = "0.12", features = ["hmac"] }
+
+[target.'cfg(target_os = "windows")'.dependencies]
+webview2-com = "0.38"
+windows-core = "0.61"

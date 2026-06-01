@@ -61,7 +61,7 @@ export function usePedigreeCanvas(params: UsePedigreeCanvasParams) {
     const parentIdsToMove = new Set<string>();
     if (!ctrlHeld) {
       for (const mid of movingIds) {
-        const ce = s.canvas.edges.find((e) => e.type === "couple" && (e.sourceId === mid || e.targetId === mid));
+        const ce = s.canvas.edges.find((e) => (e.type === "couple" || e.type === "consanguinity") && (e.sourceId === mid || e.targetId === mid));
         if (ce) {
           const pid = ce.sourceId === mid ? ce.targetId : ce.sourceId;
           if (!movingIds.has(pid)) partnerIds.add(pid);
@@ -421,7 +421,7 @@ export function usePedigreeCanvas(params: UsePedigreeCanvasParams) {
             dispatch({ type: "UPDATE_CANVAS", updater: (p) => ({
               ...p,
               edges: [
-                ...p.edges.filter((ed) => !(ed.type === "couple" && ((ed.sourceId === nA.id && ed.targetId === nB.id) || (ed.sourceId === nB.id && ed.targetId === nA.id)))),
+                ...p.edges.filter((ed) => !((ed.type === "couple" || ed.type === "consanguinity") && ((ed.sourceId === nA.id && ed.targetId === nB.id) || (ed.sourceId === nB.id && ed.targetId === nA.id)))),
                 { id: `e${Date.now()}`, type: "consanguinity", sourceId: nA.id, targetId: nB.id }
               ]
             }) });
@@ -432,6 +432,22 @@ export function usePedigreeCanvas(params: UsePedigreeCanvasParams) {
             draggingRef.current = null; isDraggingRef.current = false;
             return;
           }
+        }
+        if (s.linkMode === "couple" && enclosed.length === 2) {
+          const nA = enclosed[0]!, nB = enclosed[1]!;
+          dispatch({ type: "UPDATE_CANVAS", updater: (p) => ({
+            ...p,
+            edges: [
+              ...p.edges.filter((ed) => !((ed.type === "couple" || ed.type === "consanguinity") && ((ed.sourceId === nA.id && ed.targetId === nB.id) || (ed.sourceId === nB.id && ed.targetId === nA.id)))),
+              { id: `e${Date.now()}`, type: "couple", sourceId: nA.id, targetId: nB.id }
+            ]
+          }) });
+          dispatch({ type: "SET_STATE", patch: { selectedIds: newSelectedIds, linkMode: null, linkSource: null } });
+          lassoRef.current = null; isLassoingRef.current = false; lassoCTMInverseRef.current = null;
+          dispatch({ type: "SET_STATE", patch: { lassoVisible: false } });
+          dispatch({ type: "SET_STATE", patch: { dragging: null, isDragging: false, snapRows: [], panning: null, alignGuides: [] } });
+          draggingRef.current = null; isDraggingRef.current = false;
+          return;
         }
         dispatch({ type: "SET_STATE", patch: { selectedIds: newSelectedIds } });
       } else {
@@ -497,15 +513,13 @@ export function usePedigreeCanvas(params: UsePedigreeCanvasParams) {
       dispatch({ type: "SET_STATE", patch: { viewBox: { x: cx - (px / svgW) * newVbW, y: cy - (py / svgH) * newVbH, zoom: newZoom } } });
     };
 
-    if (e.ctrlKey) { zoomAt(Math.pow(0.992, e.deltaY)); return; }
+    if (e.ctrlKey || e.metaKey) { zoomAt(Math.pow(0.95, e.deltaY)); return; }
     if (e.shiftKey) {
       const s = stateRef.current;
       dispatch({ type: "SET_STATE", patch: { viewBox: { ...s.viewBox, x: s.viewBox.x + e.deltaY * s.viewBox.zoom * 0.6 } } });
       return;
     }
-    const hasHoriz = Math.abs(e.deltaX) > 1;
-    const isSmooth = e.deltaMode === 0 && Math.abs(e.deltaY) < 50;
-    if (hasHoriz || isSmooth) {
+    if (e.deltaMode === 0) {
       const s = stateRef.current;
       dispatch({
         type: "SET_STATE",

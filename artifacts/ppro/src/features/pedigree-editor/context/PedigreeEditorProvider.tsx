@@ -238,38 +238,31 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
     }, []);
 
     // Helper: find position by shifting existing nodes to make room
-    // This uses a simpler, more robust algorithm that finds the nearest free slot
-    const insertAndShiftRight = useCallback((p: CanvasData, startX: number, y: number, direction: 1 | -1 = 1, excludeIds?: Set<string>): { x: number; shifts: Map<string, number> } => {
+    // Returns { x: placement X, shifts: Map<nodeId, newX> } and also shiftCount for smart push
+    const insertAndShiftRight = useCallback((p: CanvasData, startX: number, y: number, direction: 1 | -1 = 1, excludeIds?: Set<string>): { x: number; shifts: Map<string, number>; shiftCount: number } => {
       const shifts = new Map<string, number>();
       const GAP = NODE_GAP;
-      const Y_TOLERANCE = NODE_SIZE; // Only consider nodes roughly on the same row
+      const Y_TOLERANCE = NODE_SIZE;
 
-      // Check collision at a given X position
       const collidesAt = (x: number) =>
         p.nodes.some((n) => !excludeIds?.has(n.id) && !shifts.has(n.id) && Math.abs(n.x - x) < GAP && Math.abs(n.y - y) < Y_TOLERANCE);
 
-      // Find the first free position by scanning in the specified direction
       let targetX = startX;
       while (collidesAt(targetX)) {
         targetX += direction * GAP;
       }
 
-      // If no collision at original startX, just use it without shifts
       if (targetX === startX) {
-        return { x: startX, shifts };
+        return { x: startX, shifts, shiftCount: 0 };
       }
 
-      // We need to shift nodes between startX and targetX
-      // Get nodes on the same row, sorted by X
       const rowNodes = [...p.nodes]
         .filter((n) => !excludeIds?.has(n.id) && Math.abs(n.y - y) < Y_TOLERANCE)
         .sort((a, b) => a.x - b.x);
 
       if (direction > 0) {
-        // Shifting right: move all nodes at or right of startX to make room
         for (const n of rowNodes) {
           if (n.x >= startX - GAP / 2) {
-            // This node needs to shift right by at least enough to not overlap with previous shifted node
             const prevShiftedX = shifts.size > 0
               ? Math.max(...Array.from(shifts.values()))
               : startX - GAP;
@@ -278,7 +271,6 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
           }
         }
       } else {
-        // Shifting left: move all nodes at or left of startX to make room
         for (const n of [...rowNodes].reverse()) {
           if (n.x <= startX + GAP / 2) {
             const prevShiftedX = shifts.size > 0
@@ -290,7 +282,7 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
         }
       }
 
-      return { x: startX, shifts };
+      return { x: startX, shifts, shiftCount: shifts.size };
     }, []);
 
     const addContextNode = useCallback((rel: "child" | "sibling" | "partner" | "parents") => {
@@ -319,7 +311,7 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
       let nx: number, ny: number, nt: PedigreeNode["type"]; const ne: PedigreeEdge[] = [];
       if (rel === "child") {
         ny = s.y + SY; nt = "unknown";
-        const ce = p.edges.find((e) => e.type === "couple" && (e.sourceId === sid || e.targetId === sid));
+        const ce = p.edges.find((e) => (e.type === "couple" || e.type === "consanguinity") && (e.sourceId === sid || e.targetId === sid));
         if (ce) {
           const pid = ce.sourceId === sid ? ce.targetId : ce.sourceId;
           nx = (s.x + (p.nodes.find((n) => n.id === pid)?.x ?? s.x)) / 2;
@@ -330,7 +322,7 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
           const mid = `n${now + 100}`;
           const mt: PedigreeNode["type"] = s.type === "female" ? "male" : s.type === "male" ? "female" : "unknown";
           let partnerDir: 1 | -1 = s.type === "female" ? -1 : 1;
-          const existingCoupleForChild = p.edges.find(e => e.type === "couple" && (e.sourceId === sid || e.targetId === sid));
+          const existingCoupleForChild = p.edges.find(e => (e.type === "couple" || e.type === "consanguinity") && (e.sourceId === sid || e.targetId === sid));
           if (existingCoupleForChild) {
             const partnerId = existingCoupleForChild.sourceId === sid ? existingCoupleForChild.targetId : existingCoupleForChild.sourceId;
             const partnerNode = p.nodes.find(n => n.id === partnerId);
@@ -341,17 +333,35 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
             }
           }
           const partnerStartX = partnerDir > 0 ? s.x + NODE_GAP : s.x - NODE_GAP;
-          const partnerRes = insertAndShiftRight(p, partnerStartX, s.y, partnerDir, new Set([sid]));
-          // Apply shifts to existing nodes
+          const defaultPartnerRes = insertAndShiftRight(p, partnerStartX, s.y, partnerDir, new Set([sid]));
+          // Smart push: if pushing in default direction displaces more nodes than
+          // pushing the source node oppositely, prefer moving the source instead
+          const oppositePartnerDir: 1 | -1 = partnerDir > 0 ? -1 : 1;
+          const sourceShiftX = oppositePartnerDir > 0 ? s.x + NODE_GAP : s.x - NODE_GAP;
+          const sourcePartnerRes = insertAndShiftRight(p, sourceShiftX, s.y, oppositePartnerDir, new Set([sid, mid]));
+          let partnerX: number;
+          let sourceNewX: number | null = null;
+          let partnerShifts: Map<string, number>;
+          if (defaultPartnerRes.shiftCount > 0 && sourcePartnerRes.shiftCount < defaultPartnerRes.shiftCount) {
+            sourceNewX = sourcePartnerRes.x;
+            partnerX = partnerDir > 0 ? sourceNewX + NODE_GAP : sourceNewX - NODE_GAP;
+            partnerShifts = sourcePartnerRes.shifts;
+          } else {
+            partnerX = defaultPartnerRes.x;
+            partnerShifts = defaultPartnerRes.shifts;
+          }
           const shiftedNodes = p.nodes.map((n) => {
-            const newX = partnerRes.shifts.get(n.id);
+            if (sourceNewX !== null && n.id === sid) return { ...n, x: sourceNewX };
+            const newX = partnerShifts.get(n.id);
             return newX !== undefined ? { ...n, x: newX } : n;
           });
           // Child is placed at the midpoint between the two parents
-          nx = (s.x + partnerRes.x) / 2;
+          // Use sourceNewX if source was shifted, otherwise s.x
+          const effectiveSourceX = sourceNewX ?? s.x;
+          nx = (effectiveSourceX + partnerX) / 2;
           return {
             ...p,
-            nodes: [...shiftedNodes, { id: mid, type: mt, ...nd, x: partnerRes.x, y: s.y }, { id: nid, type: nt, ...nd, x: nx, y: ny }],
+            nodes: [...shiftedNodes, { id: mid, type: mt, ...nd, x: partnerX, y: s.y }, { id: nid, type: nt, ...nd, x: nx, y: ny }],
             edges: [...p.edges, { id: `e${now}`, type: "couple", sourceId: sid, targetId: mid }, { id: `e${now + 1}`, type: "parent-child", sourceId: sid, targetId: nid }, { id: `e${now + 2}`, type: "parent-child", sourceId: mid, targetId: nid }]
           };
         }
@@ -359,7 +369,7 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
       else if (rel === "partner") {
         nt = s.type === "male" ? "female" : s.type === "female" ? "male" : "unknown";
         let dir: 1 | -1 = s.type === "female" ? -1 : 1;
-        const existingCouple = p.edges.find(e => e.type === "couple" && (e.sourceId === sid || e.targetId === sid));
+        const existingCouple = p.edges.find(e => (e.type === "couple" || e.type === "consanguinity") && (e.sourceId === sid || e.targetId === sid));
         if (existingCouple) {
           const partnerId = existingCouple.sourceId === sid ? existingCouple.targetId : existingCouple.sourceId;
           const partnerNode = p.nodes.find(n => n.id === partnerId);
@@ -370,11 +380,28 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
           }
         }
         const startX = dir > 0 ? s.x + NODE_GAP : s.x - NODE_GAP;
-        const res = insertAndShiftRight(p, startX, s.y, dir, new Set([sid]));
-        nx = res.x; ny = s.y;
-        // Apply shifts to existing nodes
+        const defaultRes = insertAndShiftRight(p, startX, s.y, dir, new Set([sid]));
+        // Smart push: if pushing in the default direction displaces more nodes than
+        // pushing the source node in the opposite direction, prefer moving the source instead
+        const oppositeDir: 1 | -1 = dir > 0 ? -1 : 1;
+        const sourceShiftX = oppositeDir > 0 ? s.x + NODE_GAP : s.x - NODE_GAP;
+        const sourceRes = insertAndShiftRight(p, sourceShiftX, s.y, oppositeDir, new Set([sid, nid]));
+        if (defaultRes.shiftCount > 0 && sourceRes.shiftCount < defaultRes.shiftCount) {
+          // Pushing the source node displaces fewer nodes: shift source, place partner at source's original spot
+          const sourceNewX = sourceRes.x;
+          const partnerX = dir > 0 ? sourceNewX + NODE_GAP : sourceNewX - NODE_GAP;
+          nx = partnerX; ny = s.y;
+          const shiftedNodes = p.nodes.map((n) => {
+            if (n.id === sid) return { ...n, x: sourceNewX };
+            const newX = sourceRes.shifts.get(n.id);
+            return newX !== undefined ? { ...n, x: newX } : n;
+          });
+          ne.push({ id: `e${now}`, type: "couple", sourceId: sid, targetId: nid });
+          return { ...p, nodes: [...shiftedNodes, { id: nid, type: nt, ...nd, x: nx, y: ny }], edges: [...p.edges, ...ne] };
+        }
+        nx = defaultRes.x; ny = s.y;
         const shiftedNodes = p.nodes.map((n) => {
-          const newX = res.shifts.get(n.id);
+          const newX = defaultRes.shifts.get(n.id);
           return newX !== undefined ? { ...n, x: newX } : n;
         });
         ne.push({ id: `e${now}`, type: "couple", sourceId: sid, targetId: nid });
@@ -508,7 +535,7 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
           const mt: PedigreeNode["type"] = pn.type === "male" ? "female" : pn.type === "female" ? "male" : "unknown";
           const ts = Date.now(), mid = `n${ts}-${Math.random().toString(36).slice(2, 6)}_auto`;
           let dir: 1 | -1 = pn.type === "female" ? -1 : 1;
-          const existingLinkCouple = p.edges.find(e => e.type === "couple" && (e.sourceId === s.linkSource! || e.targetId === s.linkSource!));
+          const existingLinkCouple = p.edges.find(e => (e.type === "couple" || e.type === "consanguinity") && (e.sourceId === s.linkSource! || e.targetId === s.linkSource!));
           if (existingLinkCouple) {
             const partnerId = existingLinkCouple.sourceId === s.linkSource! ? existingLinkCouple.targetId : existingLinkCouple.sourceId;
             const partnerNode = p.nodes.find(n => n.id === partnerId);
@@ -519,14 +546,30 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
             }
           }
           const startPx = dir > 0 ? pn.x + NODE_GAP : pn.x - NODE_GAP;
-          const res = insertAndShiftRight(p, startPx, pn.y, dir, new Set([s.linkSource!]));
-          // Apply shifts to existing nodes
-          const shiftedNodes = p.nodes.map((n) => {
-            const newX = res.shifts.get(n.id);
+          const defaultLinkRes = insertAndShiftRight(p, startPx, pn.y, dir, new Set([s.linkSource!]));
+          // Smart push: prefer moving source node if it displaces fewer nodes
+          const oppositeLinkDir: 1 | -1 = dir > 0 ? -1 : 1;
+          const sourceLinkShiftX = oppositeLinkDir > 0 ? pn.x + NODE_GAP : pn.x - NODE_GAP;
+          const sourceLinkRes = insertAndShiftRight(p, sourceLinkShiftX, pn.y, oppositeLinkDir, new Set([s.linkSource!, mid]));
+          let linkPartnerX: number;
+          let linkSourceNewX: number | null = null;
+          let linkShifts: Map<string, number>;
+          if (defaultLinkRes.shiftCount > 0 && sourceLinkRes.shiftCount < defaultLinkRes.shiftCount) {
+            linkSourceNewX = sourceLinkRes.x;
+            linkPartnerX = dir > 0 ? linkSourceNewX + NODE_GAP : linkSourceNewX - NODE_GAP;
+            linkShifts = sourceLinkRes.shifts;
+          } else {
+            linkPartnerX = defaultLinkRes.x;
+            linkShifts = defaultLinkRes.shifts;
+          }
+          const linkShiftedNodes = p.nodes.map((n) => {
+            if (linkSourceNewX !== null && n.id === s.linkSource!) return { ...n, x: linkSourceNewX };
+            const newX = linkShifts.get(n.id);
             return newX !== undefined ? { ...n, x: newX } : n;
           });
-          return { ...p, nodes: [...shiftedNodes, { id: mid, type: mt, affected: false, carrier: false, deceased: false, proband: false, label: "", age: "", x: res.x, y: pn.y }], edges: [...p.edges, { id: `e${Date.now()}`, type: "parent-child", sourceId: s.linkSource!, targetId: nid }, { id: `ec${ts}`, type: "couple", sourceId: s.linkSource!, targetId: mid }, { id: `emc${ts}`, type: "parent-child", sourceId: mid, targetId: nid }] };
+          return { ...p, nodes: [...linkShiftedNodes, { id: mid, type: mt, affected: false, carrier: false, deceased: false, proband: false, label: "", age: "", x: linkPartnerX, y: pn.y }], edges: [...p.edges, { id: `e${Date.now()}`, type: "parent-child", sourceId: s.linkSource!, targetId: nid }, { id: `ec${ts}`, type: "couple", sourceId: s.linkSource!, targetId: mid }, { id: `emc${ts}`, type: "parent-child", sourceId: mid, targetId: nid }] };
         } });
+        else if (s.linkMode === "couple") dispatch({ type: "UPDATE_CANVAS", updater: (p) => ({ ...p, edges: [...p.edges.filter((ed) => !((ed.type === "couple" || ed.type === "consanguinity") && ((ed.sourceId === s.linkSource && ed.targetId === nid) || (ed.sourceId === nid && ed.targetId === s.linkSource)))), { id: `e${Date.now()}`, type: "couple", sourceId: s.linkSource!, targetId: nid }] }) });
         else dispatch({ type: "UPDATE_CANVAS", updater: (p) => ({ ...p, edges: [...p.edges, { id: `e${Date.now()}`, type: s.linkMode!, sourceId: s.linkSource!, targetId: nid }] }) });
       }
       dispatch({ type: "SET_STATE", patch: { linkMode: null, linkSource: null } }); return;
@@ -589,8 +632,18 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
     dispatch({ type: "UPDATE_CANVAS", updater: (p) => ({
       ...p,
       edges: [
-        ...p.edges.filter((ed) => !(ed.type === "couple" && ((ed.sourceId === sourceId && ed.targetId === targetId) || (ed.sourceId === targetId && ed.targetId === sourceId)))),
+        ...p.edges.filter((ed) => !((ed.type === "couple" || ed.type === "consanguinity") && ((ed.sourceId === sourceId && ed.targetId === targetId) || (ed.sourceId === targetId && ed.targetId === sourceId)))),
         { id: `e${Date.now()}`, type: "consanguinity", sourceId, targetId }
+      ]
+    }) });
+  }, []);
+
+  const createCoupleEdge = useCallback((sourceId: string, targetId: string) => {
+    dispatch({ type: "UPDATE_CANVAS", updater: (p) => ({
+      ...p,
+      edges: [
+        ...p.edges.filter((ed) => !((ed.type === "couple" || ed.type === "consanguinity") && ((ed.sourceId === sourceId && ed.targetId === targetId) || (ed.sourceId === targetId && ed.targetId === sourceId)))),
+        { id: `e${Date.now()}`, type: "couple", sourceId, targetId }
       ]
     }) });
   }, []);
@@ -641,9 +694,11 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
         const mid = `n${now}_mother`;
         const parentY = s.y - SY;
 
-        // Position parents centered above the source node
-        const fatherRes = insertAndShiftRight(p, s.x - NODE_GAP / 2, parentY, -1, new Set([s.id]));
-        const motherRes = insertAndShiftRight(p, s.x + NODE_GAP / 2, parentY, 1, new Set([s.id]));
+        // Position parents centered above the source node, clamped to GEN_GRID
+        const fatherStartX = Math.max(GEN_GRID, s.x - NODE_GAP / 2);
+        const motherStartX = Math.max(fatherStartX + NODE_GAP, s.x + NODE_GAP / 2);
+        const fatherRes = insertAndShiftRight(p, fatherStartX, parentY, -1, new Set([s.id]));
+        const motherRes = insertAndShiftRight(p, motherStartX, parentY, 1, new Set([s.id]));
 
         // Merge parent shifts
         fatherRes.shifts.forEach((x, id) => allShifts.set(id, x));
@@ -713,8 +768,6 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
       const allChildren = [...childMap.values()];
       allChildren.sort((a, b) => parseDobYear(a.dob) - parseDobYear(b.dob));
 
-      const existingChildren = allChildren.filter((c) => !newNodes.some((nn) => nn.id === c.id));
-
       // ── Helpers for collision checks ──
       const rowY = s.y;
       const Y_TOLERANCE = NODE_SIZE;
@@ -739,8 +792,9 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
         return false;
       };
 
-      // Check if a candidate position is free (no node collision, no edge intersection)
+      // Check if a candidate position is free (no node collision, no edge intersection, minimum X boundary)
       const isPositionFree = (x: number, y: number, excludeIds: Set<string>) => {
+        if (x < GEN_GRID) return false;
         if (p.nodes.some((n) => !excludeIds.has(n.id) && Math.abs(n.x - x) < NODE_GAP && Math.abs(n.y - y) < Y_TOLERANCE)) {
           return false;
         }
@@ -757,21 +811,21 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
         return true;
       };
 
-      // ── Placement strategy ──
-      // 1. Place new siblings adjacent to existing children at their current X positions
-      // 2. Shift the entire group as a unit toward the parent center
-      // 3. If children can't center under parents, move parents to align over children
+      const existingChildren = allChildren.filter((c) => !newNodes.some((nn) => nn.id === c.id));
 
+      // ── Placement strategy ──
       const finalPositions = new Map<string, number>();
-      let parentShift = 0; // how much to shift parents horizontally
+      let parentShift = 0;
+
+      const parentCenter = parents.length === 2
+        ? (parents[0]!.x + parents[1]!.x) / 2
+        : parents.length === 1 ? parents[0]!.x : s.x;
 
       if (existingChildren.length === 0) {
-        // No existing children — center all new siblings under parents
-        const parentCenter = parents.length === 2
-          ? (parents[0]!.x + parents[1]!.x) / 2
-          : parents.length === 1 ? parents[0]!.x : s.x;
+        // No existing children — center the whole sibship evenly under parents
         const totalWidth = (allChildren.length - 1) * NODE_GAP;
         let startX = parentCenter - totalWidth / 2;
+        startX = Math.max(GEN_GRID, startX);
 
         const hasCollision = (sx: number) => {
           for (let i = 0; i < allChildren.length; i++) {
@@ -779,87 +833,211 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
           }
           return false;
         };
+
         if (hasCollision(startX)) {
+          let found = false;
           for (let k = 1; k <= 20; k++) {
-            for (const dir of [-1, 1] as const) {
-              if (!hasCollision(startX + dir * k * NODE_GAP)) { startX += dir * k * NODE_GAP; break; }
+            for (const dir of [1, -1] as const) {
+              const tryX = startX + dir * k * NODE_GAP;
+              if (!hasCollision(tryX)) { startX = tryX; found = true; break; }
             }
+            if (found) break;
+          }
+          if (!found) {
+            addSiblingsBlockedRef.current = true;
+            return p;
           }
         }
+
         allChildren.forEach((child, i) => finalPositions.set(child.id, startX + i * NODE_GAP));
       } else {
-        // Place new siblings adjacent to existing children (preserving their positions)
-        const initialPositions = new Map<string, number>();
-        existingChildren.forEach((c) => initialPositions.set(c.id, c.x));
+        existingChildren.forEach((c) => finalPositions.set(c.id, c.x));
 
-        const existingXPositions = existingChildren.map((c) => c.x).sort((a, b) => a - b);
-        let leftmostX = existingXPositions[0]!;
-        let rightmostX = existingXPositions[existingXPositions.length - 1]!;
+        const totalWidth = (allChildren.length - 1) * NODE_GAP;
 
-        for (const child of allChildren) {
-          if (initialPositions.has(child.id)) continue;
+        const computeDisplacement = (startX: number) => {
+          if (existingChildren.length === 0) return 0;
+          return Math.max(
+            ...existingChildren.map((c) => {
+              const idx = allChildren.findIndex((child) => child.id === c.id);
+              return Math.abs(c.x - (startX + idx * NODE_GAP));
+            })
+          );
+        };
 
-          const leftSlot = leftmostX - NODE_GAP;
-          const rightSlot = rightmostX + NODE_GAP;
+        const allPositionsFree = (startX: number) =>
+          allChildren.every((_, i) => isPositionFree(startX + i * NODE_GAP, rowY, allChildIds));
 
-          const leftFree = isPositionFree(leftSlot, rowY, allChildIds);
-          const rightFree = isPositionFree(rightSlot, rowY, allChildIds);
+        const applyPlacement = (startX: number) => {
+          allChildren.forEach((child, i) => {
+            finalPositions.set(child.id, startX + i * NODE_GAP);
+          });
+        };
 
-          if (leftFree && !rightFree) {
-            initialPositions.set(child.id, leftSlot);
-            leftmostX = leftSlot;
-          } else if (rightFree && !leftFree) {
-            initialPositions.set(child.id, rightSlot);
-            rightmostX = rightSlot;
-          } else if (leftFree) {
-            const idx = allChildren.indexOf(child);
-            const median = existingChildren.length / 2;
-            if (idx < median) {
-              initialPositions.set(child.id, leftSlot);
-              leftmostX = leftSlot;
-            } else {
-              initialPositions.set(child.id, rightSlot);
-              rightmostX = rightSlot;
+        type Candidate = { startX: number; maxDisp: number; centerDist: number; collisionFree: boolean };
+        const candidates: Candidate[] = [];
+
+        const addCandidates = (baseX: number, maxSteps: number, maxDispThreshold: number) => {
+          for (let step = 0; step <= maxSteps; step++) {
+            const tryX = Math.max(GEN_GRID, baseX) + step * NODE_GAP;
+            const collisionFree = allPositionsFree(tryX);
+            const maxDisp = computeDisplacement(tryX);
+            const sibCenter = tryX + totalWidth / 2;
+            candidates.push({ startX: tryX, maxDisp, centerDist: Math.abs(sibCenter - parentCenter), collisionFree });
+            if (collisionFree && maxDisp <= maxDispThreshold) break;
+          }
+        };
+
+        const anchorStartXs: number[] = [];
+        for (let i = 0; i < allChildren.length; i++) {
+          const child = allChildren[i]!;
+          if (existingChildren.some((c) => c.id === child.id)) {
+            anchorStartXs.push(child.x - i * NODE_GAP);
+          }
+        }
+        if (anchorStartXs.length > 0) {
+          anchorStartXs.sort((a, b) => a - b);
+          const medianAnchor = anchorStartXs[Math.floor(anchorStartXs.length / 2)]!;
+          addCandidates(Math.round(medianAnchor / NODE_GAP) * NODE_GAP, 20, NODE_GAP);
+        }
+
+        const centeredBaseX = Math.round((parentCenter - totalWidth / 2) / NODE_GAP) * NODE_GAP;
+        addCandidates(centeredBaseX, allChildren.length + 2, NODE_GAP * 2);
+
+        if (candidates.length > 0) {
+          candidates.sort((a, b) => {
+            const aTier = a.collisionFree && a.maxDisp <= NODE_GAP ? 0 : a.maxDisp <= NODE_GAP * 2 ? 1 : 2;
+            const bTier = b.collisionFree && b.maxDisp <= NODE_GAP ? 0 : b.maxDisp <= NODE_GAP * 2 ? 1 : 2;
+            if (aTier !== bTier) return aTier - bTier;
+            if (a.collisionFree !== b.collisionFree) return a.collisionFree ? -1 : 1;
+            return a.centerDist - b.centerDist;
+          });
+          applyPlacement(candidates[0]!.startX);
+        }
+
+        if (finalPositions.size < allChildren.length) {
+          const placedXs = [...finalPositions.values()];
+          if (placedXs.length > 0) {
+            let rightmostX = Math.max(...placedXs);
+            for (const child of allChildren) {
+              if (finalPositions.has(child.id)) continue;
+              rightmostX += NODE_GAP;
+              finalPositions.set(child.id, rightmostX);
             }
-          } else {
-            rightmostX += NODE_GAP;
-            initialPositions.set(child.id, rightmostX);
           }
         }
+      }
 
-        // Preserve child positions — never shift children.
-        for (const [id, x] of initialPositions) {
-          finalPositions.set(id, x);
-        }
+      // ── Collision cleanup: push unrelated nodes that ended up too close ──
+      const nodeShifts = new Map<string, number>();
+      const placedXs = [...finalPositions.values()];
+      const placedMinX = Math.min(...placedXs);
+      const placedMaxX = Math.max(...placedXs);
 
-        // ─ Always try to recenter parents over the expanded children group ──
-        const allXs = [...initialPositions.values()].sort((a, b) => a - b);
-        const parentCenter = parents.length === 2
-          ? (parents[0]!.x + parents[1]!.x) / 2
-          : parents.length === 1 ? parents[0]!.x : s.x;
-        const newGroupCenter = allXs.length >= 2
-          ? (allXs[0]! + allXs[allXs.length - 1]!) / 2
-          : allXs[0] ?? parentCenter;
+      // Helper: get the nuclear family (child+siblings+parents, or parent+partner+children)
+      const getFamilyGroup = (nodeId: string): Set<string> => {
+        const group = new Set<string>([nodeId]);
 
-        const parentsCurrentCenter = parentCenter;
-
-        const candidateParentShift = newGroupCenter - parentsCurrentCenter;
-
-        // Check if shifting parents is safe (node collision only — edges move with parents)
-        const parentIdsSet = new Set(parentIds);
-        const parentShiftSafe = parents.every((par) => {
-          const shiftedParX = par.x + candidateParentShift;
-          for (const n of [...p.nodes, ...newNodes]) {
-            if (parentIdsSet.has(n.id)) continue;
-            if (allChildIds.has(n.id)) continue;
-            if (Math.abs(n.x - shiftedParX) < NODE_GAP && Math.abs(n.y - par.y) < Y_TOLERANCE) return false;
+        // Case 1: node is a child → include siblings, parents, and parents' partners
+        const parentIdsOfNode = p.edges
+          .filter((e) => e.type === "parent-child" && e.targetId === nodeId)
+          .map((e) => e.sourceId);
+        if (parentIdsOfNode.length > 0) {
+          parentIdsOfNode.forEach((pid) => group.add(pid));
+          for (const e of p.edges) {
+            if (e.type === "parent-child" && parentIdsOfNode.includes(e.sourceId)) {
+              group.add(e.targetId);
+            }
           }
-          return true;
-        });
-
-        if (parentShiftSafe) {
-          parentShift = candidateParentShift;
+          for (const e of p.edges) {
+            if ((e.type === "couple" || e.type === "consanguinity")) {
+              if (parentIdsOfNode.includes(e.sourceId)) group.add(e.targetId);
+              if (parentIdsOfNode.includes(e.targetId)) group.add(e.sourceId);
+            }
+          }
+          return group;
         }
+
+        // Case 2: node is a parent → include partner(s) and children
+        const childIdsOfNode = p.edges
+          .filter((e) => e.type === "parent-child" && e.sourceId === nodeId)
+          .map((e) => e.targetId);
+        if (childIdsOfNode.length > 0) {
+          for (const e of p.edges) {
+            if ((e.type === "couple" || e.type === "consanguinity") && (e.sourceId === nodeId || e.targetId === nodeId)) {
+              const partnerId = e.sourceId === nodeId ? e.targetId : e.sourceId;
+              group.add(partnerId);
+            }
+          }
+          childIdsOfNode.forEach((cid) => group.add(cid));
+          return group;
+        }
+
+        // Case 3: orphan
+        return group;
+      };
+
+      for (const n of p.nodes) {
+        if (allChildIds.has(n.id)) continue; // Skip our own sibship
+        if (parentIds.includes(n.id)) continue; // Skip our parents
+        if (Math.abs(n.y - rowY) >= Y_TOLERANCE) continue; // Different row
+
+        const distToGroup = Math.min(
+          ...placedXs.map((px) => Math.abs(px - n.x))
+        );
+        if (distToGroup >= NODE_GAP) continue; // Far enough
+
+        // Determine push direction: push away from the sibling group center
+        const pushDir = n.x >= placedMinX && n.x <= placedMaxX
+          ? (n.x >= (placedMinX + placedMaxX) / 2 ? 1 : -1) // Inside group span → push to nearest edge
+          : (n.x > placedMaxX ? 1 : -1); // Outside → push away from group
+
+        const deficit = NODE_GAP - distToGroup;
+        const pushAmount = Math.ceil(deficit / NODE_GAP) * NODE_GAP;
+
+        const family = getFamilyGroup(n.id);
+        for (const memberId of family) {
+          if (allChildIds.has(memberId)) continue;
+          if (parentIds.includes(memberId)) continue;
+          const currentShift = nodeShifts.get(memberId) ?? 0;
+          const newShift = pushDir > 0
+            ? Math.max(currentShift, pushAmount)
+            : Math.min(currentShift, -pushAmount);
+          nodeShifts.set(memberId, newShift);
+        }
+      }
+
+      // Merge collision shifts into finalPositions so they get applied together
+      for (const [id, shift] of nodeShifts) {
+        const currentX = finalPositions.get(id) ?? p.nodes.find((n) => n.id === id)?.x;
+        if (currentX !== undefined) {
+          finalPositions.set(id, Math.max(GEN_GRID, currentX + shift));
+        }
+      }
+
+      // Recenter parents over children if safe
+      const childXs = allChildren.map((c) => finalPositions.get(c.id) ?? c.x).sort((a, b) => a - b);
+      const childGroupCenter = childXs.length >= 2
+        ? (childXs[0]! + childXs[childXs.length - 1]!) / 2
+        : childXs[0] ?? parentCenter;
+
+      const candidateParentShift = childGroupCenter - parentCenter;
+
+      const parentIdsSetForShift = new Set(parentIds);
+      const parentShiftSafe = parents.every((par) => {
+        const shiftedParX = par.x + candidateParentShift;
+        for (const n of [...p.nodes, ...newNodes]) {
+          if (parentIdsSetForShift.has(n.id)) continue;
+          if (allChildIds.has(n.id)) continue;
+          const effectiveX = finalPositions.get(n.id) ?? n.x;
+          if (Math.abs(effectiveX - shiftedParX) < NODE_GAP && Math.abs(n.y - par.y) < Y_TOLERANCE) return false;
+        }
+        return true;
+      });
+
+      if (parentShiftSafe) {
+        const minParentX = Math.min(...parents.map((p) => p.x + candidateParentShift));
+        parentShift = minParentX >= GEN_GRID ? candidateParentShift : candidateParentShift + (GEN_GRID - minParentX);
       }
 
       const parentIdsSet = new Set(parentIds);
@@ -986,6 +1164,10 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
     } });
   }, []);
 
+  const removeEdges = useCallback((edgeIds: string[]) => {
+    dispatch({ type: "REMOVE_EDGES", edgeIds });
+  }, []);
+
   const toggleTwinSelectMode = useCallback(() => {
     const s = stateRef.current;
     if (s.twinSelectMode) {
@@ -1046,11 +1228,11 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
 
   const value = useMemo<PedigreeEditorContextValue>(() => ({
     state, dispatch,
-    ops: { updateCanvas, undo, redo, addNode, addContextNode, toggleNodeProp, setNodeType, setNodeColor, handleNodeContextMenu, handleNodeDoubleClick, handleNodeClick, deleteSelected, updateSelectedNode, bulkUpdate, alignSelected, addAnnotation, updateAnnotation, deleteAnnotation, runAutoLayout, bakeEmptyLabels, bakeAllLabels, openConfirm, navigateArrow, handleCloseTab, openTab, reorderTabs, renameTab, fitToScreen, getSVGCoords, handleDragStart, handleMouseMove, handleMouseUp, handleSVGMouseDown, handleWheel, handleSaveVersion, commitSaveVersion, handleDeleteVersion, handleRestoreVersion, createConsanguinityEdge, addSiblings, markAsTwins, unmarkTwins, toggleTwinSelectMode, clearTwinCandidates, handleDeletePedigree },
+    ops: { updateCanvas, undo, redo, addNode, addContextNode, toggleNodeProp, setNodeType, setNodeColor, handleNodeContextMenu, handleNodeDoubleClick, handleNodeClick, deleteSelected, updateSelectedNode, bulkUpdate, alignSelected, addAnnotation, updateAnnotation, deleteAnnotation, runAutoLayout, bakeEmptyLabels, bakeAllLabels, openConfirm, navigateArrow, handleCloseTab, openTab, reorderTabs, renameTab, fitToScreen, getSVGCoords, handleDragStart, handleMouseMove, handleMouseUp, handleSVGMouseDown, handleWheel, handleSaveVersion, commitSaveVersion, handleDeleteVersion, handleRestoreVersion, createConsanguinityEdge, createCoupleEdge, addSiblings, markAsTwins, unmarkTwins, removeEdges, toggleTwinSelectMode, clearTwinCandidates, handleDeletePedigree },
     memo: { autoLabels, validation, searchMatches, generationRailEntries, legendEntries, visibleGenRows, vbW, vbH, MM_W, MM_H, singleSelected: state.selectedIds.size === 1 ? state.canvas.nodes.find((n) => state.selectedIds.has(n.id)) ?? null : null, anySelected: state.selectedIds.size > 0, tabItems },
     refs: { svgRef, canvasRef, preDragCanvasRef, lassoRef, isLassoingRef, lassoRectRef, spaceHeldRef, rafRef, searchInputRef, draftKeyRef, draftEnabledRef, pendingAnnDragRef },
     pedigree, versions, versionsLoading, profiles, saveVersionPending: saveVersionMutation.isPending, showDraftBanner, onRestoreDraft, handleDismissDraft,
-  }), [state, updateCanvas, undo, redo, addNode, addContextNode, toggleNodeProp, setNodeType, setNodeColor, handleNodeContextMenu, handleNodeDoubleClick, handleNodeClick, deleteSelected, updateSelectedNode, bulkUpdate, alignSelected, addAnnotation, updateAnnotation, deleteAnnotation, runAutoLayout, bakeEmptyLabels, bakeAllLabels, openConfirm, navigateArrow, openTab, reorderTabs, renameTab, fitToScreen, getSVGCoords, handleDragStart, handleMouseMove, handleMouseUp, handleSVGMouseDown, handleWheel, commitSaveVersion, handleDeleteVersion, handleRestoreVersion, createConsanguinityEdge, addSiblings, markAsTwins, unmarkTwins, toggleTwinSelectMode, clearTwinCandidates, handleDeletePedigree, autoLabels, validation, searchMatches, generationRailEntries, legendEntries, visibleGenRows, vbW, vbH, MM_W, MM_H, tabItems, saveVersionMutation.isPending, deleteVersionMutation.isPending]);
+  }), [state, updateCanvas, undo, redo, addNode, addContextNode, toggleNodeProp, setNodeType, setNodeColor, handleNodeContextMenu, handleNodeDoubleClick, handleNodeClick, deleteSelected, updateSelectedNode, bulkUpdate, alignSelected, addAnnotation, updateAnnotation, deleteAnnotation, runAutoLayout, bakeEmptyLabels, bakeAllLabels, openConfirm, navigateArrow, openTab, reorderTabs, renameTab, fitToScreen, getSVGCoords, handleDragStart, handleMouseMove, handleMouseUp, handleSVGMouseDown, handleWheel, commitSaveVersion, handleDeleteVersion, handleRestoreVersion, createConsanguinityEdge, createCoupleEdge, addSiblings, markAsTwins, unmarkTwins, removeEdges, toggleTwinSelectMode, clearTwinCandidates, handleDeletePedigree, autoLabels, validation, searchMatches, generationRailEntries, legendEntries, visibleGenRows, vbW, vbH, MM_W, MM_H, tabItems, saveVersionMutation.isPending, deleteVersionMutation.isPending]);
 
   return <PedigreeEditorContext.Provider value={value}>{children}</PedigreeEditorContext.Provider>;
 }

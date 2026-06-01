@@ -89,6 +89,7 @@ function PedigreeCanvasInner() {
         setLinkSource={toggle.setLinkSource}
         selectedIds={state.selectedIds}
         createConsanguinityEdge={ops.createConsanguinityEdge}
+        createCoupleEdge={ops.createCoupleEdge}
         undo={ops.undo} redo={ops.redo} deleteSelected={ops.deleteSelected}
         historyLength={state.history.length} futureLength={state.future.length}
         selectedCount={state.selectedIds.size} anySelected={memo.anySelected}

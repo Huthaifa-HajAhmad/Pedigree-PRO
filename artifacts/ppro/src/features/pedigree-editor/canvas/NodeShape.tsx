@@ -105,12 +105,17 @@ export const NodeShape = memo(function NodeShape({
       {node.type === "pregnancy" && (
         <>
           <polygon points={`0,${-S / 2} ${S / 2},0 0,${S / 2} ${-S / 2},0`} fill={fill} stroke={stroke} strokeWidth={strokeWidth} style={glow} />
-          <text x={0} y={4} textAnchor="middle" fontSize={9} fill={stroke} style={{ userSelect: "none", fontFamily: "JetBrains Mono, monospace" }}>P</text>
+          {!node.insideText && <text x={0} y={4} textAnchor="middle" fontSize={9} fill={stroke} style={{ userSelect: "none", fontFamily: "JetBrains Mono, monospace" }}>P</text>}
         </>
       )}
       {node.type === "sab" && (
         <polygon points={`0,${S * 0.36} ${-S * 0.38},${-S * 0.26} ${S * 0.38},${-S * 0.26}`}
           fill={invalid ? "rgba(255,64,64,0.07)" : node.affected ? "hsl(var(--foreground))" : node.carrier ? "hsl(var(--primary) / 0.08)" : "hsl(var(--card))"} stroke={stroke} strokeWidth={strokeWidth} style={glow} />
+      )}
+      {node.insideText && (
+        <text x={0} y={4} textAnchor="middle" fontSize={S * 0.38} fill={node.affected ? "white" : "#374151"} style={{ userSelect: "none", fontFamily: "Inter, sans-serif", fontWeight: 600 }}>
+          {node.insideText}
+        </text>
       )}
       {node.carrier && !node.affected && <circle cx={0} cy={0} r={carrierR} fill={"hsl(var(--primary))"} opacity={0.85} />}
       {node.deceased && (

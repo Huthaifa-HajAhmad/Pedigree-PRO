@@ -12,6 +12,7 @@ export interface PedigreeNode {
   dob?: string;
   condition?: string;
   notes?: string;
+  insideText?: string;
   x: number;
   y: number;
   pinned?: boolean;

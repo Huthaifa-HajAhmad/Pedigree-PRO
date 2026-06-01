@@ -30,7 +30,7 @@ export const DEFAULT_CANVAS_CONFIG: CanvasConfig = {
   annDefaultPos: "below",
   edgeColor: "#000000",
   nodeStrokeColor: "",
-  annFontFamily: "JetBrains Mono, monospace",
+  annFontFamily: "Inter, sans-serif",
   annBold: true,
   annUppercase: false,
 };
