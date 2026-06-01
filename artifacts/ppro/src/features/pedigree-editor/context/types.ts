@@ -133,7 +133,8 @@ export type PedigreeEditorAction =
   | { type: "UPDATE_CANVAS"; updater: (prev: CanvasData) => CanvasData; pushHistory?: boolean }
   | { type: "UNDO" }
   | { type: "REDO" }
-  | { type: "PUSH_DRAFT"; canvas: CanvasData };
+  | { type: "PUSH_DRAFT"; canvas: CanvasData }
+  | { type: "REMOVE_EDGES"; edgeIds: string[] };
 
 export interface PedigreeEditorOps {
   updateCanvas: (updater: (prev: CanvasData) => CanvasData, opts?: { skipHistory?: boolean }) => void;
@@ -175,9 +176,11 @@ export interface PedigreeEditorOps {
   handleDeleteVersion: (versionId: number) => void;
   handleRestoreVersion: (vid: number) => void;
   createConsanguinityEdge: (sourceId: string, targetId: string) => void;
+  createCoupleEdge: (sourceId: string, targetId: string) => void;
   addSiblings: (sourceId: string, siblings: Array<{ type: PedigreeNode["type"]; dob: string; affected?: boolean; carrier?: boolean; condition?: string; notes?: string }>) => void;
   markAsTwins: (nodeIds: string[], twinType: "m" | "d") => void;
   unmarkTwins: (nodeIds: string[]) => void;
+  removeEdges: (edgeIds: string[]) => void;
   toggleTwinSelectMode: () => void;
   clearTwinCandidates: () => void;
   handleDeletePedigree: (tabId: number, tabTitle: string) => void;

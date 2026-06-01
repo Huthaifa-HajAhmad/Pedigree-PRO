@@ -248,19 +248,19 @@ function CanvasTab() {
           <div>
             <div className="text-xs text-muted-foreground uppercase tracking-widest mb-1.5">Font Family</div>
             <div className="grid grid-cols-2 gap-1">
-              {([
-                { id: "JetBrains Mono, monospace", label: "Mono" },
-                { id: "Arial, sans-serif", label: "Arial" },
-                { id: "Calibri, sans-serif", label: "Calibri" },
-                { id: "Inter, sans-serif", label: "Inter" },
-              ]).map((f) => (
-                <button
-                  type="button"
-                  key={f.id}
-                  onClick={() => updateConfig("annFontFamily", f.id)}
-                  className={`py-1 rounded text-xs border transition-all ${
-                    (config.annFontFamily ?? "JetBrains Mono, monospace") === f.id ? "border-primary text-primary bg-primary/10" : "border-border text-muted-foreground hover:border-primary"
-                  }`}
+{([
+                 { id: "Inter, sans-serif", label: "Inter" },
+                 { id: "Arial, sans-serif", label: "Arial" },
+                 { id: "Calibri, sans-serif", label: "Calibri" },
+                 { id: "JetBrains Mono, monospace", label: "Mono" },
+               ]).map((f) => (
+                 <button
+                   type="button"
+                   key={f.id}
+                   onClick={() => updateConfig("annFontFamily", f.id)}
+                   className={`py-1 rounded text-xs border transition-all ${
+                    (config.annFontFamily ?? "Inter, sans-serif") === f.id ? "border-primary text-primary bg-primary/10" : "border-border text-muted-foreground hover:border-primary"
+                   }`}
                   style={{ fontFamily: f.id }}
                 >
                   {f.label}

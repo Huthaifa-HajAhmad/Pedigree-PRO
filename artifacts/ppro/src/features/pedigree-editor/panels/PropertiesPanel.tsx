@@ -1,4 +1,4 @@
-import { Pin, PinOff, Users, MessageSquare, Plus, User, Dna, Flag, Stethoscope, Trash2, LayoutGrid, GitBranch } from "lucide-react";
+import { Pin, PinOff, Users, MessageSquare, Plus, User, Dna, Flag, Stethoscope, Trash2, LayoutGrid, GitBranch, HeartOff } from "lucide-react";
 import type { PedigreeNode, PedigreeEdge, PedigreeAnnotation } from "@/features/pedigree-editor/canvas/types";
 import { AnnotationEditorPanel } from "@/features/pedigree-editor/panels/AnnotationEditorPanel";
 import { PanelShell } from "@/components/shared/panels/PanelShell";
@@ -10,7 +10,7 @@ export function PropertiesPanel({
   onUpdateSelectedNode,
   onBulkUpdate, onDeleteSelected, onAddAnnotation,
   onUpdateAnnotation, onDeleteAnnotation, onSelectAnnotation,
-  onAlignSelected, onMarkAsTwins, onUnmarkTwins,
+  onAlignSelected, onMarkAsTwins, onUnmarkTwins, onRemoveEdges,
 }: {
   selectedIds: Set<string>;
   canvasNodes: PedigreeNode[];
@@ -27,6 +27,7 @@ export function PropertiesPanel({
   onAlignSelected: (axis: "x" | "y") => void;
   onMarkAsTwins?: (nodeIds: string[], twinType: "m" | "d") => void;
   onUnmarkTwins?: (nodeIds: string[]) => void;
+  onRemoveEdges?: (edgeIds: string[]) => void;
 }) {
   const singleSelected = selectedIds.size === 1 ? canvasNodes.find((n) => selectedIds.has(n.id)) ?? null : null;
   const getStatus = (node: PedigreeNode) => node.affected ? "affected" : node.carrier ? "carrier" : "unaffected";
@@ -105,6 +106,25 @@ export function PropertiesPanel({
             <div className="text-xs text-muted-foreground mt-1 opacity-60">Press Enter to apply</div>
           </PanelSection>
 
+          {/* Relationship */}
+          {(() => {
+            const coupleEdges = canvasEdges.filter(
+              (e) => (e.type === "couple" || e.type === "consanguinity") && selectedIds.has(e.sourceId) && selectedIds.has(e.targetId)
+            );
+            if (coupleEdges.length === 0 || !onRemoveEdges) return null;
+            return (
+              <PanelSection title="Relationship" icon={<HeartOff className="w-3 h-3" />} defaultOpen={true}>
+                {coupleEdges.map((e) => (
+                  <div key={e.id} className="flex items-center justify-between gap-2">
+                    <span className="text-xs text-muted-foreground">{e.type === "couple" ? "Couple" : "Consanguinity"}</span>
+                    <button type="button" onClick={() => onRemoveEdges([e.id])}
+                      className="text-xs text-muted-foreground hover:text-destructive transition-colors">Remove</button>
+                  </div>
+                ))}
+              </PanelSection>
+            );
+          })()}
+
           {/* Twins */}
           {areSiblings && onMarkAsTwins && onUnmarkTwins && (
             <PanelSection title="Twins" icon={<GitBranch className="w-3 h-3" />}>
@@ -139,10 +159,10 @@ export function PropertiesPanel({
           {/* Basic Info */}
           <PanelSection title="Basic Info" icon={<User className="w-3 h-3" />}>
             <div>
-              <label htmlFor="prop-node-label" className="text-xs text-muted-foreground uppercase tracking-wider block mb-1">Name</label>
-              <input id="prop-node-label" data-testid="input-node-label" value={singleSelected.label}
-                onChange={(e) => onUpdateSelectedNode({ label: e.target.value })}
-                placeholder="Label" className="w-full bg-muted border border-border rounded px-2 py-1.5 text-xs outline-none focus:border-primary transition-colors" />
+              <label htmlFor="prop-node-inside-text" className="text-xs text-muted-foreground uppercase tracking-wider block mb-1">Inside text</label>
+              <input id="prop-node-inside-text" data-testid="input-node-inside-text" value={singleSelected.insideText ?? ""}
+                onChange={(e) => onUpdateSelectedNode({ insideText: e.target.value || undefined })}
+                placeholder="e.g. 3" className="w-full bg-muted border border-border rounded px-2 py-1.5 text-xs outline-none focus:border-primary transition-colors" />
             </div>
             <div>
               <label htmlFor="prop-node-age" className="text-xs text-muted-foreground uppercase tracking-wider block mb-1">Age</label>

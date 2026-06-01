@@ -2,9 +2,10 @@ import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { useListPedigrees, useCreatePedigree, queryKeys } from "@workspace/api-client-react";
-import { Dna, Plus } from "lucide-react";
+import { Dna, Plus, Upload } from "lucide-react";
 import { computeHash, signData } from "@workspace/crypto";
 import { listProfilePrivateKeys } from "@workspace/browser-backend";
+import { ImportDialog } from "@/components/ImportDialog";
 
 export function TabPickerPopover({
   currentId,
@@ -66,7 +67,7 @@ export function TabPickerPopover({
     mountedRef.current = true;
     const handler = (e: MouseEvent) => {
       const target = e.target as Element;
-      if (panelRef.current && !panelRef.current.contains(target) && !target.closest("[data-tab-picker-trigger]")) {
+      if (panelRef.current && !panelRef.current.contains(target) && !target.closest("[data-tab-picker-trigger]") && !target.closest('[role="dialog"]')) {
         onCloseRef.current();
       }
     };
@@ -132,6 +133,12 @@ export function TabPickerPopover({
           <Plus className="w-3 h-3" />
           <span>{createPedigree.isPending ? "Creating..." : "New Pedigree"}</span>
         </button>
+        <ImportDialog>
+          <button type="button" className="w-full flex items-center gap-2 px-3 py-2 text-xs rounded-md hover:bg-accent text-primary font-medium transition-colors">
+            <Upload className="w-3 h-3" />
+            <span>Import</span>
+          </button>
+        </ImportDialog>
       </div>
     </div>,
     document.body

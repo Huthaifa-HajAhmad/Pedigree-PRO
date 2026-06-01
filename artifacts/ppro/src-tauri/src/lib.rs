@@ -26,6 +26,27 @@ pub struct AppState {
     pub db: Mutex<rusqlite::Connection>,
 }
 
+#[cfg(target_os = "windows")]
+fn disable_webview_zoom(win: &tauri::WebviewWindow) {
+    use webview2_com::Microsoft::Web::WebView2::Win32::ICoreWebView2Settings5;
+    use windows_core::Interface;
+
+    let _ = win.with_webview(|webview| {
+        let controller = webview.controller();
+        if let Ok(core) = unsafe { controller.CoreWebView2() } {
+            if let Ok(settings) = unsafe { core.Settings() } {
+                let _ = unsafe { settings.SetIsZoomControlEnabled(false) };
+                if let Ok(settings5) = settings.cast::<ICoreWebView2Settings5>() {
+                    let _ = unsafe { settings5.SetIsPinchZoomEnabled(false) };
+                }
+            }
+        }
+    });
+}
+
+#[cfg(not(target_os = "windows"))]
+fn disable_webview_zoom(_win: &tauri::WebviewWindow) {}
+
 /// Runs the Tauri application.
 /// Called from main.rs.
 pub fn run() {
@@ -39,6 +60,12 @@ pub fn run() {
             app.manage(AppState {
                 db: Mutex::new(conn),
             });
+
+            // Try immediately (may fail if WebView2 not ready yet)
+            if let Some(win) = app.get_webview_window("main") {
+                disable_webview_zoom(&win);
+            }
+
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -89,6 +116,8 @@ pub fn run() {
             // ─── Preferences ──────────────────────────────────
             commands::get_preferences,
             commands::save_preferences,
+            // ─── WebView ───────────────────────────────────────
+            commands::disable_zoom,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Pedigree PRO");

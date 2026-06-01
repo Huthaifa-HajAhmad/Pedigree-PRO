@@ -18,27 +18,14 @@ export function useCanvasTouch(params: UseCanvasTouchParams) {
   const paramsRef = useRef(params);
   paramsRef.current = params;
 
-  const touchStateRef = useRef<{
-    touchCount: number;
-    startTime: number;
-    lastTapTime: number;
-    lastTapNodeId: string | null;
-    panStart: { clientX: number; clientY: number; vbX: number; vbY: number } | null;
-    pinchStart: { dist: number; vbX: number; vbY: number; zoom: number } | null;
-    longPressTimeout: ReturnType<typeof setTimeout> | null;
-    moved: boolean;
-    startSVG: { x: number; y: number } | null;
-  }>({
-    touchCount: 0,
-    startTime: 0,
-    lastTapTime: 0,
-    lastTapNodeId: null,
-    panStart: null,
-    pinchStart: null,
-    longPressTimeout: null,
-    moved: false,
-    startSVG: null,
-  });
+  const pointersRef = useRef<Map<number, { clientX: number; clientY: number }>>(new Map());
+  const pinchStartRef = useRef<{ dist: number; vbX: number; vbY: number; zoom: number } | null>(null);
+  const panStartRef = useRef<{ clientX: number; clientY: number; vbX: number; vbY: number } | null>(null);
+  const longPressTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastTapTimeRef = useRef(0);
+  const lastTapNodeIdRef = useRef<string | null>(null);
+  const movedRef = useRef(false);
+  const startTimeRef = useRef(0);
 
   const findNodeAt = useCallback((clientX: number, clientY: number): string | null => {
     const p = paramsRef.current;
@@ -53,97 +40,90 @@ export function useCanvasTouch(params: UseCanvasTouchParams) {
     return null;
   }, []);
 
-  const onTouchStart = useCallback((e: React.TouchEvent) => {
-    const p = paramsRef.current;
-    const touches = e.touches;
-    const ts = touchStateRef.current;
+  const onPointerDown = useCallback((e: React.PointerEvent) => {
+    if (e.pointerType !== "touch") return;
+    e.preventDefault();
+    (e.target as Element).setPointerCapture(e.pointerId);
 
-    ts.touchCount = touches.length;
-    ts.startTime = Date.now();
-    ts.moved = false;
+    pointersRef.current.set(e.pointerId, { clientX: e.clientX, clientY: e.clientY });
+    startTimeRef.current = Date.now();
+    movedRef.current = false;
 
-    if (ts.longPressTimeout !== null) {
-      clearTimeout(ts.longPressTimeout);
-      ts.longPressTimeout = null;
+    if (longPressTimeoutRef.current !== null) {
+      clearTimeout(longPressTimeoutRef.current);
+      longPressTimeoutRef.current = null;
     }
 
-    if (touches.length === 1) {
-      e.preventDefault();
-      const t = touches[0];
-      if (!t) return;
-      const coords = p.getSVGCoords({ clientX: t.clientX, clientY: t.clientY });
-      ts.startSVG = coords;
-      ts.panStart = { clientX: t.clientX, clientY: t.clientY, vbX: p.viewBox.x, vbY: p.viewBox.y };
-      ts.pinchStart = null;
+    const pointers = pointersRef.current;
+    if (pointers.size === 1) {
+      const p = paramsRef.current;
+      panStartRef.current = { clientX: e.clientX, clientY: e.clientY, vbX: p.viewBox.x, vbY: p.viewBox.y };
+      pinchStartRef.current = null;
 
-      const nid = findNodeAt(t.clientX, t.clientY);
+      const nid = findNodeAt(e.clientX, e.clientY);
       if (nid) {
-        ts.longPressTimeout = setTimeout(() => {
+        longPressTimeoutRef.current = setTimeout(() => {
           const pp = paramsRef.current;
-          pp.onNodeContextMenu(nid, t.clientX, t.clientY);
-          ts.longPressTimeout = null;
+          pp.onNodeContextMenu(nid, e.clientX, e.clientY);
+          longPressTimeoutRef.current = null;
         }, 500);
       }
     }
 
-    if (touches.length === 2) {
-      e.preventDefault();
-      const t0 = touches[0];
-      const t1 = touches[1];
-      if (!t0 || !t1) return;
-      if (ts.longPressTimeout !== null) {
-        clearTimeout(ts.longPressTimeout);
-        ts.longPressTimeout = null;
-      }
-      const dx = t1.clientX - t0.clientX;
-      const dy = t1.clientY - t0.clientY;
+    if (pointers.size === 2) {
+      const p = paramsRef.current;
+      const pts = Array.from(pointers.values());
+      const dx = pts[1]!.clientX - pts[0]!.clientX;
+      const dy = pts[1]!.clientY - pts[0]!.clientY;
       const dist = Math.hypot(dx, dy);
-      ts.pinchStart = { dist, vbX: p.viewBox.x, vbY: p.viewBox.y, zoom: p.viewBox.zoom };
-      ts.panStart = null;
-      ts.startSVG = null;
+      pinchStartRef.current = { dist, vbX: p.viewBox.x, vbY: p.viewBox.y, zoom: p.viewBox.zoom };
+      panStartRef.current = null;
+
+      if (longPressTimeoutRef.current !== null) {
+        clearTimeout(longPressTimeoutRef.current);
+        longPressTimeoutRef.current = null;
+      }
     }
   }, [findNodeAt]);
 
-  const onTouchMove = useCallback((e: React.TouchEvent) => {
-    const p = paramsRef.current;
-    const touches = e.touches;
-    const ts = touchStateRef.current;
+  const onPointerMove = useCallback((e: React.PointerEvent) => {
+    if (e.pointerType !== "touch") return;
+    if (!pointersRef.current.has(e.pointerId)) return;
+    e.preventDefault();
 
-    if (touches.length === 1 && ts.panStart) {
-      e.preventDefault();
-      const t = touches[0];
-      if (!t) return;
-      const dx = (t.clientX - ts.panStart.clientX) * p.viewBox.zoom;
-      const dy = (t.clientY - ts.panStart.clientY) * p.viewBox.zoom;
-      if (ts.longPressTimeout !== null && (Math.abs(dx) > 10 || Math.abs(dy) > 10)) {
-        clearTimeout(ts.longPressTimeout);
-        ts.longPressTimeout = null;
+    pointersRef.current.set(e.pointerId, { clientX: e.clientX, clientY: e.clientY });
+    const p = paramsRef.current;
+    const pointers = pointersRef.current;
+
+    if (pointers.size === 1 && panStartRef.current) {
+      const dx = (e.clientX - panStartRef.current.clientX) * p.viewBox.zoom;
+      const dy = (e.clientY - panStartRef.current.clientY) * p.viewBox.zoom;
+      if (longPressTimeoutRef.current !== null && (Math.abs(dx) > 10 || Math.abs(dy) > 10)) {
+        clearTimeout(longPressTimeoutRef.current);
+        longPressTimeoutRef.current = null;
       }
-      ts.moved = ts.moved || Math.abs(dx) > 3 || Math.abs(dy) > 3;
-      p.setViewBox({ x: ts.panStart.vbX - dx, y: ts.panStart.vbY - dy, zoom: p.viewBox.zoom });
+      movedRef.current = movedRef.current || Math.abs(dx) > 3 || Math.abs(dy) > 3;
+      p.setViewBox({ x: panStartRef.current.vbX - dx, y: panStartRef.current.vbY - dy, zoom: p.viewBox.zoom });
     }
 
-    if (touches.length === 2 && ts.pinchStart) {
-      e.preventDefault();
-      const t0 = touches[0];
-      const t1 = touches[1];
-      if (!t0 || !t1) return;
-      const cx = (t0.clientX + t1.clientX) / 2;
-      const cy = (t0.clientY + t1.clientY) / 2;
-      const dx = t1.clientX - t0.clientX;
-      const dy = t1.clientY - t0.clientY;
+    if (pointers.size === 2 && pinchStartRef.current) {
+      const pts = Array.from(pointers.values());
+      const cx = (pts[0]!.clientX + pts[1]!.clientX) / 2;
+      const cy = (pts[0]!.clientY + pts[1]!.clientY) / 2;
+      const dx = pts[1]!.clientX - pts[0]!.clientX;
+      const dy = pts[1]!.clientY - pts[0]!.clientY;
       const newDist = Math.hypot(dx, dy);
-      const scale = newDist / ts.pinchStart.dist;
-      const newZoom = Math.min(4, Math.max(0.25, ts.pinchStart.zoom * scale));
+      const scale = newDist / pinchStartRef.current.dist;
+      const newZoom = Math.min(4, Math.max(0.25, pinchStartRef.current.zoom * scale));
 
-      const vbAtStartW = p.W * ts.pinchStart.zoom;
-      const vbAtStartH = p.H * ts.pinchStart.zoom;
+      const vbAtStartW = p.W * pinchStartRef.current.zoom;
+      const vbAtStartH = p.H * pinchStartRef.current.zoom;
       const newVbW = p.W * newZoom;
       const newVbH = p.H * newZoom;
-      const fx = (cx) / window.innerWidth;
-      const fy = (cy) / window.innerHeight;
-      const cxWorld = ts.pinchStart.vbX + fx * vbAtStartW;
-      const cyWorld = ts.pinchStart.vbY + fy * vbAtStartH;
+      const fx = cx / window.innerWidth;
+      const fy = cy / window.innerHeight;
+      const cxWorld = pinchStartRef.current.vbX + fx * vbAtStartW;
+      const cyWorld = pinchStartRef.current.vbY + fy * vbAtStartH;
 
       p.setViewBox({
         x: cxWorld - fx * newVbW,
@@ -153,43 +133,40 @@ export function useCanvasTouch(params: UseCanvasTouchParams) {
     }
   }, []);
 
-  const onTouchEnd = useCallback((e: React.TouchEvent) => {
-    const p = paramsRef.current;
-    const ts = touchStateRef.current;
+  const onPointerUp = useCallback((e: React.PointerEvent) => {
+    if (e.pointerType !== "touch") return;
+    pointersRef.current.delete(e.pointerId);
 
-    if (ts.longPressTimeout !== null) {
-      clearTimeout(ts.longPressTimeout);
-      ts.longPressTimeout = null;
+    if (longPressTimeoutRef.current !== null) {
+      clearTimeout(longPressTimeoutRef.current);
+      longPressTimeoutRef.current = null;
     }
 
-    if (ts.touchCount === 1 && !ts.moved) {
-      const changed = e.changedTouches[0];
-      if (!changed) { ts.panStart = null; ts.startSVG = null; return; }
-      const nid = findNodeAt(changed.clientX, changed.clientY);
-      const elapsed = Date.now() - ts.startTime;
+    const pointers = pointersRef.current;
+    if (pointers.size === 0 && !movedRef.current) {
+      const nid = findNodeAt(e.clientX, e.clientY);
+      const elapsed = Date.now() - startTimeRef.current;
 
       if (elapsed < 300) {
         e.preventDefault();
-        const timeSinceLastTap = Date.now() - ts.lastTapTime;
-        if (timeSinceLastTap < 500 && nid && ts.lastTapNodeId === nid) {
-          p.onNodeDoubleTap(nid);
-          ts.lastTapTime = 0;
-          ts.lastTapNodeId = null;
+        const timeSinceLastTap = Date.now() - lastTapTimeRef.current;
+        if (timeSinceLastTap < 500 && nid && lastTapNodeIdRef.current === nid) {
+          paramsRef.current.onNodeDoubleTap(nid);
+          lastTapTimeRef.current = 0;
+          lastTapNodeIdRef.current = null;
         } else {
           if (nid) {
-            p.onNodeTap(nid);
+            paramsRef.current.onNodeTap(nid);
           }
-          ts.lastTapTime = nid ? Date.now() : 0;
-          ts.lastTapNodeId = nid;
+          lastTapTimeRef.current = nid ? Date.now() : 0;
+          lastTapNodeIdRef.current = nid;
         }
       }
     }
 
-    ts.panStart = null;
-    ts.pinchStart = null;
-    ts.startSVG = null;
-    ts.touchCount = 0;
+    panStartRef.current = null;
+    pinchStartRef.current = null;
   }, [findNodeAt]);
 
-  return { onTouchStart, onTouchMove, onTouchEnd };
+  return { onPointerDown, onPointerMove, onPointerUp };
 }

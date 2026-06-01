@@ -26,9 +26,9 @@ export function NodeQuickEditPopover({
 }: NodeQuickEditPopoverProps) {
   const popoverRef = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
-  const [draft, setDraft] = useState(node.label);
+  const [draft, setDraft] = useState(node.insideText ?? "");
 
-  useEffect(() => { setDraft(node.label); }, [node.id]);
+  useEffect(() => { setDraft(node.insideText ?? ""); }, [node.id, node.insideText]);
 
   useEffect(() => {
     const svg = svgRef.current;
@@ -64,9 +64,9 @@ export function NodeQuickEditPopover({
     return () => document.removeEventListener("mousedown", onClick);
   }, [onClose]);
 
-  const applyLabel = () => {
+  const applyInsideText = () => {
     const trimmed = draft.trim();
-    if (trimmed !== node.label) onUpdateNode({ label: trimmed });
+    if (trimmed !== (node.insideText ?? "")) onUpdateNode({ insideText: trimmed || undefined });
   };
 
   const statusValue = node.affected ? "affected" : node.carrier ? "carrier" : "unaffected";
@@ -92,15 +92,16 @@ export function NodeQuickEditPopover({
         </button>
       </div>
 
-      {/* Name */}
+      {/* Inside text (count) */}
       <div className="mb-3">
-        <label className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium block mb-1">Name</label>
+        <label className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium block mb-1">Inside text</label>
         <input
           type="text"
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
-          onBlur={applyLabel}
-          onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); applyLabel(); onClose(); } }}
+          onBlur={applyInsideText}
+          onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); applyInsideText(); onClose(); } }}
+          placeholder="e.g. 3"
           className="w-full bg-transparent border border-border rounded-md px-2.5 py-1.5 text-xs focus:border-primary outline-none transition-colors"
           autoFocus
         />

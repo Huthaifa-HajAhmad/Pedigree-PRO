@@ -55,6 +55,9 @@ export function usePedigreeKeyboard(params: UsePedigreeKeyboardParams) {
       if (e.metaKey || e.ctrlKey) {
         if (e.key === "z" && !e.shiftKey) { e.preventDefault(); k.undo(); return; }
         if ((e.key === "z" && e.shiftKey) || e.key === "y") { e.preventDefault(); k.redo(); return; }
+        if (e.key === "=" || e.key === "+") { e.preventDefault(); k.setViewBox((v) => ({ ...v, zoom: Math.max(0.25, v.zoom * 0.85) })); return; }
+        if (e.key === "-" || e.key === "_") { e.preventDefault(); k.setViewBox((v) => ({ ...v, zoom: Math.min(4, v.zoom * 1.18) })); return; }
+        if (e.key === "0") { e.preventDefault(); k.fitToScreen(); return; }
         if (e.key === "f") {
           e.preventDefault();
           k.setShowSearch(true);

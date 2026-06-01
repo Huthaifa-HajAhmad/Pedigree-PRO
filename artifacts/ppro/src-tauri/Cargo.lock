@@ -2460,7 +2460,7 @@ dependencies = [
 
 [[package]]
 name = "pedigree-pro"
-version = "1.0.0-1"
+version = "1.0.0-2"
 dependencies = [
  "base64 0.22.1",
  "chrono",
@@ -2481,6 +2481,8 @@ dependencies = [
  "tauri-plugin-updater",
  "tokio",
  "uuid",
+ "webview2-com",
+ "windows-core 0.61.2",
 ]
 
 [[package]]

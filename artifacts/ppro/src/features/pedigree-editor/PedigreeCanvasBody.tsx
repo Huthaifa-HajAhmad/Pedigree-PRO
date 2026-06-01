@@ -207,7 +207,7 @@ export function PedigreeCanvasBody() {
 
   const handleCloseContextMenu = useCallback(() => dispatch({ type: "SET_STATE", patch: { contextMenu: null } }), [dispatch]);
 
-  const { onTouchStart, onTouchMove, onTouchEnd } = useCanvasTouch({
+  const { onPointerDown, onPointerMove, onPointerUp } = useCanvasTouch({
     getSVGCoords,
     setViewBox: (vb) => dispatch({ type: "SET_STATE", patch: { viewBox: typeof vb === "function" ? vb(viewBox) : vb } }),
     viewBox,
@@ -220,12 +220,13 @@ export function PedigreeCanvasBody() {
   });
 
   useEffect(() => {
-    const el = svgRef.current;
-    if (!el) return;
-    const handler = (e: WheelEvent) => { e.preventDefault(); handleWheel(e as unknown as React.WheelEvent); };
-    el.addEventListener("wheel", handler, { passive: false });
-    return () => el.removeEventListener("wheel", handler);
-  }, [handleWheel, svgRef]);
+    const handler = (e: WheelEvent) => {
+      e.preventDefault();
+      handleWheel(e as unknown as React.WheelEvent);
+    };
+    document.addEventListener("wheel", handler, { passive: false });
+    return () => document.removeEventListener("wheel", handler);
+  }, [handleWheel]);
 
   const handleAnnotationClick = useCallback((annId: string, nodeId: string) => {
     dispatch({ type: "SET_STATE", patch: { selectedAnnotationId: selectedAnnotationId === annId ? null : annId, selectedIds: new Set([nodeId]) } });
@@ -288,7 +289,7 @@ export function PedigreeCanvasBody() {
 
   return (
     <div className="flex flex-1 overflow-hidden" data-print-area>
-      <div className={`flex-1 overflow-hidden relative ${showGrid ? "grid-bg" : ""}`}>
+      <div className={`flex-1 overflow-hidden relative ${showGrid ? "grid-bg" : ""}`} style={{ touchAction: "none", overscrollBehavior: "none" }}>
         {twinSelectMode && (
           <div className="absolute top-3 left-1/2 -translate-x-1/2 z-20 px-3 py-1.5 rounded-full bg-amber-500 text-white text-xs font-medium shadow-md pointer-events-none">
             Twin select: {twinCandidateIds.size} node{twinCandidateIds.size !== 1 ? "s" : ""}
@@ -302,8 +303,8 @@ export function PedigreeCanvasBody() {
           viewBox={`${viewBox.x} ${viewBox.y} ${vbW} ${vbH}`}
           onMouseMove={handleMouseMove} onMouseUp={handleMouseUp}
           onMouseDown={handleSVGMouseDown}
-          onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd}
-          style={{ cursor: panning ? "grabbing" : spaceHeld ? "grab" : lassoVisible ? "crosshair" : "default" }}
+          onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp}
+          style={{ touchAction: "none", cursor: panning ? "grabbing" : spaceHeld ? "grab" : lassoVisible ? "crosshair" : "default" }}
         >
           {visibleGenRows.map((row) => (
             <line key={row} x1={viewBox.x} y1={row} x2={viewBox.x + vbW} y2={row}
@@ -531,6 +532,7 @@ export function PedigreeCanvasBody() {
             onAlignSelected={alignSelected}
             onMarkAsTwins={markAsTwins}
             onUnmarkTwins={unmarkTwins}
+            onRemoveEdges={ops.removeEdges}
           />
         )}
 

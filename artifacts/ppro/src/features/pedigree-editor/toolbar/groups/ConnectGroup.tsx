@@ -10,6 +10,7 @@ interface ConnectGroupProps {
   canvasNodes: PedigreeNode[];
   canvasEdges: { type: string; sourceId: string; targetId: string }[];
   createConsanguinityEdge: (sourceId: string, targetId: string) => void;
+  createCoupleEdge: (sourceId: string, targetId: string) => void;
   twinSelectMode: boolean;
   twinCandidateIds: Set<string>;
   toggleTwinSelectMode: () => void;
@@ -31,7 +32,7 @@ function useDropdownPosition(ref: React.RefObject<HTMLButtonElement | null>) {
 
 export function ConnectGroup({
   linkMode, setLinkMode, setLinkSource, selectedIds, canvasNodes, canvasEdges,
-  createConsanguinityEdge, twinSelectMode, twinCandidateIds, toggleTwinSelectMode,
+  createConsanguinityEdge, createCoupleEdge, twinSelectMode, twinCandidateIds, toggleTwinSelectMode,
   markAsTwins, clearTwinCandidates, labelHidden = false,
 }: ConnectGroupProps) {
   const [showTwinDropdown, setShowTwinDropdown] = useState(false);
@@ -57,7 +58,8 @@ export function ConnectGroup({
     return () => document.removeEventListener("keydown", onKey);
   }, [showMoreDropdown, measureMore]);
 
-  const handleConsanguinityClick = () => {
+  const handleConsanguinityClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
     if (selectedIds.size === 2) {
       const ids = [...selectedIds];
       const idA = ids[0]!, idB = ids[1]!;
@@ -70,6 +72,18 @@ export function ConnectGroup({
     }
     setLinkMode(linkMode === "consanguinity" ? null : "consanguinity");
     setLinkSource(null);
+  };
+
+  const handleCoupleClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (selectedIds.size === 2) {
+      const ids = [...selectedIds];
+      createCoupleEdge(ids[0]!, ids[1]!);
+      return;
+    }
+    setLinkMode(linkMode === "couple" ? null : "couple");
+    setLinkSource(null);
+    setShowMoreDropdown(false);
   };
 
   const areSelectedNodesSiblings = (): boolean => {
@@ -139,6 +153,7 @@ export function ConnectGroup({
           type="button"
           data-testid="button-link-consanguinity"
           onClick={handleConsanguinityClick}
+          onMouseDown={(e) => e.stopPropagation()}
           title="Draw consanguinity link — select 2 opposite-gender nodes, or click then pick second node"
           aria-label="Draw consanguinity link"
           aria-pressed={linkMode === "consanguinity"}
@@ -177,7 +192,7 @@ export function ConnectGroup({
         <button
           type="button"
           ref={moreRef}
-          onClick={() => { setShowMoreDropdown((v) => !v); }}
+          onClick={(e) => { e.stopPropagation(); setShowMoreDropdown((v) => !v); }}
           title="More connection types"
           aria-label="More connection types"
           aria-expanded={showMoreDropdown}
@@ -213,7 +228,7 @@ export function ConnectGroup({
             <button
               type="button"
               data-testid="button-link-couple"
-              onClick={() => { setLinkMode(linkMode === "couple" ? null : "couple"); setLinkSource(null); setShowMoreDropdown(false); }}
+              onClick={handleCoupleClick}
               className={`w-full flex items-center gap-2.5 px-3 py-2 text-xs hover:bg-accent transition-colors text-left ${linkMode === "couple" ? "text-primary bg-primary/5" : ""}`}
             >
               <Link2 className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
@@ -222,7 +237,7 @@ export function ConnectGroup({
             <button
               type="button"
               data-testid="button-link-child"
-              onClick={() => { setLinkMode(linkMode === "parent-child" ? null : "parent-child"); setLinkSource(null); setShowMoreDropdown(false); }}
+              onClick={(e) => { e.stopPropagation(); setLinkMode(linkMode === "parent-child" ? null : "parent-child"); setLinkSource(null); setShowMoreDropdown(false); }}
               className={`w-full flex items-center gap-2.5 px-3 py-2 text-xs hover:bg-accent transition-colors text-left border-t border-border ${linkMode === "parent-child" ? "text-primary bg-primary/5" : ""}`}
             >
               <GitBranch className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />

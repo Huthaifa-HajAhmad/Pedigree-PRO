@@ -488,7 +488,7 @@ export async function exportPPTX(info: ExportInfo, canvas: ExportCanvas) {
   const deceased  = canvas.nodes.filter(n => n.deceased);
   const proband   = canvas.nodes.find(n => n.proband);
   const notable   = canvas.nodes.filter(n => n.affected || n.carrier || n.proband);
-  const couples   = canvas.edges.filter(e => e.type === "couple").length;
+  const couples   = canvas.edges.filter(e => e.type === "couple" || e.type === "consanguinity").length;
 
   // ── SLIDE 1 — Cover ─────────────────────────────────────────────────────
   const cover = pptx.addSlide();

@@ -1165,3 +1165,9 @@ fn count_nodes_in_canvas(canvas_data: &Option<String>) -> i64 {
         }
     }
 }
+
+#[tauri::command]
+pub fn disable_zoom(window: tauri::WebviewWindow) -> Result<(), String> {
+    crate::disable_webview_zoom(&window);
+    Ok(())
+}

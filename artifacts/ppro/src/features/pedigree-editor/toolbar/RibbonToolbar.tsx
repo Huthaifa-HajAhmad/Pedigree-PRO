@@ -37,6 +37,7 @@ export interface RibbonToolbarProps {
   setLinkSource: (sourceId: string | null) => void;
   selectedIds: Set<string>;
   createConsanguinityEdge: (sourceId: string, targetId: string) => void;
+  createCoupleEdge: (sourceId: string, targetId: string) => void;
   undo: () => void;
   redo: () => void;
   deleteSelected: () => void;
@@ -183,6 +184,7 @@ export function RibbonToolbar(props: RibbonToolbarProps) {
           linkMode={props.linkMode} setLinkMode={props.setLinkMode} setLinkSource={props.setLinkSource}
           selectedIds={props.selectedIds} canvasNodes={props.canvasNodes} canvasEdges={props.canvasEdges}
           createConsanguinityEdge={props.createConsanguinityEdge}
+          createCoupleEdge={props.createCoupleEdge}
           twinSelectMode={props.twinSelectMode} twinCandidateIds={props.twinCandidateIds}
           toggleTwinSelectMode={props.toggleTwinSelectMode} clearTwinCandidates={props.clearTwinCandidates}
           markAsTwins={props.markAsTwins}
