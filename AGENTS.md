@@ -219,6 +219,30 @@ pnpm --filter @workspace/api-client-react exec tsc --build
 
 **TS6305 warnings:** "Output file has not been built from source" — pre-existing. Resolve by building lib packages first via `tsc --build`.
 
+### Known Issues (Open)
+
+**T1 — Pinch zoom on trackpad (Tauri desktop, Windows):**
+Trackpad pinch gesture on Windows Precision Touchpad produces "nothing happens" in the Tauri desktop app. No canvas zoom, no page zoom, no visual change.
+
+Approaches attempted (all failed to fix the issue):
+- `SetIsPinchZoomEnabled(false)` + `SetIsZoomControlEnabled(false)` via `ICoreWebView2Settings5`
+- `SetGestureConfig(hwnd, GID_ZOOM, dwBlock: GC_ZOOM)` Win32 API — **removed**; was blocking gesture events from reaching WebView2 entirely
+- `ZoomFactorChangedEventHandler` reactive reset — **removed**; may have caused event consumption issues
+- CSS `touch-action: none` and inline JS gesture prevention in `index.html`
+- `--disable-pinch-to-zoom` Chromium flag (invalid, removed)
+- Document-level `wheel` handler + increased zoom sensitivity (`0.992` → `0.95`)
+- Rewrote `use-canvas-touch.ts` from Touch Events to Pointer Events
+
+Current hypothesis: WebView2 consumes the trackpad gesture natively and does not generate Ctrl+wheel events for the web content when any zoom-disabling API is active. Potential next approaches:
+- Native Windows message interception (`SubclassWindow` / `CallWindowProc`) to inspect `WM_GESTURE`/`WM_POINTER` messages before WebView2 sees them
+- WebView2 composition mode investigation (CoreWebView2CompositionController)
+- Test with external mouse wheel to verify the custom zoom handler works independently of trackpad
+- Consider using Tauri's native dialog for zoom control instead of web content gesture handling
+
+Status: **Open — deferred to future investigation.**
+
+## Migration Notes
+
 ## Migration Notes
 
 - `lib/api-spec/` and `lib/api-zod/` were deleted. No OpenAPI or Zod generation remains.
