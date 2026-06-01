@@ -18,7 +18,7 @@ jobs:
         with: { version: '9' }
       - uses: actions/setup-node@v4
         with: { node-version: '22', cache: 'pnpm' }
-      - run: pnpm install --ignore-scripts
+      - run: pnpm install --no-frozen-lockfile --ignore-scripts
       - run: pnpm --filter @workspace/api-client-react exec tsc --build
       - run: pnpm run typecheck
 
@@ -31,7 +31,7 @@ jobs:
         with: { version: '9' }
       - uses: actions/setup-node@v4
         with: { node-version: '22', cache: 'pnpm' }
-      - run: pnpm install --ignore-scripts
+      - run: pnpm install --no-frozen-lockfile --ignore-scripts
       - run: pnpm --filter @workspace/api-client-react exec tsc --build
       - run: pnpm run test
 
@@ -46,7 +46,7 @@ jobs:
         with: { version: '9' }
       - uses: actions/setup-node@v4
         with: { node-version: '22', cache: 'pnpm' }
-      - run: pnpm install --ignore-scripts
+      - run: pnpm install --no-frozen-lockfile --ignore-scripts
       - run: pnpm --filter @workspace/api-client-react exec tsc --build
       - uses: tauri-apps/tauri-action@v0
         with:
@@ -70,7 +70,7 @@ jobs:
         with: { version: '9' }
       - uses: actions/setup-node@v4
         with: { node-version: '22', cache: 'pnpm' }
-      - run: pnpm install --ignore-scripts
+      - run: pnpm install --no-frozen-lockfile --ignore-scripts
       - run: pnpm --filter @workspace/api-client-react exec tsc --build
       - run: rustup target add aarch64-apple-darwin
       - uses: tauri-apps/tauri-action@v0
@@ -98,7 +98,7 @@ jobs:
       - run: |
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
-      - run: pnpm install --ignore-scripts
+      - run: pnpm install --no-frozen-lockfile --ignore-scripts
       - run: pnpm --filter @workspace/api-client-react exec tsc --build
       - uses: tauri-apps/tauri-action@v0
         with:
@@ -121,7 +121,7 @@ jobs:
         with: { version: '9' }
       - uses: actions/setup-node@v4
         with: { node-version: '22', cache: 'pnpm' }
-      - run: pnpm install --ignore-scripts
+      - run: pnpm install --no-frozen-lockfile --ignore-scripts
       - run: pnpm --filter @workspace/api-client-react exec tsc --build
       - run: pnpm --filter @workspace/ppro build
       - run: echo '/* /index.html 200' > artifacts/ppro/dist/public/_redirects
