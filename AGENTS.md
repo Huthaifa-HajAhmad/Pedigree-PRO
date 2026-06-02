@@ -206,6 +206,22 @@ Minimal smoke tests in place. Consider: canvas interaction tests, import/export 
 **RB23 — Directory/package rename:**
 `artifacts/ppro/` and `@workspace/ppro` remain as internal names. Cascading changes across monorepo (tsconfig references, workspace filter commands, import paths). Defer to dedicated rename pass.
 
+### Development Workflow
+
+**Testing cycle:**
+1. Make changes → run `pnpm --filter @workspace/ppro run dev` → test in browser at `http://localhost:5173`
+2. Iterate until user approves the fix/feature
+3. Only then: typecheck → commit → push
+
+**Tauri builds:**
+- Do NOT build Tauri after every change
+- Build Tauri (`pnpm tauri build`) only after **significant changes** and **explicit user approval**
+- The user must test and approve before any release
+
+**Releases:**
+- Do NOT auto-create or update GitHub releases
+- Wait for explicit user request to release
+
 ### Known Workarounds
 
 **preinstall.js failure:** `pnpm install` fails because `scripts/preinstall.js` checks `npm_config_user_agent` and exits with code 1 for non-pnpm managers. Workaround:
