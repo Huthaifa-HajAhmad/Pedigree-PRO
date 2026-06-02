@@ -63,6 +63,10 @@ export function deleteProfile(profileId: string): Promise<void> {
   return apiCall<void>("delete_profile", { profile_id: profileId });
 }
 
+export function updateProfile(input: { id: string; display_name: string; role_label: string }): Promise<LocalProfile> {
+  return apiCall<LocalProfile>("update_profile", input as unknown as Record<string, unknown>);
+}
+
 // =============================================================================
 // Patient Types & Operations
 // =============================================================================

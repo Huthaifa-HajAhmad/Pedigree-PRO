@@ -315,6 +315,25 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
         if (ce) {
           const pid = ce.sourceId === sid ? ce.targetId : ce.sourceId;
           nx = (s.x + (p.nodes.find((n) => n.id === pid)?.x ?? s.x)) / 2;
+          // Collision check: if the midpoint is occupied by another node at the same Y level,
+          // search for a free position using insertAndShiftRight
+          const collides = p.nodes.some((n) =>
+            n.id !== nid && n.id !== sid && n.id !== pid &&
+            Math.abs(n.x - nx) < NODE_GAP * 0.9 && Math.abs(n.y - ny) < NODE_SIZE
+          );
+          if (collides) {
+            const res = insertAndShiftRight(p, nx, ny, 1, new Set([nid, sid, pid]));
+            nx = res.x;
+            const shiftedNodes = p.nodes.map((n) => {
+              const newX = res.shifts.get(n.id);
+              return newX !== undefined ? { ...n, x: newX } : n;
+            });
+            ne.push(
+              { id: `e${now}`, type: "parent-child", sourceId: sid, targetId: nid },
+              { id: `e${now + 1}`, type: "parent-child", sourceId: pid, targetId: nid }
+            );
+            return { ...p, nodes: [...shiftedNodes, { id: nid, type: nt, ...nd, x: nx, y: ny }], edges: [...p.edges, ...ne] };
+          }
           ne.push({ id: `e${now}`, type: "parent-child", sourceId: sid, targetId: nid }, { id: `e${now + 1}`, type: "parent-child", sourceId: pid, targetId: nid });
         }
         else {

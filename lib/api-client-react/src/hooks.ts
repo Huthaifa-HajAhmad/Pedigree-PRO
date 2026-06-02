@@ -20,6 +20,7 @@ import {
   createProfile,
   switchProfile,
   deleteProfile,
+  updateProfile,
   listPatients,
   getPatient,
   createPatient,
@@ -119,6 +120,20 @@ export function useSwitchProfile() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.profiles });
       queryClient.invalidateQueries({ queryKey: queryKeys.recentActivity });
+    },
+  });
+}
+
+export function useUpdateProfile() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { id: string; display_name: string; role_label: string }) => updateProfile(input),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.profiles });
+      queryClient.invalidateQueries({ queryKey: queryKeys.recentActivity });
+    },
+    onError: (error) => {
+      console.error("[useUpdateProfile] Error:", error instanceof Error ? error.message : String(error));
     },
   });
 }

@@ -316,6 +316,49 @@ pub fn delete_profile(state: State<AppState>, profile_id: String) -> Result<(), 
 }
 
 #[tauri::command]
+pub fn update_profile(
+    state: State<AppState>,
+    id: String,
+    display_name: String,
+    role_label: String,
+) -> Result<Profile, String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+
+    db.execute(
+        "UPDATE local_profiles SET display_name = ?1, role_label = ?2, last_used_at = datetime('now') WHERE id = ?3",
+        params![display_name, role_label, id],
+    )
+    .map_err(|e| format!("Failed to update profile: {}", e))?;
+
+    // Log activity
+    let _ = db.execute(
+        "INSERT INTO activity_log (action, subject, timestamp)
+         VALUES ('profile_updated', ?1, datetime('now'))",
+        params![id],
+    );
+
+    let profile = db
+        .query_row(
+            "SELECT id, display_name, role_label, public_key, created_at, last_used_at
+             FROM local_profiles WHERE id = ?1",
+            params![id],
+            |row| {
+                Ok(Profile {
+                    id: row.get(0)?,
+                    display_name: row.get(1)?,
+                    role_label: row.get(2)?,
+                    public_key: row.get(3)?,
+                    created_at: row.get(4)?,
+                    last_used_at: row.get(5)?,
+                })
+            },
+        )
+        .map_err(|e| format!("Profile not found: {}", e))?;
+
+    Ok(profile)
+}
+
+#[tauri::command]
 pub fn export_profile(
     _state: State<AppState>,
     _profile_id: String,

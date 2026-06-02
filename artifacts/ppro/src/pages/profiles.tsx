@@ -1,193 +1,246 @@
-import { useState } from "react";
-import { useListProfiles, useCreateProfile, useDeleteProfile, getBackendInitError } from "@workspace/api-client-react";
-import { Plus, Trash2, UserCircle, Shield, Clock } from "lucide-react";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
-import { FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
+import { useState, useEffect } from "react";
+import { useListProfiles, useCreateProfile, useUpdateProfile } from "@workspace/api-client-react";
+import { UserCircle, Copy, Check, Shield, KeyRound, Pencil, Save, X } from "lucide-react";
 import { PageHeader } from "@/components/shared/PageHeader";
-import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
-import { FormLayout } from "@/components/shared/FormLayout";
-import { TableSkeleton } from "@/components/shared/Skeleton";
-import { ErrorDialog } from "@/components/shared/ErrorDialog";
+import { Skeleton } from "@/components/shared/Skeleton";
+import { Button } from "@/components/ui/button";
 
-const schema = z.object({
-  display_name: z.string().min(1, "Display name required"),
-  role_label: z.string().min(1, "Role label required"),
-});
-type FormData = z.infer<typeof schema>;
+function truncate(str: string, len: number) {
+  return str.length > len ? str.slice(0, len) + "…" : str;
+}
 
 export default function Profiles() {
-  const [open, setOpen] = useState(false);
-  const [confirmOpen, setConfirmOpen] = useState(false);
-  const [confirmProps, setConfirmProps] = useState<{ title: string; message: string; onConfirm: () => void } | null>(null);
-  const [errorDialog, setErrorDialog] = useState<{ open: boolean; title: string; message: string; error: Error | null; details: string }>({
-    open: false,
-    title: "",
-    message: "",
-    error: null,
-    details: "",
-  });
-
   const { data: profiles, isLoading } = useListProfiles();
   const createProfile = useCreateProfile();
-  const deleteProfile = useDeleteProfile();
+  const updateProfile = useUpdateProfile();
 
-  const form = useForm<FormData>({
-    resolver: zodResolver(schema),
-    defaultValues: { display_name: "", role_label: "" },
-  });
+  // Auto-create default profile on first load if none exist
+  const [autoCreated, setAutoCreated] = useState(false);
+  useEffect(() => {
+    if (!isLoading && profiles?.length === 0 && !autoCreated) {
+      setAutoCreated(true);
+      createProfile.mutate({ display_name: "Clinician", role_label: "Clinical Geneticist" });
+    }
+  }, [isLoading, profiles, autoCreated, createProfile]);
 
-   const onSubmit = (data: FormData) => {
-     createProfile.mutate(data, {
-       onSuccess: () => {
-         form.reset();
-         setOpen(false);
-       },
-       onError: (error) => {
-         const backendError = getBackendInitError();
-         setErrorDialog({
-           open: true,
-           title: "Failed to Create Profile",
-           message: "The profile could not be created. See details below.",
-           error: backendError || error,
-           details: backendError
-             ? `Backend initialization failed.\n${backendError.message}`
-             : `Error: ${error.message}\n\nStack:\n${error.stack || "N/A"}`,
-         });
-       },
-     });
-   };
+  // Inline editing state
+  const [editing, setEditing] = useState(false);
+  const [draftName, setDraftName] = useState("");
+  const [draftRole, setDraftRole] = useState("");
 
-  const handleDelete = (id: string, name: string) => {
-    setConfirmProps({
-      title: "Delete Profile",
-      message: `Delete profile "${name}"? The keypair cannot be recovered.`,
-      onConfirm: () => {
-        setConfirmOpen(false);
-        deleteProfile.mutate(id);
-      },
+  const profile = profiles?.[0];
+
+  useEffect(() => {
+    if (profile) {
+      setDraftName(profile.display_name);
+      setDraftRole(profile.role_label);
+    }
+  }, [profile?.display_name, profile?.role_label]);
+
+  // Clipboard state
+  const [copiedId, setCopiedId] = useState(false);
+  const [copiedKey, setCopiedKey] = useState(false);
+
+  const handleCopy = async (text: string, setter: (v: boolean) => void) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setter(true);
+      setTimeout(() => setter(false), 2000);
+    } catch {
+      // Fallback not needed — clipboard API is widely supported in secure contexts
+    }
+  };
+
+  const handleSave = () => {
+    if (!profile) return;
+    updateProfile.mutate({
+      id: profile.id,
+      display_name: draftName.trim() || profile.display_name,
+      role_label: draftRole.trim() || profile.role_label,
+    }, {
+      onSuccess: () => setEditing(false),
     });
-    setConfirmOpen(true);
   };
 
   return (
     <section className="p-6">
       <PageHeader
         icon={UserCircle}
-        title="Profiles"
-        subtitle={`${profiles?.length ?? 0} local clinician profiles`}
-        actions={
-          <FormLayout
-            open={open}
-            onOpenChange={setOpen}
-            title="Create Clinical Profile"
-            submitLabel="Create Profile"
-            form={form}
-            onSubmit={onSubmit}
-            isSubmitting={createProfile.isPending}
-            trigger={
-              <Button data-testid="button-new-profile">
-                <Plus className="w-4 h-4" /> New Profile
-              </Button>
-            }
+        title="My Identity"
+        subtitle="Your clinician profile and sharing key"
+      />
+
+      {isLoading ? (
+        <div className="border border-border rounded-lg bg-card p-6 space-y-6">
+          <Skeleton className="h-4 w-48" />
+          <Skeleton className="h-4 w-72" />
+          <Skeleton className="h-4 w-56" />
+          <Skeleton className="h-4 w-64" />
+        </div>
+      ) : !profile ? (
+        <div className="border border-border rounded-lg bg-card p-8 text-center">
+          <Shield className="w-8 h-8 text-muted-foreground mx-auto mb-3" />
+          <p className="text-muted-foreground text-sm mb-4">No identity found. Creating one automatically…</p>
+          <Button
+            onClick={() => createProfile.mutate({ display_name: "Clinician", role_label: "Clinical Geneticist" })}
+            disabled={createProfile.isPending}
           >
-            <FormField
-              control={form.control}
-              name="display_name"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel className="text-xs text-muted-foreground uppercase tracking-wider">Display Name</FormLabel>
-                  <FormControl>
-                    <Input {...field} data-testid="input-profile-name" className="bg-muted border-border text-sm" placeholder="Dr. Sarah Chen" />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="role_label"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel className="text-xs text-muted-foreground uppercase tracking-wider">Role Label</FormLabel>
-                  <FormControl>
-                    <Input {...field} data-testid="input-profile-role" className="bg-muted border-border text-sm" placeholder="Clinical Geneticist" />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          </FormLayout>
-        }
-      />
-
-      <div className="border border-border rounded overflow-hidden bg-card">
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-4 px-4 py-3 border-b border-border text-xs text-muted-foreground uppercase tracking-widest">
-          <div className="col-span-2">Profile</div>
-          <div>Role</div>
-          <div>Last Used</div>
-          <div>Actions</div>
+            {createProfile.isPending ? "Creating…" : "Create Identity"}
+          </Button>
         </div>
-        <div className="divide-y divide-border">
-          {isLoading ? (
-            <TableSkeleton rows={3} cols={5} />
-          ) : profiles?.length === 0 ? (
-            <div className="px-4 py-12 text-center text-muted-foreground text-sm">
-              No profiles yet. Create your first clinician profile.
-            </div>
-          ) : (
-            profiles?.map((p) => (
-              <div key={p.id} data-testid={`row-profile-${p.id}`} className="grid grid-cols-2 md:grid-cols-5 gap-4 px-4 py-3 text-sm hover:bg-accent transition-colors items-center">
-                <div className="col-span-2 flex items-center gap-2">
-                  <Shield className="w-3.5 h-3.5 text-primary flex-shrink-0" />
-                  <span className="font-medium truncate">{p.display_name}</span>
-                </div>
-                <div className="text-muted-foreground text-xs truncate">{p.role_label}</div>
-                <div className="text-muted-foreground text-xs flex items-center gap-1">
-                  <Clock className="w-3 h-3" />
-                  {new Date(p.last_used_at).toLocaleDateString()}
-                </div>
-                <div className="flex items-center gap-1">
-                  <button
-                    type="button"
-                    data-testid={`button-delete-profile-${p.id}`}
-                    onClick={() => handleDelete(p.id, p.display_name)}
-                    className="text-muted-foreground hover:text-destructive transition-colors p-1 rounded hover:bg-destructive/10"
-                    title="Delete profile"
-                    aria-label={`Delete profile ${p.display_name}`}
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
+      ) : (
+        <div className="border border-border rounded-lg bg-card overflow-hidden max-w-2xl">
+          {/* Header */}
+          <div className="px-6 py-4 border-b border-border flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
+                <UserCircle className="w-5 h-5 text-primary" />
               </div>
-            ))
-          )}
+              <div>
+                <h2 className="text-sm font-semibold text-foreground">{profile.display_name}</h2>
+                <p className="text-xs text-muted-foreground">{profile.role_label}</p>
+              </div>
+            </div>
+            {!editing ? (
+              <button
+                type="button"
+                onClick={() => setEditing(true)}
+                className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors px-2 py-1 rounded hover:bg-muted"
+              >
+                <Pencil className="w-3.5 h-3.5" />
+                Edit
+              </button>
+            ) : (
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={handleSave}
+                  disabled={updateProfile.isPending}
+                  className="flex items-center gap-1.5 text-xs text-primary hover:text-primary/80 transition-colors px-2 py-1 rounded hover:bg-primary/10"
+                >
+                  <Save className="w-3.5 h-3.5" />
+                  Save
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditing(false);
+                    setDraftName(profile.display_name);
+                    setDraftRole(profile.role_label);
+                  }}
+                  className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors px-2 py-1 rounded hover:bg-muted"
+                >
+                  <X className="w-3.5 h-3.5" />
+                  Cancel
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Fields */}
+          <div className="px-6 py-5 space-y-5">
+            {/* Display Name */}
+            <div>
+              <label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider block mb-1.5">
+                Display Name
+              </label>
+              {editing ? (
+                <input
+                  value={draftName}
+                  onChange={(e) => setDraftName(e.target.value)}
+                  className="w-full bg-muted border border-border rounded-md px-3 py-2 text-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary/20 transition-colors"
+                  placeholder="Dr. Sarah Chen"
+                />
+              ) : (
+                <p className="text-sm text-foreground">{profile.display_name}</p>
+              )}
+            </div>
+
+            {/* Role Label */}
+            <div>
+              <label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider block mb-1.5">
+                Role
+              </label>
+              {editing ? (
+                <input
+                  value={draftRole}
+                  onChange={(e) => setDraftRole(e.target.value)}
+                  className="w-full bg-muted border border-border rounded-md px-3 py-2 text-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary/20 transition-colors"
+                  placeholder="Clinical Geneticist"
+                />
+              ) : (
+                <p className="text-sm text-foreground">{profile.role_label}</p>
+              )}
+            </div>
+
+            {/* Profile ID */}
+            <div>
+              <label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider block mb-1.5">
+                Profile ID
+              </label>
+              <div className="flex items-center gap-2">
+                <code className="text-xs font-mono text-muted-foreground bg-muted px-2 py-1 rounded">
+                  {truncate(profile.id, 32)}
+                </code>
+                <button
+                  type="button"
+                  onClick={() => handleCopy(profile.id, setCopiedId)}
+                  className="text-muted-foreground hover:text-foreground transition-colors p-1 rounded hover:bg-muted"
+                  title="Copy Profile ID"
+                  aria-label="Copy Profile ID"
+                >
+                  {copiedId ? <Check className="w-3.5 h-3.5 text-green-500" /> : <Copy className="w-3.5 h-3.5" />}
+                </button>
+              </div>
+            </div>
+
+            {/* Public Key / Sharing Key */}
+            <div>
+              <label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider block mb-1.5 flex items-center gap-1">
+                <KeyRound className="w-3 h-3" />
+                Sharing Key
+              </label>
+              <div className="flex items-start gap-2">
+                <code className="text-xs font-mono text-muted-foreground bg-muted px-2 py-1 rounded break-all flex-1">
+                  {truncate(profile.public_key, 48)}
+                </code>
+                <button
+                  type="button"
+                  onClick={() => handleCopy(profile.public_key, setCopiedKey)}
+                  className="text-muted-foreground hover:text-foreground transition-colors p-1.5 rounded hover:bg-muted flex-shrink-0"
+                  title="Copy Sharing Key"
+                  aria-label="Copy Sharing Key"
+                >
+                  {copiedKey ? (
+                    <span className="flex items-center gap-1 text-[10px] text-green-500 font-medium">
+                      <Check className="w-3.5 h-3.5" />
+                      Copied
+                    </span>
+                  ) : (
+                    <span className="flex items-center gap-1 text-[10px] text-muted-foreground font-medium">
+                      <Copy className="w-3.5 h-3.5" />
+                      Copy
+                    </span>
+                  )}
+                </button>
+              </div>
+              <p className="text-[11px] text-muted-foreground mt-1.5">
+                Share this key with other clinicians so they can send you encrypted pedigrees.
+              </p>
+            </div>
+
+            {/* Created date */}
+            <div>
+              <label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider block mb-1.5">
+                Created
+              </label>
+              <p className="text-xs text-muted-foreground">
+                {new Date(profile.created_at).toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" })}
+              </p>
+            </div>
+          </div>
         </div>
-      </div>
-
-      {confirmProps && (
-        <ConfirmDialog
-          open={confirmOpen}
-          title={confirmProps.title}
-          message={confirmProps.message}
-          variant="destructive"
-          confirmLabel="Delete"
-          onConfirm={confirmProps.onConfirm}
-          onCancel={() => setConfirmOpen(false)}
-        />
       )}
-
-      <ErrorDialog
-        open={errorDialog.open}
-        onOpenChange={(open) => setErrorDialog({ ...errorDialog, open })}
-        title={errorDialog.title}
-        message={errorDialog.message}
-        error={errorDialog.error}
-        details={errorDialog.details}
-      />
     </section>
   );
 }

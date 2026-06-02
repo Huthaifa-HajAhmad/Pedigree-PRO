@@ -95,6 +95,37 @@ export function delete_profile(args: { profile_id: string }): void {
   );
 }
 
+export interface UpdateProfileInput {
+  id: string;
+  display_name: string;
+  role_label: string;
+}
+
+export function update_profile(args: UpdateProfileInput): LocalProfile {
+  const profile = queryOne<LocalProfile>(
+    "SELECT id, display_name, role_label, public_key, created_at, last_used_at FROM local_profiles WHERE id = ?",
+    [args.id]
+  );
+  if (!profile) throw new Error("Profile not found");
+
+  exec(
+    "UPDATE local_profiles SET display_name = ?, role_label = ?, last_used_at = datetime('now') WHERE id = ?",
+    [args.display_name, args.role_label, args.id]
+  );
+
+  exec(
+    "INSERT INTO activity_log (action, subject, timestamp) VALUES ('profile_updated', ?, datetime('now'))",
+    [args.id]
+  );
+
+  return {
+    ...profile,
+    display_name: args.display_name,
+    role_label: args.role_label,
+    last_used_at: new Date().toISOString(),
+  };
+}
+
 // =============================================================================
 // Patient Types & Operations
 // =============================================================================

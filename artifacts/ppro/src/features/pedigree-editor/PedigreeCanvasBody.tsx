@@ -1,4 +1,4 @@
-import { useMemo, useCallback, useEffect } from "react";
+import { useMemo, useCallback, useEffect, useRef } from "react";
 
 const EMPTY_SET: Set<string> = new Set();
 import { NodeShape } from "@/features/pedigree-editor/canvas/NodeShape";
@@ -166,6 +166,7 @@ export function PedigreeCanvasBody() {
     showShareModal, showAddSiblingDialog, siblingSourceId,
     alignGuides,
     twinSelectMode, twinCandidateIds,
+    railX,
   } = state;
 
   const {
@@ -206,6 +207,33 @@ export function PedigreeCanvasBody() {
   }, [showRiskPanel, showValidation, showVersions, dispatch]);
 
   const handleCloseContextMenu = useCallback(() => dispatch({ type: "SET_STATE", patch: { contextMenu: null } }), [dispatch]);
+
+  // ── Generation rail drag state ──────────────────────────────────
+  const railDraggingRef = useRef(false);
+  const railDragStartXRef = useRef(0);
+  const railDragStartRailXRef = useRef(44);
+
+  const handleRailPointerDown = useCallback((e: React.PointerEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    railDraggingRef.current = true;
+    railDragStartXRef.current = e.clientX;
+    railDragStartRailXRef.current = railX;
+    (e.target as Element).setPointerCapture(e.pointerId);
+  }, [railX]);
+
+  const handleRailPointerMove = useCallback((e: React.PointerEvent) => {
+    if (!railDraggingRef.current) return;
+    e.stopPropagation();
+    const dx = (e.clientX - railDragStartXRef.current) * viewBox.zoom;
+    const newRailX = Math.max(10, Math.min(200, railDragStartRailXRef.current + dx));
+    dispatch({ type: "SET_STATE", patch: { railX: newRailX } });
+  }, [dispatch, viewBox.zoom]);
+
+  const handleRailPointerUp = useCallback((e: React.PointerEvent) => {
+    railDraggingRef.current = false;
+    (e.target as Element).releasePointerCapture(e.pointerId);
+  }, []);
 
   const { onPointerDown, onPointerMove, onPointerUp } = useCanvasTouch({
     getSVGCoords,
@@ -322,14 +350,19 @@ export function PedigreeCanvasBody() {
               return acc;
             }, []);
             return (
-              <g style={{ pointerEvents: "none" }}>
-                <line x1={viewBox.x + 44} y1={viewBox.y + 30} x2={viewBox.x + 44} y2={viewBox.y + vbH - 30}
+              <g>
+                <line
+                  x1={viewBox.x + railX} y1={viewBox.y + 30} x2={viewBox.x + railX} y2={viewBox.y + vbH - 30}
                   stroke={"hsl(var(--primary))"} strokeWidth={0.75} opacity={0.12}
+                  style={{ cursor: "ew-resize" }}
+                  onPointerDown={handleRailPointerDown}
+                  onPointerMove={handleRailPointerMove}
+                  onPointerUp={handleRailPointerUp}
                 />
                 {spacedEntries.map(({ roman, y }) => (
-                  <text key={roman} x={viewBox.x + 10} y={y + 5} fontSize={14} fontWeight="700"
+                  <text key={roman} x={viewBox.x + railX - 34} y={y + 5} fontSize={14} fontWeight="700"
                     fontFamily="JetBrains Mono, monospace" fill="hsl(var(--foreground) / 0.35)"
-                    style={{ userSelect: "none", letterSpacing: "0.05em" }}
+                    style={{ userSelect: "none", letterSpacing: "0.05em", pointerEvents: "none" }}
                   >{roman}</text>
                 ))}
               </g>
