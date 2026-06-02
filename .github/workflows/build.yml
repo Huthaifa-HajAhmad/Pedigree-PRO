@@ -131,9 +131,9 @@ jobs:
       - run: pnpm --filter @workspace/api-client-react exec tsc -p tsconfig.json
       - run: pnpm --filter @workspace/ppro build
       - run: echo '/* /index.html 200' > artifacts/ppro/dist/public/_redirects
-      - uses: cloudflare/pages-action@v1
+      - name: Deploy to Cloudflare Pages
+        uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CF_API_TOKEN }}
           accountId: ${{ secrets.CF_ACCOUNT_ID }}
-          projectName: pedigree-pro
-          directory: artifacts/ppro/dist/public
+          command: pages deploy artifacts/ppro/dist/public --project-name=pedigree-pro --branch=main
