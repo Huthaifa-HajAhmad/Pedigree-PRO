@@ -3,6 +3,10 @@ packages:
   - lib/*
   - scripts
 
+allowBuilds:
+  sharp: set this to true or false
+  workerd: set this to true or false
+
 catalog:
   '@tanstack/react-query': ^5.90.21
   '@tailwindcss/vite': ^4.1.14

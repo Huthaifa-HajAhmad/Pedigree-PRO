@@ -38,7 +38,7 @@ export function detectApiMode(): ApiMode {
  * runtime if called in browser mode.
  */
 type BrowserCommandName =
-  | "list_profiles" | "create_profile" | "switch_profile" | "delete_profile"
+  | "list_profiles" | "create_profile" | "switch_profile" | "delete_profile" | "update_profile"
   | "list_patients" | "get_patient" | "create_patient" | "update_patient" | "delete_patient"
   | "list_pedigrees" | "get_pedigree" | "create_pedigree" | "update_pedigree" | "delete_pedigree"
   | "list_versions" | "save_version" | "restore_version" | "delete_version"
@@ -67,6 +67,7 @@ type CommandMap = {
   create_profile: (args: { display_name: string; role_label: string; public_key?: string }) => import("@workspace/browser-backend").LocalProfile;
   switch_profile: (args: { profile_id: string }) => import("@workspace/browser-backend").LocalProfile;
   delete_profile: (args: { profile_id: string }) => void;
+  update_profile: (args: { id: string; display_name: string; role_label: string }) => import("@workspace/browser-backend").LocalProfile;
   list_patients: (args?: { search?: string }) => import("@workspace/browser-backend").Patient[];
   get_patient: (args: { id: number }) => import("@workspace/browser-backend").Patient;
   create_patient: (args: import("@workspace/browser-backend").CreatePatientInput) => import("@workspace/browser-backend").Patient;

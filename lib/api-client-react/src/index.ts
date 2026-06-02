@@ -65,6 +65,7 @@ export {
   useCreateProfile,
   useDeleteProfile,
   useSwitchProfile,
+  useUpdateProfile,
   useListPatients,
   useGetPatient,
   useCreatePatient,
