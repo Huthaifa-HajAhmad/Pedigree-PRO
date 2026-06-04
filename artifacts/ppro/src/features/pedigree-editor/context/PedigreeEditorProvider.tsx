@@ -689,10 +689,7 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
         return n;
       });
 
-      const resolved = resolveAllCollisions(positionedNodes, allEdges, allChildIds);
-      
-      const finalChildIds = allChildren.map((c) => c.id);
-      const final = recenterParents(resolved, allEdges, parentIds, finalChildIds, allChildIds);
+      const final = resolveAndRecenter(positionedNodes, allEdges, allChildIds);
 
       return { ...p, nodes: final, edges: allEdges };
     } });
