@@ -29,14 +29,6 @@ export interface BBox {
   bottom: number;
 }
 
-/** A nuclear family unit: couple + their direct children */
-export interface NuclearFamily {
-  id: string;            // deterministic key from sorted parent IDs or singleton node ID
-  parentIds: string[];
-  childIds: string[];
-  memberIds: Set<string>;
-  bbox: BBox;
-}
 
 /** Shift instruction: which nodes to move and by how much */
 export interface ShiftPlan {
@@ -157,158 +149,39 @@ export function computeSubtreeBBox(
   return mergeBBoxes(boxes);
 }
 
-// ── Family index ───────────────────────────────────────────────────────────
-
-/**
- * Group nodes into nuclear families. Each family consists of:
- * - A couple (or single parent) and their direct children.
- * - Uncoupled, childless nodes form singleton "families."
- *
- * Returns families keyed by a deterministic ID (sorted parent IDs or node ID).
- */
-export function buildFamilyIndex(
-  nodes: PedigreeNode[],
-  edges: PedigreeEdge[],
-  adj?: AdjacencyMaps,
-): NuclearFamily[] {
-  const a = adj ?? buildAdjacency(nodes, edges);
-  const nodeMap = buildNodeMap(nodes);
-  const assigned = new Set<string>();
-  const families: NuclearFamily[] = [];
-
-  // Phase 1: Build families around couples with children
-  for (const node of nodes) {
-    if (assigned.has(node.id)) continue;
-
-    const partners = a.couplesOf.get(node.id) ?? [];
-    const children = a.childrenOf.get(node.id) ?? [];
-
-    if (partners.length === 0 && children.length === 0) continue; // handle later as singleton
-
-    // For each couple pair, group children that belong to BOTH parents
-    for (const partnerId of partners) {
-      if (assigned.has(node.id) && assigned.has(partnerId)) continue;
-
-      const partnerChildren = a.childrenOf.get(partnerId) ?? [];
-      // Children of this couple: children shared between both parents
-      const sharedChildren = children.filter(c => partnerChildren.includes(c));
-      // Also include children of only one parent (single-parent link to this couple)
-      const allCoupleChildren = new Set([
-        ...children.filter(c => {
-          const ps = a.parentsOf.get(c) ?? [];
-          return ps.includes(node.id) && (ps.includes(partnerId) || ps.length === 1);
-        }),
-        ...partnerChildren.filter(c => {
-          const ps = a.parentsOf.get(c) ?? [];
-          return ps.includes(partnerId) && (ps.includes(node.id) || ps.length === 1);
-        }),
-      ]);
-
-      if (sharedChildren.length === 0 && allCoupleChildren.size === 0) {
-        // Couple without children — still a family unit
-        const parentIds = [node.id, partnerId].sort();
-        const memberIds = new Set(parentIds);
-        const memberNodes = parentIds.map(id => nodeMap.get(id)).filter((n): n is PedigreeNode => !!n);
-        if (memberNodes.length > 0 && !assigned.has(node.id) && !assigned.has(partnerId)) {
-          families.push({
-            id: `f_${parentIds.join("_")}`,
-            parentIds,
-            childIds: [],
-            memberIds,
-            bbox: mergeBBoxes(memberNodes.map(nodeBBox)),
-          });
-          parentIds.forEach(id => assigned.add(id));
-        }
-        continue;
-      }
-
-      const coupleChildIds = [...allCoupleChildren];
-      const parentIds = [node.id, partnerId].sort();
-      const memberIds = new Set([...parentIds, ...coupleChildIds]);
-      const memberNodes = [...memberIds].map(id => nodeMap.get(id)).filter((n): n is PedigreeNode => !!n);
-
-      if (memberNodes.length > 0) {
-        families.push({
-          id: `f_${parentIds.join("_")}`,
-          parentIds,
-          childIds: coupleChildIds,
-          memberIds,
-          bbox: mergeBBoxes(memberNodes.map(nodeBBox)),
-        });
-        memberIds.forEach(id => assigned.add(id));
-      }
-    }
-
-    // Single parent with children but no couple edge
-    if (!assigned.has(node.id) && children.length > 0) {
-      const parentIds = [node.id];
-      const memberIds = new Set([node.id, ...children]);
-      const memberNodes = [...memberIds].map(id => nodeMap.get(id)).filter((n): n is PedigreeNode => !!n);
-      families.push({
-        id: `f_${node.id}`,
-        parentIds,
-        childIds: children,
-        memberIds,
-        bbox: mergeBBoxes(memberNodes.map(nodeBBox)),
-      });
-      memberIds.forEach(id => assigned.add(id));
-    }
-  }
-
-  // Phase 2: Assign remaining nodes as singletons
-  for (const node of nodes) {
-    if (assigned.has(node.id)) continue;
-    families.push({
-      id: `s_${node.id}`,
-      parentIds: [],
-      childIds: [],
-      memberIds: new Set([node.id]),
-      bbox: nodeBBox(node),
-    });
-    assigned.add(node.id);
-  }
-
-  return families;
-}
 
 // ── Row-based collision detection ──────────────────────────────────────────
 
 interface Collision {
-  leftFamily: NuclearFamily;
-  rightFamily: NuclearFamily;
+  leftNode: PedigreeNode;
+  rightNode: PedigreeNode;
   overlap: number; // positive = overlapping by this many px
 }
 
 /**
- * Detect horizontal collisions between families on the same generation row.
- * Uses a sweep-line approach: sort families by left edge of bbox, then check
- * adjacent pairs for overlap.
+ * Detect horizontal collisions between nodes on the same generation row.
+ * Uses a sweep-line approach: sort nodes by X, then check adjacent pairs for overlap.
  */
 export function detectRowCollisions(
-  families: NuclearFamily[],
+  nodes: PedigreeNode[],
   rowY: number,
   minGap: number = NODE_GAP,
 ): Collision[] {
-  // Filter families that have members on this row
-  const rowFamilies = families.filter(f => {
-    const centerY = (f.bbox.top + f.bbox.bottom) / 2;
-    return Math.abs(centerY - rowY) < ROW_TOLERANCE;
-  });
+  const rowNodes = nodes.filter(n => Math.abs(n.y - rowY) < ROW_TOLERANCE);
 
-  if (rowFamilies.length < 2) return [];
+  if (rowNodes.length < 2) return [];
 
-  // Sort by left edge of bounding box
-  rowFamilies.sort((a, b) => a.bbox.left - b.bbox.left);
+  rowNodes.sort((a, b) => a.x - b.x);
 
   const collisions: Collision[] = [];
-  for (let i = 1; i < rowFamilies.length; i++) {
-    const left = rowFamilies[i - 1]!;
-    const right = rowFamilies[i]!;
-    const gap = right.bbox.left - left.bbox.right;
+  for (let i = 1; i < rowNodes.length; i++) {
+    const left = rowNodes[i - 1]!;
+    const right = rowNodes[i]!;
+    const gap = right.x - left.x;
     if (gap < minGap) {
       collisions.push({
-        leftFamily: left,
-        rightFamily: right,
+        leftNode: left,
+        rightNode: right,
         overlap: minGap - gap,
       });
     }
@@ -412,7 +285,7 @@ export function getFamilyUnit(
 export function computeShiftPlan(
   nodes: PedigreeNode[],
   edges: PedigreeEdge[],
-  familyToShift: NuclearFamily,
+  nodeToShift: PedigreeNode,
   overlap: number,
   direction?: 1 | -1,
   excludeIds?: Set<string>,
@@ -427,10 +300,8 @@ export function computeShiftPlan(
 
     // Collect all nodes that must move with this family
     const movingNodes = new Set<string>();
-    for (const memberId of familyToShift.memberIds) {
-      if (excludeIds?.has(memberId)) continue;
-      // Collect entire subtree of each member
-      const subtree = collectSubtree(memberId, adj);
+    if (!excludeIds?.has(nodeToShift.id)) {
+      const subtree = collectSubtree(nodeToShift.id, adj);
       for (const id of subtree) {
         if (!excludeIds?.has(id)) movingNodes.add(id);
       }
@@ -483,9 +354,6 @@ export function resolveAllCollisions(
   let currentNodes = [...nodes.map(n => ({ ...n }))]; // deep clone positions
 
   for (let cascade = 0; cascade < MAX_CASCADE; cascade++) {
-    const adj = buildAdjacency(currentNodes, edges);
-    const families = buildFamilyIndex(currentNodes, edges, adj);
-
     // Identify all unique generation rows
     const rows = new Set<number>();
     for (const node of currentNodes) {
@@ -495,50 +363,28 @@ export function resolveAllCollisions(
     let anyCollision = false;
 
     for (const rowY of rows) {
-      // Get families with members on this row
-      const rowFamilies = families.filter(f => {
-        for (const memberId of f.memberIds) {
-          const node = currentNodes.find(n => n.id === memberId);
-          if (node && Math.abs(node.y - rowY) < ROW_TOLERANCE) return true;
-        }
-        return false;
-      });
-
-      if (rowFamilies.length < 2) continue;
-
-      // Recompute bboxes based on row-only members for accurate horizontal detection
-      const rowFamiliesWithRowBBox = rowFamilies.map(f => {
-        const rowMembers = [...f.memberIds]
-          .map(id => currentNodes.find(n => n.id === id))
-          .filter((n): n is PedigreeNode => !!n && Math.abs(n.y - rowY) < ROW_TOLERANCE);
-        return {
-          ...f,
-          bbox: rowMembers.length > 0 ? mergeBBoxes(rowMembers.map(nodeBBox)) : f.bbox,
-        };
-      });
-
-      const collisions = detectRowCollisions(rowFamiliesWithRowBBox, rowY, NODE_GAP);
+      const collisions = detectRowCollisions(currentNodes, rowY, NODE_GAP);
 
       for (const collision of collisions) {
         anyCollision = true;
 
-        // Determine which family to shift — prefer shifting the one not in excludeIds
-        const leftExcluded = [...collision.leftFamily.memberIds].some(id => excludeIds?.has(id));
-        const rightExcluded = [...collision.rightFamily.memberIds].some(id => excludeIds?.has(id));
+        // Determine which node to shift — prefer shifting the one not in excludeIds
+        const leftExcluded = excludeIds?.has(collision.leftNode.id);
+        const rightExcluded = excludeIds?.has(collision.rightNode.id);
 
-        let familyToShift: NuclearFamily;
+        let nodeToShift: PedigreeNode;
         let shiftDirection: 1 | -1;
 
         if (leftExcluded && !rightExcluded) {
-          familyToShift = collision.rightFamily;
-          shiftDirection = 1; // push right family rightward
+          nodeToShift = collision.rightNode;
+          shiftDirection = 1; // push right node rightward
         } else if (rightExcluded && !leftExcluded) {
-          familyToShift = collision.leftFamily;
-          shiftDirection = -1; // push left family leftward
+          nodeToShift = collision.leftNode;
+          shiftDirection = -1; // push left node leftward
         } else {
           // Neither or both excluded — use bidirectional cost comparison
-          const planRight = computeShiftPlan(currentNodes, edges, collision.rightFamily, collision.overlap, 1, excludeIds);
-          const planLeft = computeShiftPlan(currentNodes, edges, collision.leftFamily, collision.overlap, -1, excludeIds);
+          const planRight = computeShiftPlan(currentNodes, edges, collision.rightNode, collision.overlap, 1, excludeIds);
+          const planLeft = computeShiftPlan(currentNodes, edges, collision.leftNode, collision.overlap, -1, excludeIds);
 
           // Check if leftward shift would push below minimum X
           let leftViable = true;
@@ -547,15 +393,15 @@ export function resolveAllCollisions(
           }
 
           if (!leftViable || planRight.cost <= planLeft.cost) {
-            familyToShift = collision.rightFamily;
+            nodeToShift = collision.rightNode;
             shiftDirection = 1;
           } else {
-            familyToShift = collision.leftFamily;
+            nodeToShift = collision.leftNode;
             shiftDirection = -1;
           }
         }
 
-        const plan = computeShiftPlan(currentNodes, edges, familyToShift, collision.overlap, shiftDirection, excludeIds);
+        const plan = computeShiftPlan(currentNodes, edges, nodeToShift, collision.overlap, shiftDirection, excludeIds);
 
         // Apply shifts
         currentNodes = currentNodes.map(n => {

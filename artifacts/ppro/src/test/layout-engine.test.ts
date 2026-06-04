@@ -59,44 +59,20 @@ describe("layout-engine", () => {
   });
 
   describe("detectRowCollisions", () => {
-    it("detects overlap between two families", () => {
-      const fam1 = {
-        id: "f_f1_m1",
-        parentIds: ["f1", "m1"],
-        childIds: [],
-        memberIds: new Set(["f1", "m1"]),
-        bbox: { left: 100, right: 200, top: 100, bottom: 144 }
-      };
-      const fam2 = {
-        id: "f_f2_m2",
-        parentIds: ["f2", "m2"],
-        childIds: [],
-        memberIds: new Set(["f2", "m2"]),
-        bbox: { left: 150, right: 250, top: 100, bottom: 144 } // overlapping with fam1
-      };
+    it("detects overlap between two nodes", () => {
+      const n1 = { id: "n1", x: 100, y: 122, type: "male" as const, ...baseNode };
+      const n2 = { id: "n2", x: 150, y: 122, type: "female" as const, ...baseNode }; // overlapping with n1
       
-      const collisions = detectRowCollisions([fam1, fam2], 122, 96.8); // 96.8 is NODE_GAP
+      const collisions = detectRowCollisions([n1, n2], 122, 96.8); // 96.8 is NODE_GAP
       expect(collisions).toHaveLength(1);
-      expect(collisions[0]!.overlap).toBeGreaterThan(0);
+      expect(collisions[0]!.overlap).toBeCloseTo(96.8 - 50);
     });
 
     it("does not detect overlap when spaced sufficiently", () => {
-      const fam1 = {
-        id: "f_f1_m1",
-        parentIds: ["f1", "m1"],
-        childIds: [],
-        memberIds: new Set(["f1", "m1"]),
-        bbox: { left: 100, right: 200, top: 100, bottom: 144 }
-      };
-      const fam2 = {
-        id: "f_f2_m2",
-        parentIds: ["f2", "m2"],
-        childIds: [],
-        memberIds: new Set(["f2", "m2"]),
-        bbox: { left: 300, right: 400, top: 100, bottom: 144 } 
-      };
+      const n1 = { id: "n1", x: 100, y: 122, type: "male" as const, ...baseNode };
+      const n2 = { id: "n2", x: 300, y: 122, type: "female" as const, ...baseNode };
       
-      const collisions = detectRowCollisions([fam1, fam2], 122, 96.8);
+      const collisions = detectRowCollisions([n1, n2], 122, 96.8);
       expect(collisions).toHaveLength(0);
     });
   });
