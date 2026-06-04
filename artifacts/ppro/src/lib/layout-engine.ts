@@ -549,21 +549,79 @@ export function recenterParents(
   });
 }
 
+/**
+ * Global bottom-up pass: recenters all parents over their children.
+ * Ripples from the lowest generation up to the highest.
+ */
+export function recenterAllFamilies(
+  nodes: PedigreeNode[],
+  edges: PedigreeEdge[],
+  excludeIds?: Set<string>,
+): PedigreeNode[] {
+  let currentNodes = [...nodes.map(n => ({ ...n }))];
+  const adj = buildAdjacency(currentNodes, edges);
+  
+  const families = new Map<string, { parentIds: string[]; childIds: string[] }>();
+  for (const [childId, pIds] of adj.parentsOf.entries()) {
+    if (pIds.length === 0) continue;
+    const key = [...pIds].sort().join("_");
+    if (!families.has(key)) families.set(key, { parentIds: pIds, childIds: [] });
+    families.get(key)!.childIds.push(childId);
+  }
+  const familyList = Array.from(families.values());
+
+  if (familyList.length === 0) return currentNodes;
+
+  const childRows = new Set<number>();
+  for (const f of familyList) {
+    const childId = f.childIds[0];
+    if (childId) {
+      const child = currentNodes.find(n => n.id === childId);
+      if (child) childRows.add(Math.round(child.y / GEN_GRID) * GEN_GRID);
+    }
+  }
+
+  const sortedRows = Array.from(childRows).sort((a, b) => b - a);
+
+  for (const rowY of sortedRows) {
+    const rowFamilies = familyList.filter(f => {
+      const childId = f.childIds[0];
+      if (!childId) return false;
+      const child = currentNodes.find(n => n.id === childId);
+      return child && Math.abs(child.y - rowY) < ROW_TOLERANCE;
+    });
+
+    let parentRowResolved = false;
+
+    for (const f of rowFamilies) {
+      const nextNodes = recenterParents(currentNodes, edges, f.parentIds, f.childIds, excludeIds);
+      if (nextNodes !== currentNodes) {
+        currentNodes = nextNodes;
+        parentRowResolved = true;
+      }
+    }
+
+    if (parentRowResolved) {
+      currentNodes = resolveAllCollisions(currentNodes, edges, excludeIds);
+    }
+  }
+
+  return currentNodes;
+}
+
 // ── Convenience: resolve and recenter in one call ──────────────────────────
 
 /**
- * Full pipeline: resolve all collisions, then recenter parents over children.
+ * Full pipeline: resolve all collisions, then globally recenter parents.
  * This is the main entry point for the layout engine.
  */
 export function resolveAndRecenter(
   nodes: PedigreeNode[],
   edges: PedigreeEdge[],
-  parentIds: string[],
-  childIds: string[],
   excludeIds?: Set<string>,
 ): PedigreeNode[] {
   const resolved = resolveAllCollisions(nodes, edges, excludeIds);
-  return recenterParents(resolved, edges, parentIds, childIds, excludeIds);
+  return recenterAllFamilies(resolved, edges, excludeIds);
 }
 
 // ── Smart-push insertion (bidirectional) ───────────────────────────────────
@@ -571,9 +629,7 @@ export function resolveAndRecenter(
 /**
  * Insert a node at (targetX, targetY) and resolve collisions using the
  * unified engine. Returns the canvas with the new node placed and all
- * collisions resolved.
- *
- * This replaces the old `insertAndShiftRight` + manual collision phases.
+ * collisions resolved, followed by a global bottom-up parent recentering pass.
  */
 export function insertNodeWithCollisionResolution(
   canvas: CanvasData,
@@ -585,7 +641,8 @@ export function insertNodeWithCollisionResolution(
   const allEdges = [...canvas.edges, ...newEdges];
   const exclude = new Set([...(excludeIds ?? []), newNode.id]);
 
-  const resolved = resolveAllCollisions(allNodes, allEdges, exclude);
+  let resolved = resolveAllCollisions(allNodes, allEdges, exclude);
+  resolved = recenterAllFamilies(resolved, allEdges, exclude);
 
   return {
     ...canvas,
@@ -593,6 +650,7 @@ export function insertNodeWithCollisionResolution(
     edges: allEdges,
   };
 }
+
 
 // ── Re-export adjacency builder for consumers ──────────────────────────────
 export { buildAdjacency, buildNodeMap, ROW_TOLERANCE };
