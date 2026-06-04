@@ -366,8 +366,7 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
 
         const allNodes = [...p.nodes, ...newParents];
         const allEdges = [...p.edges, ...newEdges];
-        const resolved = resolveAllCollisions(allNodes, allEdges, new Set([fid, mid2]));
-        const final = recenterParents(resolved, allEdges, [fid, mid2], [sid], new Set([fid, mid2]));
+        const final = resolveAndRecenter(allNodes, allEdges, new Set([fid, mid2]));
 
         return { ...p, nodes: final, edges: allEdges };
       }
