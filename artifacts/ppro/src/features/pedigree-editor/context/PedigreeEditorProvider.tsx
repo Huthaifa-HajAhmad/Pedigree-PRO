@@ -674,17 +674,54 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
       }
       const allChildren = [...childMap.values()].sort((a, b) => parseDobYear(a.dob) - parseDobYear(b.dob));
 
-      const parentCenter = parents.length === 2
-        ? (parents[0]!.x + parents[1]!.x) / 2
-        : parents.length === 1 ? parents[0]!.x : s.x;
+      const getFamilyExtent = (nodeId: string) => {
+        const node = allNodes.find((n) => n.id === nodeId);
+        if (!node) return { min: 0, max: 0 };
+        const partnerIds = allEdges
+          .filter((e) => (e.type === "couple" || e.type === "consanguinity") && (e.sourceId === nodeId || e.targetId === nodeId))
+          .map((e) => e.sourceId === nodeId ? e.targetId : e.sourceId);
+        const partnerNodes = partnerIds.map((id) => allNodes.find((n) => n.id === id)).filter(Boolean) as PedigreeNode[];
+        return {
+          min: Math.min(node.x, ...partnerNodes.map((n) => n.x)),
+          max: Math.max(node.x, ...partnerNodes.map((n) => n.x)),
+        };
+      };
 
-      const totalWidth = (allChildren.length - 1) * NODE_GAP;
-      let startX = Math.max(GEN_GRID, parentCenter - totalWidth / 2);
-
+      const existingChildren = allChildren.filter((c) => !newNodes.some((nn) => nn.id === c.id));
+      
       const positionedNodes = allNodes.map((n) => {
-        const childIdx = allChildren.findIndex((c) => c.id === n.id);
-        if (childIdx !== -1) {
-          return { ...n, x: startX + childIdx * NODE_GAP, y: s.y };
+        const isNew = newNodes.some((nn) => nn.id === n.id);
+        if (isNew) {
+          const childIdx = allChildren.findIndex((c) => c.id === n.id);
+          
+          let leftExisting: PedigreeNode | null = null;
+          for (let i = childIdx - 1; i >= 0; i--) {
+            const leftChild = allChildren[i]!;
+            if (!newNodes.some((nn) => nn.id === leftChild.id)) {
+              leftExisting = leftChild;
+              break;
+            }
+          }
+
+          if (leftExisting) {
+            const extent = getFamilyExtent(leftExisting.id);
+            let newNodesBetween = 0;
+            for (let i = childIdx - 1; i >= 0; i--) {
+              if (allChildren[i]!.id === leftExisting.id) break;
+              newNodesBetween++;
+            }
+            return { ...n, x: extent.max + 0.01 * (newNodesBetween + 1), y: s.y };
+          } else {
+            const firstExisting = existingChildren[0];
+            if (firstExisting) {
+              const extent = getFamilyExtent(firstExisting.id);
+              const totalNewNodesBefore = allChildren.findIndex((c) => c.id === firstExisting.id);
+              const offsetFromRight = totalNewNodesBefore - childIdx; 
+              return { ...n, x: extent.min - 0.01 * offsetFromRight, y: s.y };
+            } else {
+              return { ...n, x: s.x, y: s.y };
+            }
+          }
         }
         return n;
       });
