@@ -306,7 +306,7 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
             }
           }
           const gap = existingCoupleForChild ? Math.round(NODE_GAP * 1.5) : NODE_GAP;
-          const partnerX = partnerDir > 0 ? s.x + gap : s.x - gap;
+          const partnerX = partnerDir > 0 ? s.x + gap - 0.01 : s.x - gap + 0.01;
           const effectiveSourceX = s.x;
           nx = (effectiveSourceX + partnerX) / 2;
 
@@ -339,7 +339,7 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
           }
         }
         const gap = existingCouple ? Math.round(NODE_GAP * 1.5) : NODE_GAP;
-        nx = dir > 0 ? s.x + gap : s.x - gap;
+        nx = dir > 0 ? s.x + gap - 0.01 : s.x - gap + 0.01;
         ny = s.y;
 
         const newPartnerEdge: PedigreeEdge = { id: `e${now}`, type: "couple", sourceId: sid, targetId: nid };
@@ -351,8 +351,8 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
       }
       else if (rel === "parents") {
         const fid = `n${now}`, mid2 = `n${now + 1}`; ny = s.y - SY;
-        const fatherX = s.x - NODE_GAP / 2;
-        const motherX = s.x + NODE_GAP / 2;
+        const fatherX = s.x - NODE_GAP / 2 + 0.01;
+        const motherX = s.x + NODE_GAP / 2 - 0.01;
 
         const newParents: PedigreeNode[] = [
           { id: fid, type: "male", ...nd, x: fatherX, y: ny },
@@ -489,7 +489,7 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
               if (partnerOnRight === standardIsRight) dir = dir > 0 ? -1 : 1;
             }
           }
-          const startPx = dir > 0 ? pn.x + NODE_GAP : pn.x - NODE_GAP;
+          const startPx = dir > 0 ? pn.x + NODE_GAP - 0.01 : pn.x - NODE_GAP + 0.01;
           
           const newPartner = { id: mid, type: mt, affected: false, carrier: false, deceased: false, proband: false, label: "", age: "", x: startPx, y: pn.y };
           const allNodes = [...p.nodes, newPartner];
@@ -627,8 +627,8 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
         const fid = `n${now}_father`;
         const mid = `n${now}_mother`;
         const parentY = s.y - SY;
-        const fatherX = Math.max(GEN_GRID, s.x - NODE_GAP / 2);
-        const motherX = Math.max(fatherX + NODE_GAP, s.x + NODE_GAP / 2);
+        const fatherX = Math.max(GEN_GRID, s.x - NODE_GAP / 2 + 0.01);
+        const motherX = Math.max(fatherX + NODE_GAP, s.x + NODE_GAP / 2 - 0.01);
         
         newNodes.push(
           { id: fid, type: "male", ...nd, x: fatherX, y: parentY, label: "" },
