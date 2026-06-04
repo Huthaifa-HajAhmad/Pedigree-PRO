@@ -3,7 +3,6 @@ import {
   computeSubtreeBBox,
   detectRowCollisions,
   resolveAllCollisions,
-  findInsertPosition,
   recenterParents,
   buildAdjacency,
   buildNodeMap,
@@ -135,20 +134,7 @@ describe("layout-engine", () => {
     });
   });
 
-  describe("findInsertPosition", () => {
-    it("returns collision-free coordinates", () => {
-      const nodes: PedigreeNode[] = [
-        { id: "n1", x: 200, y: 100, type: "male", ...baseNode },
-      ];
-      const edges: PedigreeEdge[] = [];
-      
-      // Try to insert directly on n1
-      const posX = findInsertPosition(nodes, edges, 200, 100);
-      
-      // Should find a position either left or right (200 +/- 96.8)
-      expect(Math.abs(posX - 200)).toBeCloseTo(96.8);
-    });
-  });
+
 
   describe("recenterParents", () => {
     it("centers parents over children", () => {

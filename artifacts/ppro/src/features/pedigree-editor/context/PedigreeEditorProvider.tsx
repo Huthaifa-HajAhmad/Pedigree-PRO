@@ -8,7 +8,7 @@ import {
 import { getDefaultAnnotationColor } from "@/lib/theme";
 import { validatePedigree } from "@/lib/validate-pedigree";
 import { computeAutoLayout } from "@/lib/auto-layout";
-import { resolveAllCollisions, findInsertPosition, recenterParents } from "@/lib/layout-engine";
+import { resolveAllCollisions, recenterParents } from "@/lib/layout-engine";
 import { computeAutoLabels, romanToInt } from "@/lib/pedigree-labels";
 import { generateThumbnail } from "@/lib/generate-thumbnail";
 import { toast } from "@/hooks/use-toast";
@@ -279,8 +279,6 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
             }
           }
 
-          nx = findInsertPosition(p.nodes, p.edges, nx, ny, new Set([sid, pid, ...existingChildIds]));
-
           const newEdges: PedigreeEdge[] = [
             { id: `e${now}`, type: "parent-child", sourceId: sid, targetId: nid },
             { id: `e${now + 1}`, type: "parent-child", sourceId: pid, targetId: nid }
@@ -308,7 +306,7 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
             }
           }
           const gap = existingCoupleForChild ? Math.round(NODE_GAP * 1.5) : NODE_GAP;
-          const partnerX = findInsertPosition(p.nodes, p.edges, partnerDir > 0 ? s.x + gap : s.x - gap, s.y, new Set([sid]));
+          const partnerX = partnerDir > 0 ? s.x + gap : s.x - gap;
           const effectiveSourceX = s.x;
           nx = (effectiveSourceX + partnerX) / 2;
 
@@ -341,7 +339,7 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
           }
         }
         const gap = existingCouple ? Math.round(NODE_GAP * 1.5) : NODE_GAP;
-        nx = findInsertPosition(p.nodes, p.edges, dir > 0 ? s.x + gap : s.x - gap, s.y, new Set([sid]));
+        nx = dir > 0 ? s.x + gap : s.x - gap;
         ny = s.y;
 
         const newPartnerEdge: PedigreeEdge = { id: `e${now}`, type: "couple", sourceId: sid, targetId: nid };
@@ -353,8 +351,8 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
       }
       else if (rel === "parents") {
         const fid = `n${now}`, mid2 = `n${now + 1}`; ny = s.y - SY;
-        const fatherX = findInsertPosition(p.nodes, p.edges, s.x - NODE_GAP / 2, ny, new Set([sid]));
-        const motherX = findInsertPosition(p.nodes, p.edges, Math.max(fatherX + NODE_GAP, s.x + NODE_GAP / 2), ny, new Set([sid]));
+        const fatherX = s.x - NODE_GAP / 2;
+        const motherX = s.x + NODE_GAP / 2;
 
         const newParents: PedigreeNode[] = [
           { id: fid, type: "male", ...nd, x: fatherX, y: ny },
@@ -491,7 +489,7 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
               if (partnerOnRight === standardIsRight) dir = dir > 0 ? -1 : 1;
             }
           }
-          const startPx = findInsertPosition(p.nodes, p.edges, dir > 0 ? pn.x + NODE_GAP : pn.x - NODE_GAP, pn.y, new Set([s.linkSource!]));
+          const startPx = dir > 0 ? pn.x + NODE_GAP : pn.x - NODE_GAP;
           
           const newPartner = { id: mid, type: mt, affected: false, carrier: false, deceased: false, proband: false, label: "", age: "", x: startPx, y: pn.y };
           const allNodes = [...p.nodes, newPartner];
@@ -629,8 +627,8 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
         const fid = `n${now}_father`;
         const mid = `n${now}_mother`;
         const parentY = s.y - SY;
-        const fatherX = findInsertPosition(p.nodes, p.edges, Math.max(GEN_GRID, s.x - NODE_GAP / 2), parentY, new Set([s.id]));
-        const motherX = findInsertPosition(p.nodes, p.edges, Math.max(fatherX + NODE_GAP, s.x + NODE_GAP / 2), parentY, new Set([s.id]));
+        const fatherX = Math.max(GEN_GRID, s.x - NODE_GAP / 2);
+        const motherX = Math.max(fatherX + NODE_GAP, s.x + NODE_GAP / 2);
         
         newNodes.push(
           { id: fid, type: "male", ...nd, x: fatherX, y: parentY, label: "" },
