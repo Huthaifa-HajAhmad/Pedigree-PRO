@@ -1,4 +1,4 @@
-﻿// ─── Auto-layout algorithm for pedigree canvases ──────────────────────────
+// ─── Auto-layout algorithm for pedigree canvases ──────────────────────────
 //
 // Strategy:
 //  1. Build parent-child and couple adjacency from edges.
@@ -34,6 +34,7 @@ export interface LayoutEdge {
 }
 
 import { GEN_GRID } from "@/features/pedigree-editor/canvas/types";
+import { resolveAllCollisions } from "./layout-engine";
 const GEN_Y_START = GEN_GRID;
 const GEN_SPACING = GEN_GRID;
 const H_SPACING = 110;
@@ -280,78 +281,26 @@ export function computeAutoLayout(
     }
   }
 
-  // ── Overlap resolution: push overlapping sibship groups down ──────────
-  for (const gen of sortedGens) {
-    const nodeIds = genGroups.get(gen) ?? [];
-    if (nodeIds.length <= 1) continue;
-
-    // Re-group by effective parents
-    const overlapAssigned = new Set<string>();
-    const overlapGroups: { ids: string[]; xMin: number; xMax: number; y: number }[] = [];
-
-    for (const id of nodeIds) {
-      if (overlapAssigned.has(id)) continue;
-      const myParents = new Set(parentsOf.get(id) ?? []);
-      const effectiveParents = new Set(myParents);
-      for (const pid of myParents) {
-        for (const partnerId of couplesOf.get(pid) ?? []) {
-          effectiveParents.add(partnerId);
-        }
-      }
-      const parentKey = [...effectiveParents].sort().join("_");
-      const groupIds: string[] = [];
-      for (const otherId of nodeIds) {
-        if (overlapAssigned.has(otherId)) continue;
-        const otherParents = new Set(parentsOf.get(otherId) ?? []);
-        const otherEffective = new Set(otherParents);
-        for (const pid of otherParents) {
-          for (const partnerId of couplesOf.get(pid) ?? []) {
-            otherEffective.add(partnerId);
-          }
-        }
-        const otherKey = [...otherEffective].sort().join("_");
-        if (otherKey === parentKey) {
-          groupIds.push(otherId);
-          overlapAssigned.add(otherId);
-        }
-      }
-      const xs = groupIds.map(gid => knownPos.get(gid)?.x).filter((x): x is number => x !== undefined);
-      if (xs.length > 0) {
-        const nodeRadius = 30; // approximate half-node size for overlap detection
-        overlapGroups.push({
-          ids: groupIds,
-          xMin: Math.min(...xs) - nodeRadius,
-          xMax: Math.max(...xs) + nodeRadius,
-          y: knownPos.get(groupIds[0]!)?.y ?? genYOf.get(gen) ?? 0,
-        });
-      }
-    }
-
-    if (overlapGroups.length <= 1) continue;
-    overlapGroups.sort((a, b) => a.xMin - b.xMin);
-
-    for (let i = 1; i < overlapGroups.length; i++) {
-      const prev = overlapGroups[i - 1]!;
-      const curr = overlapGroups[i]!;
-      if (curr.xMin < prev.xMax) {
-        // Push down by a fraction of grid spacing to avoid overlapping next generation
-        const yOffset = GEN_SPACING * 0.25;
-        for (const id of curr.ids) {
-          const pos = knownPos.get(id);
-          if (pos) knownPos.set(id, { x: pos.x, y: pos.y + yOffset });
-        }
-        curr.y += yOffset;
-      }
-    }
-  }
-
-  // ── Apply positions, clamping minimum X to NODE_GAP ──
-  return nodes.map((n) => {
+  // ── Apply initial positions ──
+  const initialNodes = nodes.map((n) => {
     if (respectPinned && n.pinned) return n;
     const pos = knownPos.get(n.id);
     if (!pos) return n;
     return { ...n, x: Math.max(GEN_GRID, pos.x), y: pos.y };
   });
+
+  // ── Overlap resolution: use shared collision resolver for horizontal overlaps ──
+  const pinnedIds = new Set(
+    nodes.filter((n) => respectPinned && n.pinned).map((n) => n.id)
+  );
+  
+  const resolvedNodes = resolveAllCollisions(
+    initialNodes as any,
+    edges as any,
+    pinnedIds
+  );
+
+  return resolvedNodes as any;
 }
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
