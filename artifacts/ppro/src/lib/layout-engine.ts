@@ -689,5 +689,27 @@ export function insertNodeWithCollisionResolution(
 
 
 // ── Re-export adjacency builder for consumers ──────────────────────────────
+
+
+// ── Topological Space Maker ────────────────────────────────────────────────
+
+/**
+ * Creates topological space at a specific X coordinate by shifting all nodes
+ * to the right of this coordinate by the requested amount. This guarantees
+ * the insertion point is completely empty across the entire canvas, preserving
+ * the global topological order without relying on physics-based collision pushing.
+ */
+export function makeSpaceAtX(
+  nodes: PedigreeNode[],
+  xThreshold: number,
+  space: number = NODE_GAP,
+): PedigreeNode[] {
+  return nodes.map(n => {
+    if (n.x >= xThreshold - 0.05) { // allow small float tolerance
+      return { ...n, x: n.x + space };
+    }
+    return n;
+  });
+}
 export { buildAdjacency, buildNodeMap, ROW_TOLERANCE };
 export type { AdjacencyMaps };
