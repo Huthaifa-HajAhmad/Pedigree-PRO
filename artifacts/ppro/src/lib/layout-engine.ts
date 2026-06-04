@@ -296,7 +296,7 @@ export function computeShiftPlan(
   const computeForDirection = (dir: 1 | -1): ShiftPlan => {
     const shifts = new Map<string, number>();
     let cost = 0;
-    const shiftAmount = Math.ceil(overlap + MIN_FAMILY_GAP);
+    const shiftAmount = overlap;
 
     // Collect all nodes that must move with this family
     const movingNodes = new Set<string>();
@@ -450,10 +450,10 @@ export function resolveAllCollisions(
     }
   }
 
-  // Ensure minimum X boundary
+  // Final snap to remove topological deltas (0.01)
   return currentNodes.map(n => ({
     ...n,
-    x: Math.max(GEN_GRID, n.x),
+    x: Math.max(GEN_GRID, Math.round(n.x * 10) / 10),
   }));
 }
 
