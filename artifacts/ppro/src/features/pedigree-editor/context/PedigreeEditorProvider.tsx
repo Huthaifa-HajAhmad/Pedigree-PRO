@@ -654,7 +654,6 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
       const nd = { affected: false, carrier: false, deceased: false, proband: false, label: "", age: "" };
       const parentEdges = p.edges.filter((e) => e.type === "parent-child" && e.targetId === sourceId);
       let parentIds = parentIdsFromEdges(parentEdges);
-      let parents = parentIds.map((id) => p.nodes.find((n) => n.id === id)).filter(Boolean) as PedigreeNode[];
       const now = Date.now();
       let newNodes: PedigreeNode[] = [];
       const newEdges: PedigreeEdge[] = [];
@@ -677,7 +676,6 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
           { id: `e${now}_pm`, type: "parent-child", sourceId: mid, targetId: sourceId }
         );
         parentIds = [fid, mid];
-        parents = newNodes.filter((n) => n.id === fid || n.id === mid);
       }
 
       const allChildIds = new Set<string>();
