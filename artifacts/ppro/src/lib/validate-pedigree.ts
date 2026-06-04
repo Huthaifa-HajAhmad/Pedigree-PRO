@@ -14,7 +14,8 @@ export type IssueType =
   | "couple_parent_conflict"
   | "orphaned_edge"
   | "isolated_node"
-  | "multi_couple";
+  | "multi_couple"
+  | "single_parent";
 
 export interface ValidationIssue {
   id: string;
@@ -98,7 +99,7 @@ export function validatePedigree(canvas: CanvasData): ValidationResult {
   // ── 4. Couple + parent-child conflict (same pair) ─────────────────────────
   const coupleKeys = new Set<string>();
   for (const edge of edges) {
-    if (edge.type === "couple" || edge.type === "consanguinity") {
+    if (edge.type === "couple" || edge.type === "consanguinity" || edge.type === "divorced" || edge.type === "separated") {
       const a = edge.sourceId < edge.targetId ? edge.sourceId : edge.targetId;
       const b = edge.sourceId < edge.targetId ? edge.targetId : edge.sourceId;
       coupleKeys.add(`${a}:${b}`);
@@ -176,7 +177,7 @@ export function validatePedigree(canvas: CanvasData): ValidationResult {
   const partnerCount = new Map<string, Set<string>>();
   for (const n of nodes) partnerCount.set(n.id, new Set());
   for (const edge of edges) {
-    if ((edge.type === "couple" || edge.type === "consanguinity") && nodeSet.has(edge.sourceId) && nodeSet.has(edge.targetId)) {
+    if ((edge.type === "couple" || edge.type === "consanguinity" || edge.type === "divorced" || edge.type === "separated") && nodeSet.has(edge.sourceId) && nodeSet.has(edge.targetId)) {
       partnerCount.get(edge.sourceId)?.add(edge.targetId);
       partnerCount.get(edge.targetId)?.add(edge.sourceId);
     }
@@ -216,6 +217,34 @@ export function validatePedigree(canvas: CanvasData): ValidationResult {
     }
   }
 
+  // ── 8. Single-parent children ──
+  const childParentIds = new Map<string, string[]>();
+  for (const edge of edges) {
+    if (edge.type === "parent-child" && nodeSet.has(edge.sourceId) && nodeSet.has(edge.targetId)) {
+      if (!childParentIds.has(edge.targetId)) childParentIds.set(edge.targetId, []);
+      childParentIds.get(edge.targetId)!.push(edge.sourceId);
+    }
+  }
+  for (const [childId, parentIds] of childParentIds) {
+    if (parentIds.length === 1) {
+      const singleParentId = parentIds[0]!;
+      const hasPartner = edges.some((e) => (e.type === "couple" || e.type === "consanguinity" || e.type === "divorced" || e.type === "separated") && (e.sourceId === singleParentId || e.targetId === singleParentId));
+      const child = nodes.find((n) => n.id === childId);
+      const parent = nodes.find((n) => n.id === singleParentId);
+      issues.push({
+        id: `single-parent-${childId}`,
+        type: "single_parent",
+        severity: "warning",
+        message: hasPartner ? "Child connected to only one parent in a couple" : "Child has only one parent",
+        detail: hasPartner
+          ? `${child?.label || childId} has a parent-child link from only one parent (${parent?.label || singleParentId}) even though that parent has a partner. Add a second parent-child edge to complete the family.`
+          : `${child?.label || childId} is connected to only one parent (${parent?.label || singleParentId}). Consider adding the other parent for a complete pedigree.`,
+        nodeIds: [childId, singleParentId],
+        edgeIds: [],
+      });
+    }
+  }
+
   // ── Aggregate results ──────────────────────────────────────────────────────
   const invalidNodeIds = new Set<string>(issues.flatMap((i) => i.nodeIds));
   const invalidEdgeIds = new Set<string>(issues.flatMap((i) => i.edgeIds));
@@ -233,4 +262,5 @@ export const ISSUE_TYPE_LABELS: Record<IssueType, string> = {
   orphaned_edge: "Orphaned Edge",
   isolated_node: "Isolated Node",
   multi_couple: "Multiple Partners",
+  single_parent: "Single Parent",
 };

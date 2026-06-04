@@ -117,7 +117,7 @@ function SibshipLayer({ edges, nodes, invalidEdgeIds, annotations = [], showAuto
         (e) => parentIds.includes(e.sourceId) && childIds.includes(e.targetId)
       );
       const coupleEdge = edges.find(
-        (e) => (e.type === "couple" || e.type === "consanguinity") &&
+        (e) => (e.type === "couple" || e.type === "consanguinity" || e.type === "divorced" || e.type === "separated") &&
           parentIds.includes(e.sourceId) && parentIds.includes(e.targetId)
       );
       return {
@@ -126,7 +126,7 @@ function SibshipLayer({ edges, nodes, invalidEdgeIds, annotations = [], showAuto
         childIds,
         nodes,
         invalid: allEdges.some((e) => invalidEdgeIds.has(e.id)),
-        edgeType: (coupleEdge?.type as "couple" | "consanguinity") ?? "couple",
+        edgeType: (coupleEdge?.type as "couple" | "consanguinity" | "divorced" | "separated") ?? "couple",
       };
     });
   }, [edges, nodes, invalidEdgeIds]);
@@ -174,7 +174,7 @@ export function PedigreeCanvasBody() {
     setNodeType, setNodeColor, toggleNodeProp, addContextNode, deleteSelected,
     updateSelectedNode, bulkUpdate, alignSelected,
     handleNodeClick, handleNodeDoubleClick, handleNodeContextMenu, handleDragStart,
-    handleMouseMove, handleMouseUp, handleSVGMouseDown, handleWheel,
+    handleMouseMove, handleMouseUp, handleSVGMouseDown, handleWheel, updateEdgeType,
     getSVGCoords, handleSaveVersion, handleRestoreVersion, handleDeleteVersion,
     addSiblings, markAsTwins, unmarkTwins,
   } = ops;
@@ -213,6 +213,10 @@ export function PedigreeCanvasBody() {
   const railDragStartXRef = useRef(0);
   const railDragStartRailXRef = useRef(44);
 
+const RAIL_HIT_W = 30;
+const RAIL_MIN_X = 0;
+const RAIL_MAX_X = 400;
+
   const handleRailPointerDown = useCallback((e: React.PointerEvent) => {
     e.stopPropagation();
     e.preventDefault();
@@ -226,7 +230,7 @@ export function PedigreeCanvasBody() {
     if (!railDraggingRef.current) return;
     e.stopPropagation();
     const dx = (e.clientX - railDragStartXRef.current) * viewBox.zoom;
-    const newRailX = Math.max(10, Math.min(200, railDragStartRailXRef.current + dx));
+    const newRailX = Math.max(RAIL_MIN_X, Math.min(RAIL_MAX_X, railDragStartRailXRef.current + dx));
     dispatch({ type: "SET_STATE", patch: { railX: newRailX } });
   }, [dispatch, viewBox.zoom]);
 
@@ -248,12 +252,44 @@ export function PedigreeCanvasBody() {
   });
 
   useEffect(() => {
+    const svgEl = svgRef.current;
+    if (!svgEl) return;
     const handler = (e: WheelEvent) => {
+      if (e.ctrlKey || e.metaKey) {
+        e.preventDefault();
+      }
+      if (!svgEl.contains(e.target as Node)) return;
       e.preventDefault();
       handleWheel(e as unknown as React.WheelEvent);
     };
     document.addEventListener("wheel", handler, { passive: false });
     return () => document.removeEventListener("wheel", handler);
+  }, [handleWheel]);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !("__TAURI__" in window)) return;
+    const vv = window.visualViewport;
+    if (!vv) return;
+    let lastScale = vv.scale;
+    const handler = () => {
+      const currentScale = vv.scale;
+      const delta = currentScale - lastScale;
+      lastScale = currentScale;
+      if (Math.abs(delta) > 0.005) {
+        const factor = 1 + delta * 3;
+        handleWheel({
+          ctrlKey: true,
+          deltaY: -Math.log(factor) / Math.log(0.95),
+          clientX: window.innerWidth / 2,
+          clientY: window.innerHeight / 2,
+        } as unknown as React.WheelEvent);
+        import("@tauri-apps/api/core").then(({ invoke }) => {
+          invoke("reset_zoom").catch(() => {});
+        });
+      }
+    };
+    vv.addEventListener("resize", handler);
+    return () => vv.removeEventListener("resize", handler);
   }, [handleWheel]);
 
   const handleAnnotationClick = useCallback((annId: string, nodeId: string) => {
@@ -351,13 +387,18 @@ export function PedigreeCanvasBody() {
             }, []);
             return (
               <g>
-                <line
-                  x1={viewBox.x + railX} y1={viewBox.y + 30} x2={viewBox.x + railX} y2={viewBox.y + vbH - 30}
-                  stroke={"hsl(var(--primary))"} strokeWidth={0.75} opacity={0.12}
-                  style={{ cursor: "ew-resize" }}
+                <rect
+                  x={viewBox.x + railX - RAIL_HIT_W / 2} y={viewBox.y + 30}
+                  width={RAIL_HIT_W} height={vbH - 60}
+                  fill="transparent" style={{ cursor: "ew-resize" }}
                   onPointerDown={handleRailPointerDown}
                   onPointerMove={handleRailPointerMove}
                   onPointerUp={handleRailPointerUp}
+                />
+                <line
+                  x1={viewBox.x + railX} y1={viewBox.y + 30} x2={viewBox.x + railX} y2={viewBox.y + vbH - 30}
+                  stroke={"hsl(var(--primary))"} strokeWidth={0.75} opacity={0.12}
+                  style={{ pointerEvents: "none" }}
                 />
                 {spacedEntries.map(({ roman, y }) => (
                   <text key={roman} x={viewBox.x + railX - 34} y={y + 5} fontSize={14} fontWeight="700"
@@ -566,6 +607,7 @@ export function PedigreeCanvasBody() {
             onMarkAsTwins={markAsTwins}
             onUnmarkTwins={unmarkTwins}
             onRemoveEdges={ops.removeEdges}
+            onUpdateEdgeType={updateEdgeType}
           />
         )}
 

@@ -61,7 +61,7 @@ export function usePedigreeCanvas(params: UsePedigreeCanvasParams) {
     const parentIdsToMove = new Set<string>();
     if (!ctrlHeld) {
       for (const mid of movingIds) {
-        const ce = s.canvas.edges.find((e) => (e.type === "couple" || e.type === "consanguinity") && (e.sourceId === mid || e.targetId === mid));
+        const ce = s.canvas.edges.find((e) => (e.type === "couple" || e.type === "consanguinity" || e.type === "divorced" || e.type === "separated") && (e.sourceId === mid || e.targetId === mid));
         if (ce) {
           const pid = ce.sourceId === mid ? ce.targetId : ce.sourceId;
           if (!movingIds.has(pid)) partnerIds.add(pid);
@@ -183,7 +183,7 @@ export function usePedigreeCanvas(params: UsePedigreeCanvasParams) {
         const targets = snapTargetsRef.current;
 
         const movingIds = new Set(Object.keys(d.initialPositions));
-        const coupleEdges = curState.canvas.edges.filter(e => (e.type === "couple" || e.type === "consanguinity") && (movingIds.has(e.sourceId) || movingIds.has(e.targetId)));
+        const coupleEdges = curState.canvas.edges.filter(e => (e.type === "couple" || e.type === "consanguinity" || e.type === "divorced" || e.type === "separated") && (movingIds.has(e.sourceId) || movingIds.has(e.targetId)));
 
         dispatch({
           type: "UPDATE_CANVAS",
@@ -272,6 +272,30 @@ export function usePedigreeCanvas(params: UsePedigreeCanvasParams) {
                   initSnapActiveX = true;
                 } else if (distToInit < NEAR_THRESHOLD && !alignGuides.some(g => g.axis === "x" && Math.abs(g.pos - initSnap.x) < 1)) {
                   alignGuides.push({ axis: "x", pos: initSnap.x, strength: "near" });
+                }
+              }
+
+              if (!initSnapActiveX) {
+                const childIds = prev.edges
+                  .filter(e => e.type === "parent-child" && e.sourceId === n.id)
+                  .map(e => e.targetId);
+                const childrenAreMoving = childIds.some(cid => movingIds.has(cid));
+                const childXs = childrenAreMoving
+                  ? []
+                  : childIds.map(cid => prev.nodes.find(nn => nn.id === cid)?.x).filter((x): x is number => x !== undefined);
+
+                if (childXs.length >= 2) {
+                  const childMidX = childXs.reduce((a, b) => a + b, 0) / childXs.length;
+                  const distToChildMid = Math.abs(rawX - childMidX);
+                  const distToInit = initSnap ? Math.abs(rawX - initSnap.x) : Infinity;
+
+                  if (distToChildMid < SNAP_THRESHOLD && distToChildMid <= distToInit) {
+                    alignGuides.push({ axis: "x", pos: childMidX, strength: "snap" });
+                    rawX = childMidX;
+                    initSnapActiveX = true;
+                  } else if (distToChildMid < NEAR_THRESHOLD && !alignGuides.some(g => g.axis === "x" && Math.abs(g.pos - childMidX) < 1)) {
+                    alignGuides.push({ axis: "x", pos: childMidX, strength: "near" });
+                  }
                 }
               }
 
@@ -497,7 +521,6 @@ export function usePedigreeCanvas(params: UsePedigreeCanvasParams) {
   }, [getSVGCoords, stateRef, dispatch, svgRef, spaceHeldRef, lassoRef, isLassoingRef, lassoRectRef]);
 
   const handleWheel = useCallback((e: React.WheelEvent) => {
-    e.preventDefault();
     const svg = svgRef.current; if (!svg) return;
     const rect = svg.getBoundingClientRect();
     const px = e.clientX - rect.left, py = e.clientY - rect.top;

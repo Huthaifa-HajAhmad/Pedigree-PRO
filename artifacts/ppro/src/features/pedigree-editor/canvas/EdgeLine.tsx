@@ -43,5 +43,33 @@ export const EdgeLine = memo(function EdgeLine({ edge, nodes, invalid, renderOff
     );
   }
 
+  if (edge.type === "divorced") {
+    const [left, right] = src.x <= tgt.x ? [src, tgt] : [tgt, src];
+    const leftOff = renderOffsets?.get(left.id) ?? 0;
+    const rightOff = renderOffsets?.get(right.id) ?? 0;
+    const x1 = left.x + S / 2, y1 = left.y + leftOff;
+    const x2 = right.x - S / 2, y2 = right.y + rightOff;
+    const midX = (x1 + x2) / 2;
+    const midY = (y1 + y2) / 2;
+    const slashHalfHeight = Math.max(5, edgeWidth * 1.5);
+    const slashHalfWidth = Math.max(2, edgeWidth * 0.6);
+    const slashGap = Math.max(2, edgeWidth * 0.8);
+    
+    return (
+      <g stroke={edgeStroke} strokeWidth={edgeWidth} fill="none">
+        <line x1={x1} y1={y1} x2={x2} y2={y2} />
+        <line x1={midX - slashGap - slashHalfWidth} y1={midY + slashHalfHeight} x2={midX - slashGap + slashHalfWidth} y2={midY - slashHalfHeight} />
+        <line x1={midX + slashGap - slashHalfWidth} y1={midY + slashHalfHeight} x2={midX + slashGap + slashHalfWidth} y2={midY - slashHalfHeight} />
+      </g>
+    );
+  }
+
+  if (edge.type === "separated") {
+    const [left, right] = src.x <= tgt.x ? [src, tgt] : [tgt, src];
+    const leftOff = renderOffsets?.get(left.id) ?? 0;
+    const rightOff = renderOffsets?.get(right.id) ?? 0;
+    return <line x1={left.x + S / 2} y1={left.y + leftOff} x2={right.x - S / 2} y2={right.y + rightOff} stroke={edgeStroke} strokeWidth={edgeWidth} strokeDasharray={edgeDash ?? "6 4"} />;
+  }
+
   return null;
 });

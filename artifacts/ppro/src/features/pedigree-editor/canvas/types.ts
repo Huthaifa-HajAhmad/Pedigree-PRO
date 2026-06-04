@@ -21,12 +21,14 @@ export interface PedigreeNode {
 
 export interface PedigreeEdge {
   id: string;
-  type: "couple" | "parent-child" | "consanguinity";
+  type: "couple" | "parent-child" | "consanguinity" | "divorced" | "separated";
   sourceId: string;
   targetId: string;
   twinGroup?: string;
   twinType?: "m" | "d";
 }
+
+export type CoupleEdgeType = "couple" | "consanguinity" | "divorced" | "separated";
 
 export interface PedigreeAnnotation {
   id: string;

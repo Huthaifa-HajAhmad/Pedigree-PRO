@@ -1040,7 +1040,7 @@ export function validateImport(canvas: CanvasData): ImportValidationIssue[] {
         // sourceId is the parent (in couple-bar model, it's the father)
       }
     }
-    if (edge.type === "couple" || edge.type === "consanguinity") {
+    if (edge.type === "couple" || edge.type === "consanguinity" || edge.type === "divorced" || edge.type === "separated") {
       const src = nodeMap.get(edge.sourceId);
       const tgt = nodeMap.get(edge.targetId);
       if (src && tgt) {

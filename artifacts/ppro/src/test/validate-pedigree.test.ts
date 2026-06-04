@@ -17,7 +17,7 @@ function makeNode(id: string, overrides: Record<string, unknown> = {}) {
   };
 }
 
-function makeEdge(id: string, sourceId: string, targetId: string, type: "couple" | "parent-child" | "consanguinity" = "couple") {
+function makeEdge(id: string, sourceId: string, targetId: string, type: "couple" | "parent-child" | "consanguinity" | "divorced" | "separated" = "couple") {
   return { id, type, sourceId, targetId };
 }
 

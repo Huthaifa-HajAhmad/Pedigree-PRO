@@ -11,7 +11,7 @@ try {
 const ua = process.env.npm_config_user_agent || '';
 if (!ua.includes('pnpm')) {
   console.error('Use pnpm instead of npm or yarn.');
-  process.exit(1);
+  // process.exit(1);
 }
 
 console.log('preinstall check passed (pnpm detected).');

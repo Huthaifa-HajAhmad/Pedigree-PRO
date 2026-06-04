@@ -60,6 +60,7 @@ function computeMinimapEdges(
   edges: PedigreeEdge[],
   nodeById: Map<string, PedigreeNode>,
 ): React.ReactNode[] {
+  const nodeMap = nodeById;
   const result: React.ReactNode[] = [];
   const stroke = "hsl(var(--foreground) / 0.25)";
   const sw = 1.5;
@@ -74,13 +75,13 @@ function computeMinimapEdges(
   const couplePairs = new Map<string, string>();
   const couplePairKeys = new Set<string>();
   for (const e of edges) {
-    if (e.type === "couple" || e.type === "consanguinity") {
-      const src = nodeById.get(e.sourceId);
-      const tgt = nodeById.get(e.targetId);
-      if (!src || !tgt) continue;
-      const [left, right] = src.x <= tgt.x ? [src, tgt] : [tgt, src];
-
-      if (e.type === "couple") {
+    if (e.type === "couple" || e.type === "consanguinity" || e.type === "divorced" || e.type === "separated") {
+      const left = nodeMap.get(e.sourceId)!;
+      const right = nodeMap.get(e.targetId)!;
+      if (left && right) {
+        const pairKey = left.id < right.id ? `${left.id}:${right.id}` : `${right.id}:${left.id}`;
+        if (!couplePairKeys.has(pairKey)) {
+          if (e.type === "couple" || e.type === "divorced" || e.type === "separated") {
         result.push(
           <line key={e.id}
             x1={left.x + HALF} y1={left.y}
@@ -105,6 +106,8 @@ function computeMinimapEdges(
       couplePairs.set(left.id, right.id);
       couplePairs.set(right.id, left.id);
       couplePairKeys.add(pairKey);
+        }
+      }
     }
   }
 

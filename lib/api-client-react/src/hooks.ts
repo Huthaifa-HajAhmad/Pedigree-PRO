@@ -411,14 +411,14 @@ export function useSharePedigree() {
         const { share_token } = await relayShare(compressedBase64, "");
         return {
           share_token,
-          share_url: `https://pedigreepro.app/share/${share_token}`,
+          share_url: `https://pedigree-pro.pages.dev/share/${share_token}`,
         };
       } catch {
         // Relay offline — fall back to self-contained token in URL fragment
         const token = compressedBase64;
         return {
           share_token: token,
-          share_url: `https://pedigreepro.app/share/${encodeURIComponent(token)}`,
+          share_url: `https://pedigree-pro.pages.dev/share/${encodeURIComponent(token)}`,
         };
       }
     },

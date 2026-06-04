@@ -82,7 +82,7 @@ export function SibshipGroup({ parentIds, childIds, nodes, edges = [], invalid, 
   nodes: PedigreeNode[];
   edges?: PedigreeEdge[];
   invalid: boolean;
-  edgeType?: "couple" | "consanguinity";
+  edgeType?: "couple" | "consanguinity" | "divorced" | "separated";
   annotations?: PedigreeAnnotation[];
   showAutoLabels?: boolean;
   autoLabels?: Map<string, string>;
@@ -178,11 +178,16 @@ export function SibshipGroup({ parentIds, childIds, nodes, edges = [], invalid, 
         const dropY = barY + TWIN_DROP;
         const isMono = twinMap.get(members[0]!.id)?.twinType === "m";
         paths.push(`M ${midX} ${barY} L ${midX} ${dropY}`);
-        if (isMono) {
-          paths.push(`M ${midX - 4} ${dropY} L ${midX + 4} ${dropY}`);
-        }
         for (const m of members) {
           paths.push(`M ${midX} ${dropY} L ${m.x} ${cy(m)}`);
+        }
+        if (isMono) {
+          const firstChild = members[0]!;
+          const lastChild = members[members.length - 1]!;
+          const twinBarY = (dropY + cy(firstChild)) / 2;
+          const barLeft = (midX + firstChild.x) / 2;
+          const barRight = (midX + lastChild.x) / 2;
+          paths.push(`M ${barLeft} ${twinBarY} L ${barRight} ${twinBarY}`);
         }
       }
 
@@ -222,11 +227,16 @@ export function SibshipGroup({ parentIds, childIds, nodes, edges = [], invalid, 
       const dropY = barY + TWIN_DROP;
       const isMono = twinMap.get(members[0]!.id)?.twinType === "m";
       paths.push(`M ${twinMidX} ${barY} L ${twinMidX} ${dropY}`);
-      if (isMono) {
-        paths.push(`M ${twinMidX - 4} ${dropY} L ${twinMidX + 4} ${dropY}`);
-      }
       for (const m of members) {
         paths.push(`M ${twinMidX} ${dropY} L ${m.x} ${cy(m)}`);
+      }
+      if (isMono) {
+        const firstChild = members[0]!;
+        const lastChild = members[members.length - 1]!;
+        const twinBarY = (dropY + cy(firstChild)) / 2;
+        const barLeft = (twinMidX + firstChild.x) / 2;
+        const barRight = (twinMidX + lastChild.x) / 2;
+        paths.push(`M ${barLeft} ${twinBarY} L ${barRight} ${twinBarY}`);
       }
     }
 

@@ -94,7 +94,7 @@ function SibshipLayer({ edges, nodes, annotations = [], showAutoLabels = false, 
     }
     return [...families.entries()].map(([key, { parentIds, childIds }]) => {
       const coupleEdge = edges.find(
-        (e) => (e.type === "couple" || e.type === "consanguinity") &&
+        (e) => (e.type === "couple" || e.type === "consanguinity" || e.type === "divorced" || e.type === "separated") &&
           parentIds.includes(e.sourceId) && parentIds.includes(e.targetId)
       );
       return {
@@ -103,7 +103,7 @@ function SibshipLayer({ edges, nodes, annotations = [], showAutoLabels = false, 
         childIds,
         nodes,
         invalid: false,
-        edgeType: (coupleEdge?.type as "couple" | "consanguinity") ?? "couple",
+        edgeType: (coupleEdge?.type as "couple" | "consanguinity" | "divorced" | "separated") ?? "couple",
       };
     });
   }, [edges, nodes]);

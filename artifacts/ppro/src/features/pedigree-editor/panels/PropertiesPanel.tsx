@@ -1,8 +1,17 @@
-import { Pin, PinOff, Users, MessageSquare, Plus, User, Dna, Flag, Stethoscope, Trash2, LayoutGrid, GitBranch, HeartOff } from "lucide-react";
+import { Pin, PinOff, Users, MessageSquare, Plus, User, Dna, Flag, Stethoscope, Trash2, LayoutGrid, GitBranch, Heart } from "lucide-react";
 import type { PedigreeNode, PedigreeEdge, PedigreeAnnotation } from "@/features/pedigree-editor/canvas/types";
 import { AnnotationEditorPanel } from "@/features/pedigree-editor/panels/AnnotationEditorPanel";
 import { PanelShell } from "@/components/shared/panels/PanelShell";
 import { PanelSection } from "@/components/shared/panels/PanelSection";
+import { computeAutoLabels } from "@/lib/pedigree-labels";
+import { useMemo } from "react";
+
+const COUPLE_LABELS: Record<string, string> = {
+  couple: "Couple",
+  consanguinity: "Consanguinity",
+  divorced: "Divorced",
+  separated: "Separated",
+};
 
 export function PropertiesPanel({
   selectedIds, canvasNodes, canvasEdges, canvasAnnotations,
@@ -11,6 +20,7 @@ export function PropertiesPanel({
   onBulkUpdate, onDeleteSelected, onAddAnnotation,
   onUpdateAnnotation, onDeleteAnnotation, onSelectAnnotation,
   onAlignSelected, onMarkAsTwins, onUnmarkTwins, onRemoveEdges,
+  onUpdateEdgeType,
 }: {
   selectedIds: Set<string>;
   canvasNodes: PedigreeNode[];
@@ -28,7 +38,9 @@ export function PropertiesPanel({
   onMarkAsTwins?: (nodeIds: string[], twinType: "m" | "d") => void;
   onUnmarkTwins?: (nodeIds: string[]) => void;
   onRemoveEdges?: (edgeIds: string[]) => void;
+  onUpdateEdgeType?: (edgeId: string, type: PedigreeEdge["type"]) => void;
 }) {
+  const autoLabels = useMemo(() => computeAutoLabels(canvasNodes, canvasEdges), [canvasNodes, canvasEdges]);
   const singleSelected = selectedIds.size === 1 ? canvasNodes.find((n) => selectedIds.has(n.id)) ?? null : null;
   const getStatus = (node: PedigreeNode) => node.affected ? "affected" : node.carrier ? "carrier" : "unaffected";
   const applyStatus = (status: string) => {
@@ -109,18 +121,46 @@ export function PropertiesPanel({
           {/* Relationship */}
           {(() => {
             const coupleEdges = canvasEdges.filter(
-              (e) => (e.type === "couple" || e.type === "consanguinity") && selectedIds.has(e.sourceId) && selectedIds.has(e.targetId)
+              (e) => (e.type === "couple" || e.type === "consanguinity" || e.type === "divorced" || e.type === "separated") && selectedIds.has(e.sourceId) && selectedIds.has(e.targetId)
             );
             if (coupleEdges.length === 0 || !onRemoveEdges) return null;
             return (
-              <PanelSection title="Relationship" icon={<HeartOff className="w-3 h-3" />} defaultOpen={true}>
-                {coupleEdges.map((e) => (
-                  <div key={e.id} className="flex items-center justify-between gap-2">
-                    <span className="text-xs text-muted-foreground">{e.type === "couple" ? "Couple" : "Consanguinity"}</span>
-                    <button type="button" onClick={() => onRemoveEdges([e.id])}
-                      className="text-xs text-muted-foreground hover:text-destructive transition-colors">Remove</button>
-                  </div>
-                ))}
+              <PanelSection title="Relationship" icon={<Heart className="w-3 h-3" />} defaultOpen={true}>
+                {coupleEdges.map((e) => {
+                  const srcNode = canvasNodes.find((n) => n.id === e.sourceId);
+                  const tgtNode = canvasNodes.find((n) => n.id === e.targetId);
+                  const srcLabel = autoLabels.get(e.sourceId) || srcNode?.label || srcNode?.id;
+                  const tgtLabel = autoLabels.get(e.targetId) || tgtNode?.label || tgtNode?.id;
+                  return (
+                    <div key={e.id} className="flex flex-col gap-1.5 py-1">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-muted-foreground truncate">
+                          {srcLabel} — {tgtLabel}
+                        </span>
+                        <button type="button" onClick={() => onRemoveEdges([e.id])}
+                          aria-label={`Remove relationship between ${srcLabel} and ${tgtLabel}`}
+                          className="text-xs text-destructive/70 hover:text-destructive transition-colors">
+                          <Trash2 className="w-3 h-3" />
+                        </button>
+                      </div>
+                      <div className="grid grid-cols-2 gap-1">
+                        {(["couple", "consanguinity", "divorced", "separated"] as const).map((t) => (
+                          <button key={t} type="button"
+                            aria-label={`Set relationship to ${COUPLE_LABELS[t]}`}
+                            aria-pressed={e.type === t}
+                            onClick={() => onUpdateEdgeType?.(e.id, t)}
+                            className={`py-1.5 text-xs rounded border transition-colors ${
+                              e.type === t
+                                ? "border-primary bg-primary/10 text-primary font-medium"
+                                : "border-border text-muted-foreground hover:border-primary/50"
+                            }`}>
+                            {COUPLE_LABELS[t]}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
               </PanelSection>
             );
           })()}

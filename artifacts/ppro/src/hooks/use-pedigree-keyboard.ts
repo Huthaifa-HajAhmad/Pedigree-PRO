@@ -26,6 +26,8 @@ export interface UsePedigreeKeyboardParams {
   twinSelectMode: boolean;
   setTwinSelectMode: Dispatch<SetStateAction<boolean>>;
   clearTwinCandidates: () => void;
+  updateSelectedNode: (updates: Partial<PedigreeNode>) => void;
+  selectedNode: PedigreeNode | null;
   W: number;
   H: number;
 }
@@ -109,8 +111,22 @@ export function usePedigreeKeyboard(params: UsePedigreeKeyboardParams) {
       if (e.key === "c" || e.key === "C") { k.addContextNode("child"); return; }
       if (e.key === "r" || e.key === "R") { k.addContextNode("partner"); return; }
       if (e.key === "b" || e.key === "B") { k.addContextNode("sibling"); return; }
-      if (e.key === "m" || e.key === "M") { k.addNode("male"); return; }
-      if (e.key === "f" || e.key === "F") { k.addNode("female"); return; }
+      if (e.key === "m" || e.key === "M") {
+        if (k.selectedNode && k.selectedNode.type === "unknown") {
+          k.updateSelectedNode({ type: "male" });
+          return;
+        }
+        k.addNode("male");
+        return;
+      }
+      if (e.key === "f" || e.key === "F") {
+        if (k.selectedNode && k.selectedNode.type === "unknown") {
+          k.updateSelectedNode({ type: "female" });
+          return;
+        }
+        k.addNode("female");
+        return;
+      }
       if (e.key === "u" || e.key === "U") { k.addNode("unknown"); return; }
       if (e.key === "p" || e.key === "P") { k.addNode("pregnancy"); return; }
       if (e.key === "k" || e.key === "K") { k.setLinkMode((prev) => (prev === "consanguinity" ? null : "consanguinity")); k.setLinkSource(null); return; }

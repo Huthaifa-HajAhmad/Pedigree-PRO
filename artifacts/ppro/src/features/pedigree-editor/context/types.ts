@@ -1,4 +1,4 @@
-import type { CanvasData, PedigreeNode, PedigreeAnnotation, DragState } from "@/features/pedigree-editor/canvas/types";
+import type { CanvasData, PedigreeNode, PedigreeEdge, PedigreeAnnotation, DragState } from "@/features/pedigree-editor/canvas/types";
 import type { ValidationResult } from "@/lib/validate-pedigree";
 import type { InheritanceMode } from "@/lib/risk-calculator";
 import type { PedigreeVersion } from "@workspace/api-client-react";
@@ -183,6 +183,7 @@ export interface PedigreeEditorOps {
   markAsTwins: (nodeIds: string[], twinType: "m" | "d") => void;
   unmarkTwins: (nodeIds: string[]) => void;
   removeEdges: (edgeIds: string[]) => void;
+  updateEdgeType: (edgeId: string, type: PedigreeEdge["type"]) => void;
   toggleTwinSelectMode: () => void;
   clearTwinCandidates: () => void;
   handleDeletePedigree: (tabId: number, tabTitle: string) => void;
