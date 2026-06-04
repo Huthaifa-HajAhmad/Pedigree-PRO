@@ -8,7 +8,7 @@ import {
 import { getDefaultAnnotationColor } from "@/lib/theme";
 import { validatePedigree } from "@/lib/validate-pedigree";
 import { computeAutoLayout } from "@/lib/auto-layout";
-import { resolveAllCollisions, resolveAndRecenter, recenterAllFamilies } from "@/lib/layout-engine";
+import { resolveAllCollisions, resolveAndRecenter, recenterAllFamilies, makeSpaceAtX, ROW_TOLERANCE } from "@/lib/layout-engine";
 import { computeAutoLabels, romanToInt } from "@/lib/pedigree-labels";
 import { generateThumbnail } from "@/lib/generate-thumbnail";
 import { toast } from "@/hooks/use-toast";
@@ -281,15 +281,18 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
 
           const newEdges: PedigreeEdge[] = [
             { id: `e${now}`, type: "parent-child", sourceId: sid, targetId: nid },
-            { id: `e${now + 1}`, type: "parent-child", sourceId: pid, targetId: nid }
+            { id: `e${now + 1}`, type: "parent-child" as const, sourceId: pid, targetId: nid }
           ];
 
-          const allNodes = [...p.nodes, { id: nid, type: nt, ...nd, x: nx, y: ny }];
-          const allEdges = [...p.edges, ...newEdges];
-          let resolved = resolveAllCollisions(allNodes, allEdges);
+          let resolved = resolveAllCollisions(p.nodes, p.edges);
           const rS = resolved.find(n => n.id === sid)!;
           const rP = resolved.find(n => n.id === pid)!;
-          resolved = resolved.map(n => n.id === nid ? { ...n, x: (rS.x + rP.x) / 2 } : n);
+          const trueChildX = (rS.x + rP.x) / 2;
+          
+          const newChildObj = { id: nid, type: nt, ...nd, x: trueChildX, y: ny };
+          resolved = [...resolved, newChildObj];
+          const allEdges = [...p.edges, ...newEdges];
+          
           resolved = resolveAllCollisions(resolved, allEdges);
           resolved = recenterAllFamilies(resolved, allEdges);
 
@@ -310,24 +313,28 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
             }
           }
           const gap = existingCoupleForChild ? Math.round(NODE_GAP * 1.5) : NODE_GAP;
-          const partnerX = partnerDir > 0 ? s.x + 0.01 : s.x - 0.01;
-          const effectiveSourceX = s.x;
-          nx = (effectiveSourceX + partnerX) / 2;
-
+          
+          const insertX = partnerDir > 0 ? s.x + gap : s.x;
+          const shiftedNodes = makeSpaceAtX(p.nodes, insertX, gap);
+          
+          const partnerX = insertX;
           const newPartner = { id: mid, type: mt, ...nd, x: partnerX, y: s.y };
-          const newChild = { id: nid, type: nt, ...nd, x: nx, y: ny };
-          const newEdges: PedigreeEdge[] = [
-            { id: `e${now}`, type: "couple", sourceId: sid, targetId: mid },
-            { id: `e${now + 1}`, type: "parent-child", sourceId: sid, targetId: nid },
-            { id: `e${now + 2}`, type: "parent-child", sourceId: mid, targetId: nid }
-          ];
-
-          const allNodes = [...p.nodes, newPartner, newChild];
-          const allEdges = [...p.edges, ...newEdges];
-          let resolved = resolveAllCollisions(allNodes, allEdges);
+          
+          const nodesWithPartner = [...shiftedNodes, newPartner];
+          const edgesWithPartner = [...p.edges, { id: `e${now}`, type: "couple" as const, sourceId: sid, targetId: mid }];
+          
+          let resolved = resolveAllCollisions(nodesWithPartner, edgesWithPartner);
           const rS = resolved.find(n => n.id === sid)!;
           const rM = resolved.find(n => n.id === mid)!;
-          resolved = resolved.map(n => n.id === nid ? { ...n, x: (rS.x + rM.x) / 2 } : n);
+          const trueChildX = (rS.x + rM.x) / 2;
+          
+          const newChildObj = { id: nid, type: nt, ...nd, x: trueChildX, y: ny };
+          resolved = [...resolved, newChildObj];
+          const allEdges = [...edgesWithPartner, 
+            { id: `e${now + 1}`, type: "parent-child" as const, sourceId: sid, targetId: nid },
+            { id: `e${now + 2}`, type: "parent-child" as const, sourceId: mid, targetId: nid }
+          ];
+          
           resolved = resolveAllCollisions(resolved, allEdges);
           resolved = recenterAllFamilies(resolved, allEdges);
 
@@ -347,12 +354,16 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
             if (partnerOnRight === standardIsRight) dir = dir > 0 ? -1 : 1;
           }
         }
+        
         const gap = existingCouple ? Math.round(NODE_GAP * 1.5) : NODE_GAP;
-        nx = dir > 0 ? s.x + 0.01 : s.x - 0.01;
+        const insertX = dir > 0 ? s.x + gap : s.x;
+        
+        const shiftedNodes = makeSpaceAtX(p.nodes, insertX, gap);
+        nx = insertX;
         ny = s.y;
 
         const newPartnerEdge: PedigreeEdge = { id: `e${now}`, type: "couple", sourceId: sid, targetId: nid };
-        const allNodes = [...p.nodes, { id: nid, type: nt, ...nd, x: nx, y: ny }];
+        const allNodes = [...shiftedNodes, { id: nid, type: nt, ...nd, x: nx, y: ny }];
         const allEdges = [...p.edges, newPartnerEdge];
         const resolved = resolveAndRecenter(allNodes, allEdges);
 
@@ -360,17 +371,34 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
       }
       else if (rel === "parents") {
         const fid = `n${now}`, mid2 = `n${now + 1}`; ny = s.y - SY;
-        const fatherX = s.x - NODE_GAP / 2 + 0.01;
-        const motherX = s.x + NODE_GAP / 2 - 0.01;
+        // Parents go on the row above. If there's overlap, we just shift them until we find a free spot.
+        // We use findInsertPosition to find the nearest topologically free spot without triggering a physics wave
+        const fatherStartX = Math.max(GEN_GRID, s.x - NODE_GAP / 2);
+        
+        let collision = true;
+        let testX = fatherStartX;
+        const rowNodes = p.nodes.filter(n => Math.abs(n.y - ny) < ROW_TOLERANCE);
+        while (collision) {
+          collision = false;
+          for (const n of rowNodes) {
+            if (Math.abs(n.x - testX) < NODE_GAP - 0.05 || Math.abs(n.x - (testX + NODE_GAP)) < NODE_GAP - 0.05) {
+              collision = true;
+              testX += NODE_GAP;
+              break;
+            }
+          }
+        }
+        const fatherX = testX;
+        const motherX = testX + NODE_GAP;
 
         const newParents: PedigreeNode[] = [
           { id: fid, type: "male", ...nd, x: fatherX, y: ny },
           { id: mid2, type: "female", ...nd, x: motherX, y: ny }
         ];
         const newEdges: PedigreeEdge[] = [
-          { id: `e${now}`, type: "couple", sourceId: fid, targetId: mid2 },
-          { id: `e${now + 1}`, type: "parent-child", sourceId: fid, targetId: sid },
-          { id: `e${now + 2}`, type: "parent-child", sourceId: mid2, targetId: sid }
+          { id: `e${now}`, type: "couple" as const, sourceId: fid, targetId: mid2 },
+          { id: `e${now + 1}`, type: "parent-child" as const, sourceId: fid, targetId: sid },
+          { id: `e${now + 2}`, type: "parent-child" as const, sourceId: mid2, targetId: sid }
         ];
 
         const allNodes = [...p.nodes, ...newParents];
@@ -482,7 +510,7 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
             const ce = p.edges.find((ed) => (ed.type === "couple" || ed.type === "consanguinity") && (ed.sourceId === s.linkSource || ed.targetId === s.linkSource))!;
             const pid = ce.sourceId === s.linkSource ? ce.targetId : ce.sourceId;
             const now = Date.now();
-            return { ...p, edges: [...p.edges, { id: `e${now}`, type: "parent-child", sourceId: s.linkSource!, targetId: nid }, { id: `e${now + 1}`, type: "parent-child", sourceId: pid, targetId: nid }] };
+            return { ...p, edges: [...p.edges, { id: `e${now}`, type: "parent-child" as const, sourceId: s.linkSource!, targetId: nid }, { id: `e${now + 1}`, type: "parent-child" as const, sourceId: pid, targetId: nid }] };
           }
           const mt: PedigreeNode["type"] = pn.type === "male" ? "female" : pn.type === "female" ? "male" : "unknown";
           const ts = Date.now(), mid = `n${ts}-${Math.random().toString(36).slice(2, 6)}_auto`;
@@ -497,14 +525,15 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
               if (partnerOnRight === standardIsRight) dir = dir > 0 ? -1 : 1;
             }
           }
-          const startPx = dir > 0 ? pn.x + 0.01 : pn.x - 0.01;
+          const insertX = dir > 0 ? pn.x + NODE_GAP : pn.x;
+          const shiftedNodes = makeSpaceAtX(p.nodes, insertX, NODE_GAP);
           
-          const newPartner = { id: mid, type: mt, affected: false, carrier: false, deceased: false, proband: false, label: "", age: "", x: startPx, y: pn.y };
-          const allNodes = [...p.nodes, newPartner];
+          const newPartner = { id: mid, type: mt, affected: false, carrier: false, deceased: false, proband: false, label: "", age: "", x: insertX, y: pn.y };
+          const allNodes = [...shiftedNodes, newPartner];
           const newEdges: PedigreeEdge[] = [
-            { id: `e${Date.now()}`, type: "parent-child", sourceId: s.linkSource!, targetId: nid },
-            { id: `ec${ts}`, type: "couple", sourceId: s.linkSource!, targetId: mid },
-            { id: `emc${ts}`, type: "parent-child", sourceId: mid, targetId: nid }
+            { id: `e${Date.now()}`, type: "parent-child" as const, sourceId: s.linkSource!, targetId: nid },
+            { id: `ec${ts}`, type: "couple" as const, sourceId: s.linkSource!, targetId: mid },
+            { id: `emc${ts}`, type: "parent-child" as const, sourceId: mid, targetId: nid }
           ];
           const allEdges = [...p.edges, ...newEdges];
           
@@ -513,7 +542,7 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
           return { ...p, nodes: resolvedNodes, edges: allEdges };
         } });
         else if (s.linkMode === "couple") dispatch({ type: "UPDATE_CANVAS", updater: (p) => ({ ...p, edges: [...p.edges.filter((ed) => !((ed.type === "couple" || ed.type === "consanguinity") && ((ed.sourceId === s.linkSource && ed.targetId === nid) || (ed.sourceId === nid && ed.targetId === s.linkSource)))), { id: `e${Date.now()}`, type: "couple", sourceId: s.linkSource!, targetId: nid }] }) });
-        else dispatch({ type: "UPDATE_CANVAS", updater: (p) => ({ ...p, edges: [...p.edges, { id: `e${Date.now()}`, type: s.linkMode!, sourceId: s.linkSource!, targetId: nid }] }) });
+        else dispatch({ type: "UPDATE_CANVAS", updater: (p) => ({ ...p, edges: [...p.edges, { id: `e${Date.now()}`, type: s.linkMode as "couple" | "parent-child" | "consanguinity", sourceId: s.linkSource!, targetId: nid }] }) });
       }
       dispatch({ type: "SET_STATE", patch: { linkMode: null, linkSource: null } }); return;
     }
