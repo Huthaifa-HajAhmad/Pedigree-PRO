@@ -726,7 +726,7 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
         return n;
       });
 
-      const final = resolveAndRecenter(positionedNodes, allEdges, allChildIds);
+      const final = resolveAndRecenter(positionedNodes, allEdges);
 
       return { ...p, nodes: final, edges: allEdges };
     } });
