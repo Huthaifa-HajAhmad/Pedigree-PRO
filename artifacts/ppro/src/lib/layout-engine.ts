@@ -611,47 +611,7 @@ export function resolveAllCollisions(
   }));
 }
 
-// ── Insert position finder ─────────────────────────────────────────────────
 
-/**
- * Find the best X position for a new node at the given (targetX, targetY).
- * If targetX is free, returns it. Otherwise scans in both directions and
- * returns the position requiring the least displacement.
- */
-export function findInsertPosition(
-  nodes: PedigreeNode[],
-  edges: PedigreeEdge[],
-  targetX: number,
-  targetY: number,
-  excludeIds?: Set<string>,
-): number {
-  const isPositionFree = (x: number): boolean => {
-    if (x < GEN_GRID) return false;
-    return !nodes.some(n =>
-      !excludeIds?.has(n.id) &&
-      Math.abs(n.x - x) < NODE_GAP &&
-      Math.abs(n.y - targetY) < ROW_TOLERANCE,
-    );
-  };
-
-  if (isPositionFree(targetX)) return targetX;
-
-  // Scan in both directions, pick closest free position
-  for (let k = 1; k <= 30; k++) {
-    const rightX = targetX + k * NODE_GAP;
-    const leftX = targetX - k * NODE_GAP;
-
-    if (isPositionFree(rightX) && rightX >= GEN_GRID) return rightX;
-    if (isPositionFree(leftX) && leftX >= GEN_GRID) return leftX;
-  }
-
-  // Fallback: place to the right of all existing row nodes
-  const rowNodes = nodes.filter(n =>
-    !excludeIds?.has(n.id) && Math.abs(n.y - targetY) < ROW_TOLERANCE,
-  );
-  const maxX = rowNodes.length > 0 ? Math.max(...rowNodes.map(n => n.x)) : targetX;
-  return maxX + NODE_GAP;
-}
 
 // ── Parent recentering ─────────────────────────────────────────────────────
 
