@@ -609,6 +609,42 @@ export function recenterAllFamilies(
   return currentNodes;
 }
 
+/**
+ * Find the nearest free X coordinate for insertion on a specific Y row.
+ * It strictly respects the requested direction to maintain topological sorting.
+ */
+export function findInsertPosition(
+  nodes: PedigreeNode[],
+  edges: PedigreeEdge[],
+  targetX: number,
+  targetY: number,
+  excludeIds?: Set<string>,
+): number {
+  const rowNodes = nodes.filter(n => Math.abs(n.y - targetY) < ROW_TOLERANCE && !excludeIds?.has(n.id));
+  
+  if (rowNodes.length === 0) return targetX;
+
+  let testX = targetX;
+  let collision = true;
+
+  while (collision) {
+    collision = false;
+    for (const n of rowNodes) {
+      if (Math.abs(n.x - testX) < NODE_GAP - 0.05) {
+        collision = true;
+        if (testX >= n.x) {
+          testX = n.x + NODE_GAP;
+        } else {
+          testX = n.x - NODE_GAP;
+        }
+        break;
+      }
+    }
+  }
+
+  return testX;
+}
+
 // ── Convenience: resolve and recenter in one call ──────────────────────────
 
 /**
