@@ -8,7 +8,7 @@ import {
 import { getDefaultAnnotationColor } from "@/lib/theme";
 import { validatePedigree } from "@/lib/validate-pedigree";
 import { computeAutoLayout } from "@/lib/auto-layout";
-import { resolveAllCollisions, resolveAndRecenter } from "@/lib/layout-engine";
+import { resolveAllCollisions, resolveAndRecenter, recenterAllFamilies } from "@/lib/layout-engine";
 import { computeAutoLabels, romanToInt } from "@/lib/pedigree-labels";
 import { generateThumbnail } from "@/lib/generate-thumbnail";
 import { toast } from "@/hooks/use-toast";
