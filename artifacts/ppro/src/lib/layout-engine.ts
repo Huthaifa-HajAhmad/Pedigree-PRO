@@ -178,7 +178,7 @@ export function detectRowCollisions(
     const left = rowNodes[i - 1]!;
     const right = rowNodes[i]!;
     const gap = right.x - left.x;
-    if (gap < minGap) {
+    if (gap < minGap - 0.05) { // Allow up to 0.05px topological tolerance
       collisions.push({
         leftNode: left,
         rightNode: right,
@@ -429,8 +429,8 @@ export function resolveAllCollisions(
       const curr = rowNodes[i]!;
       if (excludeIds?.has(curr.id)) continue;
       const gap = curr.x - prev.x;
-      if (gap < NODE_GAP) {
-        const push = Math.ceil(NODE_GAP - gap);
+      if (gap < NODE_GAP - 0.05) {
+        const push = NODE_GAP - gap;
         // Push curr and everything to its right
         for (let j = i; j < rowNodes.length; j++) {
           const n = rowNodes[j]!;
@@ -500,7 +500,7 @@ export function recenterParents(
     if (shiftedX < GEN_GRID) return false;
     return !nodes.some(n =>
       !allExclude.has(n.id) &&
-      Math.abs(n.x - shiftedX) < NODE_GAP &&
+      Math.abs(n.x - shiftedX) < NODE_GAP - 0.05 &&
       Math.abs(n.y - par.y) < ROW_TOLERANCE,
     );
   });
@@ -510,7 +510,7 @@ export function recenterParents(
     const blockers = nodes.filter(n => {
       if (allExclude.has(n.id)) return false;
       return parents.some(par =>
-        Math.abs(n.x - (par.x + shift)) < NODE_GAP &&
+        Math.abs(n.x - (par.x + shift)) < NODE_GAP - 0.05 &&
         Math.abs(n.y - par.y) < ROW_TOLERANCE,
       );
     });
