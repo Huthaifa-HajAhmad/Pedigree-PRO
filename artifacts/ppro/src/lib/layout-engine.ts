@@ -41,9 +41,6 @@ export interface ShiftPlan {
 /** Nodes within this vertical distance are on the "same row" */
 const ROW_TOLERANCE = GEN_GRID / 2; // 60px — correct for 120px generation grid
 
-/** Minimum horizontal gap between family bounding boxes */
-const MIN_FAMILY_GAP = NODE_GAP * 0.15; // small buffer beyond NODE_GAP
-
 /** Maximum cascade depth for collision resolution */
 const MAX_CASCADE = 5;
 
