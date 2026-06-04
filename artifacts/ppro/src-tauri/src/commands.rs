@@ -1214,3 +1214,12 @@ pub fn disable_zoom(window: tauri::WebviewWindow) -> Result<(), String> {
     crate::disable_webview_zoom(&window);
     Ok(())
 }
+
+#[tauri::command]
+pub fn reset_zoom(window: tauri::WebviewWindow) -> Result<(), String> {
+    let _ = window.with_webview(|webview| {
+        let controller = webview.controller();
+        let _ = unsafe { controller.SetZoomFactor(1.0) };
+    });
+    Ok(())
+}

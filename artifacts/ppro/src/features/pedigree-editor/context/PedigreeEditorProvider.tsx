@@ -266,7 +266,7 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
             const prevShiftedX = shifts.size > 0
               ? Math.max(...Array.from(shifts.values()))
               : startX - GAP;
-            const newX = Math.max(n.x + GAP, prevShiftedX + GAP);
+            const newX = Math.round(Math.max(n.x + GAP, prevShiftedX + GAP * 1.05));
             shifts.set(n.id, newX);
           }
         }
@@ -284,6 +284,119 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
 
       return { x: startX, shifts, shiftCount: shifts.size };
     }, []);
+
+    const getFamilyGroup = useCallback((p: CanvasData, nodeId: string, depth = 0): Set<string> => {
+      const group = new Set<string>([nodeId]);
+      if (depth >= 2) return group;
+
+      const partnerIds = p.edges
+        .filter((e) => (e.type === "couple" || e.type === "consanguinity") && (e.sourceId === nodeId || e.targetId === nodeId))
+        .map((e) => (e.sourceId === nodeId ? e.targetId : e.sourceId));
+      partnerIds.forEach((pid) => group.add(pid));
+
+      const childIds = p.edges
+        .filter((e) => e.type === "parent-child" && e.sourceId === nodeId)
+        .map((e) => e.targetId);
+      childIds.forEach((cid) => group.add(cid));
+
+      const parentIds = p.edges
+        .filter((e) => e.type === "parent-child" && e.targetId === nodeId)
+        .map((e) => e.sourceId);
+      parentIds.forEach((pid) => group.add(pid));
+
+      for (const pid of parentIds) {
+        const siblingIds = p.edges
+          .filter((e) => e.type === "parent-child" && e.sourceId === pid)
+          .map((e) => e.targetId);
+        siblingIds.forEach((sid) => group.add(sid));
+      }
+
+      for (const memberId of [...group]) {
+        if (memberId !== nodeId && depth < 1) {
+          const subGroup = getFamilyGroup(p, memberId, depth + 1);
+          subGroup.forEach((id) => group.add(id));
+        }
+      }
+      return group;
+    }, []);
+
+    const shiftFamilyGroup = useCallback((p: CanvasData, nodeId: string, direction: 1 | -1, amount: number, excludeIds: Set<string>, maxCascade = 3): Map<string, number> => {
+      const allShifts = new Map<string, number>();
+      const visited = new Set<string>();
+      const queue: Array<{ id: string; cascadeDepth: number }> = [{ id: nodeId, cascadeDepth: 0 }];
+
+      while (queue.length > 0) {
+        const { id, cascadeDepth } = queue.shift()!;
+        if (visited.has(id)) continue;
+        visited.add(id);
+
+        const family = getFamilyGroup(p, id);
+        const familyMembers: Array<{ id: string; node: PedigreeNode }> = [];
+        for (const memberId of family) {
+          if (excludeIds.has(memberId)) continue;
+          if (allShifts.has(memberId)) continue;
+          const node = p.nodes.find((n) => n.id === memberId);
+          if (!node) continue;
+          familyMembers.push({ id: memberId, node });
+        }
+
+        if (familyMembers.length === 0) continue;
+
+        const rowShifts = new Map<number, number>();
+        for (const member of familyMembers) {
+          const rowY = Math.round(member.node.y / NODE_SIZE) * NODE_SIZE;
+          const currentRowShift = rowShifts.get(rowY) ?? amount;
+          
+          const tentativeX = member.node.x + direction * currentRowShift;
+          for (const n of p.nodes) {
+            if (excludeIds.has(n.id)) continue;
+            if (family.has(n.id)) continue;
+            if (allShifts.has(n.id)) continue;
+            if (Math.abs(n.y - member.node.y) >= NODE_SIZE) continue;
+            
+            const overlap = NODE_GAP - Math.abs(tentativeX - n.x);
+            if (overlap > 0) {
+              const neededShift = overlap + NODE_GAP * 0.1;
+              rowShifts.set(rowY, Math.max(currentRowShift, neededShift));
+            }
+          }
+        }
+
+        let maxShift = amount;
+        for (const shift of rowShifts.values()) {
+          maxShift = Math.max(maxShift, shift);
+        }
+
+        for (const member of familyMembers) {
+          const newX = member.node.x + direction * maxShift;
+          allShifts.set(member.id, newX);
+        }
+
+        if (cascadeDepth < maxCascade) {
+          for (const n of p.nodes) {
+            if (excludeIds.has(n.id)) continue;
+            if (allShifts.has(n.id)) continue;
+            if (visited.has(n.id)) continue;
+            
+            let wouldCollide = false;
+            for (const [shiftedId, sx] of allShifts) {
+              const shiftedNode = p.nodes.find((nn) => nn.id === shiftedId);
+              if (!shiftedNode) continue;
+              if (Math.abs(n.y - shiftedNode.y) < NODE_SIZE && Math.abs(n.x - sx) < NODE_GAP && n.id !== shiftedId) {
+                wouldCollide = true;
+                break;
+              }
+            }
+            
+            if (wouldCollide) {
+              queue.push({ id: n.id, cascadeDepth: cascadeDepth + 1 });
+            }
+          }
+        }
+      }
+
+      return allShifts;
+    }, [getFamilyGroup]);
 
     const addContextNode = useCallback((rel: "child" | "sibling" | "partner" | "parents") => {
     const sids = stateRef.current.selectedIds; if (sids.size !== 1) {
@@ -314,20 +427,101 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
         const ce = p.edges.find((e) => (e.type === "couple" || e.type === "consanguinity") && (e.sourceId === sid || e.targetId === sid));
         if (ce) {
           const pid = ce.sourceId === sid ? ce.targetId : ce.sourceId;
-          nx = (s.x + (p.nodes.find((n) => n.id === pid)?.x ?? s.x)) / 2;
-          // Collision check: if the midpoint is occupied by another node at the same Y level,
-          // search for a free position using insertAndShiftRight
-          const collides = p.nodes.some((n) =>
-            n.id !== nid && n.id !== sid && n.id !== pid &&
-            Math.abs(n.x - nx) < NODE_GAP * 0.9 && Math.abs(n.y - ny) < NODE_SIZE
+          const partnerNode = p.nodes.find((n) => n.id === pid);
+          const parentMidX = partnerNode ? (s.x + partnerNode.x) / 2 : s.x;
+          nx = parentMidX;
+          const excludeIds = new Set([sid, pid]);
+          const existingChildIds = new Set<string>();
+          for (const e of p.edges) {
+            if (e.type === "parent-child" && (e.sourceId === sid || e.sourceId === pid)) {
+              existingChildIds.add(e.targetId);
+              excludeIds.add(e.targetId);
+            }
+          }
+          let allShifts = new Map<string, number>();
+
+          const parentRowCollisions = p.nodes.filter((n) =>
+            !excludeIds.has(n.id) &&
+            Math.abs(n.y - s.y) < NODE_SIZE &&
+            Math.abs(n.x - parentMidX) < NODE_SIZE
           );
-          if (collides) {
-            const res = insertAndShiftRight(p, nx, ny, 1, new Set([nid, sid, pid]));
-            nx = res.x;
+          for (const collidingNode of parentRowCollisions) {
+            if (allShifts.has(collidingNode.id)) continue;
+            const pushDir: 1 | -1 = collidingNode.x >= parentMidX ? 1 : -1;
+            const familyShifts = shiftFamilyGroup(p, collidingNode.id, pushDir, NODE_GAP, excludeIds);
+            familyShifts.forEach((x, id) => allShifts.set(id, x));
+          }
+
+          const childRowCollisions = p.nodes.filter((n) =>
+            !excludeIds.has(n.id) && !allShifts.has(n.id) &&
+            Math.abs(n.y - ny) < NODE_SIZE &&
+            Math.abs(n.x - nx) < NODE_GAP
+          );
+          for (const collidingNode of childRowCollisions) {
+            if (allShifts.has(collidingNode.id)) continue;
+            const pushDir: 1 | -1 = collidingNode.x >= nx ? 1 : -1;
+            const familyShifts = shiftFamilyGroup(p, collidingNode.id, pushDir, NODE_GAP, excludeIds);
+            familyShifts.forEach((x, id) => allShifts.set(id, x));
+          }
+
+          const siblingCollisions = p.nodes.filter((n) =>
+            existingChildIds.has(n.id) && Math.abs(n.x - nx) < NODE_GAP
+          );
+          if (siblingCollisions.length > 0) {
+            const sibRes = insertAndShiftRight(p, nx, ny, 1, excludeIds);
+            nx = sibRes.x;
+            sibRes.shifts.forEach((x, id) => allShifts.set(id, x));
+          }
+
+          if (allShifts.size > 0) {
             const shiftedNodes = p.nodes.map((n) => {
-              const newX = res.shifts.get(n.id);
+              const newX = allShifts.get(n.id);
               return newX !== undefined ? { ...n, x: newX } : n;
             });
+
+            const shiftedCanvas = { ...p, nodes: shiftedNodes };
+
+            const fixRowOverlaps = (rowY: number) => {
+              const rowNodes = shiftedNodes.filter((n) => Math.abs(n.y - rowY) < NODE_SIZE).sort((a, b) => a.x - b.x);
+              for (let i = 1; i < rowNodes.length; i++) {
+                const prev = rowNodes[i - 1]!;
+                const curr = rowNodes[i]!;
+                if (Math.abs(curr.x - prev.x) < NODE_GAP) {
+                  const pushAmount = Math.round(NODE_GAP - (curr.x - prev.x));
+                  const family = getFamilyGroup(shiftedCanvas, curr.id);
+                  for (const memberId of family) {
+                    if (excludeIds.has(memberId)) continue;
+                    const idx = shiftedNodes.findIndex((n) => n.id === memberId);
+                    if (idx !== -1) {
+                      shiftedNodes[idx] = { ...shiftedNodes[idx]!, x: shiftedNodes[idx]!.x + pushAmount };
+                    }
+                  }
+                  rowNodes[i] = shiftedNodes.find((n) => n.id === curr.id)!;
+                }
+              }
+            };
+
+            fixRowOverlaps(s.y);
+            fixRowOverlaps(ny);
+
+            const shiftedSource = shiftedNodes.find((n) => n.id === sid);
+            const shiftedPartner = shiftedNodes.find((n) => n.id === pid);
+            if (shiftedSource && shiftedPartner) {
+              nx = (shiftedSource.x + shiftedPartner.x) / 2;
+            }
+
+            const childOverlaps = shiftedNodes.some((n) =>
+              Math.abs(n.y - ny) < NODE_SIZE && Math.abs(n.x - nx) < NODE_GAP
+            );
+            if (childOverlaps) {
+              let freeX = nx;
+              const dir = nx >= 700 ? 1 : -1;
+              while (shiftedNodes.some((n) => Math.abs(n.y - ny) < NODE_SIZE && Math.abs(n.x - freeX) < NODE_GAP)) {
+                freeX += dir * NODE_GAP;
+              }
+              nx = freeX;
+            }
+
             ne.push(
               { id: `e${now}`, type: "parent-child", sourceId: sid, targetId: nid },
               { id: `e${now + 1}`, type: "parent-child", sourceId: pid, targetId: nid }
@@ -351,19 +545,20 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
               if (partnerOnRight === standardIsRight) partnerDir = partnerDir > 0 ? -1 : 1;
             }
           }
-          const partnerStartX = partnerDir > 0 ? s.x + NODE_GAP : s.x - NODE_GAP;
+          const gap = existingCoupleForChild ? Math.round(NODE_GAP * 1.5) : NODE_GAP;
+          const partnerStartX = partnerDir > 0 ? s.x + gap : s.x - gap;
           const defaultPartnerRes = insertAndShiftRight(p, partnerStartX, s.y, partnerDir, new Set([sid]));
           // Smart push: if pushing in default direction displaces more nodes than
           // pushing the source node oppositely, prefer moving the source instead
           const oppositePartnerDir: 1 | -1 = partnerDir > 0 ? -1 : 1;
-          const sourceShiftX = oppositePartnerDir > 0 ? s.x + NODE_GAP : s.x - NODE_GAP;
+          const sourceShiftX = oppositePartnerDir > 0 ? s.x + gap : s.x - gap;
           const sourcePartnerRes = insertAndShiftRight(p, sourceShiftX, s.y, oppositePartnerDir, new Set([sid, mid]));
           let partnerX: number;
           let sourceNewX: number | null = null;
           let partnerShifts: Map<string, number>;
           if (defaultPartnerRes.shiftCount > 0 && sourcePartnerRes.shiftCount < defaultPartnerRes.shiftCount) {
             sourceNewX = sourcePartnerRes.x;
-            partnerX = partnerDir > 0 ? sourceNewX + NODE_GAP : sourceNewX - NODE_GAP;
+            partnerX = partnerDir > 0 ? sourceNewX + gap : sourceNewX - gap;
             partnerShifts = sourcePartnerRes.shifts;
           } else {
             partnerX = defaultPartnerRes.x;
@@ -398,17 +593,18 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
             if (partnerOnRight === standardIsRight) dir = dir > 0 ? -1 : 1;
           }
         }
-        const startX = dir > 0 ? s.x + NODE_GAP : s.x - NODE_GAP;
+        const gap = existingCouple ? Math.round(NODE_GAP * 1.5) : NODE_GAP;
+        const startX = dir > 0 ? s.x + gap : s.x - gap;
         const defaultRes = insertAndShiftRight(p, startX, s.y, dir, new Set([sid]));
         // Smart push: if pushing in the default direction displaces more nodes than
         // pushing the source node in the opposite direction, prefer moving the source instead
         const oppositeDir: 1 | -1 = dir > 0 ? -1 : 1;
-        const sourceShiftX = oppositeDir > 0 ? s.x + NODE_GAP : s.x - NODE_GAP;
+        const sourceShiftX = oppositeDir > 0 ? s.x + gap : s.x - gap;
         const sourceRes = insertAndShiftRight(p, sourceShiftX, s.y, oppositeDir, new Set([sid, nid]));
         if (defaultRes.shiftCount > 0 && sourceRes.shiftCount < defaultRes.shiftCount) {
           // Pushing the source node displaces fewer nodes: shift source, place partner at source's original spot
           const sourceNewX = sourceRes.x;
-          const partnerX = dir > 0 ? sourceNewX + NODE_GAP : sourceNewX - NODE_GAP;
+          const partnerX = dir > 0 ? sourceNewX + gap : sourceNewX - gap;
           nx = partnerX; ny = s.y;
           const shiftedNodes = p.nodes.map((n) => {
             if (n.id === sid) return { ...n, x: sourceNewX };
@@ -460,7 +656,7 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
       return { ...p, nodes: [...p.nodes, { id: nid, type: nt!, ...nd, x: nx!, y: ny! }], edges: [...p.edges, ...ne] };
     } });
     dispatch({ type: "SET_STATE", patch: { selectedIds: new Set([nid]) } });
-  }, [insertAndShiftRight]);
+  }, [insertAndShiftRight, shiftFamilyGroup, getFamilyGroup]);
 
   const toggleNodeProp = useCallback((nid: string, prop: "affected" | "carrier" | "deceased" | "proband") => {
     dispatch({ type: "UPDATE_CANVAS", updater: (p) => ({ ...p, nodes: p.nodes.map((n) => n.id === nid ? { ...n, [prop]: typeof n[prop] === "boolean" ? !n[prop] : true } : n) }) });
@@ -495,7 +691,12 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
 
   const deleteSelected = useCallback(() => {
     const ids = stateRef.current.selectedIds; if (!ids.size) return;
-    dispatch({ type: "UPDATE_CANVAS", updater: (p) => ({ ...p, nodes: p.nodes.filter((n) => !ids.has(n.id)), edges: p.edges.filter((e) => !ids.has(e.sourceId) && !ids.has(e.targetId)), annotations: p.annotations.filter((a) => !ids.has(a.nodeId)) }) });
+    dispatch({ type: "UPDATE_CANVAS", updater: (p) => {
+      const nodes = p.nodes.filter((n) => !ids.has(n.id));
+      const edges = p.edges.filter((e) => !ids.has(e.sourceId) && !ids.has(e.targetId));
+      const annotations = p.annotations.filter((a) => !ids.has(a.nodeId));
+      return { nodes, edges, annotations };
+    } });
     dispatch({ type: "SET_STATE", patch: { selectedIds: new Set(), selectedAnnotationId: null } });
   }, []);
 
@@ -550,7 +751,12 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
         if (s.linkMode === "consanguinity") dispatch({ type: "UPDATE_CANVAS", updater: (p) => ({ ...p, edges: [...p.edges.filter((ed) => !(ed.type === "couple" && ((ed.sourceId === s.linkSource && ed.targetId === nid) || (ed.sourceId === nid && ed.targetId === s.linkSource)))), { id: `e${Date.now()}`, type: "consanguinity", sourceId: s.linkSource!, targetId: nid }] }) });
         else if (s.linkMode === "parent-child") dispatch({ type: "UPDATE_CANVAS", updater: (p) => {
           const pn = p.nodes.find((n) => n.id === s.linkSource); if (!pn) return p;
-          if (p.edges.some((ed) => (ed.type === "couple" || ed.type === "consanguinity") && (ed.sourceId === s.linkSource || ed.targetId === s.linkSource))) return { ...p, edges: [...p.edges, { id: `e${Date.now()}`, type: "parent-child", sourceId: s.linkSource!, targetId: nid }] };
+          if (p.edges.some((ed) => (ed.type === "couple" || ed.type === "consanguinity") && (ed.sourceId === s.linkSource || ed.targetId === s.linkSource))) {
+            const ce = p.edges.find((ed) => (ed.type === "couple" || ed.type === "consanguinity") && (ed.sourceId === s.linkSource || ed.targetId === s.linkSource))!;
+            const pid = ce.sourceId === s.linkSource ? ce.targetId : ce.sourceId;
+            const now = Date.now();
+            return { ...p, edges: [...p.edges, { id: `e${now}`, type: "parent-child", sourceId: s.linkSource!, targetId: nid }, { id: `e${now + 1}`, type: "parent-child", sourceId: pid, targetId: nid }] };
+          }
           const mt: PedigreeNode["type"] = pn.type === "male" ? "female" : pn.type === "female" ? "male" : "unknown";
           const ts = Date.now(), mid = `n${ts}-${Math.random().toString(36).slice(2, 6)}_auto`;
           let dir: 1 | -1 = pn.type === "female" ? -1 : 1;
@@ -856,9 +1062,10 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
         if (hasCollision(startX)) {
           let found = false;
           for (let k = 1; k <= 20; k++) {
-            for (const dir of [1, -1] as const) {
+            const dirs = parentCenter < 400 ? ([-1, 1] as const) : ([1, -1] as const);
+            for (const dir of dirs) {
               const tryX = startX + dir * k * NODE_GAP;
-              if (!hasCollision(tryX)) { startX = tryX; found = true; break; }
+              if (tryX >= GEN_GRID && !hasCollision(tryX)) { startX = tryX; found = true; break; }
             }
             if (found) break;
           }
@@ -897,8 +1104,8 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
         const candidates: Candidate[] = [];
 
         const addCandidates = (baseX: number, maxSteps: number, maxDispThreshold: number) => {
-          for (let step = 0; step <= maxSteps; step++) {
-            const tryX = Math.max(GEN_GRID, baseX) + step * NODE_GAP;
+          for (let step = -maxSteps; step <= maxSteps; step++) {
+            const tryX = Math.max(GEN_GRID, baseX + step * NODE_GAP);
             const collisionFree = allPositionsFree(tryX);
             const maxDisp = computeDisplacement(tryX);
             const sibCenter = tryX + totalWidth / 2;
@@ -953,49 +1160,6 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
       const placedMinX = Math.min(...placedXs);
       const placedMaxX = Math.max(...placedXs);
 
-      // Helper: get the nuclear family (child+siblings+parents, or parent+partner+children)
-      const getFamilyGroup = (nodeId: string): Set<string> => {
-        const group = new Set<string>([nodeId]);
-
-        // Case 1: node is a child → include siblings, parents, and parents' partners
-        const parentIdsOfNode = p.edges
-          .filter((e) => e.type === "parent-child" && e.targetId === nodeId)
-          .map((e) => e.sourceId);
-        if (parentIdsOfNode.length > 0) {
-          parentIdsOfNode.forEach((pid) => group.add(pid));
-          for (const e of p.edges) {
-            if (e.type === "parent-child" && parentIdsOfNode.includes(e.sourceId)) {
-              group.add(e.targetId);
-            }
-          }
-          for (const e of p.edges) {
-            if ((e.type === "couple" || e.type === "consanguinity")) {
-              if (parentIdsOfNode.includes(e.sourceId)) group.add(e.targetId);
-              if (parentIdsOfNode.includes(e.targetId)) group.add(e.sourceId);
-            }
-          }
-          return group;
-        }
-
-        // Case 2: node is a parent → include partner(s) and children
-        const childIdsOfNode = p.edges
-          .filter((e) => e.type === "parent-child" && e.sourceId === nodeId)
-          .map((e) => e.targetId);
-        if (childIdsOfNode.length > 0) {
-          for (const e of p.edges) {
-            if ((e.type === "couple" || e.type === "consanguinity") && (e.sourceId === nodeId || e.targetId === nodeId)) {
-              const partnerId = e.sourceId === nodeId ? e.targetId : e.sourceId;
-              group.add(partnerId);
-            }
-          }
-          childIdsOfNode.forEach((cid) => group.add(cid));
-          return group;
-        }
-
-        // Case 3: orphan
-        return group;
-      };
-
       for (const n of p.nodes) {
         if (allChildIds.has(n.id)) continue; // Skip our own sibship
         if (parentIds.includes(n.id)) continue; // Skip our parents
@@ -1014,14 +1178,12 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
         const deficit = NODE_GAP - distToGroup;
         const pushAmount = Math.ceil(deficit / NODE_GAP) * NODE_GAP;
 
-        const family = getFamilyGroup(n.id);
+        const family = getFamilyGroup(p, n.id);
         for (const memberId of family) {
           if (allChildIds.has(memberId)) continue;
           if (parentIds.includes(memberId)) continue;
           const currentShift = nodeShifts.get(memberId) ?? 0;
-          const newShift = pushDir > 0
-            ? Math.max(currentShift, pushAmount)
-            : Math.min(currentShift, -pushAmount);
+          const newShift = currentShift + (pushDir > 0 ? pushAmount : -pushAmount);
           nodeShifts.set(memberId, newShift);
         }
       }
@@ -1031,6 +1193,24 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
         const currentX = finalPositions.get(id) ?? p.nodes.find((n) => n.id === id)?.x;
         if (currentX !== undefined) {
           finalPositions.set(id, Math.max(GEN_GRID, currentX + shift));
+        }
+      }
+
+      // Second pass: verify no overlaps between shifted nodes
+      for (const [idA, xA] of finalPositions) {
+        for (const [idB, xB] of finalPositions) {
+          if (idA >= idB) continue;
+          const nodeA = [...p.nodes, ...newNodes].find((n) => n.id === idA);
+          const nodeB = [...p.nodes, ...newNodes].find((n) => n.id === idB);
+          if (!nodeA || !nodeB) continue;
+          if (Math.abs(nodeA.y - nodeB.y) >= Y_TOLERANCE) continue;
+          if (Math.abs(xA - xB) < NODE_GAP) {
+            // Push the rightmost node further right
+            const pushId = xA > xB ? idA : idB;
+            const anchorId = xA > xB ? idB : idA;
+            const anchorX = finalPositions.get(anchorId)!;
+            finalPositions.set(pushId, Math.round(anchorX + NODE_GAP));
+          }
         }
       }
 
@@ -1057,6 +1237,30 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
       if (parentShiftSafe) {
         const minParentX = Math.min(...parents.map((p) => p.x + candidateParentShift));
         parentShift = minParentX >= GEN_GRID ? candidateParentShift : candidateParentShift + (GEN_GRID - minParentX);
+      } else if (Math.abs(candidateParentShift) > NODE_GAP / 2) {
+        // Try to push blocking nodes out of the way
+        const blockingNodes = parents.flatMap((par) => {
+          const shiftedParX = par.x + candidateParentShift;
+          return [...p.nodes, ...newNodes].filter((n) =>
+            !parentIdsSetForShift.has(n.id) && !allChildIds.has(n.id) &&
+            Math.abs((finalPositions.get(n.id) ?? n.x) - shiftedParX) < NODE_GAP &&
+            Math.abs(n.y - par.y) < Y_TOLERANCE
+          );
+        });
+        if (blockingNodes.length > 0 && blockingNodes.length <= 3) {
+          // Push blocking nodes in the direction of the parent shift
+          const pushDir = candidateParentShift > 0 ? 1 : -1;
+          for (const bn of blockingNodes) {
+            const family = getFamilyGroup(p, bn.id);
+            for (const memberId of family) {
+              if (allChildIds.has(memberId) || parentIds.includes(memberId)) continue;
+              const currentX = finalPositions.get(memberId) ?? bn.x;
+              const pushAmount = Math.ceil(Math.abs(candidateParentShift) / NODE_GAP) * NODE_GAP * pushDir;
+              finalPositions.set(memberId, currentX + pushAmount);
+            }
+          }
+          parentShift = candidateParentShift;
+        }
       }
 
       const parentIdsSet = new Set(parentIds);
@@ -1095,7 +1299,7 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
     }
 
     dispatch({ type: "SET_STATE", patch: { showAddSiblingDialog: false, siblingSourceId: null } });
-  }, [insertAndShiftRight, parentIdsFromEdges]);
+  }, [insertAndShiftRight, parentIdsFromEdges, getFamilyGroup]);
 
   const markAsTwins = useCallback((nodeIds: string[], twinType: "m" | "d") => {
     const group = `twins_${Date.now()}`;
@@ -1187,6 +1391,13 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
     dispatch({ type: "REMOVE_EDGES", edgeIds });
   }, []);
 
+  const updateEdgeType = useCallback((edgeId: string, type: PedigreeEdge["type"]) => {
+    dispatch({ type: "UPDATE_CANVAS", updater: (p) => ({
+      ...p,
+      edges: p.edges.map((e) => e.id === edgeId ? { ...e, type } : e)
+    }) });
+  }, []);
+
   const toggleTwinSelectMode = useCallback(() => {
     const s = stateRef.current;
     if (s.twinSelectMode) {
@@ -1232,7 +1443,7 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
   const setViewBox: Dispatch<SetStateAction<{ x: number; y: number; zoom: number }>> = useCallback((vb) => { const nv = typeof vb === "function" ? vb(stateRef.current.viewBox) : vb; dispatch({ type: "SET_STATE", patch: { viewBox: nv } }); }, []);
   const setSpaceHeld: Dispatch<SetStateAction<boolean>> = useCallback((v) => { const nv = typeof v === "function" ? v(stateRef.current.spaceHeld) : v; dispatch({ type: "SET_STATE", patch: { spaceHeld: nv } }); }, []);
 
-  usePedigreeKeyboard({ deleteSelected, deleteAnnotation, selectedAnnotationId: state.selectedAnnotationId, addNode, addContextNode, undo, redo, navigateArrow, showSearch: state.showSearch, fitToScreen, runAutoLayout: (rp: boolean) => runAutoLayout(rp), setShowSearch, setSearchQuery, setSelectedIds, setLinkMode, setLinkSource, setSelectedAnnotationId, setViewBox, spaceHeldRef, setSpaceHeld, searchInputRef, twinSelectMode: state.twinSelectMode, setTwinSelectMode: (v) => { const nv = typeof v === "function" ? v(stateRef.current.twinSelectMode) : v; dispatch({ type: "SET_STATE", patch: { twinSelectMode: nv, twinCandidateIds: nv ? stateRef.current.twinCandidateIds : new Set<string>() } }); }, clearTwinCandidates, W, H });
+  usePedigreeKeyboard({ deleteSelected, deleteAnnotation, selectedAnnotationId: state.selectedAnnotationId, selectedNode: state.selectedIds.size === 1 ? state.canvas.nodes.find((n) => state.selectedIds.has(n.id)) ?? null : null, updateSelectedNode, addNode, addContextNode, undo, redo, navigateArrow, showSearch: state.showSearch, fitToScreen, runAutoLayout: (rp: boolean) => runAutoLayout(rp), setShowSearch, setSearchQuery, setSelectedIds, setLinkMode, setLinkSource, setSelectedAnnotationId, setViewBox, spaceHeldRef, setSpaceHeld, searchInputRef, twinSelectMode: state.twinSelectMode, setTwinSelectMode: (v) => { const nv = typeof v === "function" ? v(stateRef.current.twinSelectMode) : v; dispatch({ type: "SET_STATE", patch: { twinSelectMode: nv, twinCandidateIds: nv ? stateRef.current.twinCandidateIds : new Set<string>() } }); }, clearTwinCandidates, W, H });
 
   const handleSaveVersion = () => dispatch({ type: "SET_STATE", patch: { sessionLabel: `Session \u00b7 ${state.canvas.nodes.length} node${state.canvas.nodes.length !== 1 ? "s" : ""} \u00b7 ${new Date().toLocaleDateString()}`, showSaveModal: true } });
   const commitSaveVersion = async () => { const t = generateThumbnail(state.canvas); const canvasData = JSON.stringify(state.canvas); const canvasHash = cryptoComputeHash(canvasData); const keys = await listProfilePrivateKeys(); const activeKey = keys.length > 0 ? keys[0] : null; const saverKey = activeKey ? await getPublicKeyFromPrivate(activeKey.privateKey) : ""; const saverSignature = activeKey ? await signData(canvasHash, activeKey.privateKey) : null; saveVersionMutation.mutate({ pedigreeId: id, input: { canvas_data: canvasData, canvas_hash: canvasHash, label: state.sessionLabel || null, thumbnail: t, saver_key: saverKey, saver_signature: saverSignature } }, { onSuccess: () => { queryClient.invalidateQueries({ queryKey: queryKeys.versions(id) }); dispatch({ type: "SET_STATE", patch: { showSaveModal: false, sessionLabel: "" } }); } }); };
@@ -1247,7 +1458,7 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
 
   const value = useMemo<PedigreeEditorContextValue>(() => ({
     state, dispatch,
-    ops: { updateCanvas, undo, redo, addNode, addContextNode, toggleNodeProp, setNodeType, setNodeColor, handleNodeContextMenu, handleNodeDoubleClick, handleNodeClick, deleteSelected, updateSelectedNode, bulkUpdate, alignSelected, addAnnotation, updateAnnotation, deleteAnnotation, runAutoLayout, bakeEmptyLabels, bakeAllLabels, openConfirm, navigateArrow, handleCloseTab, openTab, reorderTabs, renameTab, fitToScreen, getSVGCoords, handleDragStart, handleMouseMove, handleMouseUp, handleSVGMouseDown, handleWheel, handleSaveVersion, commitSaveVersion, handleDeleteVersion, handleRestoreVersion, createConsanguinityEdge, createCoupleEdge, addSiblings, markAsTwins, unmarkTwins, removeEdges, toggleTwinSelectMode, clearTwinCandidates, handleDeletePedigree },
+    ops: { updateCanvas, undo, redo, addNode, addContextNode, toggleNodeProp, setNodeType, setNodeColor, handleNodeContextMenu, handleNodeDoubleClick, handleNodeClick, deleteSelected, updateSelectedNode, bulkUpdate, alignSelected, addAnnotation, updateAnnotation, deleteAnnotation, runAutoLayout, bakeEmptyLabels, bakeAllLabels, openConfirm, navigateArrow, handleCloseTab, openTab, reorderTabs, renameTab, fitToScreen, getSVGCoords, handleDragStart, handleMouseMove, handleMouseUp, handleSVGMouseDown, handleWheel, handleSaveVersion, commitSaveVersion, handleDeleteVersion, handleRestoreVersion, createConsanguinityEdge, createCoupleEdge, addSiblings, markAsTwins, unmarkTwins, removeEdges, updateEdgeType, toggleTwinSelectMode, clearTwinCandidates, handleDeletePedigree },
     memo: { autoLabels, validation, searchMatches, generationRailEntries, legendEntries, visibleGenRows, vbW, vbH, MM_W, MM_H, singleSelected: state.selectedIds.size === 1 ? state.canvas.nodes.find((n) => state.selectedIds.has(n.id)) ?? null : null, anySelected: state.selectedIds.size > 0, tabItems },
     refs: { svgRef, canvasRef, preDragCanvasRef, lassoRef, isLassoingRef, lassoRectRef, spaceHeldRef, rafRef, searchInputRef, draftKeyRef, draftEnabledRef, pendingAnnDragRef },
     pedigree, versions, versionsLoading, profiles, saveVersionPending: saveVersionMutation.isPending, showDraftBanner, onRestoreDraft, handleDismissDraft,

@@ -2,7 +2,7 @@ import type { PedigreeNode, PedigreeAnnotation } from "@/pages/pedigree-canvas";
 
 interface Edge {
   id: string;
-  type: "couple" | "parent-child" | "consanguinity";
+  type: "couple" | "parent-child" | "consanguinity" | "divorced" | "separated";
   sourceId: string;
   targetId: string;
 }
@@ -95,7 +95,7 @@ export function generateThumbnail(canvas: Canvas): string {
     const sp = map(src.x, src.y);
     const tp = map(tgt.x, tgt.y);
 
-    if (edge.type === "couple") {
+    if (edge.type === "couple" || edge.type === "divorced" || edge.type === "separated") {
       parts.push(svgLine(sp.x + NS * 0.5, sp.y, tp.x - NS * 0.5, tp.y, LINE));
     } else if (edge.type === "consanguinity") {
       parts.push(svgLine(sp.x + NS * 0.5, sp.y - 1.2, tp.x - NS * 0.5, tp.y - 1.2, LINE, 0.5));

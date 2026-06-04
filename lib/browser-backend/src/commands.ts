@@ -728,7 +728,7 @@ export async function share_pedigree(args: {
   try {
     const relayResult = await relay_share({ ciphertext: compressedBase64, encrypted_key: "" });
     const appBaseUrl = typeof window !== "undefined" && ("__TAURI_INTERNALS__" in window || "__TAURI__" in window)
-      ? "https://pedigreepro.app"
+      ? "https://pedigree-pro.pages.dev"
       : window.location.origin;
     return {
       share_token: relayResult.share_token,
@@ -754,7 +754,7 @@ export async function share_pedigree(args: {
   // Use public app URL in Tauri (window.location.origin is tauri://localhost there),
   // use window.location.origin in browser for local routing.
   const shareBaseUrl = typeof window !== "undefined" && ("__TAURI_INTERNALS__" in window || "__TAURI__" in window)
-    ? "https://pedigreepro.app"
+    ? "https://pedigree-pro.pages.dev"
     : window.location.origin;
 
   return {

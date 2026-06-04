@@ -8,7 +8,7 @@ interface RCalcNode {
 }
 
 interface RCalcEdge {
-  type: "couple" | "parent-child" | "consanguinity";
+  type: "couple" | "parent-child" | "consanguinity" | "divorced" | "separated";
   sourceId: string;
   targetId: string;
 }

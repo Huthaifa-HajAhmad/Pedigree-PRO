@@ -125,10 +125,10 @@ export default function Dashboard() {
         <StatsGrid
           isLoading={statsLoading}
           stats={[
-            { label: "Total Patients",  value: stats?.total_patients ?? 0,     icon: Activity,    sub: "Registered"     },
-            { label: "Pedigrees",       value: stats?.total_pedigrees ?? 0,    icon: Dna,         sub: "Active"         },
-            { label: "This Week",       value: stats?.pedigrees_this_week ?? 0, icon: TrendingUp, sub: "New pedigrees"  },
-            { label: "Profiles",        value: stats?.total_profiles ?? 0,     icon: UserCircle,  sub: "On this device" },
+            { label: "Total Patients",  value: stats?.total_patients ?? 0,     icon: Activity,    sub: "Registered",     href: "/patients" },
+            { label: "Pedigrees",       value: stats?.total_pedigrees ?? 0,    icon: Dna,         sub: "Active",         href: "/pedigrees" },
+            { label: "This Week",       value: stats?.pedigrees_this_week ?? 0, icon: TrendingUp, sub: "New pedigrees",  href: "/pedigrees" },
+            { label: "Profiles",        value: stats?.total_profiles ?? 0,     icon: UserCircle,  sub: "On this device", href: "/profiles" },
           ]}
         />
       </div>

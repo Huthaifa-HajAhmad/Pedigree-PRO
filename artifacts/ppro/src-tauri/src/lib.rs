@@ -28,17 +28,11 @@ pub struct AppState {
 
 #[cfg(target_os = "windows")]
 fn disable_webview_zoom(win: &tauri::WebviewWindow) {
-    use webview2_com::Microsoft::Web::WebView2::Win32::ICoreWebView2Settings5;
-    use windows_core::Interface;
-
     let _ = win.with_webview(|webview| {
         let controller = webview.controller();
         if let Ok(core) = unsafe { controller.CoreWebView2() } {
             if let Ok(settings) = unsafe { core.Settings() } {
                 let _ = unsafe { settings.SetIsZoomControlEnabled(false) };
-                if let Ok(settings5) = settings.cast::<ICoreWebView2Settings5>() {
-                    let _ = unsafe { settings5.SetIsPinchZoomEnabled(false) };
-                }
             }
         }
     });
@@ -119,6 +113,7 @@ pub fn run() {
             commands::save_preferences,
             // ─── WebView ───────────────────────────────────────
             commands::disable_zoom,
+            commands::reset_zoom,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Pedigree PRO");

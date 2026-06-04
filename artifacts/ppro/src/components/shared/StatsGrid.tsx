@@ -1,15 +1,17 @@
 import type { ElementType } from "react";
+import { Link } from "wouter";
 
 interface StatCardProps {
   label: string;
   value: number | string;
   icon: ElementType;
   sub?: string;
+  href?: string;
 }
 
-function StatCard({ label, value, icon: Icon, sub }: StatCardProps) {
-  return (
-    <div className="border border-border rounded-xl p-5 bg-card flex flex-col gap-3 hover:border-primary/50 transition-colors duration-200">
+function StatCard({ label, value, icon: Icon, sub, href }: StatCardProps) {
+  const content = (
+    <div className={`border border-border rounded-xl p-5 bg-card flex flex-col gap-3 transition-colors duration-200 ${href ? "hover:border-primary/50 cursor-pointer" : "hover:border-primary/50"}`}>
       <div className="flex items-center justify-between">
         <span className="text-xs font-medium text-muted-foreground tracking-wide uppercase">{label}</span>
         <div className="w-7 h-7 rounded-lg bg-primary/10 flex items-center justify-center">
@@ -20,6 +22,7 @@ function StatCard({ label, value, icon: Icon, sub }: StatCardProps) {
       {sub && <div className="text-xs text-muted-foreground">{sub}</div>}
     </div>
   );
+  return href ? <Link href={href}>{content}</Link> : content;
 }
 
 interface StatsGridProps {

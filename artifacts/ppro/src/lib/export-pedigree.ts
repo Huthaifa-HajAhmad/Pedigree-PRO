@@ -22,7 +22,7 @@ export interface ExportNode {
 
 export interface ExportEdge {
   id: string;
-  type: "couple" | "parent-child" | "consanguinity";
+  type: "couple" | "parent-child" | "consanguinity" | "divorced" | "separated";
   sourceId: string;
   targetId: string;
 }
@@ -488,7 +488,7 @@ export async function exportPPTX(info: ExportInfo, canvas: ExportCanvas) {
   const deceased  = canvas.nodes.filter(n => n.deceased);
   const proband   = canvas.nodes.find(n => n.proband);
   const notable   = canvas.nodes.filter(n => n.affected || n.carrier || n.proband);
-  const couples   = canvas.edges.filter(e => e.type === "couple" || e.type === "consanguinity").length;
+  const couples   = canvas.edges.filter(e => e.type === "couple" || e.type === "consanguinity" || e.type === "divorced" || e.type === "separated").length;
 
   // ── SLIDE 1 — Cover ─────────────────────────────────────────────────────
   const cover = pptx.addSlide();

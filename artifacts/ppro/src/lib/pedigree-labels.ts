@@ -72,7 +72,7 @@ export function computeAutoLabels(
   // Build couples adjacency from couple/consanguinity edges so partners share generation.
   const couplesOf = new Map<string, string[]>();
   for (const edge of edges) {
-    if (edge.type !== "couple" && edge.type !== "consanguinity") continue;
+    if (edge.type !== "couple" && edge.type !== "consanguinity" && edge.type !== "divorced" && edge.type !== "separated") continue;
     const { sourceId, targetId } = edge;
     if (!allIds.has(sourceId) || !allIds.has(targetId)) continue;
     (couplesOf.get(sourceId) ?? (couplesOf.set(sourceId, []), couplesOf.get(sourceId)!)).push(targetId);

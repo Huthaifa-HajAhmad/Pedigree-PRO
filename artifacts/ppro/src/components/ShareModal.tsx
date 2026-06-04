@@ -32,7 +32,7 @@ export function ShareModal({ pedigreeId, pedigreeTitle, onClose }: ShareModalPro
 
   const isEncrypted = !!recipientKey.trim();
 
-  const PUBLIC_APP_URL = "https://pedigreepro.app";
+  const PUBLIC_APP_URL = import.meta.env.VITE_PUBLIC_APP_URL ?? "https://pedigree-pro.pages.dev";
 
   const handleGenerate = () => {
     const key = recipientKey.trim();

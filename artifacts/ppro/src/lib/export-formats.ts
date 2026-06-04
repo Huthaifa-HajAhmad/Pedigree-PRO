@@ -76,7 +76,7 @@ export function exportHaploPainterCSV(info: ExportInfo, canvas: ExportCanvas): s
       : "0";
 
     const coupleEdge = canvas.edges.find(e =>
-      (e.type === "couple" || e.type === "consanguinity") &&
+      (e.type === "couple" || e.type === "consanguinity" || e.type === "divorced" || e.type === "separated") &&
       (e.sourceId === node.id || e.targetId === node.id) &&
       e.type === "consanguinity"
     );

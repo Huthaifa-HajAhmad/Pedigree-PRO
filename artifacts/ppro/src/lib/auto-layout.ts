@@ -28,7 +28,7 @@ export interface LayoutNode {
 
 export interface LayoutEdge {
   id: string;
-  type: "couple" | "parent-child" | "consanguinity";
+  type: "couple" | "parent-child" | "consanguinity" | "divorced" | "separated";
   sourceId: string;
   targetId: string;
 }
@@ -66,7 +66,7 @@ export function computeAutoLayout(
       childrenOf.get(e.sourceId)!.push(e.targetId);
       parentsOf.get(e.targetId)!.push(e.sourceId);
     }
-    if (e.type === "couple" || e.type === "consanguinity") {
+    if (e.type === "couple" || e.type === "consanguinity" || e.type === "divorced" || e.type === "separated") {
       couplesOf.get(e.sourceId)!.push(e.targetId);
       couplesOf.get(e.targetId)!.push(e.sourceId);
     }
