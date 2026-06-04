@@ -8,7 +8,7 @@ import {
 import { getDefaultAnnotationColor } from "@/lib/theme";
 import { validatePedigree } from "@/lib/validate-pedigree";
 import { computeAutoLayout } from "@/lib/auto-layout";
-import { resolveAllCollisions, recenterParents } from "@/lib/layout-engine";
+import { resolveAllCollisions, resolveAndRecenter } from "@/lib/layout-engine";
 import { computeAutoLabels, romanToInt } from "@/lib/pedigree-labels";
 import { generateThumbnail } from "@/lib/generate-thumbnail";
 import { toast } from "@/hooks/use-toast";
@@ -286,8 +286,7 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
 
           const allNodes = [...p.nodes, { id: nid, type: nt, ...nd, x: nx, y: ny }];
           const allEdges = [...p.edges, ...newEdges];
-          const resolved = resolveAllCollisions(allNodes, allEdges, new Set([nid]));
-          const final = recenterParents(resolved, allEdges, [sid, pid], [...existingChildIds, nid], new Set([nid]));
+          const final = resolveAndRecenter(allNodes, allEdges, new Set([nid]));
 
           return { ...p, nodes: final, edges: allEdges };
         }
@@ -306,7 +305,7 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
             }
           }
           const gap = existingCoupleForChild ? Math.round(NODE_GAP * 1.5) : NODE_GAP;
-          const partnerX = partnerDir > 0 ? s.x + gap - 0.01 : s.x - gap + 0.01;
+          const partnerX = partnerDir > 0 ? s.x + 0.01 : s.x - 0.01;
           const effectiveSourceX = s.x;
           nx = (effectiveSourceX + partnerX) / 2;
 
@@ -320,7 +319,7 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
 
           const allNodes = [...p.nodes, newPartner, newChild];
           const allEdges = [...p.edges, ...newEdges];
-          const resolved = resolveAllCollisions(allNodes, allEdges, new Set([nid, mid]));
+          const resolved = resolveAndRecenter(allNodes, allEdges, new Set([nid, mid]));
 
           return { ...p, nodes: resolved, edges: allEdges };
         }
@@ -339,13 +338,13 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
           }
         }
         const gap = existingCouple ? Math.round(NODE_GAP * 1.5) : NODE_GAP;
-        nx = dir > 0 ? s.x + gap - 0.01 : s.x - gap + 0.01;
+        nx = dir > 0 ? s.x + 0.01 : s.x - 0.01;
         ny = s.y;
 
         const newPartnerEdge: PedigreeEdge = { id: `e${now}`, type: "couple", sourceId: sid, targetId: nid };
         const allNodes = [...p.nodes, { id: nid, type: nt, ...nd, x: nx, y: ny }];
         const allEdges = [...p.edges, newPartnerEdge];
-        const resolved = resolveAllCollisions(allNodes, allEdges, new Set([nid]));
+        const resolved = resolveAndRecenter(allNodes, allEdges, new Set([nid]));
 
         return { ...p, nodes: resolved, edges: allEdges };
       }
@@ -488,7 +487,7 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
               if (partnerOnRight === standardIsRight) dir = dir > 0 ? -1 : 1;
             }
           }
-          const startPx = dir > 0 ? pn.x + NODE_GAP - 0.01 : pn.x - NODE_GAP + 0.01;
+          const startPx = dir > 0 ? pn.x + 0.01 : pn.x - 0.01;
           
           const newPartner = { id: mid, type: mt, affected: false, carrier: false, deceased: false, proband: false, label: "", age: "", x: startPx, y: pn.y };
           const allNodes = [...p.nodes, newPartner];
@@ -499,7 +498,7 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
           ];
           const allEdges = [...p.edges, ...newEdges];
           
-          const resolvedNodes = resolveAllCollisions(allNodes, allEdges, new Set([mid]));
+          const resolvedNodes = resolveAndRecenter(allNodes, allEdges, new Set([mid]));
 
           return { ...p, nodes: resolvedNodes, edges: allEdges };
         } });
