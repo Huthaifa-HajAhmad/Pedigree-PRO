@@ -286,9 +286,14 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
 
           const allNodes = [...p.nodes, { id: nid, type: nt, ...nd, x: nx, y: ny }];
           const allEdges = [...p.edges, ...newEdges];
-          const final = resolveAndRecenter(allNodes, allEdges, new Set([nid]));
+          let resolved = resolveAllCollisions(allNodes, allEdges);
+          const rS = resolved.find(n => n.id === sid)!;
+          const rP = resolved.find(n => n.id === pid)!;
+          resolved = resolved.map(n => n.id === nid ? { ...n, x: (rS.x + rP.x) / 2 } : n);
+          resolved = resolveAllCollisions(resolved, allEdges);
+          resolved = recenterAllFamilies(resolved, allEdges);
 
-          return { ...p, nodes: final, edges: allEdges };
+          return { ...p, nodes: resolved, edges: allEdges };
         }
         else {
           const mid = `n${now + 100}`;
@@ -319,7 +324,12 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
 
           const allNodes = [...p.nodes, newPartner, newChild];
           const allEdges = [...p.edges, ...newEdges];
-          const resolved = resolveAndRecenter(allNodes, allEdges, new Set([nid, mid]));
+          let resolved = resolveAllCollisions(allNodes, allEdges);
+          const rS = resolved.find(n => n.id === sid)!;
+          const rM = resolved.find(n => n.id === mid)!;
+          resolved = resolved.map(n => n.id === nid ? { ...n, x: (rS.x + rM.x) / 2 } : n);
+          resolved = resolveAllCollisions(resolved, allEdges);
+          resolved = recenterAllFamilies(resolved, allEdges);
 
           return { ...p, nodes: resolved, edges: allEdges };
         }
@@ -344,7 +354,7 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
         const newPartnerEdge: PedigreeEdge = { id: `e${now}`, type: "couple", sourceId: sid, targetId: nid };
         const allNodes = [...p.nodes, { id: nid, type: nt, ...nd, x: nx, y: ny }];
         const allEdges = [...p.edges, newPartnerEdge];
-        const resolved = resolveAndRecenter(allNodes, allEdges, new Set([nid]));
+        const resolved = resolveAndRecenter(allNodes, allEdges);
 
         return { ...p, nodes: resolved, edges: allEdges };
       }
