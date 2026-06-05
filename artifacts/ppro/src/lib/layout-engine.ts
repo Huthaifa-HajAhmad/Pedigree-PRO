@@ -485,19 +485,43 @@ export function recenterParents(
     ? (parents[0]!.x + parents[1]!.x) / 2
     : parents[0]!.x;
 
-  const shift = childCenter - parentCenter;
-  if (Math.abs(shift) < 1) return nodes; // Already centered
+  // Compute ideal target positions for each parent
+  const parentTargets = new Map<string, number>();
+  let isTightening = false;
 
-  // Check if shifting parents is safe (no collisions with non-family nodes)
+  if (parents.length === 2) {
+    // For a couple: place them exactly NODE_GAP apart, centered over children
+    const sortedParents = [...parents].sort((a, b) => a.x - b.x);
+    const leftTarget = childCenter - NODE_GAP / 2;
+    const rightTarget = childCenter + NODE_GAP / 2;
+    parentTargets.set(sortedParents[0]!.id, leftTarget);
+    parentTargets.set(sortedParents[1]!.id, rightTarget);
+    // Check if current spacing is wider than NODE_GAP (needs tightening)
+    if (Math.abs(sortedParents[1]!.x - sortedParents[0]!.x - NODE_GAP) > 1) {
+      isTightening = true;
+    }
+  } else if (parents.length === 1) {
+    parentTargets.set(parents[0]!.id, childCenter);
+  } else {
+    const shift = childCenter - parentCenter;
+    for (const p of parents) {
+      parentTargets.set(p.id, p.x + shift);
+    }
+  }
+
+  const shift = childCenter - parentCenter;
+  if (Math.abs(shift) < 1 && !isTightening) return nodes; // Already centered and tight
+
+  // Check if target positions are safe (no collisions with non-family nodes)
   const parentIdSet = new Set(parentIds);
   const allExclude = new Set([...(excludeIds ?? []), ...parentIds, ...childIds]);
 
   const isSafe = parents.every(par => {
-    const shiftedX = par.x + shift;
-    if (shiftedX < GEN_GRID) return false;
+    const targetX = parentTargets.get(par.id)!;
+    if (targetX < GEN_GRID) return false;
     return !nodes.some(n =>
       !allExclude.has(n.id) &&
-      Math.abs(n.x - shiftedX) < NODE_GAP - 0.05 &&
+      Math.abs(n.x - targetX) < NODE_GAP - 0.05 &&
       Math.abs(n.y - par.y) < ROW_TOLERANCE,
     );
   });
@@ -507,7 +531,7 @@ export function recenterParents(
     const blockers = nodes.filter(n => {
       if (allExclude.has(n.id)) return false;
       return parents.some(par =>
-        Math.abs(n.x - (par.x + shift)) < NODE_GAP - 0.05 &&
+        Math.abs(n.x - parentTargets.get(par.id)!) < NODE_GAP - 0.05 &&
         Math.abs(n.y - par.y) < ROW_TOLERANCE,
       );
     });
@@ -518,7 +542,21 @@ export function recenterParents(
     const adj = buildAdjacency(nodes, edges);
     let result = nodes.map(n => ({ ...n }));
     const pushDir = shift > 0 ? 1 : -1;
-    const pushAmount = Math.ceil(Math.abs(shift) / NODE_GAP) * NODE_GAP;
+
+    let maxPush = 0;
+    for (const blocker of blockers) {
+      for (const par of parents) {
+        if (Math.abs(blocker.y - par.y) < ROW_TOLERANCE) {
+          const targetX = parentTargets.get(par.id)!;
+          if (pushDir > 0) {
+            maxPush = Math.max(maxPush, (targetX + NODE_GAP) - blocker.x);
+          } else {
+            maxPush = Math.max(maxPush, blocker.x - (targetX - NODE_GAP));
+          }
+        }
+      }
+    }
+    const pushAmount = Math.max(maxPush, 0);
 
     for (const blocker of blockers) {
       const subtree = collectSubtree(blocker.id, adj);
@@ -530,18 +568,18 @@ export function recenterParents(
       });
     }
 
-    // Now apply parent shift
+    // Apply parent targets
     result = result.map(n => {
-      if (parentIdSet.has(n.id)) return { ...n, x: n.x + shift };
+      if (parentIdSet.has(n.id)) return { ...n, x: parentTargets.get(n.id)! };
       return n;
     });
 
     return result.map(n => ({ ...n, x: Math.max(GEN_GRID, n.x) }));
   }
 
-  // Safe — apply shift to parents only
+  // Safe — apply targets
   return nodes.map(n => {
-    if (parentIdSet.has(n.id)) return { ...n, x: Math.max(GEN_GRID, n.x + shift) };
+    if (parentIdSet.has(n.id)) return { ...n, x: Math.max(GEN_GRID, parentTargets.get(n.id)!) };
     return n;
   });
 }
@@ -685,8 +723,51 @@ export function insertNodeWithCollisionResolution(
 }
 
 
+
+
 // ── Re-export adjacency builder for consumers ──────────────────────────────
 
+
+// ── Surgical Space Clearing ────────────────────────────────────────────────
+
+/**
+ * Ensures there is enough empty space between `emptyStartX` and `emptyEndX`.
+ * Unlike `makeSpaceAtX` which always shifts by a full NODE_GAP, this function
+ * first checks whether the space is already clear. If so, it does nothing.
+ * If blocked, it shifts only the exact amount needed to clear the gap.
+ * This prevents unnecessary inflation of inter-family spacing.
+ */
+export function ensureSpaceAtX(
+  nodes: PedigreeNode[],
+  emptyStartX: number,
+  emptyEndX: number,
+): PedigreeNode[] {
+  // Find nodes that are inside the zone we want empty
+  const blockingNodes = nodes.filter(n => n.x > emptyStartX && n.x < emptyEndX);
+  if (blockingNodes.length === 0) {
+    // Also check: is the first node to the right of emptyStartX already past emptyEndX?
+    const rightNodes = nodes.filter(n => n.x > emptyStartX);
+    if (rightNodes.length === 0) return nodes; // Nothing to the right at all
+    const minRightX = Math.min(...rightNodes.map(n => n.x));
+    if (minRightX >= emptyEndX - 0.05) return nodes; // Already enough space
+  }
+
+  // Find the closest node to the right of emptyStartX
+  const rightNodes = nodes.filter(n => n.x > emptyStartX);
+  if (rightNodes.length === 0) return nodes;
+  const minRightX = Math.min(...rightNodes.map(n => n.x));
+
+  const requiredShift = emptyEndX - minRightX;
+  if (requiredShift <= 0) return nodes;
+
+  // Shift everything at or right of minRightX by exactly the required amount
+  return nodes.map(n => {
+    if (n.x >= minRightX - 0.05) {
+      return { ...n, x: n.x + requiredShift };
+    }
+    return n;
+  });
+}
 
 // ── Topological Space Maker ────────────────────────────────────────────────
 
