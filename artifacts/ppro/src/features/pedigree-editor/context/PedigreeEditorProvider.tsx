@@ -726,13 +726,28 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
         C = parents[0]!.x;
       }
 
-      // Partner-aware child spacing calculation
+      // Subtree-aware child spacing calculation to prevent child/descendant collisions
       const N = allChildren.length;
-      const getChildRowPartners = (childId: string) => {
-        const partnerIds = adj.couplesOf.get(childId) ?? [];
-        return partnerIds
-          .map(id => allNodes.find(n => n.id === id))
-          .filter((n): n is PedigreeNode => !!n && Math.abs(n.y - s.y) < ROW_TOLERANCE);
+      const nodeMap = new Map(allNodes.map(n => [n.id, n]));
+
+      const getSubtreeRelativeOffsets = (nodeId: string) => {
+        const subtree = collectSubtree(nodeId, adj);
+        const node = nodeMap.get(nodeId);
+        if (!node) return { left: 0, right: 0 };
+
+        let minX = node.x;
+        let maxX = node.x;
+        for (const memberId of subtree) {
+          const member = nodeMap.get(memberId);
+          if (member) {
+            minX = Math.min(minX, member.x);
+            maxX = Math.max(maxX, member.x);
+          }
+        }
+        return {
+          left: minX - node.x,
+          right: maxX - node.x
+        };
       };
 
       const offsets: number[] = [];
@@ -743,17 +758,10 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
         const leftNode = allChildren[i - 1]!;
         const rightNode = allChildren[i]!;
 
-        let middlePartners = 0;
-        const leftPartners = getChildRowPartners(leftNode.id);
-        if (leftPartners.some(p => p.x > leftNode.x + 0.1)) {
-          middlePartners++;
-        }
-        const rightPartners = getChildRowPartners(rightNode.id);
-        if (rightPartners.some(p => p.x < rightNode.x - 0.1)) {
-          middlePartners++;
-        }
+        const offsetsLeft = getSubtreeRelativeOffsets(leftNode.id);
+        const offsetsRight = getSubtreeRelativeOffsets(rightNode.id);
+        const gap = Math.max(NODE_GAP, NODE_GAP + offsetsLeft.right - offsetsRight.left);
 
-        const gap = (1 + middlePartners) * NODE_GAP;
         currentOffset += gap;
         offsets.push(currentOffset);
       }
