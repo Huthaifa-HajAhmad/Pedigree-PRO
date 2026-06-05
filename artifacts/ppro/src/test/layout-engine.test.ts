@@ -132,5 +132,46 @@ describe("layout-engine", () => {
       const parentCenter = (newF1.x + newM1.x) / 2;
       expect(parentCenter).toBeCloseTo(300);
     });
+
+    it("does not inflate spaces when pushing blockers", () => {
+      const nodes: PedigreeNode[] = [
+        // Family 1 (needs to center at 200, so parents target 150 & 250)
+        { id: "f1", x: 100, y: 100, type: "male", ...baseNode },
+        { id: "m1", x: 200, y: 100, type: "female", ...baseNode },
+        { id: "c1_1", x: 150, y: 220, type: "male", ...baseNode },
+        { id: "c1_2", x: 250, y: 220, type: "male", ...baseNode },
+
+        // Family 2 (blocker on parent row at 300, child at 350)
+        { id: "f2", x: 300, y: 100, type: "male", ...baseNode },
+        { id: "m2", x: 400, y: 100, type: "female", ...baseNode },
+        { id: "c2_1", x: 350, y: 220, type: "male", ...baseNode },
+      ];
+      const edges: PedigreeEdge[] = [
+        { id: "e1", sourceId: "f1", targetId: "m1", type: "couple" },
+        { id: "e2", sourceId: "f1", targetId: "c1_1", type: "parent-child" },
+        { id: "e3", sourceId: "m1", targetId: "c1_1", type: "parent-child" },
+        { id: "e4", sourceId: "f1", targetId: "c1_2", type: "parent-child" },
+        { id: "e5", sourceId: "m1", targetId: "c1_2", type: "parent-child" },
+
+        { id: "e6", sourceId: "f2", targetId: "m2", type: "couple" },
+        { id: "e7", sourceId: "f2", targetId: "c2_1", type: "parent-child" },
+        { id: "e8", sourceId: "m2", targetId: "c2_1", type: "parent-child" },
+      ];
+
+      // Recentering parents of Family 1 (target 150, 250) should push f2 (originally 300)
+      // because target 250 overlaps with f2 at 300 (gap 50 < 96.8)
+      const result = recenterParents(nodes, edges, ["f1", "m1"], ["c1_1", "c1_2"]);
+      const newF2 = result.find(n => n.id === "f2")!;
+      const newM2 = result.find(n => n.id === "m2")!;
+      const newC2_1 = result.find(n => n.id === "c2_1")!;
+
+      // We expect Family 2 to be pushed by EXACTLY the amount needed to maintain NODE_GAP (96.8)
+      // from Family 1's right parent (target 248.4).
+      // So newF2 should be at 248.4 + 96.8 = 345.2
+      // And because f2 shifted by 45.2 (from 300 to 345.2), m2 and c2_1 must also shift by exactly 45.2.
+      expect(newF2.x).toBeCloseTo(345.2, 1);
+      expect(newM2.x).toBeCloseTo(445.2, 1);
+      expect(newC2_1.x).toBeCloseTo(395.2, 1);
+    });
   });
 });
