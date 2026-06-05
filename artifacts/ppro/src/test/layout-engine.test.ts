@@ -173,5 +173,72 @@ describe("layout-engine", () => {
       expect(newM2.x).toBeCloseTo(445.2, 1);
       expect(newC2_1.x).toBeCloseTo(395.2, 1);
     });
+
+    it("anchors parents of origin and does not shift them when both have parents", () => {
+      const nodes: PedigreeNode[] = [
+        // Grandparents 1
+        { id: "gf1", x: 100, y: 100, type: "male", ...baseNode },
+        { id: "gm1", x: 196.8, y: 100, type: "female", ...baseNode },
+        // Grandparents 2
+        { id: "gf2", x: 400, y: 100, type: "male", ...baseNode },
+        { id: "gm2", x: 496.8, y: 100, type: "female", ...baseNode },
+        // Parents (who are children of grandparents)
+        { id: "f1", x: 148.4, y: 220, type: "male", ...baseNode },
+        { id: "m1", x: 448.4, y: 220, type: "female", ...baseNode },
+        // Child
+        { id: "c1", x: 350, y: 340, type: "male", ...baseNode }, // child centers at 350, but parents are anchored at 148.4 & 448.4
+      ];
+      const edges: PedigreeEdge[] = [
+        { id: "eg1", sourceId: "gf1", targetId: "gm1", type: "couple" },
+        { id: "eg1_c", sourceId: "gf1", targetId: "f1", type: "parent-child" },
+        { id: "eg1_m", sourceId: "gm1", targetId: "f1", type: "parent-child" },
+
+        { id: "eg2", sourceId: "gf2", targetId: "gm2", type: "couple" },
+        { id: "eg2_c", sourceId: "gf2", targetId: "m1", type: "parent-child" },
+        { id: "eg2_m", sourceId: "gm2", targetId: "m1", type: "parent-child" },
+
+        { id: "e1", sourceId: "f1", targetId: "m1", type: "couple" },
+        { id: "e2", sourceId: "f1", targetId: "c1", type: "parent-child" },
+        { id: "e3", sourceId: "m1", targetId: "c1", type: "parent-child" },
+      ];
+
+      const result = recenterParents(nodes, edges, ["f1", "m1"], ["c1"]);
+      const newF1 = result.find(n => n.id === "f1")!;
+      const newM1 = result.find(n => n.id === "m1")!;
+
+      // Both f1 and m1 should remain at their parent-anchored X positions
+      expect(newF1.x).toBeCloseTo(148.4, 1);
+      expect(newM1.x).toBeCloseTo(448.4, 1);
+    });
+
+    it("anchors the parent and aligns the spouse when only one has parents", () => {
+      const nodes: PedigreeNode[] = [
+        // Grandparents
+        { id: "gf", x: 100, y: 100, type: "male", ...baseNode },
+        { id: "gm", x: 196.8, y: 100, type: "female", ...baseNode },
+        // Parents (f1 is child of gm, m1 is a spouse)
+        { id: "f1", x: 148.4, y: 220, type: "male", ...baseNode },
+        { id: "m1", x: 300.0, y: 220, type: "female", ...baseNode }, // spouse is misaligned
+        // Child
+        { id: "c1", x: 250, y: 340, type: "male", ...baseNode },
+      ];
+      const edges: PedigreeEdge[] = [
+        { id: "eg", sourceId: "gf", targetId: "gm", type: "couple" },
+        { id: "eg_c", sourceId: "gf", targetId: "f1", type: "parent-child" },
+        { id: "eg_m", sourceId: "gm", targetId: "f1", type: "parent-child" },
+
+        { id: "e1", sourceId: "f1", targetId: "m1", type: "couple" },
+        { id: "e2", sourceId: "f1", targetId: "c1", type: "parent-child" },
+        { id: "e3", sourceId: "m1", targetId: "c1", type: "parent-child" },
+      ];
+
+      const result = recenterParents(nodes, edges, ["f1", "m1"], ["c1"]);
+      const newF1 = result.find(n => n.id === "f1")!;
+      const newM1 = result.find(n => n.id === "m1")!;
+
+      // f1 should be anchored at 148.4, and spouse m1 should be placed exactly NODE_GAP (96.8) away at 245.2
+      expect(newF1.x).toBeCloseTo(148.4, 1);
+      expect(newM1.x).toBeCloseTo(245.2, 1);
+    });
   });
 });

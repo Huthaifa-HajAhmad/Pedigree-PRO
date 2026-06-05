@@ -490,17 +490,45 @@ export function recenterParents(
   let isTightening = false;
 
   if (parents.length === 2) {
-    // For a couple: place them exactly NODE_GAP apart, centered over children
     const sortedParents = [...parents].sort((a, b) => a.x - b.x);
-    const leftTarget = childCenter - NODE_GAP / 2;
-    const rightTarget = childCenter + NODE_GAP / 2;
-    parentTargets.set(sortedParents[0]!.id, leftTarget);
-    parentTargets.set(sortedParents[1]!.id, rightTarget);
-    // Check if current spacing is wider than NODE_GAP (needs tightening)
-    if (Math.abs(sortedParents[1]!.x - sortedParents[0]!.x - NODE_GAP) > 1) {
+    const adj = buildAdjacency(nodes, edges);
+    const p0HasParents = (adj.parentsOf.get(sortedParents[0]!.id)?.length ?? 0) > 0;
+    const p1HasParents = (adj.parentsOf.get(sortedParents[1]!.id)?.length ?? 0) > 0;
+
+    if (p0HasParents && p1HasParents) {
+      // Both are anchored to their own parents. Do not shift them.
+      return nodes;
+    } else if (p0HasParents && !p1HasParents) {
+      // Left parent is anchored. Spouse (right) must be at left + NODE_GAP.
+      const targetRight = sortedParents[0]!.x + NODE_GAP;
+      if (Math.abs(sortedParents[1]!.x - targetRight) < 1) return nodes;
+      parentTargets.set(sortedParents[0]!.id, sortedParents[0]!.x);
+      parentTargets.set(sortedParents[1]!.id, targetRight);
       isTightening = true;
+    } else if (!p0HasParents && p1HasParents) {
+      // Right parent is anchored. Spouse (left) must be at right - NODE_GAP.
+      const targetLeft = sortedParents[1]!.x - NODE_GAP;
+      if (Math.abs(sortedParents[0]!.x - targetLeft) < 1) return nodes;
+      parentTargets.set(sortedParents[1]!.id, sortedParents[1]!.x);
+      parentTargets.set(sortedParents[0]!.id, targetLeft);
+      isTightening = true;
+    } else {
+      // Neither is anchored. Center over children.
+      const leftTarget = childCenter - NODE_GAP / 2;
+      const rightTarget = childCenter + NODE_GAP / 2;
+      parentTargets.set(sortedParents[0]!.id, leftTarget);
+      parentTargets.set(sortedParents[1]!.id, rightTarget);
+      if (Math.abs(sortedParents[1]!.x - sortedParents[0]!.x - NODE_GAP) > 1) {
+        isTightening = true;
+      }
     }
   } else if (parents.length === 1) {
+    const adj = buildAdjacency(nodes, edges);
+    const hasParents = (adj.parentsOf.get(parents[0]!.id)?.length ?? 0) > 0;
+    if (hasParents) {
+      // Anchored to its own parents. Do not shift.
+      return nodes;
+    }
     parentTargets.set(parents[0]!.id, childCenter);
   } else {
     const shift = childCenter - parentCenter;
