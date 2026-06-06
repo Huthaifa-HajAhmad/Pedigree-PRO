@@ -153,7 +153,7 @@ export function ReadOnlyCanvas({ canvas, showGrid = false, showAutoLabels = fals
       families.get(key)!.childIds.push(childId);
     }
     for (const [, { parentIds, childIds }] of families) {
-      const familyMap = computeFamilyChildYOffset(parentIds, childIds, canvas.nodes, canvas.annotations, NODE_SIZE, showAutoLabels, autoLabels, offsets);
+      const familyMap = computeFamilyChildYOffset(parentIds, childIds, canvas.nodes, canvas.annotations, NODE_SIZE, showAutoLabels, autoLabels, offsets, canvas.edges);
       for (const [nid, delta] of familyMap) offsets.set(nid, delta);
     }
     return offsets;
@@ -164,7 +164,7 @@ export function ReadOnlyCanvas({ canvas, showGrid = false, showAutoLabels = fals
       <svg className="w-full h-full" viewBox={`${x} ${y} ${w} ${h}`} preserveAspectRatio="xMidYMid meet">
         <g>
           {canvas.edges.filter((e) => e.type !== "parent-child").map((edge) => (
-            <EdgeLine key={edge.id} edge={edge} nodes={canvas.nodes} invalid={false} />
+            <EdgeLine key={edge.id} edge={edge} nodes={canvas.nodes} invalid={false} annotations={canvas.annotations} renderOffsets={familyOffsets} edges={canvas.edges} showAutoLabels={showAutoLabels} autoLabels={autoLabels} />
           ))}
         </g>
 

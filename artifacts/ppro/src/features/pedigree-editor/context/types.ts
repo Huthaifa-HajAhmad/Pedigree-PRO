@@ -179,6 +179,7 @@ export interface PedigreeEditorOps {
   handleRestoreVersion: (vid: number) => void;
   createConsanguinityEdge: (sourceId: string, targetId: string) => void;
   createCoupleEdge: (sourceId: string, targetId: string) => void;
+  createCoupleAndChild: (maleId: string, femaleId: string) => void;
   addSiblings: (sourceId: string, siblings: Array<{ type: PedigreeNode["type"]; dob: string; affected?: boolean; carrier?: boolean; condition?: string; notes?: string }>) => void;
   markAsTwins: (nodeIds: string[], twinType: "m" | "d") => void;
   unmarkTwins: (nodeIds: string[]) => void;

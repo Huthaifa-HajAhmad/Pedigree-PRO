@@ -1,4 +1,4 @@
-import { Pin, PinOff, Users, MessageSquare, Plus, User, Dna, Flag, Stethoscope, Trash2, LayoutGrid, GitBranch, Heart } from "lucide-react";
+import { Pin, PinOff, Users, MessageSquare, Plus, User, Dna, Flag, Stethoscope, Trash2, LayoutGrid, GitBranch, Heart, Link2 } from "lucide-react";
 import type { PedigreeNode, PedigreeEdge, PedigreeAnnotation } from "@/features/pedigree-editor/canvas/types";
 import { AnnotationEditorPanel } from "@/features/pedigree-editor/panels/AnnotationEditorPanel";
 import { PanelShell } from "@/components/shared/panels/PanelShell";
@@ -21,6 +21,7 @@ export function PropertiesPanel({
   onUpdateAnnotation, onDeleteAnnotation, onSelectAnnotation,
   onAlignSelected, onMarkAsTwins, onUnmarkTwins, onRemoveEdges,
   onUpdateEdgeType,
+  onCreateCoupleEdge, onCreateConsanguinityEdge, onCreateCoupleAndChild,
 }: {
   selectedIds: Set<string>;
   canvasNodes: PedigreeNode[];
@@ -39,6 +40,9 @@ export function PropertiesPanel({
   onUnmarkTwins?: (nodeIds: string[]) => void;
   onRemoveEdges?: (edgeIds: string[]) => void;
   onUpdateEdgeType?: (edgeId: string, type: PedigreeEdge["type"]) => void;
+  onCreateCoupleEdge?: (sourceId: string, targetId: string) => void;
+  onCreateConsanguinityEdge?: (sourceId: string, targetId: string) => void;
+  onCreateCoupleAndChild?: (maleId: string, femaleId: string) => void;
 }) {
   const autoLabels = useMemo(() => computeAutoLabels(canvasNodes, canvasEdges), [canvasNodes, canvasEdges]);
   const singleSelected = selectedIds.size === 1 ? canvasNodes.find((n) => selectedIds.has(n.id)) ?? null : null;
@@ -117,6 +121,41 @@ export function PropertiesPanel({
               }} />
             <div className="text-xs text-muted-foreground mt-1 opacity-60">Press Enter to apply</div>
           </PanelSection>
+
+          {/* Add Relationship (two opposite-gender nodes, no existing edge) */}
+          {(() => {
+            if (selectedIds.size !== 2 || !onCreateCoupleEdge || !onCreateConsanguinityEdge) return null;
+            const nodes = canvasNodes.filter(n => selectedIds.has(n.id));
+            if (nodes.length !== 2) return null;
+            const a = nodes[0], b = nodes[1];
+            if (!a || !b) return null;
+            const isOppositeGender = (a.type === "male" && b.type === "female") || (a.type === "female" && b.type === "male");
+            if (!isOppositeGender) return null;
+            const hasRelEdge = canvasEdges.some(e => (e.type === "couple" || e.type === "consanguinity" || e.type === "divorced" || e.type === "separated") && ((e.sourceId === a.id && e.targetId === b.id) || (e.sourceId === b.id && e.targetId === a.id)));
+            if (hasRelEdge) return null;
+            const maleId = a.type === "male" ? a.id : b.id;
+            const femaleId = a.type === "female" ? a.id : b.id;
+            return (
+              <PanelSection title="Add Relationship" icon={<Link2 className="w-3 h-3" />}>
+                <div className="grid grid-cols-2 gap-1">
+                  <button type="button" onClick={() => onCreateCoupleEdge(maleId, femaleId)}
+                    className="py-1.5 text-xs border border-border rounded text-muted-foreground hover:border-primary hover:text-primary transition-colors">
+                    <Heart className="w-3 h-3 inline mr-1" />Couple
+                  </button>
+                  <button type="button" onClick={() => onCreateConsanguinityEdge(maleId, femaleId)}
+                    className="py-1.5 text-xs border border-border rounded text-muted-foreground hover:border-primary hover:text-primary transition-colors">
+                    <GitBranch className="w-3 h-3 inline mr-1" />Consang.
+                  </button>
+                </div>
+                {onCreateCoupleAndChild && (
+                  <button type="button" onClick={() => onCreateCoupleAndChild(maleId, femaleId)}
+                    className="w-full mt-1 py-1.5 text-xs border border-border rounded text-muted-foreground hover:border-primary hover:text-primary transition-colors">
+                    <Plus className="w-3 h-3 inline mr-1" />Add Child
+                  </button>
+                )}
+              </PanelSection>
+            );
+          })()}
 
           {/* Relationship */}
           {(() => {

@@ -2,53 +2,37 @@ import { useMemo } from "react";
 import type { PedigreeNode, PedigreeAnnotation, PedigreeEdge } from "./types";
 import { NODE_SIZE } from "./types";
 import { useCanvasConfig } from "@/features/pedigree-editor/context/CanvasConfigContext";
-
-function computeLabelBelowHeight(node: PedigreeNode, autoLabel?: string): number {
-  let h = 0;
-  if (autoLabel) h = 13;
-  if (node.label) h = autoLabel ? 24 : 14;
-  if (node.age || node.dob) h += 11;
-  if (node.condition) h += 11;
-  return h;
-}
-
-function computeAnnotationMaxBottom(
-  parentIds: string[],
-  annotations: PedigreeAnnotation[],
-  nodeMap: Map<string, PedigreeNode>,
-  S: number,
-  showAutoLabels: boolean,
-  autoLabels?: Map<string, string>,
-  parentOffsets?: Map<string, number>,
-): number {
-  let maxBottom = -Infinity;
-  const parentBelowMap = new Map<string, PedigreeAnnotation[]>();
-  for (const ann of annotations) {
-    if (parentIds.includes(ann.nodeId) && ann.position === "below" && !ann.hidden) {
-      if (!parentBelowMap.has(ann.nodeId)) parentBelowMap.set(ann.nodeId, []);
-      parentBelowMap.get(ann.nodeId)!.push(ann);
-    }
-  }
-  for (const [, anns] of parentBelowMap) {
-    const pid = anns[0]!.nodeId;
-    const p = nodeMap.get(pid);
-    if (!p) continue;
-    const pOff = parentOffsets?.get(pid) ?? 0;
-    const autoLabel = showAutoLabels ? autoLabels?.get(p.id) : undefined;
-    const labelH = computeLabelBelowHeight(p, autoLabel);
-    let stackY = p.y + pOff + S / 2 + labelH + 4;
-    for (const ann of anns) {
-      const fs = ann.fontSize ?? 12;
-      const boxH = fs + 8;
-      const bottom = stackY + boxH + (ann.offsetY ?? 0);
-      maxBottom = Math.max(maxBottom, bottom);
-      stackY += boxH + 5;
-    }
-  }
-  return maxBottom;
-}
+import {
+  getIntermediateNodes,
+  computeLabelBelowHeight,
+  computeAnnotationMaxBottom,
+  computeEdgeLoopTrack,
+  computeMaxLoopTrackOnRow,
+  computeVerticalCrossingYCoordinates,
+  computeCrossingXCoordinates,
+} from "./canvasUtils";
 
 const MIN_BAR_CHILD_GAP = 30;
+
+function buildVerticalPathWithBridges(x: number, startY: number, endY: number, crossingYs: number[]): string {
+  if (crossingYs.length === 0) {
+    return `M ${x} ${startY} L ${x} ${endY}`;
+  }
+  let d = `M ${x} ${startY}`;
+  let lastY = startY;
+  for (const cy of crossingYs) {
+    if (cy - 6 < lastY + 10) {
+      const h = (cy + 6) - lastY;
+      const ry = h / 2;
+      d += ` A 6 ${ry} 0 0 1 ${x} ${cy + 6}`;
+    } else {
+      d += ` L ${x} ${cy - 6} A 6 6 0 0 1 ${x} ${cy + 6}`;
+    }
+    lastY = cy + 6;
+  }
+  d += ` L ${x} ${endY}`;
+  return d;
+}
 
 export function computeFamilyChildYOffset(
   parentIds: string[],
@@ -59,6 +43,7 @@ export function computeFamilyChildYOffset(
   showAutoLabels: boolean,
   autoLabels?: Map<string, string>,
   parentOffsets?: Map<string, number>,
+  edges?: PedigreeEdge[],
 ): Map<string, number> {
   const result = new Map<string, number>();
   const nodeMap = new Map(nodes.map((n) => [n.id, n]));
@@ -66,8 +51,47 @@ export function computeFamilyChildYOffset(
   if (children.length === 0) return result;
 
   const childTopY = Math.min(...children.map((c) => c.y + (parentOffsets?.get(c.id) ?? 0))) - nodeSize / 2;
-  const maxAnnBottom = computeAnnotationMaxBottom(parentIds, annotations, nodeMap, nodeSize, showAutoLabels, autoLabels, parentOffsets);
-  const barY = Math.max(childTopY - MIN_BAR_CHILD_GAP, maxAnnBottom + 10);
+
+  // Find intermediate nodes if there are exactly 2 parents
+  const intermediateNodeIds: string[] = [];
+  if (parentIds.length === 2) {
+    const p1 = nodeMap.get(parentIds[0]!);
+    const p2 = nodeMap.get(parentIds[1]!);
+    if (p1 && p2) {
+      const intermediates = getIntermediateNodes(p1, p2, nodes, parentOffsets);
+      for (const n of intermediates) {
+        intermediateNodeIds.push(n.id);
+      }
+    }
+  }
+
+  const maxAnnBottom = computeAnnotationMaxBottom(
+    [...parentIds, ...intermediateNodeIds],
+    annotations,
+    nodeMap,
+    nodeSize,
+    showAutoLabels,
+    autoLabels,
+    parentOffsets
+  );
+
+  let maxNodeBottom = -Infinity;
+  for (const n of [...parentIds.map((id) => nodeMap.get(id)), ...intermediateNodeIds].filter(Boolean) as PedigreeNode[]) {
+    const nOff = parentOffsets?.get(n.id) ?? 0;
+    const autoLabel = showAutoLabels ? autoLabels?.get(n.id) : undefined;
+    const labelH = computeLabelBelowHeight(n, autoLabel);
+    const bottom = n.y + nOff + nodeSize / 2 + labelH;
+    maxNodeBottom = Math.max(maxNodeBottom, bottom);
+  }
+
+  const maxBottom = Math.max(maxNodeBottom, maxAnnBottom);
+
+  const p1 = parentIds.length > 0 ? nodeMap.get(parentIds[0]!) : undefined;
+  const rowY = p1 ? p1.y + (parentOffsets?.get(p1.id) ?? 0) : 0;
+  const maxTrackIndex = edges ? computeMaxLoopTrackOnRow(rowY, edges, nodes, parentOffsets) : 0;
+
+  // The sibling bar must clear the loop (maxBottom + 12 + maxTrackIndex * 8) by a safety gap of 10px, so maxBottom + 22 + maxTrackIndex * 8
+  const barY = Math.max(childTopY - MIN_BAR_CHILD_GAP, maxBottom + 22 + maxTrackIndex * 8);
   const delta = Math.max(0, barY - (childTopY - MIN_BAR_CHILD_GAP));
 
   if (delta > 0) {
@@ -106,13 +130,50 @@ export function SibshipGroup({ parentIds, childIds, nodes, edges = [], invalid, 
 
   const paths: string[] = [];
   const childTopY = Math.min(...children.map((c) => c.y + (childOffsets?.get(c.id) ?? 0))) - S / 2;
+
+  const intermediateNodes = useMemo(() => {
+    if (parents.length === 2) {
+      return getIntermediateNodes(parents[0]!, parents[1]!, nodes, parentOffsets);
+    }
+    return [];
+  }, [parents, nodes, parentOffsets]);
+
+  const hasIntermediate = intermediateNodes.length > 0;
+
   const maxAnnBottom = useMemo(
-    () => computeAnnotationMaxBottom(parentIds, annotations, nodeMap, S, showAutoLabels, autoLabels, parentOffsets),
-    [parentIds, annotations, nodeMap, S, showAutoLabels, autoLabels, parentOffsets],
+    () => computeAnnotationMaxBottom(
+      [...parentIds, ...intermediateNodes.map((n) => n.id)],
+      annotations,
+      nodeMap,
+      S,
+      showAutoLabels,
+      autoLabels,
+      parentOffsets
+    ),
+    [parentIds, intermediateNodes, annotations, nodeMap, S, showAutoLabels, autoLabels, parentOffsets],
   );
+
+  const maxNodeBottom = useMemo(() => {
+    let maxB = -Infinity;
+    const idsToCheck = [...parentIds, ...intermediateNodes.map((n) => n.id)];
+    for (const id of idsToCheck) {
+      const n = nodeMap.get(id);
+      if (!n) continue;
+      const nOff = parentOffsets?.get(n.id) ?? 0;
+      const autoLabel = showAutoLabels ? autoLabels?.get(n.id) : undefined;
+      const labelH = computeLabelBelowHeight(n, autoLabel);
+      const bottom = n.y + nOff + S / 2 + labelH;
+      maxB = Math.max(maxB, bottom);
+    }
+    return maxB;
+  }, [parentIds, intermediateNodes, nodeMap, S, showAutoLabels, autoLabels, parentOffsets]);
+
+  const maxBottom = Math.max(maxNodeBottom, maxAnnBottom);
   const coupleYOffset = edgeType === "consanguinity" ? 3.5 : 0;
 
-  const barY = Math.max(childTopY - MIN_BAR_CHILD_GAP, maxAnnBottom + 10);
+  const rowY = parents[0] ? parents[0].y + (parentOffsets?.get(parents[0].id) ?? 0) : 0;
+  const maxTrackIndex = computeMaxLoopTrackOnRow(rowY, edges, nodes, parentOffsets);
+  const barY = Math.max(childTopY - MIN_BAR_CHILD_GAP, maxBottom + 22 + maxTrackIndex * 8);
 
   const TWIN_DROP = 16;
 
@@ -153,9 +214,13 @@ export function SibshipGroup({ parentIds, childIds, nodes, edges = [], invalid, 
   if (parents.length === 1) {
     const p = parents[0]!;
     const pOff = parentOffsets?.get(p.id) ?? 0;
+    const coupleY = p.y + pOff + S / 2;
     if (children.length === 1) {
       const c = children[0]!;
-      paths.push(`M ${p.x} ${p.y + pOff + S / 2} L ${p.x} ${barY} L ${c.x} ${barY} L ${c.x} ${cy(c)}`);
+      const verticalCrossings = computeVerticalCrossingYCoordinates(
+        p.x, coupleY, barY, edges, nodes, parentOffsets, S, showAutoLabels, autoLabels
+      );
+      paths.push(buildVerticalPathWithBridges(p.x, coupleY, barY, verticalCrossings), `M ${p.x} ${barY} L ${c.x} ${barY} L ${c.x} ${cy(c)}`);
     } else {
       // C6 fix: bar spans non-twin children + twin drop midpoints (not twin node positions)
       const nonTwinXs = children.filter((c) => !twinChildIds.has(c.id)).map((c) => c.x);
@@ -166,10 +231,33 @@ export function SibshipGroup({ parentIds, childIds, nodes, edges = [], invalid, 
           twinDropMidXs.push(twinXs.reduce((a, b) => a + b, 0) / twinXs.length);
         }
       }
-      const allBarXs = [...nonTwinXs, ...twinDropMidXs, p.x];
+      const allBarXs = [...nonTwinXs, ...twinDropMidXs];
       const barLeft = Math.min(...allBarXs);
       const barRight = Math.max(...allBarXs);
-      paths.push(`M ${p.x} ${p.y + pOff + S / 2} L ${p.x} ${barY}`, `M ${barLeft} ${barY} L ${barRight} ${barY}`);
+      
+      const parentX = p.x;
+      const childCenter = (barLeft + barRight) / 2;
+      const isStepped = parentX < barLeft || parentX > barRight;
+      
+      if (isStepped) {
+        const stepY = barY - 15;
+        const verticalCrossings = computeVerticalCrossingYCoordinates(
+          parentX, coupleY, stepY, edges, nodes, parentOffsets, S, showAutoLabels, autoLabels
+        );
+        paths.push(
+          buildVerticalPathWithBridges(parentX, coupleY, stepY, verticalCrossings),
+          `M ${parentX} ${stepY} L ${childCenter} ${stepY} L ${childCenter} ${barY}`,
+          `M ${barLeft} ${barY} L ${barRight} ${barY}`
+        );
+      } else {
+        const verticalCrossings = computeVerticalCrossingYCoordinates(
+          parentX, coupleY, barY, edges, nodes, parentOffsets, S, showAutoLabels, autoLabels
+        );
+        paths.push(
+          buildVerticalPathWithBridges(parentX, coupleY, barY, verticalCrossings),
+          `M ${barLeft} ${barY} L ${barRight} ${barY}`
+        );
+      }
 
       for (const [, members] of twinGroups) {
         if (members.length < 2) continue;
@@ -204,7 +292,37 @@ export function SibshipGroup({ parentIds, childIds, nodes, edges = [], invalid, 
     const p1Off = parentOffsets?.get(p1.id) ?? 0;
     const p2Off = parentOffsets?.get(p2.id) ?? 0;
     const midX = (p1.x + S / 2 + p2.x - S / 2) / 2;
-    const coupleY = (p1.y + p1Off + p2.y + p2Off) / 2 + coupleYOffset;
+    const coupleEdge = edges.find(
+      (e) =>
+        (e.type === "couple" ||
+          e.type === "consanguinity" ||
+          e.type === "divorced" ||
+          e.type === "separated") &&
+        parentIds.includes(e.sourceId) &&
+        parentIds.includes(e.targetId)
+    );
+    const trackIndex = coupleEdge && hasIntermediate
+      ? computeEdgeLoopTrack(coupleEdge.id, edges, nodes, parentOffsets)
+      : 0;
+    const coupleY = hasIntermediate
+      ? maxBottom + 12 + trackIndex * 8
+      : (p1.y + p1Off + p2.y + p2Off) / 2 + coupleYOffset;
+
+    const hasBridgeAtMid = coupleEdge && hasIntermediate
+      ? computeCrossingXCoordinates(
+          coupleEdge,
+          coupleY,
+          Math.min(p1.x, p2.x),
+          Math.max(p1.x, p2.x),
+          edges,
+          nodes,
+          parentOffsets,
+          S,
+          showAutoLabels,
+          autoLabels
+        ).some((cx) => Math.abs(cx - midX) < 1)
+      : false;
+    const startY = hasBridgeAtMid ? coupleY - 6 : coupleY;
 
     // C6 fix: bar spans non-twin children + twin drop midpoints (not twin node positions)
     const nonTwinXs = children.filter((c) => !twinChildIds.has(c.id)).map((c) => c.x);
@@ -215,10 +333,32 @@ export function SibshipGroup({ parentIds, childIds, nodes, edges = [], invalid, 
         twinDropMidXs.push(twinXs.reduce((a, b) => a + b, 0) / twinXs.length);
       }
     }
-    const allBarXs = [...nonTwinXs, ...twinDropMidXs, midX];
+    const allBarXs = [...nonTwinXs, ...twinDropMidXs];
     const barLeft = Math.min(...allBarXs);
     const barRight = Math.max(...allBarXs);
-    paths.push(`M ${midX} ${coupleY} L ${midX} ${barY}`, `M ${barLeft} ${barY} L ${barRight} ${barY}`);
+    
+    const childCenter = (barLeft + barRight) / 2;
+    const isStepped = midX < barLeft || midX > barRight;
+    
+    if (isStepped) {
+      const stepY = barY - 15;
+      const verticalCrossings = computeVerticalCrossingYCoordinates(
+        midX, startY, stepY, edges, nodes, parentOffsets, S, showAutoLabels, autoLabels, coupleEdge?.id
+      );
+      paths.push(
+        buildVerticalPathWithBridges(midX, startY, stepY, verticalCrossings),
+        `M ${midX} ${stepY} L ${childCenter} ${stepY} L ${childCenter} ${barY}`,
+        `M ${barLeft} ${barY} L ${barRight} ${barY}`
+      );
+    } else {
+      const verticalCrossings = computeVerticalCrossingYCoordinates(
+        midX, startY, barY, edges, nodes, parentOffsets, S, showAutoLabels, autoLabels, coupleEdge?.id
+      );
+      paths.push(
+        buildVerticalPathWithBridges(midX, startY, barY, verticalCrossings),
+        `M ${barLeft} ${barY} L ${barRight} ${barY}`
+      );
+    }
 
     for (const [, members] of twinGroups) {
       if (members.length < 2) continue;
