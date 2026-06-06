@@ -23,6 +23,7 @@ export interface LayoutNode {
   id: string;
   x: number;
   y: number;
+  type?: "male" | "female" | "unknown" | "pregnancy" | "sab";
   pinned?: boolean;
 }
 
@@ -34,7 +35,7 @@ export interface LayoutEdge {
 }
 
 import { GEN_GRID, NODE_GAP } from "@/features/pedigree-editor/canvas/types";
-import { resolveAllCollisions } from "./layout-engine";
+import { resolveAllCollisions, recenterAllFamilies } from "./layout-engine";
 const GEN_Y_START = GEN_GRID;
 const GEN_SPACING = GEN_GRID;
 const H_SPACING = 110;
@@ -331,7 +332,43 @@ export function computeAutoLayout(
     pinnedIds
   );
 
-  return resolvedNodes as any;
+  const swappedNodes = swapCouplePartners(resolvedNodes, edges);
+
+  return recenterAllFamilies(swappedNodes as any, edges as any, pinnedIds) as any;
+}
+
+function swapCouplePartners(nodes: LayoutNode[], edges: LayoutEdge[]): LayoutNode[] {
+  const nodeMap = new Map(nodes.map(n => [n.id, n]));
+  const result = [...nodes.map(n => ({ ...n }))];
+
+  for (const e of edges) {
+    if (e.type === "couple" || e.type === "consanguinity" || e.type === "divorced" || e.type === "separated") {
+      const n1 = nodeMap.get(e.sourceId);
+      const n2 = nodeMap.get(e.targetId);
+      if (!n1 || !n2) continue;
+
+      // Identify male and female
+      const male = n1.type === "male" ? n1 : n2.type === "male" ? n2 : null;
+      const female = n1.type === "female" ? n1 : n2.type === "female" ? n2 : null;
+
+      if (male && female && male.id !== female.id) {
+        const maleIdx = result.findIndex(rn => rn.id === male.id);
+        const femaleIdx = result.findIndex(rn => rn.id === female.id);
+        if (maleIdx !== -1 && femaleIdx !== -1) {
+          const maleNode = result[maleIdx]!;
+          const femaleNode = result[femaleIdx]!;
+          // If male is to the right of female, swap their X coordinates
+          if (maleNode.x > femaleNode.x) {
+            const tempX = maleNode.x;
+            maleNode.x = femaleNode.x;
+            femaleNode.x = tempX;
+          }
+        }
+      }
+    }
+  }
+
+  return result;
 }
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
@@ -381,7 +418,18 @@ function orderNodesForGen(
     );
     if (partners.length > 0 && partners[0]) {
       seen.add(partners[0]);
-      groups.push([id, partners[0]]);
+      // Enforce male on the left, female on the right
+      const p1 = nodeMap.get(id);
+      const p2 = nodeMap.get(partners[0]);
+      if (p1 && p2) {
+        if (p1.type === "female" || p2.type === "male") {
+          groups.push([partners[0], id]);
+        } else {
+          groups.push([id, partners[0]]);
+        }
+      } else {
+        groups.push([id, partners[0]]);
+      }
     } else {
       groups.push([id]);
     }
