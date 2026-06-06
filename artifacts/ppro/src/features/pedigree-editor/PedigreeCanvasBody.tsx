@@ -345,7 +345,7 @@ const RAIL_MAX_X = 400;
       families.get(key)!.childIds.push(childId);
     }
     for (const [, { parentIds, childIds }] of families) {
-      const familyMap = computeFamilyChildYOffset(parentIds, childIds, canvas.nodes, canvas.annotations, NODE_SIZE, showAutoLabels, autoLabels, offsets);
+      const familyMap = computeFamilyChildYOffset(parentIds, childIds, canvas.nodes, canvas.annotations, NODE_SIZE, showAutoLabels, autoLabels, offsets, canvas.edges);
       for (const [nid, delta] of familyMap) offsets.set(nid, delta);
     }
     return offsets;
@@ -461,6 +461,10 @@ const RAIL_MAX_X = 400;
               <EdgeLine key={edge.id} edge={edge} nodes={canvas.nodes}
                 invalid={showValidation && validation.invalidEdgeIds.has(edge.id)}
                 renderOffsets={familyOffsets}
+                annotations={canvas.annotations}
+                edges={canvas.edges}
+                showAutoLabels={showAutoLabels}
+                autoLabels={autoLabels}
               />
             ))}
           </g>
@@ -608,6 +612,9 @@ const RAIL_MAX_X = 400;
             onUnmarkTwins={unmarkTwins}
             onRemoveEdges={ops.removeEdges}
             onUpdateEdgeType={updateEdgeType}
+            onCreateCoupleEdge={ops.createCoupleEdge}
+            onCreateConsanguinityEdge={ops.createConsanguinityEdge}
+            onCreateCoupleAndChild={ops.createCoupleAndChild}
           />
         )}
 

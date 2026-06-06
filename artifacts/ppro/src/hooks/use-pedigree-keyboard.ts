@@ -28,6 +28,9 @@ export interface UsePedigreeKeyboardParams {
   clearTwinCandidates: () => void;
   updateSelectedNode: (updates: Partial<PedigreeNode>) => void;
   selectedNode: PedigreeNode | null;
+  selectedIds: Set<string>;
+  canvasNodes: PedigreeNode[];
+  createCoupleAndChild: (idA: string, idB: string) => void;
   W: number;
   H: number;
 }
@@ -108,26 +111,38 @@ export function usePedigreeKeyboard(params: UsePedigreeKeyboardParams) {
       }
       if (e.altKey) return;
       if (e.key === "l" || e.key === "L") { k.runAutoLayout(true); return; }
-      if (e.key === "c" || e.key === "C") { k.addContextNode("child"); return; }
+if (e.key === "c" || e.key === "C") {
+        if (k.selectedIds.size === 2) {
+          const ids = [...k.selectedIds];
+          const nA = k.canvasNodes.find(n => n.id === ids[0]);
+          const nB = k.canvasNodes.find(n => n.id === ids[1]);
+          if (nA && nB && ((nA.type === "male" && nB.type === "female") || (nA.type === "female" && nB.type === "male"))) {
+            const maleId = nA.type === "male" ? nA.id : nB.id;
+            const femaleId = nA.type === "female" ? nA.id : nB.id;
+            k.createCoupleAndChild(maleId, femaleId);
+            return;
+          }
+        }
+        k.addContextNode("child");
+        return;
+      }
       if (e.key === "r" || e.key === "R") { k.addContextNode("partner"); return; }
       if (e.key === "b" || e.key === "B") { k.addContextNode("sibling"); return; }
       if (e.key === "m" || e.key === "M") {
-        if (k.selectedNode && k.selectedNode.type === "unknown") {
-          k.updateSelectedNode({ type: "male" });
-          return;
-        }
+        if (k.selectedNode) { k.updateSelectedNode({ type: "male" }); return; }
         k.addNode("male");
         return;
       }
       if (e.key === "f" || e.key === "F") {
-        if (k.selectedNode && k.selectedNode.type === "unknown") {
-          k.updateSelectedNode({ type: "female" });
-          return;
-        }
+        if (k.selectedNode) { k.updateSelectedNode({ type: "female" }); return; }
         k.addNode("female");
         return;
       }
-      if (e.key === "u" || e.key === "U") { k.addNode("unknown"); return; }
+      if (e.key === "u" || e.key === "U") {
+        if (k.selectedNode) { k.updateSelectedNode({ type: "unknown" }); return; }
+        k.addNode("unknown");
+        return;
+      }
       if (e.key === "p" || e.key === "P") { k.addNode("pregnancy"); return; }
       if (e.key === "k" || e.key === "K") { k.setLinkMode((prev) => (prev === "consanguinity" ? null : "consanguinity")); k.setLinkSource(null); return; }
       if (e.key === "s" || e.key === "S") { k.addNode("sab"); return; }

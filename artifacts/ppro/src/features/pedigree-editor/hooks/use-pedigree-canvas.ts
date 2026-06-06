@@ -15,6 +15,7 @@ interface UsePedigreeCanvasParams {
   preDragCanvasRef: React.MutableRefObject<CanvasData | null>;
   rafRef: React.MutableRefObject<number | null>;
   pendingAnnDragRef: React.MutableRefObject<{ annId: string; startSVG: { x: number; y: number }; initOffset: { x: number; y: number }; labelBelowHeight: number; stackIndex: number } | null>;
+  justCtrlSelectedNodeIdRef: React.MutableRefObject<string | null>;
 }
 
 export function usePedigreeCanvas(params: UsePedigreeCanvasParams) {
@@ -22,6 +23,7 @@ export function usePedigreeCanvas(params: UsePedigreeCanvasParams) {
     stateRef, dispatch,
     svgRef, lassoRef, isLassoingRef, lassoRectRef,
     spaceHeldRef, preDragCanvasRef, rafRef, pendingAnnDragRef,
+    justCtrlSelectedNodeIdRef,
   } = params;
 
   const draggingRef = useRef<DragState | null>(null);
@@ -47,16 +49,29 @@ export function usePedigreeCanvas(params: UsePedigreeCanvasParams) {
     if (s.linkMode) return;
     const coords = getSVGCoords(e);
     if (!coords) return;
-    const movingIds = s.selectedIds.has(nodeId) ? s.selectedIds : new Set([nodeId]);
-    if (!s.selectedIds.has(nodeId)) {
-      dispatch({ type: "SET_STATE", patch: { selectedIds: new Set([nodeId]) } });
+
+    const ctrlHeld = e.ctrlKey || e.metaKey;
+    const isSelected = s.selectedIds.has(nodeId);
+
+    let movingIds = isSelected ? s.selectedIds : new Set([nodeId]);
+    if (!isSelected) {
+      if (ctrlHeld) {
+        movingIds = new Set(s.selectedIds);
+        movingIds.add(nodeId);
+        justCtrlSelectedNodeIdRef.current = nodeId;
+      } else {
+        movingIds = new Set([nodeId]);
+        justCtrlSelectedNodeIdRef.current = null;
+      }
+      dispatch({ type: "SET_STATE", patch: { selectedIds: movingIds } });
+    } else {
+      justCtrlSelectedNodeIdRef.current = null;
     }
     const rows = computeSnapRows(s.canvas.nodes, movingIds);
     const initialPositions: Record<string, { x: number; y: number }> = {};
     for (const n of s.canvas.nodes) {
       if (movingIds.has(n.id)) initialPositions[n.id] = { x: n.x, y: n.y };
     }
-    const ctrlHeld = e.ctrlKey || e.metaKey;
     const partnerIds = new Set<string>();
     const parentIdsToMove = new Set<string>();
     if (!ctrlHeld) {

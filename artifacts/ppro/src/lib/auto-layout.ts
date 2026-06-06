@@ -33,7 +33,7 @@ export interface LayoutEdge {
   targetId: string;
 }
 
-import { GEN_GRID } from "@/features/pedigree-editor/canvas/types";
+import { GEN_GRID, NODE_GAP } from "@/features/pedigree-editor/canvas/types";
 import { resolveAllCollisions } from "./layout-engine";
 const GEN_Y_START = GEN_GRID;
 const GEN_SPACING = GEN_GRID;
@@ -200,15 +200,17 @@ export function computeAutoLayout(
     const unpinnedIds = nodeIds.filter((id) => !knownPos.has(id));
     if (unpinnedIds.length === 0) continue;
 
-    // Group unpinned nodes by their effective parent set (sibship groups)
-    const sibGroups: { ids: string[]; centerX: number }[] = [];
-    const assigned = new Set<string>();
+    // Group unpinned nodes by their parentage/spouses
+    const groupsMap = new Map<string, string[]>(); // groupKey -> nodeIds
+    const groupCenterX = new Map<string, number>(); // groupKey -> centerX
+    const nodeToGroupKey = new Map<string, string>();
 
-    for (const id of unpinnedIds) {
-      if (assigned.has(id)) continue;
-      // Collect all siblings sharing the same effective parent set
+    const nonFounders = unpinnedIds.filter((id) => (parentsOf.get(id) ?? []).length > 0);
+    const founders = unpinnedIds.filter((id) => (parentsOf.get(id) ?? []).length === 0);
+
+    // 1. Group non-founders by their parentKey
+    for (const id of nonFounders) {
       const myParents = new Set(parentsOf.get(id) ?? []);
-      // Expand to include couple partners of parents
       const effectiveParents = new Set(myParents);
       for (const pid of myParents) {
         for (const partnerId of couplesOf.get(pid) ?? []) {
@@ -216,25 +218,54 @@ export function computeAutoLayout(
         }
       }
       const parentKey = [...effectiveParents].sort().join("_");
-      const groupIds: string[] = [];
-      for (const otherId of unpinnedIds) {
-        if (assigned.has(otherId)) continue;
-        const otherParents = new Set(parentsOf.get(otherId) ?? []);
-        const otherEffective = new Set(otherParents);
-        for (const pid of otherParents) {
-          for (const partnerId of couplesOf.get(pid) ?? []) {
-            otherEffective.add(partnerId);
-          }
-        }
-        const otherKey = [...otherEffective].sort().join("_");
-        if (otherKey === parentKey) {
-          groupIds.push(otherId);
-          assigned.add(otherId);
-        }
+      
+      if (!groupsMap.has(parentKey)) {
+        groupsMap.set(parentKey, []);
+        const pxs = getEffectiveParentXs(id, parentsOf, couplesOf, knownPos, nodeMap);
+        const cx = pxs.length > 0 ? pxs.reduce((a, b) => a + b, 0) / pxs.length : CANVAS_CENTER_X;
+        groupCenterX.set(parentKey, cx);
       }
-      const pxs = getEffectiveParentXs(id, parentsOf, couplesOf, knownPos, nodeMap);
-      const cx = pxs.length > 0 ? pxs.reduce((a, b) => a + b, 0) / pxs.length : CANVAS_CENTER_X;
-      sibGroups.push({ ids: groupIds, centerX: cx });
+      groupsMap.get(parentKey)!.push(id);
+      nodeToGroupKey.set(id, parentKey);
+    }
+
+    // 2. Attach married-in founders to their spouse's group
+    const remainingFounders: string[] = [];
+    for (const id of founders) {
+      const partners = (couplesOf.get(id) ?? []).filter((p) => unpinnedIds.includes(p));
+      const nonFounderPartner = partners.find((p) => nodeToGroupKey.has(p));
+      if (nonFounderPartner) {
+        const parentKey = nodeToGroupKey.get(nonFounderPartner)!;
+        groupsMap.get(parentKey)!.push(id);
+        nodeToGroupKey.set(id, parentKey);
+      } else {
+        remainingFounders.push(id);
+      }
+    }
+
+    // 3. Group remaining founders (founder couples and single founders)
+    const assignedFounders = new Set<string>();
+    let founderGroupIndex = 0;
+    for (const id of remainingFounders) {
+      if (assignedFounders.has(id)) continue;
+      const key = `founder_gp_${founderGroupIndex++}`;
+      groupsMap.set(key, [id]);
+      groupCenterX.set(key, CANVAS_CENTER_X);
+      assignedFounders.add(id);
+      nodeToGroupKey.set(id, key);
+
+      const partners = (couplesOf.get(id) ?? []).filter((p) => remainingFounders.includes(p) && !assignedFounders.has(p));
+      if (partners.length > 0 && partners[0]) {
+        groupsMap.get(key)!.push(partners[0]);
+        assignedFounders.add(partners[0]);
+        nodeToGroupKey.set(partners[0], key);
+      }
+    }
+
+    // Convert to the array shape sibGroups expects
+    const sibGroups: { ids: string[]; centerX: number }[] = [];
+    for (const [key, ids] of groupsMap) {
+      sibGroups.push({ ids, centerX: groupCenterX.get(key) ?? CANVAS_CENTER_X });
     }
 
     // Sort groups by centerX for left-to-right placement
@@ -277,7 +308,7 @@ export function computeAutoLayout(
         }
         knownPos.set(curr, { x, y });
       }
-      nextAvailableX = x + H_SPACING;
+      nextAvailableX = x + Math.round(NODE_GAP * 2.0);
     }
   }
 

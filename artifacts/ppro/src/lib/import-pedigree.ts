@@ -1,4 +1,6 @@
 import type { PedigreeNode, PedigreeEdge } from "@/features/pedigree-editor/canvas/types";
+import { computeAutoLayout } from "./auto-layout";
+
 
 export interface CanvasData {
   nodes: PedigreeNode[];
@@ -69,317 +71,12 @@ function parseAffectionLevel(code: string): { affected: boolean; level: number }
   return { affected: true, level: n };
 }
 
-// ---------------------------------------------------------------------------
-// Layout engine
-// ---------------------------------------------------------------------------
-function layoutNodes(individuals: Individual[]): Map<string, { x: number; y: number }> {
-  const byId = new Map(individuals.map((i) => [i.rawId, i]));
 
-  const generation = new Map<string, number>();
-  const founders = individuals.filter(
-    (i) => (!i.fatherId || !byId.has(i.fatherId)) && (!i.motherId || !byId.has(i.motherId))
-  );
-  founders.forEach((f) => generation.set(f.rawId, 0));
-
-  const queue = [...founders];
-  let head = 0;
-  let safety = 0;
-  while (head < queue.length && safety++ < 10000) {
-    const ind = queue[head];
-    if (!ind) break;
-    head++;
-    for (const child of individuals) {
-      if (child.fatherId === ind.rawId || child.motherId === ind.rawId) {
-        const parentGen = Math.max(
-          generation.get(child.fatherId ?? "") ?? 0,
-          generation.get(child.motherId ?? "") ?? 0
-        );
-        if (!generation.has(child.rawId)) {
-          generation.set(child.rawId, parentGen + 1);
-          queue.push(child);
-        }
-      }
-    }
-  }
-
-  individuals.forEach((i) => {
-    if (!generation.has(i.rawId)) generation.set(i.rawId, 0);
-  });
-
-  // Spouse alignment: align partners to same generation
-  const couplePartnerIds = new Map<string, Set<string>>();
-  for (const ind of individuals) {
-    if (ind.fatherId && ind.motherId && byId.has(ind.fatherId) && byId.has(ind.motherId)) {
-      const key = ind.fatherId < ind.motherId ? `${ind.fatherId}_${ind.motherId}` : `${ind.motherId}_${ind.fatherId}`;
-      if (!couplePartnerIds.has(key)) couplePartnerIds.set(key, new Set());
-      couplePartnerIds.get(key)!.add(ind.fatherId);
-      couplePartnerIds.get(key)!.add(ind.motherId);
-    }
-  }
-
-  let changed = true;
-  while (changed) {
-    changed = false;
-    for (const [, partnerIds] of couplePartnerIds) {
-      const maxGen = Math.max(...[...partnerIds].map(id => generation.get(id) ?? 0));
-      for (const id of partnerIds) {
-        if ((generation.get(id) ?? 0) < maxGen) {
-          generation.set(id, maxGen);
-          changed = true;
-        }
-      }
-    }
-  }
-
-  // Re-propagate children after spouse alignment
-  const sortedByGen = [...generation.entries()].sort((a, b) => a[1] - b[1]);
-  for (const [id] of sortedByGen) {
-    const ind = byId.get(id);
-    if (!ind) continue;
-    for (const child of individuals) {
-      if (child.fatherId === id || child.motherId === id) {
-        const parentGen = Math.max(
-          generation.get(child.fatherId ?? "") ?? 0,
-          generation.get(child.motherId ?? "") ?? 0
-        );
-        const childGen = generation.get(child.rawId) ?? 0;
-        if (childGen <= parentGen) {
-          generation.set(child.rawId, parentGen + 1);
-        }
-      }
-    }
-  }
-
-  const byGen = new Map<number, string[]>();
-  for (const [id, gen] of generation.entries()) {
-    if (!byGen.has(gen)) byGen.set(gen, []);
-    byGen.get(gen)!.push(id);
-  }
-
-  // Build couple map: who is paired with whom
-  const partnerOf = new Map<string, string>();
-  for (const ind of individuals) {
-    if (ind.fatherId && ind.motherId && byId.has(ind.fatherId) && byId.has(ind.motherId)) {
-      if (!partnerOf.has(ind.fatherId)) partnerOf.set(ind.fatherId, ind.motherId);
-      if (!partnerOf.has(ind.motherId)) partnerOf.set(ind.motherId, ind.fatherId);
-    }
-  }
-
-  // For each generation, build placement units: couple pairs (male,female) and singles
-  interface PlacementUnit {
-    ids: string[];
-    isCouple: boolean;
-    sortKey: string;
-  }
-
-  const genUnits = new Map<number, PlacementUnit[]>();
-
-  for (const [gen, ids] of byGen.entries()) {
-    const units: PlacementUnit[] = [];
-    const assigned = new Set<string>();
-
-    // Identify couples in this generation
-    const coupleKeysSeen = new Set<string>();
-    for (const id of ids) {
-      if (assigned.has(id)) continue;
-      const partnerId = partnerOf.get(id);
-      if (partnerId && generation.get(partnerId) === gen && !assigned.has(partnerId)) {
-        const coupleKey = id < partnerId ? `${id}_${partnerId}` : `${partnerId}_${id}`;
-        if (!coupleKeysSeen.has(coupleKey)) {
-          coupleKeysSeen.add(coupleKey);
-          const ind = byId.get(id)!;
-          const maleId = ind.sex === "male" ? id : partnerId;
-          const femaleId = ind.sex === "male" ? partnerId : id;
-          const maleInd = byId.get(maleId)!;
-          units.push({
-            ids: [maleId, femaleId],
-            isCouple: true,
-            sortKey: `${maleInd.fatherId ?? "0"}_${maleInd.motherId ?? "0"}`,
-          });
-          assigned.add(maleId);
-          assigned.add(femaleId);
-        }
-      }
-    }
-
-    // Add remaining singles
-    for (const id of ids) {
-      if (!assigned.has(id)) {
-        const ind = byId.get(id)!;
-        units.push({
-          ids: [id],
-          isCouple: false,
-          sortKey: `${ind.fatherId ?? "0"}_${ind.motherId ?? "0"}`,
-        });
-      }
-    }
-
-    // Sort units by sortKey
-    units.sort((a, b) => a.sortKey < b.sortKey ? -1 : a.sortKey > b.sortKey ? 1 : 0);
-    genUnits.set(gen, units);
-  }
-
-  // Layout constants
-  const STEP_X = 120;
-  const STEP_Y = 120;
-  const START_Y = 120;
-  const START_X = 120;
-  const COUPLE_INTERNAL_GAP = STEP_X * 0.5;
-  const FAMILY_GAP = STEP_X * 0.75;
-
-  const positions = new Map<string, { x: number; y: number }>();
-
-  // Pass 1: Place gen 0
-  const gen0Units = genUnits.get(0) ?? [];
-  const gen0Widths: number[] = gen0Units.map(u =>
-    u.isCouple ? STEP_X + COUPLE_INTERNAL_GAP + STEP_X : STEP_X
-  );
-  const gen0TotalWidth = gen0Widths.reduce((s, w) => s + w, 0) + Math.max(0, gen0Units.length - 1) * FAMILY_GAP;
-  let xCursor = START_X;
-  for (let u = 0; u < gen0Units.length; u++) {
-    if (u > 0) xCursor += FAMILY_GAP;
-    const unit = gen0Units[u]!;
-    if (unit.isCouple) {
-      positions.set(unit.ids[0]!, { x: xCursor, y: START_Y });
-      positions.set(unit.ids[1]!, { x: xCursor + STEP_X + COUPLE_INTERNAL_GAP, y: START_Y });
-      xCursor += STEP_X + COUPLE_INTERNAL_GAP + STEP_X;
-    } else {
-      positions.set(unit.ids[0]!, { x: xCursor, y: START_Y });
-      xCursor += STEP_X;
-    }
-  }
-  // Center gen 0
-  const gen0RightEdge = xCursor;
-  const gen0CenterOffset = (gen0TotalWidth - (gen0RightEdge - START_X)) / 2;
-  const gen0Ids = byGen.get(0) ?? [];
-  for (const id of gen0Ids) {
-    const pos = positions.get(id)!;
-    positions.set(id, { x: pos.x + gen0CenterOffset, y: pos.y });
-  }
-
-  // Pass 2: Place each subsequent generation
-  // For each sibship group, compute ideal center from parent couple midpoint
-  const maxGen = Math.max(...Array.from(byGen.keys()), 0);
-
-  interface SibshipGroup {
-    ids: string[];
-    fatherId: string | null;
-    motherId: string | null;
-    idealCenterX: number;
-  }
-
-  for (let gen = 1; gen <= maxGen; gen++) {
-    const ids = byGen.get(gen) ?? [];
-    if (ids.length === 0) continue;
-
-    // Group by parent couple
-    const sibGroups: SibshipGroup[] = [];
-    let currentIds: string[] = [];
-    let lastFatherId: string | null = null;
-    let lastMotherId: string | null = null;
-    let lastParentKey = "";
-
-    // Sort ids by parent key first for grouping
-    const sortedIds = [...ids].sort((a, b) => {
-      const ia = byId.get(a)!;
-      const ib = byId.get(b)!;
-      const ka = `${ia.fatherId ?? "0"}_${ia.motherId ?? "0"}`;
-      const kb = `${ib.fatherId ?? "0"}_${ib.motherId ?? "0"}`;
-      if (ka < kb) return -1;
-      if (ka > kb) return 1;
-      if (ia.sex === "male" && ib.sex !== "male") return -1;
-      if (ia.sex !== "male" && ib.sex === "male") return 1;
-      return a.localeCompare(b);
-    });
-
-    for (const id of sortedIds) {
-      const ind = byId.get(id)!;
-      const parentKey = `${ind.fatherId ?? "0"}_${ind.motherId ?? "0"}`;
-      if (parentKey !== lastParentKey && currentIds.length > 0) {
-        sibGroups.push({ ids: currentIds, fatherId: lastFatherId, motherId: lastMotherId, idealCenterX: 0 });
-        currentIds = [];
-      }
-      currentIds.push(id);
-      lastParentKey = parentKey;
-      lastFatherId = ind.fatherId;
-      lastMotherId = ind.motherId;
-    }
-    if (currentIds.length > 0) sibGroups.push({ ids: currentIds, fatherId: lastFatherId, motherId: lastMotherId, idealCenterX: 0 });
-
-    // Compute ideal center for each group from parent positions
-    for (const group of sibGroups) {
-      const fatherPos = group.fatherId ? positions.get(group.fatherId) : null;
-      const motherPos = group.motherId ? positions.get(group.motherId) : null;
-      if (fatherPos && motherPos) {
-        group.idealCenterX = (fatherPos.x + motherPos.x) / 2;
-      } else if (fatherPos) {
-        group.idealCenterX = fatherPos.x;
-      } else if (motherPos) {
-        group.idealCenterX = motherPos.x;
-      } else {
-        group.idealCenterX = START_X;
-      }
-    }
-
-    // Sort groups by ideal center for left-to-right placement
-    sibGroups.sort((a, b) => a.idealCenterX - b.idealCenterX);
-
-    // Place groups: each group centered around its idealCenterX, with collision avoidance
-    const groupWidths = sibGroups.map(g => (g.ids.length - 1) * STEP_X);
-    let nextAvailableX = -Infinity;
-
-    for (let gi = 0; gi < sibGroups.length; gi++) {
-      const group = sibGroups[gi]!;
-      const gw = groupWidths[gi]!;
-      const groupStartX = group.idealCenterX - gw / 2;
-      const actualStartX = Math.max(groupStartX, nextAvailableX);
-
-      const baseY = START_Y + gen * STEP_Y;
-      for (let j = 0; j < group.ids.length; j++) {
-        positions.set(group.ids[j]!, {
-          x: actualStartX + j * STEP_X,
-          y: baseY,
-        });
-      }
-      nextAvailableX = actualStartX + gw + FAMILY_GAP;
-    }
-
-    // Pass 3: Detect overlapping sibship groups and push down
-    if (sibGroups.length > 1) {
-      interface GroupBounds { xMin: number; xMax: number; y: number; ids: string[] }
-      const bounds: GroupBounds[] = sibGroups.map(group => {
-        const xs = group.ids.map(id => positions.get(id)!.x);
-        const y = positions.get(group.ids[0]!)!.y;
-        return { xMin: Math.min(...xs) - STEP_X * 0.45, xMax: Math.max(...xs) + STEP_X * 0.45, y, ids: group.ids };
-      });
-
-      bounds.sort((a, b) => a.xMin - b.xMin);
-
-      for (let i = 1; i < bounds.length; i++) {
-        const prev = bounds[i - 1]!;
-        const curr = bounds[i]!;
-        if (curr.xMin < prev.xMax) {
-          const yOffset = STEP_Y;
-          for (const id of curr.ids) {
-            const pos = positions.get(id)!;
-            positions.set(id, { x: pos.x, y: pos.y + yOffset });
-          }
-          curr.y += yOffset;
-          curr.xMax += 0; // x doesn't change but track y shift for subsequent checks
-        }
-      }
-    }
-  }
-
-  return positions;
-}
 
 // ---------------------------------------------------------------------------
 // Convert intermediate → CanvasData (G2: SAB/adoption, G3: consanguinity groups, G5: couple-bar edges)
 // ---------------------------------------------------------------------------
 function toCanvasData(individuals: Individual[]): CanvasData {
-  const positions = layoutNodes(individuals);
-
   const nodes: PedigreeNode[] = individuals.map((ind, idx) => {
     const ext = ind as ExtendedIndividual;
     const nodeType: PedigreeNode["type"] = ext.type === "sab" ? "sab" : ind.sex;
@@ -395,8 +92,8 @@ function toCanvasData(individuals: Individual[]): CanvasData {
       label: ind.name || ind.rawId,
       age: ind.age,
       notes: ext.notes || undefined,
-      x: positions.get(ind.rawId)?.x ?? 100 + idx * 120,
-      y: positions.get(ind.rawId)?.y ?? 100,
+      x: 100 + idx * 120,
+      y: 100,
     };
   });
 
@@ -464,8 +161,11 @@ function toCanvasData(individuals: Individual[]): CanvasData {
     }
   }
 
-  return { nodes, edges };
+  const positionedNodes = computeAutoLayout(nodes, edges, false) as PedigreeNode[];
+
+  return { nodes: positionedNodes, edges };
 }
+
 
 // ---------------------------------------------------------------------------
 // PLINK PED format parser
@@ -835,13 +535,12 @@ export function parseHaploPainterCSV(content: string, filename: string): ParseRe
     const t = rawLines[i]?.trim() ?? "";
     if (!t) continue;
     if (t.startsWith("#") || t.startsWith("!") || t.startsWith("/")) continue;
-    if (t.startsWith("*")) {
-      const withoutStar = t.slice(1).split(/[\t,;|]/).map(c => c.trim().toLowerCase().replace(/[\s_-]/g, ""));
-      const matchCount = headerKeywords.filter(h => withoutStar.some(lh => lh.includes(h))).length;
-      if (matchCount >= 3 && headerLineIdx === -1) {
-        headerLineIdx = preFiltered.length;
-        preFiltered.push(t.slice(1));
-      }
+    const cleanedLine = t.startsWith("*") ? t.slice(1) : t;
+    const parts = cleanedLine.split(/[\t,;|]/).map(c => c.trim().toLowerCase().replace(/[\s_-]/g, ""));
+    const matchCount = headerKeywords.filter(h => parts.some(lh => lh.includes(h))).length;
+    if (matchCount >= 3 && headerLineIdx === -1 && (t.startsWith("*") || preFiltered.length === 0)) {
+      headerLineIdx = preFiltered.length;
+      preFiltered.push(cleanedLine);
       continue;
     }
     preFiltered.push(t);
@@ -876,8 +575,14 @@ export function parseHaploPainterCSV(content: string, filename: string): ParseRe
     if (!line) continue;
     if (i === headerLineIdx) continue;
 
-    let cols = line.split("\t");
-    if (cols.length < 6) cols = line.split(",");
+    let cols = parseCSVLine(line, "\t");
+    if (cols.length < 6) {
+      cols = parseCSVLine(line, ";");
+      if (cols.length < 6) {
+        cols = parseCSVLine(line, ",");
+      }
+    }
+
     if (cols.length < 6) {
       if (errorCount < MAX_ERRORS) {
         warnings.push(`Line ${i + 1}: expected ≥6 columns, got ${cols.length} — skipped`);
@@ -894,11 +599,11 @@ export function parseHaploPainterCSV(content: string, filename: string): ParseRe
       if (errorCount < MAX_ERRORS) { warnings.push(`Line ${i + 1}: invalid PERSON id — skipped`); errorCount++; }
       continue;
     }
-    if (!/^[012xmfXMF]{1}$/.test(sexCode)) {
+    if (!/^(?:[012xmfXMF]|male|female|unknown)$/i.test(sexCode)) {
       if (errorCount < MAX_ERRORS) { warnings.push(`Line ${i + 1}: invalid GENDER "${sexCode}" — skipped`); errorCount++; }
       continue;
     }
-    if (!/^[0123456789xX]{1}$/.test(phenoCode)) {
+    if (!/^(?:-?[0-9]+|[xX]|affected|unaffected|unknown)$/i.test(phenoCode)) {
       if (errorCount < MAX_ERRORS) { warnings.push(`Line ${i + 1}: invalid AFFECTION "${phenoCode}" — skipped`); errorCount++; }
       continue;
     }
@@ -938,35 +643,38 @@ export function parseHaploPainterCSV(content: string, filename: string): ParseRe
   for (const record of rawRecords) {
     familyIds.add(record.famId || "FAM001");
 
+    const sexCodeLower = record.sexCode.toLowerCase();
     const sex: Individual["sex"] =
-      record.sexCode === "1" || record.sexCode === "m" || record.sexCode === "M" ? "male"
-      : record.sexCode === "2" || record.sexCode === "f" || record.sexCode === "F" ? "female"
+      sexCodeLower === "1" || sexCodeLower === "m" || sexCodeLower === "male" ? "male"
+      : sexCodeLower === "2" || sexCodeLower === "f" || sexCodeLower === "female" ? "female"
       : "unknown";
 
     let affected: boolean;
     let affectedLevel: number;
+    const phenoLower = record.phenoCode.toLowerCase();
     if (usesHaploConvention) {
       const n = parseInt(record.phenoCode, 10);
       affected = !isNaN(n) && n > 0;
       affectedLevel = affected ? n : 0;
     } else {
-      affected = record.phenoCode === "2";
+      affected = record.phenoCode === "2" || phenoLower === "affected";
       affectedLevel = affected ? 2 : 0;
     }
 
     const fatherId = record.father === "0" || record.father === "." || record.father.toLowerCase() === "na" ? null : record.father;
     const motherId = record.mother === "0" || record.mother === "." || record.mother.toLowerCase() === "na" ? null : record.mother;
 
-    const isDeceased = /^[1yY]$/.test(record.deceasedRaw);
-    const isProband = /^[1yY]$/.test(record.probandRaw);
-    const isSab = /^[1yY]$/.test(record.sabRaw);
-    const isAdopted = /^[1yY]$/.test(record.adoptedRaw);
+    const isTrueValue = (val: string) => /^(?:1|[yY](?:es)?|true)$/i.test(val);
+    const isDeceased = isTrueValue(record.deceasedRaw) || record.deceasedRaw.toLowerCase() === "deceased";
+    const isProband = isTrueValue(record.probandRaw) || record.probandRaw.toLowerCase() === "proband";
+    const isSab = isTrueValue(record.sabRaw) || record.sabRaw.toLowerCase() === "sab";
+    const isAdopted = isTrueValue(record.adoptedRaw) || record.adoptedRaw.toLowerCase() === "adopted";
     const consanguinityGroup = (record.consangRaw && record.consangRaw !== "0" && record.consangRaw !== "." && record.consangRaw.toLowerCase() !== "na") ? record.consangRaw : null;
 
     let twinGroup: string | null = null;
     let twinType: "m" | "d" | null = null;
     if (record.twinRaw && record.twinRaw !== "0" && record.twinRaw !== ".") {
-      const m = record.twinRaw.match(/^([mdMD])_(.+)$/);
+      const m = record.twinRaw.match(/^([mdMD])[-_]?(.+)$/);
       if (m) {
         twinType = m[1]!.toLowerCase() as "m" | "d";
         twinGroup = m[2]!;
@@ -999,6 +707,20 @@ export function parseHaploPainterCSV(content: string, filename: string): ParseRe
       twinType,
       consanguinityGroup,
     });
+  }
+
+  // Warning for missing referenced parents
+  for (const record of rawRecords) {
+    if (record.father && record.father !== "0" && record.father !== "." && record.father.toLowerCase() !== "na") {
+      if (!seenIds.has(record.father)) {
+        warnings.push(`Individual "${record.rawId}" references father "${record.father}" but this father is not defined in the file.`);
+      }
+    }
+    if (record.mother && record.mother !== "0" && record.mother !== "." && record.mother.toLowerCase() !== "na") {
+      if (!seenIds.has(record.mother)) {
+        warnings.push(`Individual "${record.rawId}" references mother "${record.mother}" but this mother is not defined in the file.`);
+      }
+    }
   }
 
   if (individuals.length === 0) {
@@ -1118,12 +840,17 @@ export function parseFile(content: string, filename: string): ParseResult {
     }) ?? allNonCommentLines[0] ?? "";
 
     let csvPeekLine = firstDataLine;
+    let delimiter = "\t";
     if (allNonCommentLines.length >= 2) {
-      const tabColsFirst = firstDataLine.split("\t");
-      const genderColFirst = tabColsFirst[4];
+      if (firstDataLine.includes("\t")) delimiter = "\t";
+      else if (firstDataLine.includes(";")) delimiter = ";";
+      else if (firstDataLine.includes(",")) delimiter = ",";
+
+      const colsFirst = firstDataLine.split(delimiter);
+      const genderColFirst = colsFirst[4];
       const firstLineIsHeader = /^[012xmfXMF]{1}$/.test(genderColFirst?.trim() ?? "") === false &&
-        tabColsFirst.length >= 6 &&
-        tabColsFirst.some((c) => c && /^[a-zA-Z]{2,}/.test(c.trim()));
+        colsFirst.length >= 6 &&
+        colsFirst.some((c) => c && /^[a-zA-Z]{2,}/.test(c.trim()));
       if (firstLineIsHeader) {
         const nextDataLine = allNonCommentLines.find((l) => {
           const idx = allNonCommentLines.indexOf(l);
@@ -1132,10 +859,14 @@ export function parseFile(content: string, filename: string): ParseResult {
         csvPeekLine = nextDataLine ?? allNonCommentLines[1] ?? "";
       }
     }
-    const tabCols = csvPeekLine.split("\t");
-    const genderCol = tabCols[4];
+    if (csvPeekLine.includes("\t")) delimiter = "\t";
+    else if (csvPeekLine.includes(";")) delimiter = ";";
+    else if (csvPeekLine.includes(",")) delimiter = ",";
+
+    const peekCols = csvPeekLine.split(delimiter);
+    const genderCol = peekCols[4];
     const looksLikeHaploCSV =
-      tabCols.length >= 6 &&
+      peekCols.length >= 6 &&
       genderCol !== undefined && /^[012xmfXMF]{1}$/.test(genderCol.trim());
     if (looksLikeHaploCSV) return parseHaploPainterCSV(sanitized, filename);
 
