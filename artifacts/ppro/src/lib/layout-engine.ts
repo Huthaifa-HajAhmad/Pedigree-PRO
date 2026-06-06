@@ -490,45 +490,19 @@ export function recenterParents(
   let isTightening = false;
 
   if (parents.length === 2) {
-    const sortedParents = [...parents].sort((a, b) => a.x - b.x);
-    const adj = buildAdjacency(nodes, edges);
-    const p0HasParents = (adj.parentsOf.get(sortedParents[0]!.id)?.length ?? 0) > 0;
-    const p1HasParents = (adj.parentsOf.get(sortedParents[1]!.id)?.length ?? 0) > 0;
-
-    if (p0HasParents && p1HasParents) {
-      // Both are anchored to their own parents. Do not shift them.
-      return nodes;
-    } else if (p0HasParents && !p1HasParents) {
-      // Left parent is anchored. Spouse (right) must be at left + NODE_GAP.
-      const targetRight = sortedParents[0]!.x + NODE_GAP;
-      if (Math.abs(sortedParents[1]!.x - targetRight) < 1) return nodes;
-      parentTargets.set(sortedParents[0]!.id, sortedParents[0]!.x);
-      parentTargets.set(sortedParents[1]!.id, targetRight);
+    const sortedParents = [...parents].sort((a, b) => {
+      if (a.type === "male" && b.type === "female") return -1;
+      if (a.type === "female" && b.type === "male") return 1;
+      return a.x - b.x;
+    });
+    const leftTarget = childCenter - NODE_GAP / 2;
+    const rightTarget = childCenter + NODE_GAP / 2;
+    parentTargets.set(sortedParents[0]!.id, leftTarget);
+    parentTargets.set(sortedParents[1]!.id, rightTarget);
+    if (Math.abs(sortedParents[1]!.x - sortedParents[0]!.x - NODE_GAP) > 1) {
       isTightening = true;
-    } else if (!p0HasParents && p1HasParents) {
-      // Right parent is anchored. Spouse (left) must be at right - NODE_GAP.
-      const targetLeft = sortedParents[1]!.x - NODE_GAP;
-      if (Math.abs(sortedParents[0]!.x - targetLeft) < 1) return nodes;
-      parentTargets.set(sortedParents[1]!.id, sortedParents[1]!.x);
-      parentTargets.set(sortedParents[0]!.id, targetLeft);
-      isTightening = true;
-    } else {
-      // Neither is anchored. Center over children.
-      const leftTarget = childCenter - NODE_GAP / 2;
-      const rightTarget = childCenter + NODE_GAP / 2;
-      parentTargets.set(sortedParents[0]!.id, leftTarget);
-      parentTargets.set(sortedParents[1]!.id, rightTarget);
-      if (Math.abs(sortedParents[1]!.x - sortedParents[0]!.x - NODE_GAP) > 1) {
-        isTightening = true;
-      }
     }
   } else if (parents.length === 1) {
-    const adj = buildAdjacency(nodes, edges);
-    const hasParents = (adj.parentsOf.get(parents[0]!.id)?.length ?? 0) > 0;
-    if (hasParents) {
-      // Anchored to its own parents. Do not shift.
-      return nodes;
-    }
     parentTargets.set(parents[0]!.id, childCenter);
   } else {
     const shift = childCenter - parentCenter;
@@ -646,26 +620,44 @@ export function recenterAllFamilies(
 
   const sortedRows = Array.from(childRows).sort((a, b) => b - a);
 
-  for (const rowY of sortedRows) {
-    const rowFamilies = familyList.filter(f => {
-      const childId = f.childIds[0];
-      if (!childId) return false;
-      const child = currentNodes.find(n => n.id === childId);
-      return child && Math.abs(child.y - rowY) < ROW_TOLERANCE;
-    });
+  let changed = true;
+  let safety = 0;
+  while (changed && safety++ < 5) {
+    changed = false;
+    const oldPositions = currentNodes.map(n => `${n.id}:${n.x}`).join(",");
 
-    let parentRowResolved = false;
+    for (const rowY of sortedRows) {
+      const rowFamilies = familyList.filter(f => {
+        const childId = f.childIds[0];
+        if (!childId) return false;
+        const child = currentNodes.find(n => n.id === childId);
+        return child && Math.abs(child.y - rowY) < ROW_TOLERANCE;
+      });
 
-    for (const f of rowFamilies) {
-      const nextNodes = recenterParents(currentNodes, edges, f.parentIds, f.childIds, excludeIds);
-      if (nextNodes !== currentNodes) {
-        currentNodes = nextNodes;
-        parentRowResolved = true;
+      // Exclude all nodes at or below the child row from being shifted
+      const rowExcludeIds = new Set([
+        ...(excludeIds ?? []),
+        ...currentNodes.filter(n => n.y >= rowY).map(n => n.id)
+      ]);
+
+      let parentRowResolved = false;
+
+      for (const f of rowFamilies) {
+        const nextNodes = recenterParents(currentNodes, edges, f.parentIds, f.childIds, rowExcludeIds);
+        if (nextNodes !== currentNodes) {
+          currentNodes = nextNodes;
+          parentRowResolved = true;
+        }
+      }
+
+      if (parentRowResolved) {
+        currentNodes = resolveAllCollisions(currentNodes, edges, rowExcludeIds);
       }
     }
 
-    if (parentRowResolved) {
-      currentNodes = resolveAllCollisions(currentNodes, edges, excludeIds);
+    const newPositions = currentNodes.map(n => `${n.id}:${n.x}`).join(",");
+    if (newPositions !== oldPositions) {
+      changed = true;
     }
   }
 

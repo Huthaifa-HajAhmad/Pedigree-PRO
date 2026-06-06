@@ -10,6 +10,7 @@ import {
   computeMaxLoopTrackOnRow,
   computeVerticalCrossingYCoordinates,
   computeCrossingXCoordinates,
+  computeSibshipGroupTrack,
 } from "./canvasUtils";
 
 const MIN_BAR_CHILD_GAP = 30;
@@ -50,7 +51,7 @@ export function computeFamilyChildYOffset(
   const children = childIds.map((id) => nodeMap.get(id)).filter((n): n is PedigreeNode => !!n);
   if (children.length === 0) return result;
 
-  const childTopY = Math.min(...children.map((c) => c.y + (parentOffsets?.get(c.id) ?? 0))) - nodeSize / 2;
+  const childTopY = Math.min(...children.map((c) => c.y)) - nodeSize / 2;
 
   // Find intermediate nodes if there are exactly 2 parents
   const intermediateNodeIds: string[] = [];
@@ -90,9 +91,9 @@ export function computeFamilyChildYOffset(
   const rowY = p1 ? p1.y + (parentOffsets?.get(p1.id) ?? 0) : 0;
   const maxTrackIndex = edges ? computeMaxLoopTrackOnRow(rowY, edges, nodes, parentOffsets) : 0;
 
-  // The sibling bar must clear the loop (maxBottom + 12 + maxTrackIndex * 8) by a safety gap of 10px, so maxBottom + 22 + maxTrackIndex * 8
-  const barY = Math.max(childTopY - MIN_BAR_CHILD_GAP, maxBottom + 22 + maxTrackIndex * 8);
-  const delta = Math.max(0, barY - (childTopY - MIN_BAR_CHILD_GAP));
+  const sibTrack = edges ? computeSibshipGroupTrack(parentIds, childIds, edges, nodes, parentOffsets) : 0;
+  const barY = Math.max(childTopY - MIN_BAR_CHILD_GAP - sibTrack * 12, maxBottom + 22 + maxTrackIndex * 8);
+  const delta = Math.max(0, barY - (childTopY - MIN_BAR_CHILD_GAP - sibTrack * 12));
 
   if (delta > 0) {
     for (const c of children) result.set(c.id, delta);
@@ -173,7 +174,8 @@ export function SibshipGroup({ parentIds, childIds, nodes, edges = [], invalid, 
 
   const rowY = parents[0] ? parents[0].y + (parentOffsets?.get(parents[0].id) ?? 0) : 0;
   const maxTrackIndex = computeMaxLoopTrackOnRow(rowY, edges, nodes, parentOffsets);
-  const barY = Math.max(childTopY - MIN_BAR_CHILD_GAP, maxBottom + 22 + maxTrackIndex * 8);
+  const sibTrack = computeSibshipGroupTrack(parentIds, childIds, edges, nodes, parentOffsets, childOffsets);
+  const barY = Math.max(childTopY - MIN_BAR_CHILD_GAP - sibTrack * 12, maxBottom + 22 + maxTrackIndex * 8);
 
   const TWIN_DROP = 16;
 

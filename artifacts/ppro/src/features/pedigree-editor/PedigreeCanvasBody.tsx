@@ -344,9 +344,48 @@ const RAIL_MAX_X = 400;
       if (!families.has(key)) families.set(key, { parentIds: [...pIds].sort(), childIds: [] });
       families.get(key)!.childIds.push(childId);
     }
-    for (const [, { parentIds, childIds }] of families) {
-      const familyMap = computeFamilyChildYOffset(parentIds, childIds, canvas.nodes, canvas.annotations, NODE_SIZE, showAutoLabels, autoLabels, offsets, canvas.edges);
-      for (const [nid, delta] of familyMap) offsets.set(nid, delta);
+    const nodeMap = new Map(canvas.nodes.map((n) => [n.id, n]));
+    const sortedFamilies = [...families.entries()].sort((a, b) => {
+      const aParent = a[1].parentIds[0] ? nodeMap.get(a[1].parentIds[0]) : null;
+      const bParent = b[1].parentIds[0] ? nodeMap.get(b[1].parentIds[0]) : null;
+      return (aParent?.y ?? 0) - (bParent?.y ?? 0);
+    });
+    // Group sorted families by parent Y coordinate
+    const familiesByRow = new Map<number, { parentIds: string[]; childIds: string[] }[]>();
+    for (const [, fam] of sortedFamilies) {
+      const parentNode = fam.parentIds[0] ? nodeMap.get(fam.parentIds[0]) : null;
+      const py = parentNode?.y ?? 0;
+      if (!familiesByRow.has(py)) familiesByRow.set(py, []);
+      familiesByRow.get(py)!.push(fam);
+    }
+
+    const sortedRowYs = [...familiesByRow.keys()].sort((a, b) => a - b);
+    for (const py of sortedRowYs) {
+      const rowFamilies = familiesByRow.get(py)!;
+      for (const fam of rowFamilies) {
+        const familyMap = computeFamilyChildYOffset(fam.parentIds, fam.childIds, canvas.nodes, canvas.annotations, NODE_SIZE, showAutoLabels, autoLabels, offsets, canvas.edges);
+        for (const [nid, delta] of familyMap) offsets.set(nid, delta);
+      }
+
+      // Align couple offsets on the child generation row
+      const coupleEdges = canvas.edges.filter(
+        (e) => e.type === "couple" || e.type === "consanguinity" || e.type === "divorced" || e.type === "separated"
+      );
+      for (let pass = 0; pass < 2; pass++) {
+        for (const e of coupleEdges) {
+          const uNode = nodeMap.get(e.sourceId);
+          const vNode = nodeMap.get(e.targetId);
+          if (uNode && vNode && Math.abs(uNode.y - vNode.y) < 30) {
+            const uOff = offsets.get(e.sourceId) ?? 0;
+            const vOff = offsets.get(e.targetId) ?? 0;
+            if (uOff !== vOff) {
+              const maxOff = Math.max(uOff, vOff);
+              offsets.set(e.sourceId, maxOff);
+              offsets.set(e.targetId, maxOff);
+            }
+          }
+        }
+      }
     }
     return offsets;
   }, [canvas.nodes, canvas.edges, canvas.annotations, showAutoLabels, autoLabels]);

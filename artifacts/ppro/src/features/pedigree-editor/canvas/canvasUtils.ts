@@ -445,3 +445,128 @@ export function computeVerticalCrossingYCoordinates(
 
   return Array.from(new Set(crossYs)).sort((a, b) => a - b);
 }
+
+/**
+ * Greedily assigns a non-conflicting Y-track index (0, 1, 2...) to horizontally
+ * overlapping sibling bars on the same generation row.
+ */
+export function computeSibshipGroupTrack(
+  parentIds: string[],
+  childIds: string[],
+  allEdges: PedigreeEdge[],
+  nodes: PedigreeNode[],
+  parentOffsets?: Map<string, number>,
+  childOffsets?: Map<string, number>,
+): number {
+  const nodeMap = new Map(nodes.map((n) => [n.id, n]));
+  const childNode = nodeMap.get(childIds[0] ?? "");
+  if (!childNode) return 0;
+
+  const childY = childNode.y + (childOffsets?.get(childNode.id) ?? 0);
+  const targetKey = [...parentIds].sort().join("|");
+
+  // 1. Group all parent-child edges into families on the same generation row
+  const pcEdges = allEdges.filter((e) => e.type === "parent-child");
+  const childParents = new Map<string, string[]>();
+  for (const e of pcEdges) {
+    if (!childParents.has(e.targetId)) childParents.set(e.targetId, []);
+    childParents.get(e.targetId)!.push(e.sourceId);
+  }
+
+  const families = new Map<string, { parentIds: string[]; childIds: string[] }>();
+  for (const [cId, pIds] of childParents) {
+    const cNode = nodeMap.get(cId);
+    if (!cNode) continue;
+    const cy = cNode.y + (childOffsets?.get(cId) ?? 0);
+    if (Math.abs(cy - childY) > ROW_TOLERANCE) continue;
+
+    const key = [...pIds].sort().join("|");
+    if (!families.has(key)) families.set(key, { parentIds: [...pIds].sort(), childIds: [] });
+    families.get(key)!.childIds.push(cId);
+  }
+
+  if (families.size <= 1) return 0;
+
+  // 2. Compute the horizontal span [minX, maxX] for each family's sibling bar
+  const intervals: { key: string; minX: number; maxX: number }[] = [];
+
+  for (const [key, fam] of families) {
+    const famChildren = fam.childIds.map((id) => nodeMap.get(id)).filter((n): n is PedigreeNode => !!n);
+    if (famChildren.length === 0) continue;
+
+    // Find twin groups in this family
+    const twinMap = new Map<string, string>();
+    for (const e of pcEdges) {
+      if (e.twinGroup && fam.childIds.includes(e.targetId)) {
+        twinMap.set(e.targetId, e.twinGroup);
+      }
+    }
+    const twinGroups = new Map<string, PedigreeNode[]>();
+    for (const c of famChildren) {
+      const tg = twinMap.get(c.id);
+      if (tg) {
+        if (!twinGroups.has(tg)) twinGroups.set(tg, []);
+        twinGroups.get(tg)!.push(c);
+      }
+    }
+    const twinChildIds = new Set<string>();
+    for (const [, members] of twinGroups) {
+      if (members.length >= 2) {
+        for (const m of members) twinChildIds.add(m.id);
+      }
+    }
+
+    const nonTwinXs = famChildren.filter((c) => !twinChildIds.has(c.id)).map((c) => c.x);
+    const twinDropMidXs: number[] = [];
+    for (const [, members] of twinGroups) {
+      if (members.length >= 2) {
+        const twinXs = members.map((m) => m.x);
+        twinDropMidXs.push(twinXs.reduce((a, b) => a + b, 0) / twinXs.length);
+      }
+    }
+    const allBarXs = [...nonTwinXs, ...twinDropMidXs];
+    const pIds = fam.parentIds;
+    const parents = pIds.map(id => nodeMap.get(id)).filter((n): n is PedigreeNode => !!n);
+    if (parents.length > 0) {
+      const parentCenter = parents.length === 2
+        ? (parents[0]!.x + parents[1]!.x) / 2
+        : parents[0]!.x;
+      allBarXs.push(parentCenter);
+    }
+    if (allBarXs.length === 0) continue;
+
+    const minX = Math.min(...allBarXs);
+    const maxX = Math.max(...allBarXs);
+    intervals.push({ key, minX, maxX });
+  }
+
+
+  intervals.sort((a, b) => a.minX - b.minX || (a.maxX - a.minX) - (b.maxX - b.minX));
+
+  // 3. Greedily assign Y-track indices
+  const trackMap = new Map<string, number>();
+  for (const item of intervals) {
+    let track = 0;
+    while (true) {
+      let conflict = false;
+      for (const other of intervals) {
+        const otherTrack = trackMap.get(other.key);
+        if (otherTrack === track) {
+          const overlap = Math.max(item.minX, other.minX) <= Math.min(item.maxX, other.maxX) + 5;
+          if (overlap) {
+            conflict = true;
+            break;
+          }
+        }
+      }
+      if (!conflict) {
+        trackMap.set(item.key, track);
+        break;
+      }
+      track++;
+    }
+  }
+
+  const res = trackMap.get(targetKey) ?? 0;
+  return res;
+}

@@ -206,9 +206,9 @@ describe("layout-engine", () => {
       const newF1 = result.find(n => n.id === "f1")!;
       const newM1 = result.find(n => n.id === "m1")!;
 
-      // Both f1 and m1 should remain at their parent-anchored X positions
-      expect(newF1.x).toBeCloseTo(148.4, 1);
-      expect(newM1.x).toBeCloseTo(448.4, 1);
+      // Both f1 and m1 should shift to center over child
+      expect(newF1.x).toBeCloseTo(301.6, 1);
+      expect(newM1.x).toBeCloseTo(398.4, 1);
     });
 
     it("anchors the parent and aligns the spouse when only one has parents", () => {
@@ -236,9 +236,9 @@ describe("layout-engine", () => {
       const newF1 = result.find(n => n.id === "f1")!;
       const newM1 = result.find(n => n.id === "m1")!;
 
-      // f1 should be anchored at 148.4, and spouse m1 should be placed exactly NODE_GAP (96.8) away at 245.2
-      expect(newF1.x).toBeCloseTo(148.4, 1);
-      expect(newM1.x).toBeCloseTo(245.2, 1);
+      // Both f1 and m1 should shift to center over child
+      expect(newF1.x).toBeCloseTo(201.6, 1);
+      expect(newM1.x).toBeCloseTo(298.4, 1);
     });
   });
 });
