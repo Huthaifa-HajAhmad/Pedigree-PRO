@@ -52,6 +52,7 @@ replit.md
 
 # Build artifacts
 artifacts/ppro/src-tauri/target/
+artifacts/ppro/src-tauri/gen/schemas/
 artifacts/ppro/dist/
 artifacts/*/node_modules/
 
@@ -63,8 +64,8 @@ artifacts/*/node_modules/
 *.pid.lock
 
 # Database
-data/*.sqlite
-data/*.sqlite-journal
+**/*.sqlite
+**/*.sqlite-journal
 *.db
 *.db-shm
 *.db-wal
@@ -89,7 +90,8 @@ test-results/
 # Typecheck helper scripts
 typecheck.bat
 
-# Landing page screenshots (not source)
+# Local-only files
+README.local.md
 landing-page.png
 
 
