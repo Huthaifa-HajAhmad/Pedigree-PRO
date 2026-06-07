@@ -18,6 +18,7 @@ import { VersionHistoryPanel } from "@/features/pedigree-editor/panels/VersionHi
 import { ValidationPanelWrapper } from "@/features/pedigree-editor/panels/ValidationPanelWrapper";
 import { ShareModal } from "@/components/ShareModal";
 import { usePedigreeEditor } from "@/features/pedigree-editor/context/usePedigreeEditor";
+import { parseCanvas } from "@/features/pedigree-editor/utils/helpers";
 import type { PedigreeNode, CanvasData } from "@/features/pedigree-editor/canvas/types";
 import { NODE_SIZE } from "@/features/pedigree-editor/canvas/types";
 
@@ -425,7 +426,7 @@ const RAIL_MAX_X = 400;
               return acc;
             }, []);
             return (
-              <g>
+              <g data-generation-rail="true">
                 <rect
                   x={viewBox.x + railX - RAIL_HIT_W / 2} y={viewBox.y + 30}
                   width={RAIL_HIT_W} height={vbH - 60}
@@ -477,6 +478,7 @@ const RAIL_MAX_X = 400;
           )}
 
           <rect ref={lassoRectRef}
+            data-lasso="true"
             fill="hsl(var(--primary) / 0.08)" stroke={"hsl(var(--primary))"} strokeWidth={1.5}
             strokeDasharray="8 4" style={{ display: lassoVisible ? "" : "none", pointerEvents: "none" }}
           />
@@ -690,7 +692,15 @@ const RAIL_MAX_X = 400;
       )}
 
       {showShareModal && pedigree && (
-        <ShareModal pedigreeId={pedigree.id} pedigreeTitle={pedigree.title}
+        <ShareModal
+          pedigreeId={pedigree.id}
+          pedigreeTitle={pedigree.title}
+          pedigreeData={JSON.stringify(canvas)}
+          canvasNodes={canvas.nodes}
+          canvasEdges={canvas.edges}
+          onPedigreeReceived={(data) => {
+            dispatch({ type: "SET_CANVAS", canvas: typeof data === 'string' ? parseCanvas(data) : data as CanvasData });
+          }}
           onClose={() => dispatch({ type: "SET_STATE", patch: { showShareModal: false } })}
         />
       )}

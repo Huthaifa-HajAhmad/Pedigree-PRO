@@ -4,6 +4,7 @@ import {
   detectRowCollisions,
   resolveAllCollisions,
   recenterParents,
+  recenterAllFamilies,
   buildAdjacency,
   buildNodeMap,
   ROW_TOLERANCE,
@@ -239,6 +240,47 @@ describe("layout-engine", () => {
       // Both f1 and m1 should shift to center over child
       expect(newF1.x).toBeCloseTo(201.6, 1);
       expect(newM1.x).toBeCloseTo(298.4, 1);
+    });
+  });
+
+  describe("recenterAllFamilies", () => {
+    it("shifts child subtree when parent row collision shifts parents", () => {
+      const nodes: PedigreeNode[] = [
+        // Couple 1
+        { id: "f1", x: 150, y: 100, type: "male", ...baseNode },
+        { id: "m1", x: 246.8, y: 100, type: "female", ...baseNode },
+        { id: "c1", x: 198.4, y: 220, type: "male", ...baseNode },
+        // Couple 2 colliding with Couple 1
+        { id: "f2", x: 280, y: 100, type: "male", ...baseNode },
+        { id: "m2", x: 376.8, y: 100, type: "female", ...baseNode },
+        { id: "c2", x: 328.4, y: 220, type: "female", ...baseNode },
+        // Gen III proband child from consanguineous union
+        { id: "proband", x: 263.4, y: 340, type: "unknown", ...baseNode },
+      ];
+      const edges: PedigreeEdge[] = [
+        { id: "e1", sourceId: "f1", targetId: "m1", type: "couple" },
+        { id: "e2", sourceId: "f1", targetId: "c1", type: "parent-child" },
+        { id: "e3", sourceId: "m1", targetId: "c1", type: "parent-child" },
+        { id: "e4", sourceId: "f2", targetId: "m2", type: "couple" },
+        { id: "e5", sourceId: "f2", targetId: "c2", type: "parent-child" },
+        { id: "e6", sourceId: "m2", targetId: "c2", type: "parent-child" },
+        { id: "e7", sourceId: "c1", targetId: "c2", type: "consanguinity" },
+        { id: "e8", sourceId: "c1", targetId: "proband", type: "parent-child" },
+        { id: "e9", sourceId: "c2", targetId: "proband", type: "parent-child" },
+      ];
+
+      const resolved = recenterAllFamilies(nodes, edges);
+      const newF1 = resolved.find(n => n.id === "f1")!;
+      const newM1 = resolved.find(n => n.id === "m1")!;
+      const newC1 = resolved.find(n => n.id === "c1")!;
+      const newF2 = resolved.find(n => n.id === "f2")!;
+      const newM2 = resolved.find(n => n.id === "m2")!;
+      const newC2 = resolved.find(n => n.id === "c2")!;
+      const newProband = resolved.find(n => n.id === "proband")!;
+
+      expect(newC1.x).toBeCloseTo((newF1.x + newM1.x) / 2, 1);
+      expect(newC2.x).toBeCloseTo((newF2.x + newM2.x) / 2, 1);
+      expect(newProband.x).toBeCloseTo((newC1.x + newC2.x) / 2, 1);
     });
   });
 });
