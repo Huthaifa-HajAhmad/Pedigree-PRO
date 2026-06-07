@@ -590,6 +590,99 @@ export function recenterParents(
  * Global bottom-up pass: recenters all parents over their children.
  * Ripples from the lowest generation up to the highest.
  */
+export function recenterAllChildren(
+  nodes: PedigreeNode[],
+  edges: PedigreeEdge[],
+  excludeIds?: Set<string>,
+): PedigreeNode[] {
+  let currentNodes = [...nodes.map(n => ({ ...n }))];
+  const adj = buildAdjacency(currentNodes, edges);
+  
+  // Group families
+  const families = new Map<string, { parentIds: string[]; childIds: string[] }>();
+  for (const [childId, pIds] of adj.parentsOf.entries()) {
+    if (pIds.length === 0) continue;
+    const key = [...pIds].sort().join("_");
+    if (!families.has(key)) families.set(key, { parentIds: pIds, childIds: [] });
+    families.get(key)!.childIds.push(childId);
+  }
+  const familyList = Array.from(families.values());
+  if (familyList.length === 0) return currentNodes;
+
+  // Get all child rows
+  const childRows = new Set<number>();
+  for (const f of familyList) {
+    const childId = f.childIds[0];
+    if (childId) {
+      const child = currentNodes.find(n => n.id === childId);
+      if (child) childRows.add(Math.round(child.y / GEN_GRID) * GEN_GRID);
+    }
+  }
+  // Sort child rows top-down (ascending Y)
+  const sortedRows = Array.from(childRows).sort((a, b) => a - b);
+
+  for (const rowY of sortedRows) {
+    const rowFamilies = familyList.filter(f => {
+      const childId = f.childIds[0];
+      if (!childId) return false;
+      const child = currentNodes.find(n => n.id === childId);
+      return child && Math.abs(child.y - rowY) < ROW_TOLERANCE;
+    });
+
+    let rowShifted = false;
+
+    for (const f of rowFamilies) {
+      const nodeMap = buildNodeMap(currentNodes);
+      const parents = f.parentIds.map(id => nodeMap.get(id)).filter((n): n is PedigreeNode => !!n);
+      const children = f.childIds.map(id => nodeMap.get(id)).filter((n): n is PedigreeNode => !!n);
+      if (parents.length === 0 || children.length === 0) continue;
+
+      // Calculate parent midpoint
+      let parentMidpoint = 0;
+      if (parents.length >= 2) {
+        parentMidpoint = (parents[0]!.x + parents[1]!.x) / 2;
+      } else {
+        parentMidpoint = parents[0]!.x;
+      }
+
+      // Calculate current children center
+      const childXs = children.map(c => c.x).sort((a, b) => a - b);
+      const childrenCenter = (childXs[0]! + childXs[childXs.length - 1]!) / 2;
+
+      const shift = parentMidpoint - childrenCenter;
+      if (Math.abs(shift) < 0.1) continue;
+
+      // We shift the children and their subtrees
+      const shiftNodes = new Set<string>();
+      for (const child of children) {
+        const subtree = collectSubtree(child.id, adj);
+        for (const id of subtree) {
+          if (!excludeIds?.has(id)) {
+            shiftNodes.add(id);
+          }
+        }
+      }
+
+      if (shiftNodes.size > 0) {
+        currentNodes = currentNodes.map(n => {
+          if (shiftNodes.has(n.id)) {
+            return { ...n, x: n.x + shift };
+          }
+          return n;
+        });
+        rowShifted = true;
+      }
+    }
+
+    if (rowShifted) {
+      // Resolve any collisions caused by these shifts on the row and below
+      currentNodes = resolveAllCollisions(currentNodes, edges, excludeIds);
+    }
+  }
+
+  return currentNodes;
+}
+
 export function recenterAllFamilies(
   nodes: PedigreeNode[],
   edges: PedigreeEdge[],
@@ -651,7 +744,7 @@ export function recenterAllFamilies(
       }
 
       if (parentRowResolved) {
-        currentNodes = resolveAllCollisions(currentNodes, edges, rowExcludeIds);
+        currentNodes = resolveAllCollisions(currentNodes, edges, excludeIds);
       }
     }
 
@@ -661,7 +754,14 @@ export function recenterAllFamilies(
     }
   }
 
-  return currentNodes;
+  // Run top-down child recentering pass to align children under parent midpoints
+  currentNodes = recenterAllChildren(currentNodes, edges, excludeIds);
+
+  // Final snap to remove topological deltas (0.01)
+  return currentNodes.map(n => ({
+    ...n,
+    x: Math.max(GEN_GRID, Math.round(n.x * 10) / 10),
+  }));
 }
 
 /**

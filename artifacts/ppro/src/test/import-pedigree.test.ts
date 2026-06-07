@@ -1,5 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { parseHaploPainterCSV, parseFile } from "@/lib/import-pedigree";
+import fs from "fs";
+import path from "path";
 
 describe("parseHaploPainterCSV", () => {
   it("parses a basic 3-generation tab-delimited pedigree", () => {
@@ -230,9 +232,9 @@ describe("parseHaploPainterCSV robustness enhancements", () => {
   });
 
   it("correctly parses and layouts hpcsv_family-1.utf8 (cousin marriages)", () => {
-    const fs = require("fs");
-    const content = fs.readFileSync("c:/Users/HSA19/Pedigree PRO/hpcsv_family-1.utf8", "utf8");
-    const result = parseFile(content, "hpcsv_family-1.utf8");
+    const fixturePath = path.join(import.meta.dirname, "fixtures", "hpcsv_family-1.txt");
+    const content = fs.readFileSync(fixturePath, "utf8");
+    const result = parseFile(content, "hpcsv_family-1.txt");
     expect(result.warnings).toHaveLength(0);
     
     const nodeMap = new Map(result.canvasData.nodes.map(n => [n.label, n]));

@@ -127,11 +127,6 @@ export function SibshipGroup({ parentIds, childIds, nodes, edges = [], invalid, 
   }, [nodes]);
   const parents = parentIds.map((id) => nodeMap.get(id)).filter((n): n is PedigreeNode => !!n);
   const children = childIds.map((id) => nodeMap.get(id)).filter((n): n is PedigreeNode => !!n);
-  if (parents.length === 0 || children.length === 0) return null;
-
-  const paths: string[] = [];
-  const childTopY = Math.min(...children.map((c) => c.y + (childOffsets?.get(c.id) ?? 0))) - S / 2;
-
   const intermediateNodes = useMemo(() => {
     if (parents.length === 2) {
       return getIntermediateNodes(parents[0]!, parents[1]!, nodes, parentOffsets);
@@ -169,16 +164,6 @@ export function SibshipGroup({ parentIds, childIds, nodes, edges = [], invalid, 
     return maxB;
   }, [parentIds, intermediateNodes, nodeMap, S, showAutoLabels, autoLabels, parentOffsets]);
 
-  const maxBottom = Math.max(maxNodeBottom, maxAnnBottom);
-  const coupleYOffset = edgeType === "consanguinity" ? 3.5 : 0;
-
-  const rowY = parents[0] ? parents[0].y + (parentOffsets?.get(parents[0].id) ?? 0) : 0;
-  const maxTrackIndex = computeMaxLoopTrackOnRow(rowY, edges, nodes, parentOffsets);
-  const sibTrack = computeSibshipGroupTrack(parentIds, childIds, edges, nodes, parentOffsets, childOffsets);
-  const barY = Math.max(childTopY - MIN_BAR_CHILD_GAP - sibTrack * 12, maxBottom + 22 + maxTrackIndex * 8);
-
-  const TWIN_DROP = 16;
-
   const twinMap = useMemo(() => {
     const map = new Map<string, { twinGroup: string; twinType?: "m" | "d" }>();
     for (const e of edges) {
@@ -210,6 +195,20 @@ export function SibshipGroup({ parentIds, childIds, nodes, edges = [], invalid, 
     }
     return ids;
   }, [twinGroups]);
+
+  const TWIN_DROP = 16;
+
+  if (parents.length === 0 || children.length === 0) return null;
+
+  const paths: string[] = [];
+  const childTopY = Math.min(...children.map((c) => c.y + (childOffsets?.get(c.id) ?? 0))) - S / 2;
+  const maxBottom = Math.max(maxNodeBottom, maxAnnBottom);
+  const coupleYOffset = edgeType === "consanguinity" ? 3.5 : 0;
+
+  const rowY = parents[0] ? parents[0].y + (parentOffsets?.get(parents[0].id) ?? 0) : 0;
+  const maxTrackIndex = computeMaxLoopTrackOnRow(rowY, edges, nodes, parentOffsets);
+  const sibTrack = computeSibshipGroupTrack(parentIds, childIds, edges, nodes, parentOffsets, childOffsets);
+  const barY = Math.max(childTopY - MIN_BAR_CHILD_GAP - sibTrack * 12, maxBottom + 22 + maxTrackIndex * 8);
 
   function cy(c: PedigreeNode) { return c.y + (childOffsets?.get(c.id) ?? 0) - S / 2; }
 

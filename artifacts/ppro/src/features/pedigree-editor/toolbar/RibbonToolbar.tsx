@@ -18,11 +18,7 @@ import { useToolbarLayout } from "@/features/pedigree-editor/toolbar/hooks/useTo
 
 import type { PedigreeNode } from "@/features/pedigree-editor/canvas/types";
 
-interface TemplateOption {
-  key: string;
-  name: string;
-  desc: string;
-}
+import { TemplateOption } from "@/features/pedigree-editor/utils/templates";
 
 interface ValidationSummary {
   errorCount: number;
@@ -85,7 +81,6 @@ export interface RibbonToolbarProps {
   setShowVersionTimeline: React.Dispatch<React.SetStateAction<boolean>>;
   showFollowMode: boolean;
   setShowFollowMode: React.Dispatch<React.SetStateAction<boolean>>;
-  setShowLanShare: React.Dispatch<React.SetStateAction<boolean>>;
   twinSelectMode: boolean;
   twinCandidateIds: Set<string>;
   toggleTwinSelectMode: () => void;
@@ -111,6 +106,7 @@ export interface RibbonToolbarProps {
   handleExportPNG: () => void;
   handleExportSVG: () => void;
   handleExportPPRO: () => void;
+  handleExportJSON: () => void;
   pedigreeTitle: string;
   onDeletePedigree: () => void;
   clearSelection?: () => void;
@@ -212,7 +208,7 @@ export function RibbonToolbar(props: RibbonToolbarProps) {
           showLegend={props.showLegend} setShowLegend={props.setShowLegend}
           validation={props.validation} templates={props.templates}
           buildTemplate={props.buildTemplate} updateCanvas={props.updateCanvas}
-          canvasNodesLength={props.canvasNodes.length} openConfirm={openConfirm} labelHidden={hideLabels || compactSecondaries}
+          canvasNodes={props.canvasNodes} openConfirm={openConfirm} labelHidden={hideLabels || compactSecondaries}
           onClearSelection={props.clearSelection} />
         <CollaborateGroup showVersionTimeline={props.showVersionTimeline} setShowVersionTimeline={props.setShowVersionTimeline}
           showFollowMode={props.showFollowMode} setShowFollowMode={props.setShowFollowMode}
@@ -232,7 +228,6 @@ export function RibbonToolbar(props: RibbonToolbarProps) {
         <div className="w-px self-stretch bg-border mx-1 flex-shrink-0" />
 
         <ShareGroup setShowShareModal={props.setShowShareModal}
-          setShowLanShare={props.setShowLanShare}
           showExportMenu={props.showExportMenu} setShowExportMenu={props.setShowExportMenu}
           exportingFormat={props.exportingFormat}
           handleExportReport={props.handleExportReport}
@@ -240,7 +235,12 @@ export function RibbonToolbar(props: RibbonToolbarProps) {
           handleExportPPTX={props.handleExportPPTX}
           handleExportPNG={props.handleExportPNG}
           handleExportSVG={props.handleExportSVG}
-          handleExportPPRO={props.handleExportPPRO} labelHidden={hideLabels || compactSecondaries} />
+          handleExportPPRO={props.handleExportPPRO}
+          handleExportJSON={props.handleExportJSON}
+          pedigreeTitle={props.pedigreeTitle}
+          canvasNodes={props.canvasNodes}
+          canvasEdges={props.canvasEdges}
+          labelHidden={hideLabels || compactSecondaries} />
 
         <div className="w-px self-stretch bg-border mx-1 flex-shrink-0" />
 
