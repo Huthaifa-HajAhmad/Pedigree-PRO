@@ -49,7 +49,6 @@ export interface PedigreeEditorState {
 
   showVersionTimeline: boolean;
   showFollowMode: boolean;
-  showLanShare: boolean;
   followIndex: number;
 
   twinSelectMode: boolean;
@@ -112,7 +111,6 @@ export const INITIAL_STATE: PedigreeEditorState = {
 
   showVersionTimeline: false,
   showFollowMode: false,
-  showLanShare: false,
   followIndex: 0,
 
   twinSelectMode: false,

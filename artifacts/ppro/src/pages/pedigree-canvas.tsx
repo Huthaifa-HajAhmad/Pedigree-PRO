@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { useParams, useLocation } from "wouter";
 import { useGetPedigree } from "@workspace/api-client-react";
-import { exportPPRO, exportPDF, exportPPTX, exportClinicalReport, exportPNG, exportSVG } from "@/lib/export-pedigree";
+import { exportPPRO, exportPDF, exportPPTX, exportClinicalReport, exportPNG, exportSVG, exportJSON } from "@/lib/export-pedigree";
 import { PedigreeEditorProvider, usePedigreeEditor } from "@/features/pedigree-editor/context";
 import { PedigreeCanvasBody } from "@/features/pedigree-editor/PedigreeCanvasBody";
 import type { PedigreeNode, PedigreeEdge, PedigreeAnnotation, CanvasData, DragState } from "@/features/pedigree-editor/canvas/types";
@@ -10,7 +10,7 @@ import { TabBar } from "@/features/pedigree-editor/panels/TabBar";
 import { RibbonToolbar } from "@/features/pedigree-editor/toolbar/RibbonToolbar";
 import { DraftBanner } from "@/features/pedigree-editor/overlay/DraftBanner";
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
-import { VersionTimeline, FollowMode, LanShare } from "@/features/collaboration";
+import { VersionTimeline, FollowMode } from "@/features/collaboration";
 import { parseCanvas } from "@/features/pedigree-editor/utils/helpers";
 import { buildTemplate, getTemplateOptions } from "@/features/pedigree-editor/utils/templates";
 
@@ -57,16 +57,15 @@ function PedigreeCanvasInner() {
     setShowExportMenu: (v: React.SetStateAction<boolean>) => ctx.dispatch({ type: "SET_STATE", patch: { showExportMenu: typeof v === "function" ? v(state.showExportMenu) : v } }),
     setShowVersionTimeline: (v: React.SetStateAction<boolean>) => ctx.dispatch({ type: "SET_STATE", patch: { showVersionTimeline: typeof v === "function" ? v(state.showVersionTimeline) : v } }),
     setShowFollowMode: (v: React.SetStateAction<boolean>) => ctx.dispatch({ type: "SET_STATE", patch: { showFollowMode: typeof v === "function" ? v(state.showFollowMode) : v } }),
-    setShowLanShare: (v: React.SetStateAction<boolean>) => ctx.dispatch({ type: "SET_STATE", patch: { showLanShare: typeof v === "function" ? v(state.showLanShare) : v } }),
     setViewBox: (vb: React.SetStateAction<{ x: number; y: number; zoom: number }>) => ctx.dispatch({ type: "SET_STATE", patch: { viewBox: typeof vb === "function" ? vb(state.viewBox) : vb } }),
     setLinkMode: (m: React.SetStateAction<"couple" | "parent-child" | "consanguinity" | null>) => ctx.dispatch({ type: "SET_STATE", patch: { linkMode: typeof m === "function" ? m(state.linkMode) : m } }),
     setLinkSource: (s: React.SetStateAction<string | null>) => ctx.dispatch({ type: "SET_STATE", patch: { linkSource: typeof s === "function" ? s(state.linkSource) : s } }),
     setFollowIndex: (i: React.SetStateAction<number>) => ctx.dispatch({ type: "SET_STATE", patch: { followIndex: typeof i === "function" ? i(state.followIndex) : i } }),
-  }), [ctx, state.snapEnabled, state.showGrid, state.showMinimap, state.showLayoutMenu, state.liveLayout, state.showAutoLabels, state.showLabelsMenu, state.showTemplates, state.showRiskPanel, state.showValidation, state.showLegend, state.showSaveModal, state.sessionLabel, state.showVersions, state.showShareModal, state.showExportMenu, state.showVersionTimeline, state.showFollowMode, state.showLanShare, state.viewBox, state.linkMode, state.linkSource, state.followIndex]);
+  }), [ctx, state.snapEnabled, state.showGrid, state.showMinimap, state.showLayoutMenu, state.liveLayout, state.showAutoLabels, state.showLabelsMenu, state.showTemplates, state.showRiskPanel, state.showValidation, state.showLegend, state.showSaveModal, state.sessionLabel, state.showVersions, state.showShareModal, state.showExportMenu, state.showVersionTimeline, state.showFollowMode, state.viewBox, state.linkMode, state.linkSource, state.followIndex]);
 
-  const he = (fn: () => void | Promise<void>, fmt: string) => async () => {
+  const he = (fn: (args?: any) => void | Promise<void>, fmt: string) => async (args?: any) => {
     ctx.dispatch({ type: "SET_STATE", patch: { showExportMenu: false, exportingFormat: fmt } });
-    try { await fn(); } finally { ctx.dispatch({ type: "SET_STATE", patch: { exportingFormat: null } }); }
+    try { await fn(args); } finally { ctx.dispatch({ type: "SET_STATE", patch: { exportingFormat: null } }); }
   };
 
   const getExportInfo = () => ({
@@ -123,7 +122,6 @@ function PedigreeCanvasInner() {
         exportingFormat={state.exportingFormat}
         showVersionTimeline={state.showVersionTimeline} setShowVersionTimeline={toggle.setShowVersionTimeline}
         showFollowMode={state.showFollowMode} setShowFollowMode={toggle.setShowFollowMode}
-        setShowLanShare={toggle.setShowLanShare}
         twinSelectMode={state.twinSelectMode}
         twinCandidateIds={state.twinCandidateIds}
         toggleTwinSelectMode={ops.toggleTwinSelectMode}
@@ -132,13 +130,14 @@ function PedigreeCanvasInner() {
         handleExportReport={he(() => exportClinicalReport(getExportInfo(), state.canvas), "Report")}
         handleExportPDF={he(() => exportPDF(getExportInfo(), state.canvas), "PDF")}
         handleExportPPTX={he(() => exportPPTX(getExportInfo(), state.canvas), "PPTX")}
-        handleExportPNG={he(() => exportPNG(getExportInfo(), state.canvas), "PNG")}
-        handleExportSVG={he(() => exportSVG(getExportInfo(), state.canvas), "SVG")}
+        handleExportPNG={he((opts) => exportPNG(getExportInfo(), state.canvas, opts), "PNG")}
+        handleExportSVG={he((opts) => exportSVG(getExportInfo(), state.canvas, opts), "SVG")}
         handleExportPPRO={he(async () => {
           const firstProfile = profiles && profiles.length > 0 ? profiles[0] : null;
           const exporterKey = firstProfile ? firstProfile.public_key : "";
           await exportPPRO(pedigree?.id ?? 0, exporterKey, getExportInfo().title);
         }, "PPRO")}
+        handleExportJSON={he(() => exportJSON(getExportInfo(), state.canvas), "JSON")}
         clearSelection={() => ctx.dispatch({ type: "SET_STATE", patch: { selectedIds: new Set(), selectedAnnotationId: null } })}
         pedigreeTitle={pedigree?.title ?? ""}
         onDeletePedigree={() => ops.handleDeletePedigree(pedigree?.id ?? 0, pedigree?.title ?? "")}
@@ -180,15 +179,7 @@ function PedigreeCanvasInner() {
         />
       )}
 
-      {state.showLanShare && (
-        <LanShare
-          pedigreeData={JSON.stringify(state.canvas)}
-          onClose={() => ctx.dispatch({ type: "SET_STATE", patch: { showLanShare: false } })}
-          onPedigreeReceived={(data) => {
-            ctx.dispatch({ type: "SET_CANVAS", canvas: typeof data === 'string' ? parseCanvas(data) : data as CanvasData });
-          }}
-        />
-      )}
+
 
       {state.confirmProps && (
         <ConfirmDialog
