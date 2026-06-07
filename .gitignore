@@ -81,6 +81,9 @@ artifacts/*/node_modules/
 # Kilo alternate directory
 .commandcode/
 
+# MCP server configuration (local agent tooling, not project code)
+.agents/
+
 # Playwright MCP logs
 .playwright-mcp/
 
