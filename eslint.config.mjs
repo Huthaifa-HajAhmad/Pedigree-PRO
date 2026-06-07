@@ -4,13 +4,17 @@ import importPlugin from "eslint-plugin-import";
 import jsxA11y from "eslint-plugin-jsx-a11y";
 
 export default tseslint.config(
-  { ignores: ["dist/", "node_modules/", "src-tauri/", "coverage/"] },
+  { ignores: ["**/dist/**", "**/node_modules/**", "**/src-tauri/**", "**/coverage/**"] },
   {
     files: ["**/*.{ts,tsx}"],
     plugins: {
+      "@typescript-eslint": tseslint.plugin,
       "react-hooks": reactHooks,
       import: importPlugin,
       "jsx-a11y": jsxA11y,
+    },
+    languageOptions: {
+      parser: tseslint.parser,
     },
     rules: {
       "react-hooks/rules-of-hooks": "error",
@@ -20,7 +24,6 @@ export default tseslint.config(
       "jsx-a11y/aria-props": "warn",
       "jsx-a11y/aria-role": "warn",
       "jsx-a11y/aria-unsupported-elements": "warn",
-      "jsx-a11y/button-has-type": "warn",
       "jsx-a11y/heading-has-content": "warn",
       "jsx-a11y/html-has-lang": "warn",
       "jsx-a11y/iframe-has-title": "warn",
