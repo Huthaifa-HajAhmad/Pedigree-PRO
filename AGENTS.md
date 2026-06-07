@@ -91,6 +91,30 @@ pnpm --filter @workspace/ppro run test
 - **Do not add `/api` proxies to Vite config.** The project is serverless.
 - Keep `lib/db/src/index.ts` top-level await pattern for conditional Postgres/SQLite loading, but verify bundler compatibility before changing.
 
+### Destructive git operations require explicit approval
+
+The agent MUST pause and request explicit confirmation from the user before performing ANY history-rewriting operation, including:
+
+- `git rebase -i` (reword, edit, squash, fixup, drop, reorder)
+- `git rebase --onto` (any form)
+- `git commit --amend` on any commit that has been pushed or is not the local HEAD
+- `git reset --hard` to an older commit
+- `git filter-branch` / `git filter-repo`
+- `git push --force` or `git push --force-with-lease` to any branch
+- Renaming, editing, or deleting any commit, tag, or branch
+- `git reflog expire --expire=now` (would destroy the only recovery path)
+
+The warning the agent provides MUST include:
+
+1. Which specific SHAs will change (the commit and every descendant).
+2. Which external references will break — PRs, branch protection rules, CI pipelines pinned to a SHA, issue links, mirrors (`gitsafe-backup` included), third-party forks.
+3. That the operation is **irreversible** without a reflog or reflog backup.
+4. Whether the working terminal is UTF-8-clean (`chcp 65001` on Windows) to avoid character-encoding corruption like the `???` substitution that occurred on the `Initial commit` reword of 6d4e1e6.
+
+**Wait for an explicit "yes" before executing.** "Sure" or "go ahead" without a clear yes is not consent. If the user says "do whatever you think is best" or is ambiguous, ask for clarification rather than proceeding.
+
+**Exception:** trivial local-only operations where nothing is pushed yet (e.g., rewriting a commit that has never left the local clone and no other branch contains it) may proceed with a single line of disclosure in the response, but should still flag the cascade risk.
+
 ### Dual-Build Parity Rule (HARD)
 
 Every feature, bug fix, or code change in `artifacts/ppro/src/` or `lib/` MUST be implemented and verified for **both Browser standalone mode** and **Tauri desktop mode**. Agents must never assume `window.__TAURI__` presence or absence.
