@@ -1,7 +1,8 @@
 import { useState } from "react";
-import { LayoutTemplate, TrendingUp, AlertTriangle, ShieldCheck, BookOpen, Clock, Plus, Trash2, ArrowLeft } from "lucide-react";
+import { GripHorizontal, LayoutTemplate, TrendingUp, AlertTriangle, ShieldCheck, BookOpen, Clock, Plus, Trash2, ArrowLeft } from "lucide-react";
 import type { CanvasData } from "@/features/pedigree-editor/canvas/types";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { useDraggable } from "@/hooks/use-draggable";
 
 import { TemplateOption } from "@/features/pedigree-editor/utils/templates";
 
@@ -446,6 +447,8 @@ export function ClinicalGroup({
 
   const canvasNodesLength = canvasNodes.length;
 
+  const { position, onPointerDown } = useDraggable();
+
   const handleRiskToggle = () => {
     setShowRiskPanel((v) => !v);
     setShowValidation(false);
@@ -578,14 +581,20 @@ export function ClinicalGroup({
 
         {/* Template Gallery Dialog */}
         <Dialog open={showTemplates} onOpenChange={handleCloseDialog}>
-          <DialogContent className="border border-slate-200 dark:border-slate-800 max-w-5xl p-0 overflow-hidden bg-background/95 backdrop-blur-lg shadow-2xl flex flex-col md:flex-row h-[80vh] md:h-[580px] max-h-[90vh]">
+          <DialogContent 
+            className="border border-slate-200 dark:border-slate-800 max-w-5xl p-0 overflow-hidden bg-background/95 backdrop-blur-lg shadow-2xl flex flex-col md:flex-row h-[80vh] md:h-[580px] max-h-[90vh]"
+            style={{ 
+              left: `calc(50% + ${position.x}px)`, 
+              top: `calc(50% + ${position.y}px)` 
+            }}
+          >
             
             {/* Left Side: Sidebar navigation OR Append choices */}
             <div className="w-full md:w-[280px] bg-slate-50/50 dark:bg-slate-950/40 p-5 flex flex-col justify-between border-r border-slate-200 dark:border-slate-800/60 shrink-0">
               {selectedTemplateKey === null ? (
                 // Category list view
                 <div className="space-y-6">
-                  <div>
+                  <div onPointerDown={onPointerDown} className="cursor-move pt-2 -mt-2">
                     <h3 className="text-[10px] font-bold text-teal-600 dark:text-teal-400 uppercase tracking-widest">Pedigree Starter Kit</h3>
                     <h2 className="text-lg font-bold text-slate-900 dark:text-white mt-1">
                       Template Library

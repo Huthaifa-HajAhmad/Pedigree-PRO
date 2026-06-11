@@ -4,10 +4,11 @@ import {
   Stethoscope, Clock,
   AlertCircle, Wand2, Shield,
   Share2, Wifi, GitMerge, FileDown, Search,
-  BookOpen
+  BookOpen, GripHorizontal
 } from "lucide-react";
 import { Dialog, DialogTrigger, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { useDraggable } from "@/hooks/use-draggable";
 
 interface HelpGroupProps {
   labelHidden?: boolean;
@@ -173,6 +174,8 @@ export function HelpGroup({ labelHidden = false }: HelpGroupProps) {
   const [testKey, setTestKey] = useState("");
   const [matchedAction, setMatchedAction] = useState<{ key: string; desc: string } | null>(null);
 
+  const { position, onPointerDown } = useDraggable();
+
   const kbd = (s: string) => (
     <kbd className="inline-block text-[10px] font-mono bg-muted px-1.5 py-0.5 rounded border border-border leading-none">{s}</kbd>
   );
@@ -305,12 +308,18 @@ export function HelpGroup({ labelHidden = false }: HelpGroupProps) {
               <span>Help</span>
             </button>
           </DialogTrigger>
-          <DialogContent className="border border-slate-200 dark:border-slate-800 max-w-5xl p-0 overflow-hidden bg-background/95 backdrop-blur-lg shadow-2xl flex flex-col md:flex-row h-[80vh] md:h-[580px] max-h-[90vh]">
+          <DialogContent 
+            className="border border-slate-200 dark:border-slate-800 max-w-5xl p-0 overflow-hidden bg-background/95 backdrop-blur-lg shadow-2xl flex flex-col md:flex-row h-[80vh] md:h-[580px] max-h-[90vh]"
+            style={{ 
+              left: `calc(50% + ${position.x}px)`, 
+              top: `calc(50% + ${position.y}px)` 
+            }}
+          >
             
             {/* Left Column: Sidebar (title, search, nav, tester) */}
             <div className="w-full md:w-[280px] bg-slate-50/50 dark:bg-slate-950/40 p-5 flex flex-col justify-between border-r border-slate-200 dark:border-slate-800/60 shrink-0">
               <div className="space-y-6">
-                <div>
+                <div onPointerDown={onPointerDown} className="cursor-move pt-2 -mt-2">
                   <h3 className="text-[10px] font-bold text-teal-600 dark:text-teal-400 uppercase tracking-widest flex items-center gap-1.5">
                     <LifeBuoy className="w-3.5 h-3.5 animate-spin" style={{ animationDuration: "6s" }} /> Pedigree PRO
                   </h3>

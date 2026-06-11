@@ -38,20 +38,20 @@ describe("Consanguinity Awareness Engine", () => {
     expect(targetEdge?.type).toBe("consanguinity");
   });
 
-  it("reverts type back to couple if ancestors are removed", () => {
+  it("preserves manual consanguinity even if no common ancestors are found", () => {
     const nodes: PedigreeNode[] = [
       { id: "III:1", type: "male", x: 100, y: 300, affected: false, carrier: false, deceased: false, proband: false, label: "III:1", age: "" },
       { id: "III:2", type: "female", x: 200, y: 300, affected: false, carrier: false, deceased: false, proband: false, label: "III:2", age: "" },
     ];
 
     const edges: PedigreeEdge[] = [
-      // Marked as consanguinity but has no parents/ancestors
+      // Manually marked as consanguinity
       { id: "e8", type: "consanguinity", sourceId: "III:1", targetId: "III:2" },
     ];
 
     const updated = autoDetectConsanguinity(nodes, edges);
     const targetEdge = updated.find(e => e.id === "e8");
-    expect(targetEdge?.type).toBe("couple");
+    expect(targetEdge?.type).toBe("consanguinity");
   });
 
   it("updates consanguinity in the reducer on SET_CANVAS", () => {

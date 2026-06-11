@@ -53,6 +53,8 @@ replit.md
 # Build artifacts
 artifacts/ppro/src-tauri/target/
 artifacts/ppro/src-tauri/gen/schemas/
+artifacts/ppro/src-tauri/dlls/
+artifacts/ppro/src-tauri/*.dll
 artifacts/ppro/dist/
 artifacts/*/node_modules/
 
