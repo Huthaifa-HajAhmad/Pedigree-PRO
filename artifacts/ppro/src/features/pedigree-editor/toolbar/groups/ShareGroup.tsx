@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
-import { Share2, Download, Loader2, ShieldCheck, FileText, Presentation, FileJson, Image as ImageIcon, Users, Link2, FileCode, Clock } from "lucide-react";
+import { Share2, Download, Loader2, ShieldCheck, FileText, Presentation, FileJson, Image as ImageIcon, Users, Link2, FileCode, Clock, GripHorizontal } from "lucide-react";
+import { useDraggable } from "@/hooks/use-draggable";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 
 interface ShareGroupProps {
@@ -26,6 +27,8 @@ export function ShareGroup({
   handleExportPNG, handleExportSVG, handleExportPPRO, handleExportJSON,
   pedigreeTitle, canvasNodes, canvasEdges, labelHidden = false,
 }: ShareGroupProps) {
+
+  const { position, onPointerDown } = useDraggable();
 
   const [pngTransparent, setPngTransparent] = useState(false);
   const [svgTransparent, setSvgTransparent] = useState(false);
@@ -126,12 +129,18 @@ export function ShareGroup({
         </button>
 
         <Dialog open={showExportMenu} onOpenChange={setShowExportMenu}>
-          <DialogContent className="border border-slate-200 dark:border-slate-800 max-w-4xl p-0 overflow-hidden bg-background/95 backdrop-blur-lg shadow-2xl flex flex-col md:flex-row h-[90vh] md:h-auto max-h-[90vh]">
+          <DialogContent 
+            className="border border-slate-200 dark:border-slate-800 max-w-4xl p-0 overflow-hidden bg-background/95 backdrop-blur-lg shadow-2xl flex flex-col md:flex-row h-[90vh] md:h-auto max-h-[90vh]"
+            style={{ 
+              left: `calc(50% + ${position.x}px)`, 
+              top: `calc(50% + ${position.y}px)` 
+            }}
+          >
             
             {/* Left Side: Summary Card */}
-            <div className="md:w-1/3 bg-slate-50/50 dark:bg-slate-950/40 p-6 flex flex-col justify-between border-r border-slate-200 dark:border-slate-800/60">
+            <div className="md:w-1/3 bg-slate-50/50 dark:bg-slate-950/40 p-6 flex flex-col justify-between border-r border-slate-200 dark:border-slate-800/60 relative">
               <div className="space-y-6">
-                <div>
+                <div onPointerDown={onPointerDown} className="cursor-move pt-2 -mt-2">
                   <h3 className="text-[10px] font-bold text-teal-600 dark:text-teal-400 uppercase tracking-widest">Active Pedigree</h3>
                   <h2 className="text-xl font-bold text-slate-900 dark:text-white mt-1 truncate" title={pedigreeTitle || "Untitled Pedigree"}>
                     {pedigreeTitle || "Untitled Pedigree"}

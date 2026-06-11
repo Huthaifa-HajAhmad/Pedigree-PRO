@@ -323,7 +323,7 @@ export function SibshipGroup({ parentIds, childIds, nodes, edges = [], invalid, 
           autoLabels
         ).some((cx) => Math.abs(cx - midX) < 1)
       : false;
-    const startY = hasBridgeAtMid ? coupleY - 6 : coupleY;
+    const startY = (hasBridgeAtMid ? coupleY - 6 : coupleY) + (hasIntermediate && edgeType === "consanguinity" ? 1.75 : 0);
 
     // C6 fix: bar spans non-twin children + twin drop midpoints (not twin node positions)
     const nonTwinXs = children.filter((c) => !twinChildIds.has(c.id)).map((c) => c.x);

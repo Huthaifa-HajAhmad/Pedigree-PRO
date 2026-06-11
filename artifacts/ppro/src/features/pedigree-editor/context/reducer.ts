@@ -41,9 +41,13 @@ export function autoDetectConsanguinity(nodes: PedigreeNode[], edges: PedigreeEd
       }
     }
 
-    const expectedType = isConsanguineous ? "consanguinity" : "couple";
-    if (edge.type !== expectedType) {
-      return { ...edge, type: expectedType };
+    let finalType = edge.type;
+    if (isConsanguineous && edge.type === "couple") {
+      finalType = "consanguinity";
+    }
+
+    if (edge.type !== finalType) {
+      return { ...edge, type: finalType };
     }
     return edge;
   });
