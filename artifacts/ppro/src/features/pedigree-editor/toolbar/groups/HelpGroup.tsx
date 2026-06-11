@@ -4,7 +4,7 @@ import {
   Stethoscope, Clock,
   AlertCircle, Wand2, Shield,
   Share2, Wifi, GitMerge, FileDown, Search,
-  BookOpen, GripHorizontal
+  BookOpen
 } from "lucide-react";
 import { Dialog, DialogTrigger, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";

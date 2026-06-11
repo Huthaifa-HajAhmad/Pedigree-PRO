@@ -76,11 +76,12 @@ interface ShareModalProps {
   onPedigreeReceived?: (data: unknown) => void;
   onDecryptError?: (error: Error) => void;
   onClose: () => void;
+  backgroundSaveVersion?: (label: string) => Promise<void>;
 }
 
 export function ShareModal({
   pedigreeId, pedigreeTitle, pedigreeData, canvasNodes, canvasEdges,
-  onPedigreeReceived, onDecryptError, onClose
+  onPedigreeReceived, onDecryptError, onClose, backgroundSaveVersion
 }: ShareModalProps) {
   // Navigation
   const [activeTab, setActiveTab] = useState<"menu" | "relay" | "lan">("menu");
@@ -105,8 +106,11 @@ export function ShareModal({
   const isEncrypted = !!recipientKey.trim();
   const PUBLIC_APP_URL = import.meta.env.VITE_PUBLIC_APP_URL ?? "https://pedigree-pro.pages.dev";
 
-  const handleGenerateRelay = () => {
+  const handleGenerateRelay = async () => {
     const key = recipientKey.trim();
+    if (backgroundSaveVersion) {
+      await backgroundSaveVersion("Auto-saved before Link Sharing");
+    }
     shareMutation.mutate(
       { pedigreeId, recipientKey: key },
       {
@@ -263,6 +267,9 @@ export function ShareModal({
     setLanMode("host");
     lanModeRef.current = "host";
     setLanStatus("connecting");
+    if (backgroundSaveVersion) {
+      await backgroundSaveVersion("Auto-saved before LAN Sharing");
+    }
     try {
       const pc = createPeerConnection();
       pcRef.current = pc;
@@ -312,7 +319,7 @@ export function ShareModal({
       setLanStatus("error");
       setLanError(e instanceof Error ? e.message : "Failed to create host connection");
     }
-  }, [pedigreeData, recipientKey, createPeerConnection]);
+  }, [pedigreeData, recipientKey, createPeerConnection, backgroundSaveVersion]);
 
   const joinSession = useCallback(async () => {
     setLanMode("join");

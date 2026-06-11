@@ -223,7 +223,7 @@ export function VersionTimeline({ pedigreeId, currentCanvas, onRestore, onPrevie
                   setSelectedIndex(newIndex);
                   if (onPreview) {
                     const v = versions[newIndex];
-                    if (v) onPreview(v.canvas_data);
+                    if (v) onPreview(v.canvas_data, v.id);
                   }
                 }
               }}
@@ -246,7 +246,7 @@ export function VersionTimeline({ pedigreeId, currentCanvas, onRestore, onPrevie
                   setSelectedIndex(newIndex);
                   if (onPreview) {
                     const v = versions[newIndex];
-                    if (v) onPreview(v.canvas_data);
+                    if (v) onPreview(v.canvas_data, v.id);
                   }
                 }
               }}

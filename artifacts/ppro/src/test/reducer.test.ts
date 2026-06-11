@@ -84,3 +84,79 @@ describe("Consanguinity Awareness Engine", () => {
     expect(targetEdge?.type).toBe("consanguinity");
   });
 });
+
+describe("Version Preview Mode", () => {
+  it("handles ENTER_PREVIEW by caching current canvas and switching to preview canvas", () => {
+    const originalCanvas = {
+      nodes: [{ id: "n1", type: "male", x: 10, y: 10, affected: false, carrier: false, deceased: false, proband: false, label: "n1", age: "" }],
+      edges: [],
+      annotations: []
+    };
+    const previewCanvas = {
+      nodes: [{ id: "n1", type: "male", x: 10, y: 10, affected: false, carrier: false, deceased: false, proband: false, label: "n1", age: "" }, { id: "n2", type: "female", x: 50, y: 50, affected: false, carrier: false, deceased: false, proband: false, label: "n2", age: "" }],
+      edges: [],
+      annotations: []
+    };
+
+    const initialState = {
+      ...INITIAL_STATE,
+      canvas: originalCanvas
+    };
+
+    const previewState = pedigreeEditorReducer(initialState, {
+      type: "ENTER_PREVIEW",
+      canvas: previewCanvas,
+      versionId: 42
+    });
+
+    expect(previewState.isPreviewMode).toBe(true);
+    expect(previewState.previewVersionId).toBe(42);
+    expect(previewState.liveCanvasCache).toEqual(originalCanvas);
+    expect(previewState.canvas).toEqual(previewCanvas);
+  });
+
+  it("handles EXIT_PREVIEW by restoring cached canvas", () => {
+    const originalCanvas = {
+      nodes: [{ id: "n1", type: "male", x: 10, y: 10, affected: false, carrier: false, deceased: false, proband: false, label: "n1", age: "" }],
+      edges: [],
+      annotations: []
+    };
+    const previewCanvas = {
+      nodes: [{ id: "n1", type: "male", x: 10, y: 10, affected: false, carrier: false, deceased: false, proband: false, label: "n1", age: "" }, { id: "n2", type: "female", x: 50, y: 50, affected: false, carrier: false, deceased: false, proband: false, label: "n2", age: "" }],
+      edges: [],
+      annotations: []
+    };
+
+    const previewState = {
+      ...INITIAL_STATE,
+      isPreviewMode: true,
+      previewVersionId: 42,
+      liveCanvasCache: originalCanvas,
+      canvas: previewCanvas
+    };
+
+    const exitedState = pedigreeEditorReducer(previewState, {
+      type: "EXIT_PREVIEW"
+    });
+
+    expect(exitedState.isPreviewMode).toBe(false);
+    expect(exitedState.previewVersionId).toBeNull();
+    expect(exitedState.liveCanvasCache).toBeNull();
+    expect(exitedState.canvas).toEqual(originalCanvas);
+  });
+
+  it("handles TOGGLE_VISUAL_DIFF to toggle highlight diff boolean state", () => {
+    const state = pedigreeEditorReducer(INITIAL_STATE, {
+      type: "TOGGLE_VISUAL_DIFF",
+      enabled: true
+    });
+    expect(state.showVisualDiff).toBe(true);
+
+    const toggledOff = pedigreeEditorReducer(state, {
+      type: "TOGGLE_VISUAL_DIFF",
+      enabled: false
+    });
+    expect(toggledOff.showVisualDiff).toBe(false);
+  });
+});
+
