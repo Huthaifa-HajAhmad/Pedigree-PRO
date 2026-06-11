@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Share2, Download, Loader2, ShieldCheck, FileText, Presentation, FileJson, Image as ImageIcon, Users, Link2, FileCode, Clock, GripHorizontal } from "lucide-react";
+import { Share2, Download, Loader2, ShieldCheck, FileText, Presentation, FileJson, Image as ImageIcon, Users, Link2, FileCode, Clock } from "lucide-react";
 import { useDraggable } from "@/hooks/use-draggable";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 

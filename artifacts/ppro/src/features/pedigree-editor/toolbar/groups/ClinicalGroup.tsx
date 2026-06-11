@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { GripHorizontal, LayoutTemplate, TrendingUp, AlertTriangle, ShieldCheck, BookOpen, Clock, Plus, Trash2, ArrowLeft } from "lucide-react";
+import { LayoutTemplate, TrendingUp, AlertTriangle, ShieldCheck, BookOpen, Clock, Plus, Trash2, ArrowLeft } from "lucide-react";
 import type { CanvasData } from "@/features/pedigree-editor/canvas/types";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { useDraggable } from "@/hooks/use-draggable";

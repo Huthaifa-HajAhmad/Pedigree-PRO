@@ -817,6 +817,7 @@ const RAIL_MAX_X = 400;
             dispatch({ type: "SET_CANVAS", canvas: typeof data === 'string' ? parseCanvas(data) : data as CanvasData });
           }}
           onClose={() => dispatch({ type: "SET_STATE", patch: { showShareModal: false } })}
+          backgroundSaveVersion={ops.backgroundSaveVersion}
         />
       )}
 
