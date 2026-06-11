@@ -51,6 +51,11 @@ export interface PedigreeEditorState {
   showFollowMode: boolean;
   followIndex: number;
 
+  isPreviewMode: boolean;
+  liveCanvasCache: CanvasData | null;
+  showVisualDiff: boolean;
+  previewVersionId: number | null;
+
   twinSelectMode: boolean;
   twinCandidateIds: Set<string>;
 
@@ -113,6 +118,11 @@ export const INITIAL_STATE: PedigreeEditorState = {
   showFollowMode: false,
   followIndex: 0,
 
+  isPreviewMode: false,
+  liveCanvasCache: null,
+  showVisualDiff: false,
+  previewVersionId: null,
+
   twinSelectMode: false,
   twinCandidateIds: new Set<string>(),
 
@@ -134,7 +144,10 @@ export type PedigreeEditorAction =
   | { type: "UNDO" }
   | { type: "REDO" }
   | { type: "PUSH_DRAFT"; canvas: CanvasData }
-  | { type: "REMOVE_EDGES"; edgeIds: string[] };
+  | { type: "REMOVE_EDGES"; edgeIds: string[] }
+  | { type: "ENTER_PREVIEW"; canvas: CanvasData; versionId: number | null }
+  | { type: "EXIT_PREVIEW" }
+  | { type: "TOGGLE_VISUAL_DIFF"; enabled: boolean };
 
 export interface PedigreeEditorOps {
   updateCanvas: (updater: (prev: CanvasData) => CanvasData, opts?: { skipHistory?: boolean }) => void;
@@ -186,6 +199,7 @@ export interface PedigreeEditorOps {
   toggleTwinSelectMode: () => void;
   clearTwinCandidates: () => void;
   handleDeletePedigree: (tabId: number, tabTitle: string) => void;
+  backgroundSaveVersion: (label: string) => Promise<void>;
 }
 
 export interface PedigreeEditorMemo {

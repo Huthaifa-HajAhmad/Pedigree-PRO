@@ -33,6 +33,7 @@ export interface UsePedigreeKeyboardParams {
   createCoupleAndChild: (idA: string, idB: string) => void;
   W: number;
   H: number;
+  isPreviewMode?: boolean;
 }
 
 export function usePedigreeKeyboard(params: UsePedigreeKeyboardParams) {
@@ -54,6 +55,23 @@ export function usePedigreeKeyboard(params: UsePedigreeKeyboardParams) {
       if (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.tagName === "SELECT") return;
       if (document.activeElement instanceof HTMLInputElement || document.activeElement instanceof HTMLTextAreaElement || document.activeElement instanceof HTMLSelectElement || (document.activeElement as HTMLElement)?.isContentEditable) return;
       const k = kbRef.current;
+
+      if (k.isPreviewMode) {
+        // Allow zoom, panning, Esc, search, navigation keys
+        const allowedCode = ["Space", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"];
+        const isControlModifier = e.metaKey || e.ctrlKey;
+        const isZoomOrFind = isControlModifier && ["=", "+", "-", "_", "0", "f"].includes(e.key);
+        const isNumpad = e.code.startsWith("Numpad");
+        if (e.key === "Escape" || allowedCode.includes(e.key) || allowedCode.includes(e.code) || isZoomOrFind || isNumpad) {
+          // let these pass through
+        } else {
+          // Block editing shortcuts
+          if (["Delete", "Backspace", "c", "C", "r", "R", "b", "B", "m", "M", "f", "F", "u", "U", "p", "P", "k", "K", "s", "S", "l", "L"].includes(e.key) || (isControlModifier && ["z", "y"].includes(e.key))) {
+            e.preventDefault();
+          }
+          return;
+        }
+      }
 
       if (e.code === "Space") { e.preventDefault(); k.spaceHeldRef.current = true; k.setSpaceHeld(true); return; }
 

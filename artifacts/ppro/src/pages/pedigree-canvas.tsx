@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useEffect } from "react";
 import { useParams, useLocation } from "wouter";
 import { useGetPedigree } from "@workspace/api-client-react";
 import { exportPPRO, exportPDF, exportPPTX, exportClinicalReport, exportPNG, exportSVG, exportJSON } from "@/lib/export-pedigree";
@@ -65,7 +65,14 @@ function PedigreeCanvasInner() {
 
   const he = (fn: (args?: any) => void | Promise<void>, fmt: string) => async (args?: any) => {
     ctx.dispatch({ type: "SET_STATE", patch: { showExportMenu: false, exportingFormat: fmt } });
-    try { await fn(args); } finally { ctx.dispatch({ type: "SET_STATE", patch: { exportingFormat: null } }); }
+    try {
+      if (ops.backgroundSaveVersion) {
+        await ops.backgroundSaveVersion(`Auto-saved before ${fmt} Export`);
+      }
+      await fn(args);
+    } finally {
+      ctx.dispatch({ type: "SET_STATE", patch: { exportingFormat: null } });
+    }
   };
 
   const getExportInfo = () => ({
@@ -73,6 +80,12 @@ function PedigreeCanvasInner() {
     patientId: pedigree?.patient_id ?? null,
     notes: pedigree?.notes ?? null,
   });
+
+  useEffect(() => {
+    if (!state.showVersionTimeline && !state.showFollowMode && state.isPreviewMode) {
+      ctx.dispatch({ type: "EXIT_PREVIEW" });
+    }
+  }, [state.showVersionTimeline, state.showFollowMode, state.isPreviewMode, ctx.dispatch]);
 
   return (
     <div className="flex flex-col h-dvh overflow-hidden">
@@ -164,8 +177,8 @@ function PedigreeCanvasInner() {
         <VersionTimeline
           pedigreeId={pedigree?.id ?? 0}
           currentCanvas={JSON.stringify(state.canvas)}
-          onPreview={(data) => ctx.dispatch({ type: "SET_CANVAS", canvas: parseCanvas(data) })}
-          onRestore={(data) => ctx.dispatch({ type: "SET_CANVAS", canvas: parseCanvas(data) })}
+          onPreview={(data, vid) => ctx.dispatch({ type: "ENTER_PREVIEW", canvas: parseCanvas(data), versionId: vid })}
+          onRestoreRequest={ops.handleRestoreVersion}
         />
       )}
 
@@ -174,8 +187,14 @@ function PedigreeCanvasInner() {
           versions={ctx.versions}
           currentIndex={state.followIndex}
           onChangeIndex={toggle.setFollowIndex}
-          onPreview={(data) => ctx.dispatch({ type: "SET_CANVAS", canvas: parseCanvas(data) })}
-          onClose={() => ctx.dispatch({ type: "SET_STATE", patch: { showFollowMode: false } })}
+          onPreview={(data) => {
+            const currentVersionId = ctx.versions ? ctx.versions[state.followIndex]?.id || null : null;
+            ctx.dispatch({ type: "ENTER_PREVIEW", canvas: parseCanvas(data), versionId: currentVersionId });
+          }}
+          onClose={() => {
+            ctx.dispatch({ type: "EXIT_PREVIEW" });
+            ctx.dispatch({ type: "SET_STATE", patch: { showFollowMode: false } });
+          }}
         />
       )}
 

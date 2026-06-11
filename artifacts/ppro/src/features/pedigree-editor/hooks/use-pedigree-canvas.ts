@@ -46,6 +46,7 @@ export function usePedigreeCanvas(params: UsePedigreeCanvasParams) {
 
   const handleDragStart = useCallback((e: React.MouseEvent, nodeId: string) => {
     const s = stateRef.current;
+    if (s.isPreviewMode) return;
     if (s.linkMode) return;
     const coords = getSVGCoords(e);
     if (!coords) return;
@@ -514,6 +515,16 @@ export function usePedigreeCanvas(params: UsePedigreeCanvasParams) {
   const handleSVGMouseDown = useCallback((e: React.MouseEvent) => {
     const s = stateRef.current;
     if (e.target !== svgRef.current) return;
+    if (s.isPreviewMode) {
+      if (e.button === 1 || e.button === 2 || e.altKey || spaceHeldRef.current) {
+        e.preventDefault();
+        dispatch({
+          type: "SET_STATE",
+          patch: { panning: { startX: e.clientX, startY: e.clientY, vbX: s.viewBox.x, vbY: s.viewBox.y } },
+        });
+      }
+      return;
+    }
     if (e.button === 1 || e.button === 2 || e.altKey || spaceHeldRef.current) {
       e.preventDefault();
       dispatch({

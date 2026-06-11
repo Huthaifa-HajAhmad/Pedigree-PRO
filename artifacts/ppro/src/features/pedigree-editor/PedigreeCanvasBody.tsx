@@ -391,12 +391,106 @@ const RAIL_MAX_X = 400;
     return offsets;
   }, [canvas.nodes, canvas.edges, canvas.annotations, showAutoLabels, autoLabels]);
 
+  const diffs = useMemo(() => {
+    if (!state.isPreviewMode || !state.showVisualDiff || !state.liveCanvasCache) {
+      return { added: new Set<string>(), deleted: new Set<string>(), modified: new Set<string>() };
+    }
+    const liveNodes = state.liveCanvasCache.nodes;
+    const previewNodes = canvas.nodes;
+
+    const liveNodeIds = new Set(liveNodes.map(n => n.id));
+    const previewNodeIds = new Set(previewNodes.map(n => n.id));
+
+    const added = new Set<string>();
+    const deleted = new Set<string>();
+    const modified = new Set<string>();
+
+    for (const id of liveNodeIds) {
+      if (!previewNodeIds.has(id)) {
+        added.add(id);
+      }
+    }
+
+    const liveNodeMap = new Map(liveNodes.map(n => [n.id, n]));
+    for (const pn of previewNodes) {
+      if (!liveNodeIds.has(pn.id)) {
+        deleted.add(pn.id);
+      } else {
+        const ln = liveNodeMap.get(pn.id);
+        if (ln) {
+          if (
+            ln.type !== pn.type ||
+            ln.affected !== pn.affected ||
+            ln.carrier !== pn.carrier ||
+            ln.deceased !== pn.deceased ||
+            ln.proband !== pn.proband ||
+            ln.label !== pn.label ||
+            ln.age !== pn.age
+          ) {
+            modified.add(pn.id);
+          }
+        }
+      }
+    }
+
+    return { added, deleted, modified };
+  }, [state.isPreviewMode, state.showVisualDiff, state.liveCanvasCache, canvas.nodes]);
+
+  const previewVersion = useMemo(() => {
+    if (!state.previewVersionId || !versions) return null;
+    return versions.find(v => v.id === state.previewVersionId) || null;
+  }, [state.previewVersionId, versions]);
+
   return (
     <div className="flex flex-1 overflow-hidden" data-print-area>
       <div className={`flex-1 overflow-hidden relative ${showGrid ? "grid-bg" : ""}`} style={{ touchAction: "none", overscrollBehavior: "none" }}>
         {twinSelectMode && (
           <div className="absolute top-3 left-1/2 -translate-x-1/2 z-20 px-3 py-1.5 rounded-full bg-amber-500 text-white text-xs font-medium shadow-md pointer-events-none">
             Twin select: {twinCandidateIds.size} node{twinCandidateIds.size !== 1 ? "s" : ""}
+          </div>
+        )}
+        {state.isPreviewMode && (
+          <div className="absolute top-4 left-1/2 -translate-x-1/2 z-30 flex items-center gap-4 px-4 py-2 border border-border rounded-lg shadow-lg bg-background/90 backdrop-blur-md">
+            <div className="flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+              <span className="text-xs font-semibold text-foreground">
+                Viewing: {previewVersion ? (previewVersion.label || `Version ${previewVersion.version_number}`) : "Historical Version"}
+              </span>
+              <span className="text-[10px] text-muted-foreground uppercase bg-muted px-1.5 py-0.5 rounded font-bold">
+                Read-Only
+              </span>
+            </div>
+            
+            <div className="h-4 w-px bg-border" />
+            
+            <label className="flex items-center gap-1.5 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={state.showVisualDiff}
+                onChange={(e) => dispatch({ type: "TOGGLE_VISUAL_DIFF", enabled: e.target.checked })}
+                className="w-3.5 h-3.5 rounded border-gray-300 text-primary focus:ring-primary"
+              />
+              <span className="text-xs text-muted-foreground font-medium">Highlight Changes</span>
+            </label>
+
+            <div className="h-4 w-px bg-border" />
+
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => handleRestoreVersion(state.previewVersionId || 0)}
+                className="px-2.5 py-1 text-xs font-semibold rounded bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+              >
+                Restore
+              </button>
+              <button
+                type="button"
+                onClick={() => dispatch({ type: "EXIT_PREVIEW" })}
+                className="px-2.5 py-1 text-xs font-semibold rounded border border-border hover:bg-accent transition-colors"
+              >
+                Exit Preview
+              </button>
+            </div>
           </div>
         )}
         <svg
@@ -525,9 +619,30 @@ const RAIL_MAX_X = 400;
                 onDragStart={(e) => handleDragStart(e, node.id)}
                 onContextMenu={(e) => handleNodeContextMenu(node.id, e)}
                 onDoubleClick={(e) => handleNodeDoubleClick(node.id, e)}
+                diffStatus={state.isPreviewMode && state.showVisualDiff ? (diffs.deleted.has(node.id) ? "deleted" : diffs.modified.has(node.id) ? "modified" : null) : null}
               />
             ))}
           </g>
+
+          {state.isPreviewMode && state.showVisualDiff && state.liveCanvasCache && (
+            <g opacity={0.35}>
+              {state.liveCanvasCache.nodes.filter(n => diffs.added.has(n.id)).map((node) => (
+                <NodeShape key={`ghost-${node.id}`} node={node}
+                  selected={false} isLinkSource={false}
+                  isTwinCandidate={false}
+                  invalid={false}
+                  autoLabel={showAutoLabels ? autoLabels.get(node.id) : undefined}
+                  hasEdges={false}
+                  renderOffsetY={0}
+                  onClick={() => {}}
+                  onDragStart={() => {}}
+                  onContextMenu={() => {}}
+                  onDoubleClick={() => {}}
+                  diffStatus="added"
+                />
+              ))}
+            </g>
+          )}
 
           <AnnotationLayer
             annotations={canvas.annotations}

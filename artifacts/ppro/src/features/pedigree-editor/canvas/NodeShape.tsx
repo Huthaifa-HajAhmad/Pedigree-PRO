@@ -16,10 +16,11 @@ interface NodeShapeProps {
   onDragStart: (e: React.MouseEvent) => void;
   onContextMenu: (e: React.MouseEvent) => void;
   onDoubleClick: (e: React.MouseEvent) => void;
+  diffStatus?: "added" | "deleted" | "modified" | null;
 }
 
 export const NodeShape = memo(function NodeShape({
-  node, selected, isLinkSource, isTwinCandidate, invalid, autoLabel, hasEdges = true, renderOffsetY = 0, onClick, onDragStart, onContextMenu, onDoubleClick,
+  node, selected, isLinkSource, isTwinCandidate, invalid, autoLabel, hasEdges = true, renderOffsetY = 0, onClick, onDragStart, onContextMenu, onDoubleClick, diffStatus,
 }: NodeShapeProps) {
   const cfg = useCanvasConfig();
   const [showHint, setShowHint] = useState(false);
@@ -44,9 +45,19 @@ export const NodeShape = memo(function NodeShape({
   }, []);
 
   const ERR = "#FF4040";
+  const DIFF_DELETED = "#EF4444";
+  const DIFF_ADDED = "#10B981";
+  const DIFF_MODIFIED = "#F59E0B";
+
   const highlight = isLinkSource ? "#00BFFF" : "hsl(var(--primary))";
   const stroke = invalid
     ? ERR
+    : diffStatus === "deleted"
+    ? DIFF_DELETED
+    : diffStatus === "added"
+    ? DIFF_ADDED
+    : diffStatus === "modified"
+    ? DIFF_MODIFIED
     : selected || isLinkSource
     ? highlight
     : (cfg.config.nodeStrokeColor || "hsl(var(--foreground) / 0.75)");
@@ -60,13 +71,17 @@ export const NodeShape = memo(function NodeShape({
     ? "hsl(var(--primary) / 0.08)"
     : "hsl(var(--card))";
   const S = cfg.config.nodeSize;
-  const strokeWidth = selected || isLinkSource || invalid ? cfg.config.edgeWidthSelected : cfg.config.edgeWidthNormal;
+  const strokeWidth = selected || isLinkSource || invalid || diffStatus ? cfg.config.edgeWidthSelected : cfg.config.edgeWidthNormal;
   const carrierR = cfg.config.carrierDotRadius;
   const glow = invalid
     ? { filter: `drop-shadow(0 0 6px ${ERR})` }
+    : diffStatus === "modified"
+    ? { filter: `drop-shadow(0 0 6px ${DIFF_MODIFIED})` }
     : selected || isLinkSource
     ? { filter: `drop-shadow(0 0 7px ${highlight})` }
     : {};
+
+  const strokeDash = (diffStatus === "deleted" || diffStatus === "added") ? "4 3" : undefined;
 
   return (
     <g
@@ -94,23 +109,23 @@ export const NodeShape = memo(function NodeShape({
       )}
       {/* Shapes by type */}
       {node.type === "male" && (
-        <rect x={-S / 2} y={-S / 2} width={S} height={S} fill={fill} stroke={stroke} strokeWidth={strokeWidth} rx={0} style={glow} />
+        <rect x={-S / 2} y={-S / 2} width={S} height={S} fill={fill} stroke={stroke} strokeWidth={strokeWidth} rx={0} style={glow} strokeDasharray={strokeDash} />
       )}
       {node.type === "female" && (
-        <circle cx={0} cy={0} r={S / 2} fill={fill} stroke={stroke} strokeWidth={strokeWidth} style={glow} />
+        <circle cx={0} cy={0} r={S / 2} fill={fill} stroke={stroke} strokeWidth={strokeWidth} style={glow} strokeDasharray={strokeDash} />
       )}
       {node.type === "unknown" && (
-        <polygon points={`0,${-S / 2} ${S / 2},0 0,${S / 2} ${-S / 2},0`} fill={fill} stroke={stroke} strokeWidth={strokeWidth} style={glow} />
+        <polygon points={`0,${-S / 2} ${S / 2},0 0,${S / 2} ${-S / 2},0`} fill={fill} stroke={stroke} strokeWidth={strokeWidth} style={glow} strokeDasharray={strokeDash} />
       )}
       {node.type === "pregnancy" && (
         <>
-          <polygon points={`0,${-S / 2} ${S / 2},0 0,${S / 2} ${-S / 2},0`} fill={fill} stroke={stroke} strokeWidth={strokeWidth} style={glow} />
+          <polygon points={`0,${-S / 2} ${S / 2},0 0,${S / 2} ${-S / 2},0`} fill={fill} stroke={stroke} strokeWidth={strokeWidth} style={glow} strokeDasharray={strokeDash} />
           {!node.insideText && <text x={0} y={4} textAnchor="middle" fontSize={9} fill={stroke} style={{ userSelect: "none", fontFamily: "JetBrains Mono, monospace" }}>P</text>}
         </>
       )}
       {node.type === "sab" && (
         <polygon points={`0,${S * 0.36} ${-S * 0.38},${-S * 0.26} ${S * 0.38},${-S * 0.26}`}
-          fill={invalid ? "rgba(255,64,64,0.07)" : node.affected ? "hsl(var(--foreground))" : node.carrier ? "hsl(var(--primary) / 0.08)" : "hsl(var(--card))"} stroke={stroke} strokeWidth={strokeWidth} style={glow} />
+          fill={invalid ? "rgba(255,64,64,0.07)" : node.affected ? "hsl(var(--foreground))" : node.carrier ? "hsl(var(--primary) / 0.08)" : "hsl(var(--card))"} stroke={stroke} strokeWidth={strokeWidth} style={glow} strokeDasharray={strokeDash} />
       )}
       {node.insideText && (
         <text x={0} y={4} textAnchor="middle" fontSize={S * 0.38} fill={node.affected ? "white" : "#374151"} style={{ userSelect: "none", fontFamily: "Inter, sans-serif", fontWeight: 600 }}>

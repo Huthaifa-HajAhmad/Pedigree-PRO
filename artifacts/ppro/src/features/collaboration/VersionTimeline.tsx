@@ -9,7 +9,8 @@ interface VersionTimelineProps {
   pedigreeId: number;
   currentCanvas: string; // JSON string of current canvas
   onRestore?: (canvasData: string) => void;
-  onPreview?: (canvasData: string) => void;
+  onPreview?: (canvasData: string, versionId: number) => void;
+  onRestoreRequest?: (versionId: number) => void;
 }
 
 /**
@@ -21,7 +22,7 @@ interface VersionTimelineProps {
  * - Click to preview, double-click to restore
  * - Follow mode: auto-play through history
  */
-export function VersionTimeline({ pedigreeId, currentCanvas, onRestore, onPreview }: VersionTimelineProps) {
+export function VersionTimeline({ pedigreeId, currentCanvas, onRestore, onPreview, onRestoreRequest }: VersionTimelineProps) {
   const { data: versions, isLoading } = useListVersions(pedigreeId);
   const restoreVersion = useRestoreVersion();
   const queryClient = useQueryClient();
@@ -50,11 +51,15 @@ export function VersionTimeline({ pedigreeId, currentCanvas, onRestore, onPrevie
   const handleSelect = useCallback((index: number, version: PedigreeVersion) => {
     setSelectedIndex(index);
     if (onPreview) {
-      onPreview(version.canvas_data);
+      onPreview(version.canvas_data, version.id);
     }
   }, [onPreview]);
 
   const handleRestore = useCallback((version: PedigreeVersion) => {
+    if (onRestoreRequest) {
+      onRestoreRequest(version.id);
+      return;
+    }
     restoreVersion.mutate(
       { pedigreeId, versionId: version.id },
       {
@@ -66,7 +71,7 @@ export function VersionTimeline({ pedigreeId, currentCanvas, onRestore, onPrevie
         },
       }
     );
-  }, [pedigreeId, restoreVersion, queryClient, onRestore]);
+  }, [pedigreeId, restoreVersion, queryClient, onRestore, onRestoreRequest]);
 
   const handlePlay = useCallback(() => {
     if (!versions || versions.length === 0) return;
@@ -77,7 +82,7 @@ export function VersionTimeline({ pedigreeId, currentCanvas, onRestore, onPrevie
       setSelectedIndex(idx);
       if (onPreview) {
         const v = versions[idx];
-        if (v) onPreview(v.canvas_data);
+        if (v) onPreview(v.canvas_data, v.id);
       }
     }, 2000);
     playIntervalRef.current = interval;
