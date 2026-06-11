@@ -67,6 +67,37 @@ export function pedigreeEditorReducer(
       return { ...state, canvas };
     }
 
+    case "ENTER_PREVIEW": {
+      const liveCanvasCache = state.liveCanvasCache || state.canvas;
+      const canvas = { ...action.canvas };
+      canvas.edges = autoDetectConsanguinity(canvas.nodes, canvas.edges);
+      return {
+        ...state,
+        liveCanvasCache,
+        canvas,
+        isPreviewMode: true,
+        previewVersionId: action.versionId,
+      };
+    }
+
+    case "EXIT_PREVIEW": {
+      if (!state.liveCanvasCache) return state;
+      return {
+        ...state,
+        canvas: state.liveCanvasCache,
+        liveCanvasCache: null,
+        isPreviewMode: false,
+        previewVersionId: null,
+      };
+    }
+
+    case "TOGGLE_VISUAL_DIFF": {
+      return {
+        ...state,
+        showVisualDiff: action.enabled,
+      };
+    }
+
     case "UPDATE_CANVAS": {
       const prev = state.canvas;
       const next = action.updater(prev);
