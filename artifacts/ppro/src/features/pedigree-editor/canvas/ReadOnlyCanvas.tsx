@@ -5,6 +5,7 @@ import { SibshipGroup, computeFamilyChildYOffset } from "./SibshipGroup";
 import type { CanvasData, PedigreeNode } from "./types";
 import { NODE_SIZE } from "./types";
 import { useCanvasConfig } from "@/features/pedigree-editor/context/CanvasConfigContext";
+import { getAnnotationBaseOffset } from "./AnnotationShape";
 
 const NOOP_EVENT = (_e: React.MouseEvent) => {};
 
@@ -39,12 +40,29 @@ function AnnotationReadOnly({ canvas }: { canvas: CanvasData }) {
     return map;
   }, [canvas.nodes]);
 
+  const stackIndexById = useMemo(() => {
+    const map = new Map<string, number>();
+    const grouped = new Map<string, string[]>();
+    for (const a of canvas.annotations) {
+      if (!a.nodeId) continue;
+      const key = `${a.nodeId}|${a.position}`;
+      if (!grouped.has(key)) grouped.set(key, []);
+      grouped.get(key)!.push(a.id);
+    }
+    for (const ids of grouped.values()) {
+      ids.forEach((id, idx) => map.set(id, idx));
+    }
+    return map;
+  }, [canvas.annotations]);
+
   return (
     <g>
       {canvas.annotations.map((ann) => {
         if (ann.hidden) return null;
-        const node = nodeById.get(ann.nodeId);
-        if (!node) return null;
+        const isFree = !ann.nodeId;
+        const node = isFree ? null : nodeById.get(ann.nodeId);
+        if (!isFree && !node) return null;
+
         const fs = ann.fontSize;
         const charW = fs * 0.62;
         const textW = Math.max(24, ann.text.length * charW);
@@ -52,16 +70,42 @@ function AnnotationReadOnly({ canvas }: { canvas: CanvasData }) {
         const padY = 4;
         const boxW = textW + padX * 2;
         const boxH = fs + padY * 2;
-        const slot = 0;
-        const baseDy = -(NODE_SIZE / 2 + boxH + 4) - slot;
-        const bx = node.x + (ann.offsetX ?? 0);
-        const by = node.y + baseDy + (ann.offsetY ?? 0);
-        const text = cfg.config.annUppercase ? ann.text.toUpperCase() : ann.text;
+
+        let bx = 0;
+        let by = 0;
+
+        if (isFree) {
+          bx = (ann.x ?? 0) - boxW / 2;
+          by = (ann.y ?? 0) - boxH / 2;
+        } else if (node) {
+          const stackIndex = stackIndexById.get(ann.id) ?? 0;
+          let labelBelowHeight = 0;
+          if (node.label) labelBelowHeight = 14;
+          if (node.age) labelBelowHeight += 11;
+          if (node.condition) labelBelowHeight += 11;
+
+          const offset = getAnnotationBaseOffset(ann.position, boxW, boxH, NODE_SIZE, stackIndex, labelBelowHeight);
+          bx = node.x + offset.dx + (ann.offsetX ?? 0);
+          by = node.y + offset.dy + (ann.offsetY ?? 0);
+        }
+
+        const isBold = ann.bold !== undefined ? ann.bold : cfg.config.annBold;
+        const isUppercase = ann.uppercase !== undefined ? ann.uppercase : cfg.config.annUppercase;
+        const isItalic = ann.italic ?? false;
+        const text = isUppercase ? ann.text.toUpperCase() : ann.text;
+
         return (
           <g key={ann.id}>
             <rect x={bx} y={by} width={boxW} height={boxH} rx={3} fill="transparent" stroke="none" />
             <text x={bx + padX} y={by + padY + fs * 0.78} fontSize={fs} fill={ann.color}
-              style={{ fontFamily: cfg.config.annFontFamily, userSelect: "none", pointerEvents: "none", fontWeight: cfg.config.annBold ? 600 : 400, textTransform: cfg.config.annUppercase ? "uppercase" : "none" }}>
+              style={{
+                fontFamily: cfg.config.annFontFamily,
+                userSelect: "none",
+                pointerEvents: "none",
+                fontWeight: isBold ? 600 : 400,
+                fontStyle: isItalic ? "italic" : "normal",
+                textTransform: isUppercase ? "uppercase" : "none"
+              }}>
               {text}
             </text>
           </g>
@@ -131,6 +175,7 @@ function SibshipLayer({ edges, nodes, annotations = [], showAutoLabels = false, 
 }
 
 export function ReadOnlyCanvas({ canvas, showGrid = false, showAutoLabels = false, autoLabels = new Map<string, string>() }: ReadOnlyCanvasProps) {
+  const { config } = useCanvasConfig();
   const { x, y, w, h } = computeViewBox(canvas.nodes);
   const nodeIdsWithEdges = useMemo(() => {
     const ids = new Set<string>();
@@ -199,8 +244,21 @@ export function ReadOnlyCanvas({ canvas, showGrid = false, showAutoLabels = fals
   }, [canvas.nodes, canvas.edges, canvas.annotations, showAutoLabels, autoLabels]);
 
   return (
-    <div className={`flex-1 overflow-hidden relative ${showGrid ? "grid-bg" : ""}`}>
-      <svg className="w-full h-full" viewBox={`${x} ${y} ${w} ${h}`} preserveAspectRatio="xMidYMid meet">
+    <div className="flex-1 overflow-hidden relative canvas-spared flex items-center justify-center p-4">
+      <div
+        className="relative bg-white shadow-md border border-border/75 rounded-lg overflow-hidden flex-shrink-0"
+        style={{ aspectRatio: `${w} / ${h}`, width: "100%", height: "100%", maxWidth: "100%", maxHeight: "100%", margin: "auto" }}
+      >
+        <svg className="w-full h-full" viewBox={`${x} ${y} ${w} ${h}`}>
+        <defs>
+          <pattern id="grid-pattern-readonly" width="40" height="40" patternUnits="userSpaceOnUse">
+            <path d="M 40 0 L 0 0 0 40" fill="none" stroke="currentColor" strokeWidth={1} vectorEffect="non-scaling-stroke" opacity={config.gridOpacity ?? 0.10} />
+          </pattern>
+        </defs>
+        <rect x={x} y={y} width={w} height={h} fill="white" />
+        {showGrid && (
+          <rect x={x} y={y} width={w} height={h} fill="url(#grid-pattern-readonly)" pointerEvents="none" />
+        )}
         <g>
           {canvas.edges.filter((e) => e.type !== "parent-child").map((edge) => (
             <EdgeLine key={edge.id} edge={edge} nodes={canvas.nodes} invalid={false} annotations={canvas.annotations} renderOffsets={familyOffsets} edges={canvas.edges} showAutoLabels={showAutoLabels} autoLabels={autoLabels} />
@@ -230,6 +288,7 @@ export function ReadOnlyCanvas({ canvas, showGrid = false, showAutoLabels = fals
 
         <AnnotationReadOnly canvas={canvas} />
       </svg>
+      </div>
     </div>
   );
 }

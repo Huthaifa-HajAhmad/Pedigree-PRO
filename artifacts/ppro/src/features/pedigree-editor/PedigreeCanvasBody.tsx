@@ -9,6 +9,7 @@ import { CanvasOverlayManager } from "@/features/pedigree-editor/overlay/CanvasO
 import { FindBar } from "@/features/pedigree-editor/overlay/FindBar";
 import { useCanvasTouch } from "@/features/pedigree-editor/hooks/use-canvas-touch";
 import { NodeQuickEditPopover } from "@/features/pedigree-editor/overlay/NodeQuickEditPopover";
+import { AnnotationQuickEditPopover } from "@/features/pedigree-editor/overlay/AnnotationQuickEditPopover";
 import { ContextMenu } from "@/features/pedigree-editor/overlay/ContextMenu";
 import { NodeColorPicker } from "@/features/pedigree-editor/overlay/NodeColorPicker";
 import { AddSiblingDialog } from "@/features/pedigree-editor/overlay/AddSiblingDialog";
@@ -16,8 +17,10 @@ import { PropertiesPanel } from "@/features/pedigree-editor/panels/PropertiesPan
 import { RiskPanelSidebar } from "@/features/pedigree-editor/panels/RiskCalculatorPanel";
 import { VersionHistoryPanel } from "@/features/pedigree-editor/panels/VersionHistoryPanel";
 import { ValidationPanelWrapper } from "@/features/pedigree-editor/panels/ValidationPanelWrapper";
+import { SettingsPanel } from "@/features/pedigree-editor/panels/SettingsPanel";
 import { ShareModal } from "@/components/ShareModal";
 import { usePedigreeEditor } from "@/features/pedigree-editor/context/usePedigreeEditor";
+import { useCanvasConfig } from "@/features/pedigree-editor/context/CanvasConfigContext";
 import { parseCanvas } from "@/features/pedigree-editor/utils/helpers";
 import type { PedigreeNode, CanvasData } from "@/features/pedigree-editor/canvas/types";
 import { NODE_SIZE } from "@/features/pedigree-editor/canvas/types";
@@ -33,7 +36,7 @@ function computeLabelBelowHeight(node: PedigreeNode, autoLabel?: string): number
 
 function AnnotationLayer({
   annotations, nodes, selectedAnnotationId, canvas,
-  onAnnotationClick, onAnnotationDragStart, onAnnotationUpdateText, autoLabels, showAutoLabels, familyYOffsetMap,
+  onAnnotationClick, onAnnotationDragStart, onAnnotationDoubleClick, autoLabels, showAutoLabels, familyYOffsetMap,
 }: {
   annotations: CanvasData["annotations"];
   nodes: PedigreeNode[];
@@ -41,7 +44,7 @@ function AnnotationLayer({
   canvas: CanvasData;
   onAnnotationClick: (annId: string, nodeId: string) => void;
   onAnnotationDragStart: (annId: string, e: React.MouseEvent) => void;
-  onAnnotationUpdateText?: (annId: string, text: string) => void;
+  onAnnotationDoubleClick?: (annId: string) => void;
   autoLabels: Map<string, string>;
   showAutoLabels: boolean;
   familyYOffsetMap: Map<string, number>;
@@ -56,6 +59,7 @@ function AnnotationLayer({
     const map = new Map<string, number>();
     const grouped = new Map<string, string[]>();
     for (const a of annotations) {
+      if (!a.nodeId) continue;
       const key = `${a.nodeId}|${a.position}`;
       if (!grouped.has(key)) grouped.set(key, []);
       grouped.get(key)!.push(a.id);
@@ -69,19 +73,22 @@ function AnnotationLayer({
   return (
     <g>
       {annotations.map((ann) => {
-         const node = nodeById.get(ann.nodeId);
-         if (!node) return null;
-         const stackIndex = stackIndexById.get(ann.id) ?? 0;
-         const autoLabel = showAutoLabels ? autoLabels.get(node.id) : undefined;
-         const labelBelowHeight = computeLabelBelowHeight(node, autoLabel);
-         const offsetY = familyYOffsetMap.get(ann.nodeId) ?? 0;
+         const isFree = !ann.nodeId;
+         const node = isFree ? null : nodeById.get(ann.nodeId);
+         if (!isFree && !node) return null;
+         const stackIndex = isFree ? 0 : (stackIndexById.get(ann.id) ?? 0);
+         const autoLabel = (node && showAutoLabels) ? autoLabels.get(node.id) : undefined;
+         const labelBelowHeight = node ? computeLabelBelowHeight(node, autoLabel) : 0;
+         const offsetY = node ? (familyYOffsetMap.get(ann.nodeId) ?? 0) : 0;
+         const nodeX = node ? node.x : (ann.x ?? 0);
+         const nodeY = node ? node.y + offsetY : (ann.y ?? 0);
          return (
            <AnnotationShape key={ann.id} ann={ann}
-             nodeX={node.x} nodeY={node.y + offsetY} stackIndex={stackIndex}
+             nodeX={nodeX} nodeY={nodeY} stackIndex={stackIndex}
              isSelected={selectedAnnotationId === ann.id}
              onClick={() => onAnnotationClick(ann.id, ann.nodeId)}
              onDragStart={(e) => onAnnotationDragStart(ann.id, e)}
-             onUpdateText={onAnnotationUpdateText}
+             onDoubleClick={() => onAnnotationDoubleClick?.(ann.id)}
              labelBelowHeight={labelBelowHeight}
            />
          );
@@ -156,14 +163,16 @@ function SibshipLayer({ edges, nodes, invalidEdgeIds, annotations = [], showAuto
 
 export function PedigreeCanvasBody() {
   const { state, ops, memo, refs, dispatch, pedigree, versions } = usePedigreeEditor();
+  const { config } = useCanvasConfig();
 
   const {
     canvas, selectedIds, linkSource, showAutoLabels, viewBox,
     panning, spaceHeld, lassoVisible,
-    editModalNodeId, showSearch, searchQuery, searchMatchIndex,
+    editModalNodeId, editAnnotationId, showSearch, searchQuery, searchMatchIndex,
     showMinimap, showGrid, showLegend, contextMenu, colorPickerNode,
     selectedAnnotationId, riskMode,
     showRiskPanel, showVersions, showValidation, expandedIssueId,
+    showSettings,
     showShareModal, showAddSiblingDialog, siblingSourceId,
     alignGuides,
     twinSelectMode, twinCandidateIds,
@@ -171,7 +180,7 @@ export function PedigreeCanvasBody() {
   } = state;
 
   const {
-    updateCanvas, addAnnotation, updateAnnotation, deleteAnnotation,
+    updateCanvas, addAnnotation, addFreeAnnotation, updateAnnotation, deleteAnnotation,
     setNodeType, setNodeColor, toggleNodeProp, addContextNode, deleteSelected,
     updateSelectedNode, bulkUpdate, alignSelected,
     handleNodeClick, handleNodeDoubleClick, handleNodeContextMenu, handleDragStart,
@@ -197,17 +206,59 @@ export function PedigreeCanvasBody() {
   } as unknown as React.MouseEvent), []);
 
   useEffect(() => {
-    if (!showRiskPanel && !showValidation && !showVersions) return;
+    if (!showRiskPanel && !showValidation && !showVersions && !showSettings) return;
     const handler = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
-        dispatch({ type: "SET_STATE", patch: { showRiskPanel: false, showValidation: false, showVersions: false } });
+        dispatch({ type: "SET_STATE", patch: { showRiskPanel: false, showValidation: false, showVersions: false, showSettings: false } });
       }
     };
     document.addEventListener("keydown", handler);
     return () => document.removeEventListener("keydown", handler);
-  }, [showRiskPanel, showValidation, showVersions, dispatch]);
+  }, [showRiskPanel, showValidation, showVersions, showSettings, dispatch]);
 
   const handleCloseContextMenu = useCallback(() => dispatch({ type: "SET_STATE", patch: { contextMenu: null } }), [dispatch]);
+
+  const handleReorderAnnotations = useCallback((annId: string, direction: "up" | "down") => {
+    updateCanvas((prev) => {
+      const anns = [...prev.annotations];
+      const idx = anns.findIndex((a) => a.id === annId);
+      if (idx === -1) return prev;
+      const currentAnn = anns[idx];
+      if (!currentAnn) return prev;
+      const nodeId = currentAnn.nodeId;
+
+      // Find the indices of annotations that belong to the SAME node
+      const nodeAnnIndices = anns
+        .map((a, i) => ({ a, i }))
+        .filter((item) => item.a.nodeId === nodeId)
+        .map((item) => item.i);
+
+      const relativeIdx = nodeAnnIndices.indexOf(idx);
+      if (relativeIdx === -1) return prev;
+
+      if (direction === "up" && relativeIdx > 0) {
+        const targetIdx = nodeAnnIndices[relativeIdx - 1];
+        if (targetIdx === undefined) return prev;
+        const temp = anns[idx];
+        const targetAnn = anns[targetIdx];
+        if (!temp || !targetAnn) return prev;
+        anns[idx] = targetAnn;
+        anns[targetIdx] = temp;
+        return { ...prev, annotations: anns };
+      } else if (direction === "down" && relativeIdx < nodeAnnIndices.length - 1) {
+        const targetIdx = nodeAnnIndices[relativeIdx + 1];
+        if (targetIdx === undefined) return prev;
+        const temp = anns[idx];
+        const targetAnn = anns[targetIdx];
+        if (!temp || !targetAnn) return prev;
+        anns[idx] = targetAnn;
+        anns[targetIdx] = temp;
+        return { ...prev, annotations: anns };
+      }
+      return prev;
+    });
+  }, [updateCanvas]);
+
 
   // ── Generation rail drag state ──────────────────────────────────
   const railDraggingRef = useRef(false);
@@ -294,7 +345,7 @@ const RAIL_MAX_X = 400;
   }, [handleWheel]);
 
   const handleAnnotationClick = useCallback((annId: string, nodeId: string) => {
-    dispatch({ type: "SET_STATE", patch: { selectedAnnotationId: selectedAnnotationId === annId ? null : annId, selectedIds: new Set([nodeId]) } });
+    dispatch({ type: "SET_STATE", patch: { selectedAnnotationId: selectedAnnotationId === annId ? null : annId, selectedIds: nodeId ? new Set([nodeId]) : new Set() } });
   }, [selectedAnnotationId]);
 
   const handleAnnotationDragStart = useCallback((annId: string, e: React.MouseEvent) => {
@@ -302,12 +353,15 @@ const RAIL_MAX_X = 400;
     if (!coords) return;
     preDragCanvasRef.current = canvas;
     const ann = canvas.annotations.find((a) => a.id === annId);
-    const node = ann ? canvas.nodes.find((n) => n.id === ann.nodeId) : undefined;
-    const autoLabel = ann && showAutoLabels ? autoLabels.get(ann.nodeId) : undefined;
+    if (!ann) return;
+    const isFree = !ann.nodeId;
+    const node = isFree ? null : canvas.nodes.find((n) => n.id === ann.nodeId);
+    const autoLabel = node && showAutoLabels ? autoLabels.get(ann.nodeId) : undefined;
     const labelBelowHeight = node ? computeLabelBelowHeight(node, autoLabel) : 0;
-    const stackIndex = (() => {
+    const stackIndex = isFree ? 0 : (() => {
       const grouped = new Map<string, string[]>();
       for (const a of canvas.annotations) {
+        if (!a.nodeId) continue;
         const key = `${a.nodeId}|${a.position}`;
         if (!grouped.has(key)) grouped.set(key, []);
         grouped.get(key)!.push(a.id);
@@ -318,12 +372,11 @@ const RAIL_MAX_X = 400;
       }
       return 0;
     })();
-    pendingAnnDragRef.current = { annId, startSVG: coords, initOffset: { x: ann?.offsetX ?? 0, y: ann?.offsetY ?? 0 }, labelBelowHeight, stackIndex };
+    const initOffset = isFree
+      ? { x: ann.x ?? 0, y: ann.y ?? 0 }
+      : { x: ann.offsetX ?? 0, y: ann.offsetY ?? 0 };
+    pendingAnnDragRef.current = { annId, startSVG: coords, initOffset, labelBelowHeight, stackIndex };
   }, [getSVGCoords, canvas, preDragCanvasRef, showAutoLabels, autoLabels]);
-
-  const handleAnnotationUpdateText = useCallback((annId: string, text: string) => {
-    updateAnnotation(annId, { text });
-  }, [updateAnnotation]);
 
   const nodeIdsWithEdges = useMemo(() => {
     const ids = new Set<string>();
@@ -441,9 +494,17 @@ const RAIL_MAX_X = 400;
     return versions.find(v => v.id === state.previewVersionId) || null;
   }, [state.previewVersionId, versions]);
 
+  const handleSVGDoubleClick = useCallback((e: React.MouseEvent) => {
+    if ((e.target as Element).getAttribute("data-canvas-svg") === "true") {
+      const coords = getSVGCoords(e);
+      if (!coords) return;
+      addFreeAnnotation(coords.x, coords.y);
+    }
+  }, [getSVGCoords, addFreeAnnotation]);
+
   return (
     <div className="flex flex-1 overflow-hidden" data-print-area>
-      <div className={`flex-1 overflow-hidden relative ${showGrid ? "grid-bg" : ""}`} style={{ touchAction: "none", overscrollBehavior: "none" }}>
+      <div className="flex-1 overflow-hidden relative canvas-spared flex items-center justify-center p-4" style={{ touchAction: "none", overscrollBehavior: "none" }}>
         {twinSelectMode && (
           <div className="absolute top-3 left-1/2 -translate-x-1/2 z-20 px-3 py-1.5 rounded-full bg-amber-500 text-white text-xs font-medium shadow-md pointer-events-none">
             Twin select: {twinCandidateIds.size} node{twinCandidateIds.size !== 1 ? "s" : ""}
@@ -493,17 +554,31 @@ const RAIL_MAX_X = 400;
             </div>
           </div>
         )}
-        <svg
-          ref={svgRef}
-          data-canvas-svg="true"
-          data-pedigree-canvas
-          className="w-full h-full"
-          viewBox={`${viewBox.x} ${viewBox.y} ${vbW} ${vbH}`}
-          onMouseMove={handleMouseMove} onMouseUp={handleMouseUp}
-          onMouseDown={handleSVGMouseDown}
-          onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp}
-          style={{ touchAction: "none", cursor: panning ? "grabbing" : spaceHeld ? "grab" : lassoVisible ? "crosshair" : "default" }}
+        <div
+          className="relative bg-white shadow-md border border-border/75 rounded-lg overflow-hidden flex-shrink-0"
+          style={{ aspectRatio: "14 / 9", width: "100%", height: "100%", maxWidth: "100%", maxHeight: "100%", margin: "auto" }}
         >
+          <svg
+            ref={svgRef}
+            data-canvas-svg="true"
+            data-pedigree-canvas
+            className="w-full h-full"
+            viewBox={`${viewBox.x} ${viewBox.y} ${vbW} ${vbH}`}
+            onMouseMove={handleMouseMove} onMouseUp={handleMouseUp}
+            onMouseDown={handleSVGMouseDown}
+            onDoubleClick={handleSVGDoubleClick}
+            onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp}
+            style={{ touchAction: "none", cursor: panning ? "grabbing" : spaceHeld ? "grab" : lassoVisible ? "crosshair" : "default" }}
+          >
+            <defs>
+              <pattern id="grid-pattern" width="40" height="40" patternUnits="userSpaceOnUse">
+                <path d="M 40 0 L 0 0 0 40" fill="none" stroke="currentColor" strokeWidth={1} vectorEffect="non-scaling-stroke" opacity={config.gridOpacity ?? 0.10} />
+              </pattern>
+            </defs>
+            <rect x={viewBox.x} y={viewBox.y} width={vbW} height={vbH} fill="white" />
+            {showGrid && (
+              <rect x={viewBox.x} y={viewBox.y} width={vbW} height={vbH} fill="url(#grid-pattern)" pointerEvents="none" />
+            )}
           {visibleGenRows.map((row) => (
             <line key={row} x1={viewBox.x} y1={row} x2={viewBox.x + vbW} y2={row}
               stroke={"hsl(var(--primary) / 0.5)"} strokeWidth={0.8} strokeDasharray="8 5" opacity={0.4}
@@ -651,7 +726,7 @@ const RAIL_MAX_X = 400;
             canvas={canvas}
             onAnnotationClick={handleAnnotationClick}
             onAnnotationDragStart={handleAnnotationDragStart}
-            onAnnotationUpdateText={handleAnnotationUpdateText}
+            onAnnotationDoubleClick={(annId) => dispatch({ type: "SET_STATE", patch: { editAnnotationId: annId } })}
             autoLabels={autoLabels}
             showAutoLabels={showAutoLabels}
             familyYOffsetMap={familyOffsets}
@@ -665,6 +740,7 @@ const RAIL_MAX_X = 400;
             </text>
           )}
         </svg>
+        </div>
 
         {showSearch && (
           <FindBar
@@ -721,6 +797,22 @@ const RAIL_MAX_X = 400;
           );
         })()}
 
+        {editAnnotationId && (() => {
+          const editAnn = canvas.annotations.find((a) => a.id === editAnnotationId);
+          if (!editAnn) return null;
+          return (
+            <AnnotationQuickEditPopover
+              key={editAnnotationId}
+              annotation={editAnn}
+              svgRef={svgRef}
+              canvasNodes={canvas.nodes}
+              onClose={() => dispatch({ type: "SET_STATE", patch: { editAnnotationId: null } })}
+              onUpdateAnnotation={(updates) => updateAnnotation(editAnn.id, updates)}
+              onDeleteAnnotation={() => deleteAnnotation(editAnn.id)}
+            />
+          );
+        })()}
+
         {contextMenu && (() => {
           const ctxNode = canvas.nodes.find((n) => n.id === contextMenu.nodeId);
           if (!ctxNode) return null;
@@ -753,7 +845,7 @@ const RAIL_MAX_X = 400;
           );
         })()}
 
-        {anySelected && !showRiskPanel && !showValidation && !showVersions && (
+        {(anySelected || selectedAnnotationId !== null) && !showRiskPanel && !showValidation && !showVersions && !showSettings && (
           <PropertiesPanel
             selectedIds={selectedIds}
             canvasNodes={canvas.nodes} canvasEdges={canvas.edges}
@@ -763,7 +855,16 @@ const RAIL_MAX_X = 400;
             onDeleteSelected={deleteSelected}
             onAddAnnotation={addAnnotation} onUpdateAnnotation={updateAnnotation}
             onDeleteAnnotation={deleteAnnotation}
-            onSelectAnnotation={(annId: string | null) => dispatch({ type: "SET_STATE", patch: { selectedAnnotationId: annId } })}
+            onSelectAnnotation={(annId: string | null) => {
+              dispatch({
+                type: "SET_STATE",
+                patch: {
+                  selectedAnnotationId: annId,
+                  editAnnotationId: annId,
+                },
+              });
+            }}
+            onReorderAnnotations={handleReorderAnnotations}
             onAlignSelected={alignSelected}
             onMarkAsTwins={markAsTwins}
             onUnmarkTwins={unmarkTwins}
@@ -772,7 +873,16 @@ const RAIL_MAX_X = 400;
             onCreateCoupleEdge={ops.createCoupleEdge}
             onCreateConsanguinityEdge={ops.createConsanguinityEdge}
             onCreateCoupleAndChild={ops.createCoupleAndChild}
+            onCreateParentsForGroup={ops.createParentsForGroup}
           />
+        )}
+
+        {showSettings && (
+          <div className="absolute right-0 top-0 bottom-0 z-30 overflow-hidden shadow-[-4px_0_12px_rgba(0,0,0,0.08),0_4px_12px_rgba(0,0,0,0.08)]">
+            <SettingsPanel
+              onClose={() => dispatch({ type: "SET_STATE", patch: { showSettings: false } })}
+            />
+          </div>
         )}
 
         {showRiskPanel && (

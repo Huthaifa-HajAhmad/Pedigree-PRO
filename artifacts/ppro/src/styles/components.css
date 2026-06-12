@@ -13,11 +13,17 @@
   border: 1px solid var(--glass-bdr);
 }
 
-.grid-bg {
-  background-image:
-    linear-gradient(var(--grid-line) 1px, transparent 1px),
-    linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
-  background-size: 40px 40px;
+.canvas-spared {
+  --background: 0 0% 100%;
+  --foreground: 222 47% 11%;
+  --card: 0 0% 100%;
+  --border: 214 32% 91%;
+  --muted-foreground: 215 16% 47%;
+  --popover: 0 0% 100%;
+  --popover-border: 214 32% 91%;
+  --grid-line: rgba(0, 0, 0, 0.05);
+  background-color: hsl(210 20% 98%);
+  color: hsl(var(--foreground));
 }
 
 /* Tabs bar: hidden scrollbar, smooth transitions */

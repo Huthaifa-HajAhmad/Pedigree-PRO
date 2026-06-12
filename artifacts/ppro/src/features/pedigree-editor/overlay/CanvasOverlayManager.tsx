@@ -1,7 +1,6 @@
 import { useRef } from "react";
 import { Minimap } from "@/features/pedigree-editor/overlay/Minimap";
 import { LegendPanel } from "@/features/pedigree-editor/overlay/LegendPanel";
-import { KeyboardShortcutHint } from "@/features/pedigree-editor/overlay/KeyboardShortcutHint";
 import type { PedigreeNode, PedigreeEdge } from "@/features/pedigree-editor/canvas/types";
 
 export function CanvasOverlayManager({
@@ -48,8 +47,6 @@ export function CanvasOverlayManager({
 
   return (
     <div ref={containerRef} className="absolute inset-0 pointer-events-none">
-      <KeyboardShortcutHint singleSelected={singleSelected} />
-
       {/* Stacked overlay container: legend above minimap on the right side */}
       {(minimapVisible || showLegend) && (
         <div className={`absolute bottom-4 flex flex-col-reverse gap-2 pointer-events-auto transition-all duration-300 ${panelOpen ? "right-[296px]" : "right-4"}`}>
