@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { Link } from "wouter";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Settings } from "lucide-react";
 import type { CanvasData } from "@/features/pedigree-editor/canvas/types";
 
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
@@ -76,6 +76,8 @@ export interface RibbonToolbarProps {
   validation: ValidationSummary;
   showLegend: boolean;
   setShowLegend: React.Dispatch<React.SetStateAction<boolean>>;
+  showSettings: boolean;
+  setShowSettings: React.Dispatch<React.SetStateAction<boolean>>;
 
   twinSelectMode: boolean;
   twinCandidateIds: Set<string>;
@@ -235,7 +237,22 @@ export function RibbonToolbar(props: RibbonToolbarProps) {
 
         <div className="w-px self-stretch bg-border mx-1 flex-shrink-0" />
 
-        <HelpGroup labelHidden={hideLabels || compactSecondaries} />
+        <HelpGroup labelHidden={hideLabels || compactSecondaries}>
+          <button
+            type="button"
+            data-testid="button-settings"
+            onClick={() => props.setShowSettings(!props.showSettings)}
+            title="Canvas settings"
+            aria-label="Canvas settings"
+            aria-pressed={props.showSettings}
+            className={`flex flex-col items-center gap-1.5 min-w-[44px] min-h-[44px] py-1 rounded text-[11px] leading-tight font-medium transition-colors ${
+              props.showSettings ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-accent hover:text-foreground"
+            }`}
+          >
+            <Settings className="w-5 h-5" />
+            <span className="text-[11px] leading-tight font-medium">Settings</span>
+          </button>
+        </HelpGroup>
       </div>
 
       {/* Hidden live region for save status announcements */}

@@ -19,8 +19,8 @@ export function PanelShell({
   children,
 }: PanelShellProps) {
   return (
-    <div className={`${width} h-full border-l border-border glass-panel flex flex-col flex-shrink-0 overflow-hidden shadow-[-4px_0_12px_rgba(0,0,0,0.08),0_4px_12px_rgba(0,0,0,0.08)]`}>
-      <div className="p-3 border-b border-border flex items-center justify-between flex-shrink-0">
+    <div className={`${width} h-full border-l border-sidebar-border bg-sidebar text-sidebar-foreground flex flex-col flex-shrink-0 overflow-hidden shadow-[-6px_0_16px_rgba(0,0,0,0.12),0_4px_16px_rgba(0,0,0,0.08)]`}>
+      <div className="p-3 border-b border-sidebar-border flex items-center justify-between flex-shrink-0">
         <div className="flex items-center gap-2 min-w-0">
           {icon && <span className="flex-shrink-0 text-muted-foreground">{icon}</span>}
           <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground truncate">
