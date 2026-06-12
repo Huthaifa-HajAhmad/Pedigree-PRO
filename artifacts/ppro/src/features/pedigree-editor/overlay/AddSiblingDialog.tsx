@@ -54,6 +54,22 @@ function sexSummary(siblings: SiblingEntry[]): string {
   return parts.join(" · ") || "—";
 }
 
+function traitsSummary(siblings: SiblingEntry[]): string {
+  const counts = { affected: 0, carrier: 0, deceased: 0, proband: 0 };
+  for (const s of siblings) {
+    if (s.affected) counts.affected++;
+    if (s.carrier) counts.carrier++;
+    if (s.deceased) counts.deceased++;
+    if (s.proband) counts.proband++;
+  }
+  const parts: string[] = [];
+  if (counts.affected) parts.push(`${counts.affected} Affected`);
+  if (counts.carrier) parts.push(`${counts.carrier} Carrier`);
+  if (counts.deceased) parts.push(`${counts.deceased} Deceased`);
+  if (counts.proband) parts.push(`${counts.proband} Proband`);
+  return parts.join(" · ");
+}
+
 function renderMiniTraitIcon(type: PedigreeNode["type"], trait: "affected" | "carrier" | "deceased" | "proband", size = 12) {
   const isMale = type === "male";
   const isFemale = type === "female";
@@ -435,7 +451,7 @@ export function AddSiblingDialog({ sourceNode, onConfirm, onCancel, autoLabel }:
                       }
 
                       return (
-                        <g key={idx} className="text-foreground cursor-help">
+                        <g key={idx} className="text-foreground cursor-default">
                           {verticalLine}
                           {isSource && (
                             <circle cx={cx} cy={cy} r={r + 4} fill="none" stroke="hsl(var(--primary) / 0.3)" strokeWidth={1} strokeDasharray="3,3" />
@@ -712,6 +728,12 @@ export function AddSiblingDialog({ sourceNode, onConfirm, onCancel, autoLabel }:
                   <span className="tabular-nums font-bold text-foreground">{count}</span> staged sibling{count > 1 ? "s" : ""}
                   <span className="text-border mx-1.5">|</span>
                   <span className="font-bold text-foreground">{sexSummary(siblings)}</span>
+                  {traitsSummary(siblings) && (
+                    <>
+                      <span className="text-border mx-1.5">|</span>
+                      <span className="font-bold text-foreground">{traitsSummary(siblings)}</span>
+                    </>
+                  )}
                 </div>
                 <Button
                   type="button"
