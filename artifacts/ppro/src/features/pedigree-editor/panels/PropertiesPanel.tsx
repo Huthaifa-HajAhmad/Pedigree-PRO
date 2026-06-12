@@ -19,9 +19,11 @@ export function PropertiesPanel({
   onUpdateSelectedNode,
   onBulkUpdate, onDeleteSelected, onAddAnnotation,
   onUpdateAnnotation, onDeleteAnnotation, onSelectAnnotation,
+  onReorderAnnotations,
   onAlignSelected, onMarkAsTwins, onUnmarkTwins, onRemoveEdges,
   onUpdateEdgeType,
   onCreateCoupleEdge, onCreateConsanguinityEdge, onCreateCoupleAndChild,
+  onCreateParentsForGroup,
 }: {
   selectedIds: Set<string>;
   canvasNodes: PedigreeNode[];
@@ -35,6 +37,7 @@ export function PropertiesPanel({
   onUpdateAnnotation: (annId: string, updates: Partial<PedigreeAnnotation>) => void;
   onDeleteAnnotation: (annId: string) => void;
   onSelectAnnotation: (annId: string | null) => void;
+  onReorderAnnotations?: (annId: string, direction: "up" | "down") => void;
   onAlignSelected: (axis: "x" | "y") => void;
   onMarkAsTwins?: (nodeIds: string[], twinType: "m" | "d") => void;
   onUnmarkTwins?: (nodeIds: string[]) => void;
@@ -43,6 +46,7 @@ export function PropertiesPanel({
   onCreateCoupleEdge?: (sourceId: string, targetId: string) => void;
   onCreateConsanguinityEdge?: (sourceId: string, targetId: string) => void;
   onCreateCoupleAndChild?: (maleId: string, femaleId: string) => void;
+  onCreateParentsForGroup?: (nodeIds: string[]) => void;
 }) {
   const autoLabels = useMemo(() => computeAutoLabels(canvasNodes, canvasEdges), [canvasNodes, canvasEdges]);
   const singleSelected = selectedIds.size === 1 ? canvasNodes.find((n) => selectedIds.has(n.id)) ?? null : null;
@@ -122,54 +126,144 @@ export function PropertiesPanel({
             <div className="text-xs text-muted-foreground mt-1 opacity-60">Press Enter to apply</div>
           </PanelSection>
 
-          {/* Add Relationship (two opposite-gender nodes, no existing edge) */}
+          {/* Add Relationship */}
           {(() => {
             if (selectedIds.size !== 2 || !onCreateCoupleEdge || !onCreateConsanguinityEdge) return null;
             const nodes = canvasNodes.filter(n => selectedIds.has(n.id));
             if (nodes.length !== 2) return null;
-            const a = nodes[0], b = nodes[1];
-            if (!a || !b) return null;
-            const isOppositeGender = (a.type === "male" && b.type === "female") || (a.type === "female" && b.type === "male");
-            if (!isOppositeGender) return null;
-            const hasRelEdge = canvasEdges.some(e => (e.type === "couple" || e.type === "consanguinity" || e.type === "divorced" || e.type === "separated") && ((e.sourceId === a.id && e.targetId === b.id) || (e.sourceId === b.id && e.targetId === a.id)));
+            const a = nodes[0]!;
+            const b = nodes[1]!;
+
+            const hasRelEdge = canvasEdges.some(e => 
+              (e.type === "couple" || e.type === "consanguinity" || e.type === "divorced" || e.type === "separated") && 
+              ((e.sourceId === a.id && e.targetId === b.id) || (e.sourceId === b.id && e.targetId === a.id))
+            );
+
+            const getParents = (id: string): string[] => {
+              return canvasEdges
+                .filter((e) => e.type === "parent-child" && e.targetId === id)
+                .map((e) => e.sourceId);
+            };
+
+            const getAncestors = (id: string, visited = new Set<string>()): Set<string> => {
+              const ancestors = new Set<string>();
+              const parents = getParents(id);
+              for (const p of parents) {
+                if (!visited.has(p)) {
+                  visited.add(p);
+                  ancestors.add(p);
+                  const pAncestors = getAncestors(p, visited);
+                  for (const ans of pAncestors) {
+                    ancestors.add(ans);
+                  }
+                }
+              }
+              return ancestors;
+            };
+
+            const parentsA = getParents(a.id);
+            const parentsB = getParents(b.id);
+            const ancestorsA = getAncestors(a.id);
+            const ancestorsB = getAncestors(b.id);
+
+            const isDirectParentChild = ancestorsA.has(b.id) || ancestorsB.has(a.id);
+            const isSibling = parentsA.length > 0 && parentsB.length > 0 && parentsA.some(p => parentsB.includes(p));
+
+            let shareAncestor = false;
+            for (const ans of ancestorsA) {
+              if (ancestorsB.has(ans)) {
+                shareAncestor = true;
+                break;
+              }
+            }
+            const isGeneticRelative = shareAncestor && !isSibling && !isDirectParentChild;
+            const hasNoParents = parentsA.length === 0 && parentsB.length === 0;
+
+            const isBlocked = isDirectParentChild || isSibling;
             if (hasRelEdge) return null;
-            const maleId = a.type === "male" ? a.id : b.id;
-            const femaleId = a.type === "female" ? a.id : b.id;
+            if (isBlocked) return null;
+
+            const maleId = a.type === "male" ? a.id : b.type === "male" ? b.id : a.id;
+            const femaleId = a.type === "female" ? a.id : b.type === "female" ? b.id : b.id;
+
             return (
               <PanelSection title="Add Relationship" icon={<Link2 className="w-3 h-3" />}>
+                {isGeneticRelative ? (
+                  <div className="p-2.5 rounded-lg border border-amber-500/20 bg-amber-500/5 text-amber-600 dark:text-amber-500 text-xs leading-relaxed mb-2">
+                    Genetic relationship detected. Consanguineous link recommended.
+                  </div>
+                ) : null}
+
                 <div className="grid grid-cols-2 gap-1">
-                  <button type="button" onClick={() => onCreateCoupleEdge(maleId, femaleId)}
-                    className="py-1.5 text-xs border border-border/80 rounded-lg text-muted-foreground hover:bg-accent/30 hover:border-muted-foreground/30 hover:text-foreground transition-all duration-200 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">
+                  <button 
+                    type="button" 
+                    onClick={() => onCreateCoupleEdge(maleId, femaleId)}
+                    className="border-border/80 text-muted-foreground hover:bg-accent/30 hover:border-muted-foreground/30 hover:text-foreground py-1.5 text-xs border rounded-lg transition-all duration-200 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                  >
                     <Heart className="w-3 h-3 inline mr-1" />Couple
                   </button>
-                  <button type="button" onClick={() => onCreateConsanguinityEdge(maleId, femaleId)}
-                    className="py-1.5 text-xs border border-border/80 rounded-lg text-muted-foreground hover:bg-accent/30 hover:border-muted-foreground/30 hover:text-foreground transition-all duration-200 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">
+                  <button 
+                    type="button" 
+                    onClick={() => onCreateConsanguinityEdge(maleId, femaleId)}
+                    className={`py-1.5 text-xs border rounded-lg transition-all duration-200 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring ${
+                      isGeneticRelative
+                        ? "border-amber-500/50 text-amber-600 dark:text-amber-500 bg-amber-500/5 dark:bg-amber-500/10 hover:bg-amber-500/15"
+                        : "border-border/80 text-muted-foreground hover:bg-accent/30 hover:border-muted-foreground/30 hover:text-foreground"
+                    }`}
+                  >
                     <GitBranch className="w-3 h-3 inline mr-1" />Consang.
                   </button>
                 </div>
+
                 {onCreateCoupleAndChild && (
-                  <button type="button" onClick={() => onCreateCoupleAndChild(maleId, femaleId)}
-                    className="w-full mt-1 py-1.5 text-xs border border-border/80 rounded-lg text-muted-foreground hover:bg-accent/30 hover:border-muted-foreground/30 hover:text-foreground transition-all duration-200 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">
+                  <button 
+                    type="button" 
+                    onClick={() => onCreateCoupleAndChild(maleId, femaleId)}
+                    className="w-full mt-1 py-1.5 text-xs border border-border/80 rounded-lg text-muted-foreground hover:bg-accent/30 hover:border-muted-foreground/30 hover:text-foreground transition-all duration-200 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                  >
                     <Plus className="w-3 h-3 inline mr-1" />Add Child
+                  </button>
+                )}
+
+                {hasNoParents && onCreateParentsForGroup && (
+                  <button 
+                    type="button" 
+                    onClick={() => onCreateParentsForGroup([a.id, b.id])}
+                    className="w-full mt-1.5 py-1.5 text-xs border border-primary/40 rounded-lg text-primary bg-primary/5 hover:bg-primary/10 transition-all duration-200 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring font-medium"
+                  >
+                    <Plus className="w-3 h-3 inline mr-1" />Add Shared Parents
                   </button>
                 )}
               </PanelSection>
             );
           })()}
 
-          {/* Relationship */}
           {(() => {
             const coupleEdges = canvasEdges.filter(
               (e) => (e.type === "couple" || e.type === "consanguinity" || e.type === "divorced" || e.type === "separated") && selectedIds.has(e.sourceId) && selectedIds.has(e.targetId)
             );
             if (coupleEdges.length === 0 || !onRemoveEdges) return null;
+
+            const hasChildren = (p1Id: string, p2Id: string) => {
+              return canvasNodes.some((child) => {
+                const childParents = canvasEdges
+                  .filter((e) => e.type === "parent-child" && e.targetId === child.id)
+                  .map((e) => e.sourceId);
+                return childParents.includes(p1Id) && childParents.includes(p2Id);
+              });
+            };
+
+            const coupleHasNoChildren = coupleEdges.some(e => !hasChildren(e.sourceId, e.targetId));
+            const sectionTitle = coupleHasNoChildren ? "Parents" : "Relationship";
+
             return (
-              <PanelSection title="Relationship" icon={<Heart className="w-3 h-3" />} defaultOpen={true}>
+              <PanelSection title={sectionTitle} icon={<Heart className="w-3 h-3" />} defaultOpen={true}>
                 {coupleEdges.map((e) => {
                   const srcNode = canvasNodes.find((n) => n.id === e.sourceId);
                   const tgtNode = canvasNodes.find((n) => n.id === e.targetId);
                   const srcLabel = autoLabels.get(e.sourceId) || srcNode?.label || srcNode?.id;
                   const tgtLabel = autoLabels.get(e.targetId) || tgtNode?.label || tgtNode?.id;
+                  const noChildren = !hasChildren(e.sourceId, e.targetId);
                   return (
                     <div key={e.id} className="flex flex-col gap-1.5 py-1">
                       <div className="flex items-center justify-between">
@@ -197,6 +291,18 @@ export function PropertiesPanel({
                           </button>
                         ))}
                       </div>
+                      {noChildren && onCreateCoupleAndChild && (
+                        <button type="button" 
+                          onClick={() => {
+                            const maleId = srcNode?.type === "male" ? srcNode.id : tgtNode?.type === "male" ? tgtNode.id : srcNode?.id || e.sourceId;
+                            const femaleId = srcNode?.type === "female" ? srcNode.id : tgtNode?.type === "female" ? tgtNode.id : tgtNode?.id || e.targetId;
+                            onCreateCoupleAndChild(maleId, femaleId);
+                          }}
+                          className="w-full mt-1 py-1.5 text-xs border border-border/80 rounded-lg text-muted-foreground hover:bg-accent/30 hover:border-muted-foreground/30 hover:text-foreground transition-all duration-200 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                        >
+                          <Plus className="w-3 h-3 inline mr-1" />Add Child
+                        </button>
+                      )}
                     </div>
                   );
                 })}
@@ -307,17 +413,17 @@ export function PropertiesPanel({
               <button
                 type="button"
                 onClick={() => onAddAnnotation(singleSelected.id)}
-                className="w-full py-1.5 rounded-lg border border-dashed border-border text-xs text-muted-foreground hover:border-primary hover:text-primary transition-all flex items-center justify-center gap-1.5 active:scale-[0.98]"
+                className="w-full py-1.5 rounded-lg border border-primary/20 hover:border-primary/40 text-primary bg-primary/5 hover:bg-primary/10 text-xs font-semibold transition-all duration-200 flex items-center justify-center gap-1.5 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
               >
-                <Plus className="w-3 h-3" /> Add annotation
+                <Plus className="w-3.5 h-3.5" /> Add Annotation
               </button>
               {canvasAnnotations.filter((a) => a.nodeId === singleSelected.id).length === 0 && (
                 <p className="text-xs text-muted-foreground opacity-40 italic text-center">No annotations yet</p>
               )}
               <div className="space-y-3">
-                {canvasAnnotations
-                  .filter((a) => a.nodeId === singleSelected.id)
-                  .map((ann) => (
+                {(() => {
+                  const nodeAnns = canvasAnnotations.filter((a) => a.nodeId === singleSelected.id);
+                  return nodeAnns.map((ann, annIdx) => (
                     <AnnotationEditorPanel
                       key={ann.id}
                       annotation={ann}
@@ -325,8 +431,12 @@ export function PropertiesPanel({
                       onSelect={() => onSelectAnnotation(selectedAnnotationId === ann.id ? null : ann.id)}
                       onUpdate={(updates) => onUpdateAnnotation(ann.id, updates)}
                       onDelete={() => onDeleteAnnotation(ann.id)}
+                      onReorder={(direction) => onReorderAnnotations?.(ann.id, direction)}
+                      isFirst={annIdx === 0}
+                      isLast={annIdx === nodeAnns.length - 1}
                     />
-                  ))}
+                  ));
+                })()}
               </div>
             </div>
           </PanelSection>
@@ -376,7 +486,23 @@ export function PropertiesPanel({
             <Trash2 className="w-3 h-3 inline mr-1" /> Delete Node
           </button>
         </PanelShell>
-      ) : null}
+      ) : selectedAnnotationId && selectedIds.size === 0 ? (() => {
+        const ann = canvasAnnotations.find((a) => a.id === selectedAnnotationId);
+        if (!ann) return null;
+        return (
+          <PanelShell title="Text Note" icon={<MessageSquare className="w-3.5 h-3.5" />} width="w-full md:w-72">
+            <PanelSection title="Edit Text Note" icon={<MessageSquare className="w-3 h-3" />} defaultOpen={true}>
+              <AnnotationEditorPanel
+                annotation={ann}
+                isSelected={true}
+                onSelect={() => {}}
+                onUpdate={(updates) => onUpdateAnnotation(ann.id, updates)}
+                onDelete={() => onDeleteAnnotation(ann.id)}
+              />
+            </PanelSection>
+          </PanelShell>
+        );
+      })() : null}
     </div>
   );
 }

@@ -92,8 +92,11 @@ export function computeFamilyChildYOffset(
   const maxTrackIndex = edges ? computeMaxLoopTrackOnRow(rowY, edges, nodes, parentOffsets) : 0;
 
   const sibTrack = edges ? computeSibshipGroupTrack(parentIds, childIds, edges, nodes, parentOffsets) : 0;
-  const barY = Math.max(childTopY - MIN_BAR_CHILD_GAP - sibTrack * 12, maxBottom + 22 + maxTrackIndex * 8);
-  const delta = Math.max(0, barY - (childTopY - MIN_BAR_CHILD_GAP - sibTrack * 12));
+  const idealBarY = childTopY - MIN_BAR_CHILD_GAP - sibTrack * 12;
+  const minRequiredBarY = maxBottom + 22 + maxTrackIndex * 8;
+  const barY = Math.max(idealBarY, minRequiredBarY);
+  const ABSOLUTE_MIN_GAP = 12;
+  const delta = Math.max(0, barY + ABSOLUTE_MIN_GAP - childTopY);
 
   if (delta > 0) {
     for (const c of children) result.set(c.id, delta);
