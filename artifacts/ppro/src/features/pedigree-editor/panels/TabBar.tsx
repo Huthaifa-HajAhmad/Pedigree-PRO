@@ -91,7 +91,7 @@ export function TabBar({
 
   return (
     <div
-      className="tabs-bar relative flex items-stretch h-10 flex-shrink-0 border-b border-border border-t border-border/40"
+      className="tabs-bar relative flex items-stretch h-10 flex-shrink-0 border-b border-border border-t border-border/40 rounded-b-lg overflow-hidden"
       style={{ background: "hsl(var(--background))" }}
     >
       {/* Scrollable tab rail */}
@@ -103,7 +103,7 @@ export function TabBar({
 
         <div
           ref={scrollContainerRef}
-          className="flex items-stretch h-full overflow-x-auto overflow-y-hidden gap-0.5 px-1"
+          className="flex items-stretch h-full overflow-x-auto overflow-y-hidden gap-0.5 pl-0 pr-1"
           role="tablist"
           aria-label="Open pedigrees"
         >

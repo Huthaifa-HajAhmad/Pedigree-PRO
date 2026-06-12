@@ -47,7 +47,7 @@ function PedigreeCanvasInner() {
       ctx.dispatch({
         type: "SET_STATE",
         patch: newVal
-          ? { showRiskPanel: true, showValidation: false, showVersions: false }
+          ? { showRiskPanel: true, showValidation: false, showVersions: false, showSettings: false }
           : { showRiskPanel: false }
       });
     },
@@ -56,7 +56,7 @@ function PedigreeCanvasInner() {
       ctx.dispatch({
         type: "SET_STATE",
         patch: newVal
-          ? { showValidation: true, showRiskPanel: false, showVersions: false }
+          ? { showValidation: true, showRiskPanel: false, showVersions: false, showSettings: false }
           : { showValidation: false }
       });
     },
@@ -65,14 +65,23 @@ function PedigreeCanvasInner() {
     setSessionLabel: (v: React.SetStateAction<string>) => ctx.dispatch({ type: "SET_STATE", patch: { sessionLabel: typeof v === "function" ? v(state.sessionLabel) : v } }),
     setShowVersions: (v: React.SetStateAction<boolean>) => {
       const newVal = typeof v === "function" ? v(state.showVersions) : v;
-      ctx.dispatch({ type: "SET_STATE", patch: { showVersions: newVal, showRiskPanel: false, showValidation: false, showSaveModal: false } });
+      ctx.dispatch({ type: "SET_STATE", patch: { showVersions: newVal, showRiskPanel: false, showValidation: false, showSaveModal: false, showSettings: false } });
+    },
+    setShowSettings: (v: React.SetStateAction<boolean>) => {
+      const newVal = typeof v === "function" ? v(state.showSettings) : v;
+      ctx.dispatch({
+        type: "SET_STATE",
+        patch: newVal
+          ? { showSettings: true, showRiskPanel: false, showValidation: false, showVersions: false }
+          : { showSettings: false }
+      });
     },
     setShowShareModal: (v: React.SetStateAction<boolean>) => ctx.dispatch({ type: "SET_STATE", patch: { showShareModal: typeof v === "function" ? v(state.showShareModal) : v } }),
     setShowExportMenu: (v: React.SetStateAction<boolean>) => ctx.dispatch({ type: "SET_STATE", patch: { showExportMenu: typeof v === "function" ? v(state.showExportMenu) : v } }),
     setViewBox: (vb: React.SetStateAction<{ x: number; y: number; zoom: number }>) => ctx.dispatch({ type: "SET_STATE", patch: { viewBox: typeof vb === "function" ? vb(state.viewBox) : vb } }),
     setLinkMode: (m: React.SetStateAction<"couple" | "parent-child" | "consanguinity" | null>) => ctx.dispatch({ type: "SET_STATE", patch: { linkMode: typeof m === "function" ? m(state.linkMode) : m } }),
     setLinkSource: (s: React.SetStateAction<string | null>) => ctx.dispatch({ type: "SET_STATE", patch: { linkSource: typeof s === "function" ? s(state.linkSource) : s } }),
-  }), [ctx, state.snapEnabled, state.showGrid, state.showMinimap, state.showLayoutMenu, state.liveLayout, state.showAutoLabels, state.showLabelsMenu, state.showTemplates, state.showRiskPanel, state.showValidation, state.showLegend, state.showSaveModal, state.sessionLabel, state.showVersions, state.showShareModal, state.showExportMenu, state.viewBox, state.linkMode, state.linkSource]);
+  }), [ctx, state.snapEnabled, state.showGrid, state.showMinimap, state.showLayoutMenu, state.liveLayout, state.showAutoLabels, state.showLabelsMenu, state.showTemplates, state.showRiskPanel, state.showValidation, state.showLegend, state.showSaveModal, state.sessionLabel, state.showVersions, state.showShareModal, state.showExportMenu, state.viewBox, state.linkMode, state.linkSource, state.showSettings]);
 
   const he = (fn: (args?: any) => void | Promise<void>, fmt: string) => async (args?: any) => {
     ctx.dispatch({ type: "SET_STATE", patch: { showExportMenu: false, exportingFormat: fmt } });
@@ -135,6 +144,7 @@ function PedigreeCanvasInner() {
         showValidation={state.showValidation} setShowValidation={toggle.setShowValidation}
         validation={{ errorCount: memo.validation.errorCount, warningCount: memo.validation.warningCount }}
         showLegend={state.showLegend} setShowLegend={toggle.setShowLegend}
+        showSettings={state.showSettings} setShowSettings={toggle.setShowSettings}
         saveStatus={state.saveStatus}
         handleSaveVersion={ops.handleSaveVersion}
         showSaveModal={state.showSaveModal} setShowSaveModal={toggle.setShowSaveModal}
