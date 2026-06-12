@@ -435,7 +435,7 @@ export function AddSiblingDialog({ sourceNode, onConfirm, onCancel, autoLabel }:
                       }
 
                       return (
-                        <g key={idx} className="text-foreground transition-all duration-300 hover:scale-110 origin-center cursor-help">
+                        <g key={idx} className="text-foreground cursor-help">
                           {verticalLine}
                           {isSource && (
                             <circle cx={cx} cy={cy} r={r + 4} fill="none" stroke="hsl(var(--primary) / 0.3)" strokeWidth={1} strokeDasharray="3,3" />
@@ -704,7 +704,7 @@ export function AddSiblingDialog({ sourceNode, onConfirm, onCancel, autoLabel }:
           )}
 
           {/* Sibling Summary & Actions Footer */}
-          <div>
+          <div className="lg:border-l lg:border-border/60">
             {siblings.length > 0 && (
               <div className="px-5 py-2 border-t border-border bg-muted/20 flex items-center justify-between text-[10px] text-muted-foreground uppercase tracking-widest font-semibold shrink-0">
                 <div className="flex items-center gap-2">
