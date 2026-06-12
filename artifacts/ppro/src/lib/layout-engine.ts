@@ -495,13 +495,11 @@ export function recenterParents(
       if (a.type === "female" && b.type === "male") return 1;
       return a.x - b.x;
     });
-    const leftTarget = childCenter - NODE_GAP / 2;
-    const rightTarget = childCenter + NODE_GAP / 2;
+    const currentDist = Math.max(NODE_GAP, Math.abs(parents[0]!.x - parents[1]!.x));
+    const leftTarget = childCenter - currentDist / 2;
+    const rightTarget = childCenter + currentDist / 2;
     parentTargets.set(sortedParents[0]!.id, leftTarget);
     parentTargets.set(sortedParents[1]!.id, rightTarget);
-    if (Math.abs(sortedParents[1]!.x - sortedParents[0]!.x - NODE_GAP) > 1) {
-      isTightening = true;
-    }
   } else if (parents.length === 1) {
     parentTargets.set(parents[0]!.id, childCenter);
   } else {

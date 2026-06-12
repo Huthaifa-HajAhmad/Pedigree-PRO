@@ -86,4 +86,106 @@ describe("validatePedigree", () => {
     const cycle = result.issues.find((i) => i.type === "cycle");
     expect(cycle).toBeTruthy();
   });
+
+  it("flags invalid parent types (pregnancy, sab, unknown sex)", () => {
+    const nodes = [
+      makeNode("n1", { type: "pregnancy" }),
+      makeNode("n2", { type: "sab" }),
+      makeNode("n3", { type: "unknown" }),
+      makeNode("n4", { type: "male" }),
+    ];
+    const edges = [
+      makeEdge("e1", "n1", "n4", "parent-child"),
+      makeEdge("e2", "n2", "n4", "parent-child"),
+      makeEdge("e3", "n3", "n4", "parent-child"),
+    ];
+    const result = validatePedigree({ nodes, edges });
+    const parentErrors = result.issues.filter((i) => i.type === "invalid_parent_type");
+    expect(parentErrors).toHaveLength(3);
+    expect(parentErrors.every(i => i.severity === "error")).toBe(true);
+  });
+
+  it("flags invalid partner types (pregnancy, sab)", () => {
+    const nodes = [
+      makeNode("n1", { type: "pregnancy" }),
+      makeNode("n2", { type: "sab" }),
+      makeNode("n3", { type: "male" }),
+    ];
+    const edges = [
+      makeEdge("e1", "n1", "n3", "couple"),
+      makeEdge("e2", "n2", "n3", "couple"),
+    ];
+    const result = validatePedigree({ nodes, edges });
+    const partnerErrors = result.issues.filter((i) => i.type === "invalid_partner_type");
+    expect(partnerErrors).toHaveLength(2);
+    expect(partnerErrors.every(i => i.severity === "error")).toBe(true);
+  });
+
+  it("flags child with more than 2 parents", () => {
+    const nodes = [
+      makeNode("n1", { type: "male" }),
+      makeNode("n2", { type: "female" }),
+      makeNode("n3", { type: "male" }),
+      makeNode("n4", { type: "female" }),
+    ];
+    const edges = [
+      makeEdge("e1", "n1", "n4", "parent-child"),
+      makeEdge("e2", "n2", "n4", "parent-child"),
+      makeEdge("e3", "n3", "n4", "parent-child"),
+    ];
+    const result = validatePedigree({ nodes, edges });
+    const tooMany = result.issues.find((i) => i.type === "too_many_parents");
+    expect(tooMany).toBeTruthy();
+    expect(tooMany?.severity).toBe("error");
+  });
+
+  it("warns for same-sex biological parents", () => {
+    const nodes = [
+      makeNode("n1", { type: "male" }),
+      makeNode("n2", { type: "male" }),
+      makeNode("n3", { type: "female" }),
+    ];
+    const edges = [
+      makeEdge("e1", "n1", "n3", "parent-child"),
+      makeEdge("e2", "n2", "n3", "parent-child"),
+    ];
+    const result = validatePedigree({ nodes, edges });
+    const sameSexParents = result.issues.find((i) => i.type === "same_sex_parents");
+    expect(sameSexParents).toBeTruthy();
+    expect(sameSexParents?.severity).toBe("warning");
+  });
+
+  it("warns for same-sex couples", () => {
+    const nodes = [
+      makeNode("n1", { type: "female" }),
+      makeNode("n2", { type: "female" }),
+    ];
+    const edges = [
+      makeEdge("e1", "n1", "n2", "couple"),
+    ];
+    const result = validatePedigree({ nodes, edges });
+    const sameSexCouple = result.issues.find((i) => i.type === "same_sex_couple");
+    expect(sameSexCouple).toBeTruthy();
+    expect(sameSexCouple?.severity).toBe("warning");
+  });
+
+  it("flags sibling marriage", () => {
+    const nodes = [
+      makeNode("father", { type: "male" }),
+      makeNode("mother", { type: "female" }),
+      makeNode("s1", { type: "male" }),
+      makeNode("s2", { type: "female" }),
+    ];
+    const edges = [
+      makeEdge("e1", "father", "s1", "parent-child"),
+      makeEdge("e2", "mother", "s1", "parent-child"),
+      makeEdge("e3", "father", "s2", "parent-child"),
+      makeEdge("e4", "mother", "s2", "parent-child"),
+      makeEdge("e5", "s1", "s2", "couple"),
+    ];
+    const result = validatePedigree({ nodes, edges });
+    const siblingMarriage = result.issues.find((i) => i.type === "sibling_marriage");
+    expect(siblingMarriage).toBeTruthy();
+    expect(siblingMarriage?.severity).toBe("error");
+  });
 });
