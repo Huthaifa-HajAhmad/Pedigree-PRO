@@ -57,7 +57,7 @@ export function ValidationIssueRow({
           {issue.nodeIds.length > 0 && (
             <button
               onClick={onFocus}
-              className="text-xs px-2 py-1 border rounded transition-colors hover:bg-accent"
+              className="text-xs px-2.5 py-1.5 border rounded-lg transition-all duration-200 hover:bg-accent/40 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring font-medium"
               style={{ borderColor: severityColor, color: severityColor }}
             >
               Select affected nodes
