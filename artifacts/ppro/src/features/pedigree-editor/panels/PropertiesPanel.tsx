@@ -75,7 +75,7 @@ export function PropertiesPanel({
               <div className="grid grid-cols-3 gap-1">
                 {(["unaffected", "affected", "carrier"] as const).map((s) => (
                   <button type="button" key={s} onClick={() => applyStatus(s)}
-                    className="py-1 rounded text-xs border border-border text-muted-foreground hover:border-primary hover:text-primary transition-all">
+                    className="py-1 rounded-lg text-xs border border-border/80 text-muted-foreground hover:bg-accent/30 hover:border-muted-foreground/30 hover:text-foreground transition-all duration-200 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">
                     {s === "unaffected" ? "—" : s === "affected" ? "Affected" : "Carrier"}
                   </button>
                 ))}
@@ -83,19 +83,19 @@ export function PropertiesPanel({
             </div>
             <div className="grid grid-cols-2 gap-1">
               <button type="button" onClick={() => onBulkUpdate({ deceased: true })}
-                className="py-1.5 text-xs border border-border rounded text-muted-foreground hover:border-primary hover:text-primary transition-colors">Mark Deceased</button>
+                className="py-1.5 text-xs border border-border/80 rounded-lg text-muted-foreground hover:bg-accent/30 hover:border-muted-foreground/30 hover:text-foreground transition-all duration-200 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">Mark Deceased</button>
               <button type="button" onClick={() => onBulkUpdate({ deceased: false })}
-                className="py-1.5 text-xs border border-border rounded text-muted-foreground hover:border-primary hover:text-primary transition-colors">Clear Deceased</button>
+                className="py-1.5 text-xs border border-border/80 rounded-lg text-muted-foreground hover:bg-accent/30 hover:border-muted-foreground/30 hover:text-foreground transition-all duration-200 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">Clear Deceased</button>
               <button type="button" onClick={() => onBulkUpdate({ proband: true })}
-                className="py-1.5 text-xs border border-border rounded text-muted-foreground hover:border-primary hover:text-primary transition-colors">Mark Proband</button>
+                className="py-1.5 text-xs border border-border/80 rounded-lg text-muted-foreground hover:bg-accent/30 hover:border-muted-foreground/30 hover:text-foreground transition-all duration-200 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">Mark Proband</button>
               <button type="button" onClick={() => onBulkUpdate({ proband: false })}
-                className="py-1.5 text-xs border border-border rounded text-muted-foreground hover:border-primary hover:text-primary transition-colors">Clear Proband</button>
+                className="py-1.5 text-xs border border-border/80 rounded-lg text-muted-foreground hover:bg-accent/30 hover:border-muted-foreground/30 hover:text-foreground transition-all duration-200 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">Clear Proband</button>
             </div>
             <div className="grid grid-cols-2 gap-1">
               <button type="button" onClick={() => onBulkUpdate({ pinned: true })}
-                className="py-1.5 text-xs border border-border rounded text-muted-foreground hover:border-primary hover:text-primary transition-colors">Pin All</button>
+                className="py-1.5 text-xs border border-border/80 rounded-lg text-muted-foreground hover:bg-accent/30 hover:border-muted-foreground/30 hover:text-foreground transition-all duration-200 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">Pin All</button>
               <button type="button" onClick={() => onBulkUpdate({ pinned: false })}
-                className="py-1.5 text-xs border border-border rounded text-muted-foreground hover:border-primary hover:text-primary transition-colors">Unpin All</button>
+                className="py-1.5 text-xs border border-border/80 rounded-lg text-muted-foreground hover:bg-accent/30 hover:border-muted-foreground/30 hover:text-foreground transition-all duration-200 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">Unpin All</button>
             </div>
           </PanelSection>
 
@@ -103,16 +103,16 @@ export function PropertiesPanel({
           <PanelSection title="Align" icon={<LayoutGrid className="w-3 h-3" />}>
             <div className="grid grid-cols-2 gap-1">
               <button type="button" onClick={() => onAlignSelected("y")} title="Snap all to same row"
-                className="py-1.5 text-xs border border-border rounded text-muted-foreground hover:border-primary hover:text-primary transition-colors">Horizontal</button>
+                className="py-1.5 text-xs border border-border/80 rounded-lg text-muted-foreground hover:bg-accent/30 hover:border-muted-foreground/30 hover:text-foreground transition-all duration-200 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">Horizontal</button>
               <button type="button" onClick={() => onAlignSelected("x")} title="Stack all in same column"
-                className="py-1.5 text-xs border border-border rounded text-muted-foreground hover:border-primary hover:text-primary transition-colors">Vertical</button>
+                className="py-1.5 text-xs border border-border/80 rounded-lg text-muted-foreground hover:bg-accent/30 hover:border-muted-foreground/30 hover:text-foreground transition-all duration-200 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">Vertical</button>
             </div>
           </PanelSection>
 
           {/* Shared condition */}
           <PanelSection title="Condition (all)">
             <input id="bulk-condition" placeholder="e.g. BRCA1, Lynch" aria-label="Condition"
-              className="w-full bg-muted border border-border rounded px-2 py-1.5 text-xs outline-none focus:border-primary transition-colors"
+              className="w-full bg-background border border-border/80 rounded-lg px-2.5 py-1.5 text-xs outline-none hover:bg-accent/20 focus:border-muted-foreground/45 focus-visible:ring-0 shadow-none transition-all duration-200"
               onKeyDown={(e) => {
                 if (e.key === "Enter") {
                   onBulkUpdate({ condition: (e.target as HTMLInputElement).value });
@@ -139,17 +139,17 @@ export function PropertiesPanel({
               <PanelSection title="Add Relationship" icon={<Link2 className="w-3 h-3" />}>
                 <div className="grid grid-cols-2 gap-1">
                   <button type="button" onClick={() => onCreateCoupleEdge(maleId, femaleId)}
-                    className="py-1.5 text-xs border border-border rounded text-muted-foreground hover:border-primary hover:text-primary transition-colors">
+                    className="py-1.5 text-xs border border-border/80 rounded-lg text-muted-foreground hover:bg-accent/30 hover:border-muted-foreground/30 hover:text-foreground transition-all duration-200 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">
                     <Heart className="w-3 h-3 inline mr-1" />Couple
                   </button>
                   <button type="button" onClick={() => onCreateConsanguinityEdge(maleId, femaleId)}
-                    className="py-1.5 text-xs border border-border rounded text-muted-foreground hover:border-primary hover:text-primary transition-colors">
+                    className="py-1.5 text-xs border border-border/80 rounded-lg text-muted-foreground hover:bg-accent/30 hover:border-muted-foreground/30 hover:text-foreground transition-all duration-200 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">
                     <GitBranch className="w-3 h-3 inline mr-1" />Consang.
                   </button>
                 </div>
                 {onCreateCoupleAndChild && (
                   <button type="button" onClick={() => onCreateCoupleAndChild(maleId, femaleId)}
-                    className="w-full mt-1 py-1.5 text-xs border border-border rounded text-muted-foreground hover:border-primary hover:text-primary transition-colors">
+                    className="w-full mt-1 py-1.5 text-xs border border-border/80 rounded-lg text-muted-foreground hover:bg-accent/30 hover:border-muted-foreground/30 hover:text-foreground transition-all duration-200 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">
                     <Plus className="w-3 h-3 inline mr-1" />Add Child
                   </button>
                 )}
@@ -188,10 +188,10 @@ export function PropertiesPanel({
                             aria-label={`Set relationship to ${COUPLE_LABELS[t]}`}
                             aria-pressed={e.type === t}
                             onClick={() => onUpdateEdgeType?.(e.id, t)}
-                            className={`py-1.5 text-xs rounded border transition-colors ${
+                            className={`py-1.5 text-xs rounded-lg border transition-all duration-200 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring ${
                               e.type === t
-                                ? "border-primary bg-primary/10 text-primary font-medium"
-                                : "border-border text-muted-foreground hover:border-primary/50"
+                                ? "border-primary/60 text-primary bg-primary/5 hover:bg-primary/10 font-medium"
+                                : "border-border/80 text-muted-foreground hover:bg-accent/30 hover:border-muted-foreground/30 hover:text-foreground"
                             }`}>
                             {COUPLE_LABELS[t]}
                           </button>
@@ -209,17 +209,17 @@ export function PropertiesPanel({
             <PanelSection title="Twins" icon={<GitBranch className="w-3 h-3" />}>
               {hasExistingTwins ? (
                 <button type="button" onClick={() => onUnmarkTwins([...selectedIds])}
-                  className="w-full py-1.5 text-xs border border-border rounded text-muted-foreground hover:border-destructive hover:text-destructive transition-colors">
+                  className="w-full py-1.5 text-xs border border-border/80 rounded-lg text-muted-foreground hover:bg-destructive/10 hover:border-destructive/60 hover:text-destructive transition-all duration-200 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">
                   Remove twin marking
                 </button>
               ) : (
                 <div className="grid grid-cols-2 gap-1">
                   <button type="button" onClick={() => onMarkAsTwins([...selectedIds], "m")}
-                    className="py-1.5 text-xs border border-border rounded text-muted-foreground hover:border-primary hover:text-primary transition-colors">
+                    className="py-1.5 text-xs border border-border/80 rounded-lg text-muted-foreground hover:bg-accent/30 hover:border-muted-foreground/30 hover:text-foreground transition-all duration-200 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">
                     Identical
                   </button>
                   <button type="button" onClick={() => onMarkAsTwins([...selectedIds], "d")}
-                    className="py-1.5 text-xs border border-border rounded text-muted-foreground hover:border-primary hover:text-primary transition-colors">
+                    className="py-1.5 text-xs border border-border/80 rounded-lg text-muted-foreground hover:bg-accent/30 hover:border-muted-foreground/30 hover:text-foreground transition-all duration-200 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">
                     Fraternal
                   </button>
                 </div>
@@ -229,7 +229,7 @@ export function PropertiesPanel({
 
           {/* Bulk delete */}
           <button type="button" data-testid="button-bulk-delete" onClick={onDeleteSelected}
-            className="w-full py-1.5 text-xs border border-destructive/50 rounded text-destructive hover:bg-destructive/10 transition-colors">
+            className="w-full py-1.5 text-xs border border-destructive/40 rounded-lg text-destructive/90 hover:bg-destructive/10 hover:border-destructive/60 transition-all duration-200 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">
             Delete {selectedIds.size} Nodes
           </button>
         </PanelShell>
@@ -241,19 +241,19 @@ export function PropertiesPanel({
               <label htmlFor="prop-node-inside-text" className="text-xs text-muted-foreground uppercase tracking-wider block mb-1">Inside text</label>
               <input id="prop-node-inside-text" data-testid="input-node-inside-text" value={singleSelected.insideText ?? ""}
                 onChange={(e) => onUpdateSelectedNode({ insideText: e.target.value || undefined })}
-                placeholder="e.g. 3" className="w-full bg-muted border border-border rounded px-2 py-1.5 text-xs outline-none focus:border-primary transition-colors" />
+                placeholder="e.g. 3" className="w-full bg-background border border-border/80 rounded-lg px-2.5 py-1.5 text-xs outline-none hover:bg-accent/20 focus:border-muted-foreground/45 focus-visible:ring-0 shadow-none transition-all duration-200" />
             </div>
             <div>
               <label htmlFor="prop-node-age" className="text-xs text-muted-foreground uppercase tracking-wider block mb-1">Age</label>
               <input id="prop-node-age" data-testid="input-node-age" value={singleSelected.age}
                 onChange={(e) => onUpdateSelectedNode({ age: e.target.value })}
-                placeholder="e.g. 42" className="w-full bg-muted border border-border rounded px-2 py-1.5 text-xs outline-none focus:border-primary transition-colors" />
+                placeholder="e.g. 42" className="w-full bg-background border border-border/80 rounded-lg px-2.5 py-1.5 text-xs outline-none hover:bg-accent/20 focus:border-muted-foreground/45 focus-visible:ring-0 shadow-none transition-all duration-200" />
             </div>
             <div>
               <label htmlFor="prop-node-condition" className="text-xs text-muted-foreground uppercase tracking-wider block mb-1">Condition / Gene</label>
               <input id="prop-node-condition" value={singleSelected.condition ?? ""}
                 onChange={(e) => onUpdateSelectedNode({ condition: e.target.value })}
-                placeholder="e.g. BRCA1, HD onset 48y" className="w-full bg-muted border border-border rounded px-2 py-1.5 text-xs outline-none focus:border-primary transition-colors" />
+                placeholder="e.g. BRCA1, HD onset 48y" className="w-full bg-background border border-border/80 rounded-lg px-2.5 py-1.5 text-xs outline-none hover:bg-accent/20 focus:border-muted-foreground/45 focus-visible:ring-0 shadow-none transition-all duration-200" />
             </div>
           </PanelSection>
 
@@ -263,9 +263,17 @@ export function PropertiesPanel({
               <label htmlFor="prop-node-gender" className="text-xs text-muted-foreground uppercase tracking-wider block mb-1">Gender</label>
               <div className="grid grid-cols-2 gap-1">
                 {(["male", "female", "unknown", "pregnancy", "sab"] as const).map((t) => (
-                  <button type="button" key={t} data-testid={`button-sex-${t}`}
+                  <button
+                    type="button"
+                    key={t}
+                    data-testid={`button-sex-${t}`}
                     onClick={() => onUpdateSelectedNode({ type: t })}
-                    className={`py-1 rounded text-xs border transition-all ${singleSelected.type === t ? "border-primary text-primary bg-primary/10" : "border-border text-muted-foreground hover:border-primary"}`}>
+                    className={`py-1 rounded-lg text-xs border transition-all duration-200 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring ${
+                      singleSelected.type === t
+                        ? "border-primary/60 text-primary bg-primary/5 hover:bg-primary/10"
+                        : "border-border/80 text-muted-foreground hover:bg-accent/30 hover:border-muted-foreground/30 hover:text-foreground"
+                    }`}
+                  >
                     {t === "sab" ? "SAB" : <span className="capitalize">{t}</span>}
                   </button>
                 ))}
@@ -275,8 +283,17 @@ export function PropertiesPanel({
               <label className="text-xs text-muted-foreground uppercase tracking-wider block mb-1">Status</label>
               <div className="grid grid-cols-3 gap-1">
                 {(["unaffected", "affected", "carrier"] as const).map((s) => (
-                  <button type="button" key={s} data-testid={`button-status-${s}`} onClick={() => applyStatus(s)}
-                    className={`py-1 rounded text-xs border transition-all ${getStatus(singleSelected) === s ? "border-primary text-primary bg-primary/10" : "border-border text-muted-foreground hover:border-primary"}`}>
+                  <button
+                    type="button"
+                    key={s}
+                    data-testid={`button-status-${s}`}
+                    onClick={() => applyStatus(s)}
+                    className={`py-1 rounded-lg text-xs border transition-all duration-200 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring ${
+                      getStatus(singleSelected) === s
+                        ? "border-primary/60 text-primary bg-primary/5 hover:bg-primary/10"
+                        : "border-border/80 text-muted-foreground hover:bg-accent/30 hover:border-muted-foreground/30 hover:text-foreground"
+                    }`}
+                  >
                     {s === "unaffected" ? "—" : s === "affected" ? "Affected" : "Carrier"}
                   </button>
                 ))}
@@ -321,7 +338,7 @@ export function PropertiesPanel({
                 {singleSelected.pinned ? <><Pin className="w-3 h-3 text-muted-foreground" /> Pinned</> : <><PinOff className="w-3 h-3" /> Not pinned</>}
               </span>
               <button type="button" onClick={() => onUpdateSelectedNode({ pinned: !singleSelected.pinned })}
-                className="text-xs px-2 py-1 rounded border border-border hover:border-primary transition-colors">
+                className="text-xs px-2.5 py-1 rounded-lg border border-border/80 text-muted-foreground hover:bg-accent/30 hover:border-muted-foreground/30 hover:text-foreground transition-all duration-200 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">
                 {singleSelected.pinned ? "Unpin" : "Pin"}
               </button>
             </div>
@@ -337,8 +354,8 @@ export function PropertiesPanel({
                     aria-checked={singleSelected[key]}
                     aria-labelledby={`toggle-label-${key}`}
                     onClick={() => onUpdateSelectedNode({ [key]: !singleSelected[key] })}
-                  className={`w-9 h-5 rounded-full border transition-all relative ${singleSelected[key] ? "border-primary bg-primary" : "border-border bg-muted"}`}>
-                  <span className={`absolute top-[1px] left-[1px] w-4 h-4 rounded-full shadow-sm transition-transform bg-card ${singleSelected[key] ? "translate-x-[16px]" : "translate-x-0"}`} />
+                  className={`w-9 h-5 rounded-full border transition-all relative focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring ${singleSelected[key] ? "border-primary bg-primary" : "border-border bg-muted/60"}`}>
+                  <span className={`absolute top-[1.5px] left-[1.5px] w-3.5 h-3.5 rounded-full shadow-xs transition-transform bg-card ${singleSelected[key] ? "translate-x-[16px]" : "translate-x-0"}`} />
                   </button>
                 </div>
               ))}
@@ -350,12 +367,12 @@ export function PropertiesPanel({
             <textarea id="prop-node-notes" value={singleSelected.notes ?? ""}
               onChange={(e) => onUpdateSelectedNode({ notes: e.target.value })}
               placeholder="Longer clinical observations…" rows={3}
-              className="w-full bg-muted border border-border rounded px-2 py-1.5 text-xs outline-none focus:border-primary transition-colors resize-none" />
+              className="w-full bg-background border border-border/80 rounded-lg px-2.5 py-1.5 text-xs outline-none hover:bg-accent/20 focus:border-muted-foreground/45 focus-visible:ring-0 shadow-none transition-all duration-200 resize-none" />
           </PanelSection>
 
           {/* Delete */}
           <button type="button" data-testid="button-delete-node" onClick={onDeleteSelected}
-            className="w-full py-1.5 text-xs border border-destructive/50 rounded text-destructive hover:bg-destructive/10 transition-colors">
+            className="w-full py-1.5 text-xs border border-destructive/40 rounded-lg text-destructive/90 hover:bg-destructive/10 hover:border-destructive/60 transition-all duration-200 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">
             <Trash2 className="w-3 h-3 inline mr-1" /> Delete Node
           </button>
         </PanelShell>
