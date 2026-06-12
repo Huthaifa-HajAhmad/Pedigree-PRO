@@ -10,7 +10,6 @@ import { EditGroup } from "@/features/pedigree-editor/toolbar/groups/EditGroup";
 import { ViewGroup } from "@/features/pedigree-editor/toolbar/groups/ViewGroup";
 import { ArrangeGroup } from "@/features/pedigree-editor/toolbar/groups/ArrangeGroup";
 import { ClinicalGroup } from "@/features/pedigree-editor/toolbar/groups/ClinicalGroup";
-import { CollaborateGroup } from "@/features/pedigree-editor/toolbar/groups/CollaborateGroup";
 import { FileGroup } from "@/features/pedigree-editor/toolbar/groups/FileGroup";
 import { ShareGroup } from "@/features/pedigree-editor/toolbar/groups/ShareGroup";
 import { HelpGroup } from "@/features/pedigree-editor/toolbar/groups/HelpGroup";
@@ -58,7 +57,7 @@ export interface RibbonToolbarProps {
   setShowLayoutMenu: React.Dispatch<React.SetStateAction<boolean>>;
   liveLayout: boolean;
   setLiveLayout: React.Dispatch<React.SetStateAction<boolean>>;
-  runAutoLayout: (respectPinned: boolean) => void;
+  runAutoLayout: (respectPinned: boolean, isManual?: boolean) => void;
   showAutoLabels: boolean;
   setShowAutoLabels: React.Dispatch<React.SetStateAction<boolean>>;
   showLabelsMenu: boolean;
@@ -77,10 +76,7 @@ export interface RibbonToolbarProps {
   validation: ValidationSummary;
   showLegend: boolean;
   setShowLegend: React.Dispatch<React.SetStateAction<boolean>>;
-  showVersionTimeline: boolean;
-  setShowVersionTimeline: React.Dispatch<React.SetStateAction<boolean>>;
-  showFollowMode: boolean;
-  setShowFollowMode: React.Dispatch<React.SetStateAction<boolean>>;
+
   twinSelectMode: boolean;
   twinCandidateIds: Set<string>;
   toggleTwinSelectMode: () => void;
@@ -210,11 +206,6 @@ export function RibbonToolbar(props: RibbonToolbarProps) {
           buildTemplate={props.buildTemplate} updateCanvas={props.updateCanvas}
           canvasNodes={props.canvasNodes} openConfirm={openConfirm} labelHidden={hideLabels || compactSecondaries}
           onClearSelection={props.clearSelection} />
-        <CollaborateGroup showVersionTimeline={props.showVersionTimeline} setShowVersionTimeline={props.setShowVersionTimeline}
-          showFollowMode={props.showFollowMode} setShowFollowMode={props.setShowFollowMode}
-          labelHidden={hideLabels || compactSecondaries} />
-
-        <div className="w-px self-stretch bg-border mx-1 flex-shrink-0" />
 
         <FileGroup handleSaveVersion={props.handleSaveVersion}
           showSaveModal={props.showSaveModal} setShowSaveModal={props.setShowSaveModal}

@@ -1,6 +1,4 @@
-export { VersionTimeline } from "./VersionTimeline";
 export { ImportReviewModal } from "./ImportReviewModal";
-export { FollowMode } from "./FollowMode";
 export {
   computeCanvasDiff,
   diffColor,

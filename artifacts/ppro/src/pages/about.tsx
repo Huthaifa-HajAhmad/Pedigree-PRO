@@ -1,4 +1,4 @@
-import { ShieldCheck, Server, Radio, Lock, Database, Fingerprint, Wifi, Hash, Code, Heart, Globe, GitBranch, CloudOff } from "lucide-react";
+import { ShieldCheck, Server, Radio, Lock, Database, Fingerprint, Wifi, Hash, Code, Heart, Globe, GitBranch, CloudOff, Sparkles } from "lucide-react";
 import { PanelSection } from "@/components/shared/panels/PanelSection";
 import { getAppVersion } from "@/lib/version";
 
@@ -33,16 +33,16 @@ export default function AboutPage() {
                 <div>
                   <div className="text-sm font-medium">Encrypted at rest</div>
                   <p className="text-xs text-muted-foreground mt-0.5">
-                    Browser mode encrypts the database with AES-256-GCM before writing to IndexedDB. SQLCipher protects the desktop database.
+                    Browser mode encrypts the database with AES-256-GCM before writing to IndexedDB. SQLCipher protects the desktop SQLite database.
                   </p>
                 </div>
               </div>
               <div className="flex items-start gap-3 p-3 rounded-lg border border-border bg-card">
                 <Fingerprint className="w-4 h-4 text-primary flex-shrink-0 mt-0.5" />
                 <div>
-                  <div className="text-sm font-medium">HIPAA-aligned</div>
+                  <div className="text-sm font-medium">HIPAA-aligned &amp; Serverless</div>
                   <p className="text-xs text-muted-foreground mt-0.5">
-                    No third-party services, no analytics, no telemetry. Keys are stored in IndexedDB, never in localStorage.
+                    No third-party analytics, telemetry trackers, or background logging. Private keys are saved securely via IndexedDB (never in plaintext localStorage).
                   </p>
                 </div>
               </div>
@@ -85,25 +85,70 @@ export default function AboutPage() {
             <div className="grid grid-cols-2 gap-3">
               <div className="flex items-center gap-2 p-2.5 rounded-lg border border-border bg-card">
                 <Globe className="w-3.5 h-3.5 text-muted-foreground" />
-                <span className="text-xs">React + Vite</span>
+                <span className="text-xs font-medium">React + Vite + TS</span>
               </div>
               <div className="flex items-center gap-2 p-2.5 rounded-lg border border-border bg-card">
                 <Database className="w-3.5 h-3.5 text-muted-foreground" />
-                <span className="text-xs">sql.js / SQLCipher</span>
+                <span className="text-xs font-medium">sql.js (WASM SQLite)</span>
               </div>
               <div className="flex items-center gap-2 p-2.5 rounded-lg border border-border bg-card">
                 <GitBranch className="w-3.5 h-3.5 text-muted-foreground" />
-                <span className="text-xs">Tauri (desktop)</span>
+                <span className="text-xs font-medium">Tauri + SQLCipher</span>
               </div>
               <div className="flex items-center gap-2 p-2.5 rounded-lg border border-border bg-card">
                 <Fingerprint className="w-3.5 h-3.5 text-muted-foreground" />
-                <span className="text-xs">Ed25519 + AES-GCM</span>
+                <span className="text-xs font-medium">AES-256-GCM + noble-crypto</span>
+              </div>
+            </div>
+          </PanelSection>
+
+          <PanelSection title="What's New" icon={<Sparkles className="w-3.5 h-3.5" />}>
+            <div className="relative border-l border-border pl-6 ml-3 space-y-6 my-2">
+              <div className="relative">
+                <div className="absolute -left-[31px] top-1 w-3.5 h-3.5 rounded-full border border-primary bg-background flex items-center justify-center">
+                  <span className="w-1.5 h-1.5 rounded-full bg-primary" />
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-semibold">Version 1.2.0</span>
+                  <span className="bg-primary/10 text-primary text-[10px] px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">Latest</span>
+                </div>
+                <p className="text-[10px] text-muted-foreground mt-0.5">June 2026</p>
+                <ul className="mt-2.5 space-y-2 text-xs text-muted-foreground">
+                  <li className="flex items-start gap-2">
+                    <span className="text-primary font-bold select-none mt-0.5">•</span>
+                    <span><strong>Unified Sidebar:</strong> Merged version timeline scrubber and session history list into one seamless, vertical panel.</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-primary font-bold select-none mt-0.5">•</span>
+                    <span><strong>Visual Diff Engine:</strong> Highlight additions, deletions, and modifications directly on the pedigree canvas during session previews.</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-primary font-bold select-none mt-0.5">•</span>
+                    <span><strong>Minimap Enhancements:</strong> Optimized edge drawings, eliminated gap spacing, and added layout overflow clipping.</span>
+                  </li>
+                </ul>
+              </div>
+
+              <div className="relative">
+                <div className="absolute -left-[31px] top-1 w-3.5 h-3.5 rounded-full border border-border bg-background flex items-center justify-center">
+                  <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground/30" />
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-semibold">Version 1.1.0</span>
+                </div>
+                <p className="text-[10px] text-muted-foreground mt-0.5">May 2026</p>
+                <ul className="mt-2.5 space-y-2 text-xs text-muted-foreground">
+                  <li className="flex items-start gap-2">
+                    <span className="text-muted-foreground/60 font-bold select-none mt-0.5">•</span>
+                    <span><strong>Accessibility Benchmarks:</strong> Implemented axe-core accessibility checks, full keyboard navigation, and semantic ARIA labeling.</span>
+                  </li>
+                </ul>
               </div>
             </div>
           </PanelSection>
 
           <div className="flex items-center gap-1.5 text-xs text-muted-foreground/60">
-            <Heart className="w-3 h-3" />
+            <Heart className="w-3 h-3 text-destructive" />
             <span>Pedigree PRO {getAppVersion()} · Built for clinical genetics</span>
           </div>
         </div>

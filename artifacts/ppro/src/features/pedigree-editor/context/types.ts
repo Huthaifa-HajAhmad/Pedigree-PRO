@@ -47,10 +47,6 @@ export interface PedigreeEditorState {
   searchMatchIndex: number;
   showTabPicker: boolean;
 
-  showVersionTimeline: boolean;
-  showFollowMode: boolean;
-  followIndex: number;
-
   isPreviewMode: boolean;
   liveCanvasCache: CanvasData | null;
   showVisualDiff: boolean;
@@ -114,10 +110,6 @@ export const INITIAL_STATE: PedigreeEditorState = {
   searchMatchIndex: 0,
   showTabPicker: false,
 
-  showVersionTimeline: false,
-  showFollowMode: false,
-  followIndex: 0,
-
   isPreviewMode: false,
   liveCanvasCache: null,
   showVisualDiff: false,
@@ -168,7 +160,7 @@ export interface PedigreeEditorOps {
   addAnnotation: (nodeId: string) => void;
   updateAnnotation: (annId: string, updates: Partial<PedigreeAnnotation>) => void;
   deleteAnnotation: (annId: string) => void;
-  runAutoLayout: (resetPins: boolean) => void;
+  runAutoLayout: (resetPins: boolean, isManual?: boolean) => void;
   bakeEmptyLabels: () => void;
   bakeAllLabels: () => void;
   openConfirm: (title: string, message: string, onConfirm: () => void, variant?: "default" | "destructive") => void;
@@ -191,7 +183,7 @@ export interface PedigreeEditorOps {
   createConsanguinityEdge: (sourceId: string, targetId: string) => void;
   createCoupleEdge: (sourceId: string, targetId: string) => void;
   createCoupleAndChild: (maleId: string, femaleId: string) => void;
-  addSiblings: (sourceId: string, siblings: Array<{ type: PedigreeNode["type"]; dob: string; affected?: boolean; carrier?: boolean; condition?: string; notes?: string }>) => void;
+  addSiblings: (sourceId: string, siblings: Array<{ type: PedigreeNode["type"]; dob: string; affected?: boolean; carrier?: boolean; deceased?: boolean; proband?: boolean; condition?: string; notes?: string }>) => void;
   markAsTwins: (nodeIds: string[], twinType: "m" | "d") => void;
   unmarkTwins: (nodeIds: string[]) => void;
   removeEdges: (edgeIds: string[]) => void;

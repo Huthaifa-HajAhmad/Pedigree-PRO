@@ -11,7 +11,7 @@ interface ArrangeGroupProps {
   setLiveLayout: React.Dispatch<React.SetStateAction<boolean>>;
   showAutoLabels: boolean;
   setShowAutoLabels: React.Dispatch<React.SetStateAction<boolean>>;
-  runAutoLayout: (respectPinned: boolean) => void;
+  runAutoLayout: (respectPinned: boolean, isManual?: boolean) => void;
   bakeEmptyLabels: () => void;
   bakeAllLabels: () => void;
   updateCanvas: (updater: (prev: CanvasData) => CanvasData) => void;
@@ -60,7 +60,7 @@ export function ArrangeGroup({
               type="button"
               onClick={() => {
                 setLiveLayout((v) => !v);
-                if (!liveLayout) runAutoLayout(true);
+                if (!liveLayout) runAutoLayout(true, true);
               }}
               className={`w-full flex items-start gap-3 px-3 py-2.5 transition-colors text-left ${
                 liveLayout ? "bg-primary/10" : "hover:bg-accent"
@@ -83,7 +83,7 @@ export function ArrangeGroup({
             <button
               type="button"
               onClick={() => {
-                runAutoLayout(true);
+                runAutoLayout(true, true);
                 setShowLayoutMenu(false);
               }}
               className="w-full flex items-start gap-3 px-3 py-2.5 hover:bg-accent transition-colors text-left border-t border-border"
@@ -99,7 +99,7 @@ export function ArrangeGroup({
             <button
               type="button"
               onClick={() => {
-                runAutoLayout(false);
+                runAutoLayout(false, true);
                 setShowLayoutMenu(false);
               }}
               className="w-full flex items-start gap-3 px-3 py-2.5 hover:bg-accent transition-colors text-left border-t border-border"

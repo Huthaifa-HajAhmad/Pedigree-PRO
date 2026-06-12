@@ -67,6 +67,32 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
     id, pedigreeData: pedigree ?? null, canvasRef, draftKeyRef,
   });
 
+  const backgroundSaveVersion = useCallback(async (label: string) => {
+    try {
+      const t = generateThumbnail(stateRef.current.canvas);
+      const canvasData = JSON.stringify(stateRef.current.canvas);
+      const canvasHash = cryptoComputeHash(canvasData);
+      const keys = await listProfilePrivateKeys();
+      const activeKey = keys.length > 0 ? keys[0] : null;
+      const saverKey = activeKey ? await getPublicKeyFromPrivate(activeKey.privateKey) : "";
+      const saverSignature = activeKey ? await signData(canvasHash, activeKey.privateKey) : null;
+      await saveVersionMutation.mutateAsync({
+        pedigreeId: id,
+        input: {
+          canvas_data: canvasData,
+          canvas_hash: canvasHash,
+          label,
+          thumbnail: t,
+          saver_key: saverKey,
+          saver_signature: saverSignature
+        }
+      });
+      queryClient.invalidateQueries({ queryKey: queryKeys.versions(id) });
+    } catch (e) {
+      console.error("Auto-checkpoint save failed", e);
+    }
+  }, [id, queryClient, saveVersionMutation]);
+
   useEffect(() => {
     if (pedigree?.canvas_data !== undefined && !initialSyncDoneRef.current) {
       dispatch({ type: "SET_CANVAS", canvas: parseCanvas(pedigree.canvas_data) });
@@ -567,9 +593,12 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
     }
   }, []);
 
-  const runAutoLayout = useCallback((rp: boolean) => {
+  const runAutoLayout = useCallback((rp: boolean, isManual = false) => {
+    if (isManual) {
+      backgroundSaveVersion("Auto-saved before Layout Alignment");
+    }
     dispatch({ type: "UPDATE_CANVAS", updater: (p) => ({ ...p, nodes: computeAutoLayout(p.nodes, p.edges, rp) as PedigreeNode[] }) });
-  }, []);
+  }, [backgroundSaveVersion]);
   useEffect(() => { if (state.liveLayout && state.canvas.nodes.length > 0) runAutoLayout(true); }, [state.liveLayout, state.canvas.edges.length, state.canvas.nodes.length, runAutoLayout]);
 
   const bakeEmptyLabels = useCallback(() => {
@@ -588,14 +617,17 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
     });
   }, [openConfirm]);
 
-  const handleCloseTab = useCallback((tid: number) => {
+  const handleCloseTab = useCallback(async (tid: number) => {
+    if (tid === id) {
+      await backgroundSaveVersion("Auto-saved on Tab Close");
+    }
     closeTab(tid);
     if (tid === id) {
       const r = tabs.filter((t) => t.id !== tid);
       if (r.length) { const idx = Math.max(0, tabs.findIndex((t) => t.id === tid) - (tabs.findIndex((t) => t.id === tid) >= r.length ? 1 : 0)); const target = r[idx]; if (target) navigate(`/pedigrees/${target.id}`); }
       else navigate("/pedigrees");
     }
-  }, [closeTab, id, tabs, navigate]);
+  }, [closeTab, id, tabs, navigate, backgroundSaveVersion]);
 
   const renameTab = useCallback((tabId: number, newTitle: string) => {
     const prevTitle = tabs.find((t) => t.id === tabId)?.title ?? "";
@@ -682,7 +714,7 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
 
   const addSiblingsBlockedRef = useRef(false);
 
-  const addSiblings = useCallback((sourceId: string, siblings: Array<{ type: PedigreeNode["type"]; dob: string; affected?: boolean; carrier?: boolean; condition?: string; notes?: string }>) => {
+  const addSiblings = useCallback((sourceId: string, siblings: Array<{ type: PedigreeNode["type"]; dob: string; affected?: boolean; carrier?: boolean; deceased?: boolean; proband?: boolean; condition?: string; notes?: string }>) => {
     addSiblingsBlockedRef.current = false;
     dispatch({ type: "UPDATE_CANVAS", updater: (p) => {
       const s = p.nodes.find((n) => n.id === sourceId); if (!s) return p;
@@ -731,7 +763,7 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
         newNodes.push({
           id: nid, type: sb.type,
           affected: sb.affected ?? false, carrier: sb.carrier ?? false,
-          deceased: false, proband: false, label: "", age,
+          deceased: sb.deceased ?? false, proband: sb.proband ?? false, label: "", age,
           x: 0, y: s.y,
           dob: sb.dob || undefined, condition: sb.condition || undefined, notes: sb.notes || undefined,
         });
@@ -1041,38 +1073,12 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
   const setViewBox: Dispatch<SetStateAction<{ x: number; y: number; zoom: number }>> = useCallback((vb) => { const nv = typeof vb === "function" ? vb(stateRef.current.viewBox) : vb; dispatch({ type: "SET_STATE", patch: { viewBox: nv } }); }, []);
   const setSpaceHeld: Dispatch<SetStateAction<boolean>> = useCallback((v) => { const nv = typeof v === "function" ? v(stateRef.current.spaceHeld) : v; dispatch({ type: "SET_STATE", patch: { spaceHeld: nv } }); }, []);
 
-  usePedigreeKeyboard({ deleteSelected, deleteAnnotation, selectedAnnotationId: state.selectedAnnotationId, selectedNode: state.selectedIds.size === 1 ? state.canvas.nodes.find((n) => state.selectedIds.has(n.id)) ?? null : null, updateSelectedNode, addNode, addContextNode, undo, redo, navigateArrow, showSearch: state.showSearch, fitToScreen, runAutoLayout: (rp: boolean) => runAutoLayout(rp), setShowSearch, setSearchQuery, setSelectedIds, setLinkMode, setLinkSource, setSelectedAnnotationId, setViewBox, spaceHeldRef, setSpaceHeld, searchInputRef, twinSelectMode: state.twinSelectMode, setTwinSelectMode: (v) => { const nv = typeof v === "function" ? v(stateRef.current.twinSelectMode) : v; dispatch({ type: "SET_STATE", patch: { twinSelectMode: nv, twinCandidateIds: nv ? stateRef.current.twinCandidateIds : new Set<string>() } }); }, clearTwinCandidates, selectedIds: state.selectedIds, canvasNodes: state.canvas.nodes, createCoupleAndChild, W, H, isPreviewMode: state.isPreviewMode });
+  usePedigreeKeyboard({ deleteSelected, deleteAnnotation, selectedAnnotationId: state.selectedAnnotationId, selectedNode: state.selectedIds.size === 1 ? state.canvas.nodes.find((n) => state.selectedIds.has(n.id)) ?? null : null, updateSelectedNode, addNode, addContextNode, undo, redo, navigateArrow, showSearch: state.showSearch, fitToScreen, runAutoLayout: (rp: boolean, isManual?: boolean) => runAutoLayout(rp, isManual), setShowSearch, setSearchQuery, setSelectedIds, setLinkMode, setLinkSource, setSelectedAnnotationId, setViewBox, spaceHeldRef, setSpaceHeld, searchInputRef, twinSelectMode: state.twinSelectMode, setTwinSelectMode: (v) => { const nv = typeof v === "function" ? v(stateRef.current.twinSelectMode) : v; dispatch({ type: "SET_STATE", patch: { twinSelectMode: nv, twinCandidateIds: nv ? stateRef.current.twinCandidateIds : new Set<string>() } }); }, clearTwinCandidates, selectedIds: state.selectedIds, canvasNodes: state.canvas.nodes, createCoupleAndChild, W, H, isPreviewMode: state.isPreviewMode });
 
   const handleSaveVersion = () => dispatch({ type: "SET_STATE", patch: { sessionLabel: `Session \u00b7 ${state.canvas.nodes.length} node${state.canvas.nodes.length !== 1 ? "s" : ""} \u00b7 ${new Date().toLocaleDateString()}`, showSaveModal: true } });
   const commitSaveVersion = async () => { const t = generateThumbnail(state.canvas); const canvasData = JSON.stringify(state.canvas); const canvasHash = cryptoComputeHash(canvasData); const keys = await listProfilePrivateKeys(); const activeKey = keys.length > 0 ? keys[0] : null; const saverKey = activeKey ? await getPublicKeyFromPrivate(activeKey.privateKey) : ""; const saverSignature = activeKey ? await signData(canvasHash, activeKey.privateKey) : null; saveVersionMutation.mutate({ pedigreeId: id, input: { canvas_data: canvasData, canvas_hash: canvasHash, label: state.sessionLabel || null, thumbnail: t, saver_key: saverKey, saver_signature: saverSignature } }, { onSuccess: () => { queryClient.invalidateQueries({ queryKey: queryKeys.versions(id) }); dispatch({ type: "SET_STATE", patch: { showSaveModal: false, sessionLabel: "" } }); } }); };
   const handleDeleteVersion = (versionId: number) => { openConfirm("Delete Version", "Delete this saved session? This cannot be undone.", () => { deleteVersionMutation.mutate({ pedigreeId: id, versionId }, { onSuccess: () => { queryClient.invalidateQueries({ queryKey: queryKeys.versions(id) }); } }); }, "destructive"); };
-  const handleRestoreVersion = (vid: number) => { openConfirm("Restore Version", "Restore this version? Current canvas will be replaced.", () => { restoreVersionMutation.mutate({ pedigreeId: id, versionId: vid }, { onSuccess: (d) => { const cd = (d as { canvas_data?: string | null }).canvas_data; if (cd) dispatch({ type: "SET_CANVAS", canvas: parseCanvas(cd) }); initialSyncDoneRef.current = true; queryClient.setQueryData(queryKeys.pedigree(id), d); dispatch({ type: "SET_STATE", patch: { showVersions: false } }); } }); }); };
-
-  const backgroundSaveVersion = useCallback(async (label: string) => {
-    try {
-      const t = generateThumbnail(stateRef.current.canvas);
-      const canvasData = JSON.stringify(stateRef.current.canvas);
-      const canvasHash = cryptoComputeHash(canvasData);
-      const keys = await listProfilePrivateKeys();
-      const activeKey = keys.length > 0 ? keys[0] : null;
-      const saverKey = activeKey ? await getPublicKeyFromPrivate(activeKey.privateKey) : "";
-      const saverSignature = activeKey ? await signData(canvasHash, activeKey.privateKey) : null;
-      await saveVersionMutation.mutateAsync({
-        pedigreeId: id,
-        input: {
-          canvas_data: canvasData,
-          canvas_hash: canvasHash,
-          label,
-          thumbnail: t,
-          saver_key: saverKey,
-          saver_signature: saverSignature
-        }
-      });
-      queryClient.invalidateQueries({ queryKey: queryKeys.versions(id) });
-    } catch (e) {
-      console.error("Auto-checkpoint save failed", e);
-    }
-  }, [id, queryClient, saveVersionMutation]);
+  const handleRestoreVersion = (vid: number) => { openConfirm("Restore Version", "Restore this version? Current canvas will be replaced.", () => { restoreVersionMutation.mutate({ pedigreeId: id, versionId: vid }, { onSuccess: (d) => { const cd = (d as { canvas_data?: string | null }).canvas_data; if (cd) dispatch({ type: "SET_CANVAS", canvas: parseCanvas(cd) }); initialSyncDoneRef.current = true; queryClient.setQueryData(queryKeys.pedigree(id), d); dispatch({ type: "SET_STATE", patch: { showVersions: false, isPreviewMode: false, liveCanvasCache: null, showVisualDiff: false, previewVersionId: null } }); } }); }); };
 
   const onRestoreDraft = useCallback(() => handleRestoreDraft(
     (canvas: CanvasData) => dispatch({ type: "SET_CANVAS", canvas }),

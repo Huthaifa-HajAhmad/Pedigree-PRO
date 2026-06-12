@@ -18,6 +18,7 @@ export function CanvasOverlayManager({
   showLegend,
   legendEntries,
   singleSelected,
+  anySelected,
   showRiskPanel,
   showValidation,
   showVersions,
@@ -35,13 +36,15 @@ export function CanvasOverlayManager({
   showLegend: boolean;
   legendEntries: Array<{ key: string; label: string }>;
   singleSelected: boolean;
+  anySelected: boolean;
   showRiskPanel: boolean;
   showValidation: boolean;
   showVersions: boolean;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const minimapVisible = showMinimap && nodeCount > 0;
-  const panelOpen = singleSelected || showRiskPanel || showValidation || showVersions;
+  const propertiesPanelOpen = anySelected && !showRiskPanel && !showValidation && !showVersions;
+  const panelOpen = propertiesPanelOpen || showRiskPanel || showValidation;
 
   return (
     <div ref={containerRef} className="absolute inset-0 pointer-events-none">
@@ -49,10 +52,10 @@ export function CanvasOverlayManager({
 
       {/* Stacked overlay container: legend above minimap on the right side */}
       {(minimapVisible || showLegend) && (
-        <div className={`absolute bottom-4 flex flex-col-reverse gap-2 pointer-events-auto ${panelOpen ? "right-[296px]" : "right-4"}`}>
+        <div className={`absolute bottom-4 flex flex-col-reverse gap-2 pointer-events-auto transition-all duration-300 ${panelOpen ? "right-[296px]" : "right-4"}`}>
           {minimapVisible && (
             <Minimap
-              shifted={false}
+              shifted={panelOpen}
               containerClassName="!relative !bottom-0 !right-0"
               nodes={minimapNodes}
               edges={minimapEdges}

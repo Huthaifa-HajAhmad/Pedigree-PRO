@@ -10,8 +10,6 @@ import { TabBar } from "@/features/pedigree-editor/panels/TabBar";
 import { RibbonToolbar } from "@/features/pedigree-editor/toolbar/RibbonToolbar";
 import { DraftBanner } from "@/features/pedigree-editor/overlay/DraftBanner";
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
-import { VersionTimeline, FollowMode } from "@/features/collaboration";
-import { parseCanvas } from "@/features/pedigree-editor/utils/helpers";
 import { buildTemplate, getTemplateOptions } from "@/features/pedigree-editor/utils/templates";
 
 const PEDIGREE_TEMPLATES = getTemplateOptions();
@@ -44,8 +42,24 @@ function PedigreeCanvasInner() {
     setShowAutoLabels: (v: React.SetStateAction<boolean>) => ctx.dispatch({ type: "SET_STATE", patch: { showAutoLabels: typeof v === "function" ? v(state.showAutoLabels) : v } }),
     setShowLabelsMenu: (v: React.SetStateAction<boolean>) => ctx.dispatch({ type: "SET_STATE", patch: { showLabelsMenu: typeof v === "function" ? v(state.showLabelsMenu) : v } }),
     setShowTemplates: (v: React.SetStateAction<boolean>) => ctx.dispatch({ type: "SET_STATE", patch: { showTemplates: typeof v === "function" ? v(state.showTemplates) : v } }),
-    setShowRiskPanel: (v: React.SetStateAction<boolean>) => ctx.dispatch({ type: "SET_STATE", patch: { showRiskPanel: typeof v === "function" ? v(state.showRiskPanel) : v } }),
-    setShowValidation: (v: React.SetStateAction<boolean>) => ctx.dispatch({ type: "SET_STATE", patch: { showValidation: typeof v === "function" ? v(state.showValidation) : v } }),
+    setShowRiskPanel: (v: React.SetStateAction<boolean>) => {
+      const newVal = typeof v === "function" ? v(state.showRiskPanel) : v;
+      ctx.dispatch({
+        type: "SET_STATE",
+        patch: newVal
+          ? { showRiskPanel: true, showValidation: false, showVersions: false }
+          : { showRiskPanel: false }
+      });
+    },
+    setShowValidation: (v: React.SetStateAction<boolean>) => {
+      const newVal = typeof v === "function" ? v(state.showValidation) : v;
+      ctx.dispatch({
+        type: "SET_STATE",
+        patch: newVal
+          ? { showValidation: true, showRiskPanel: false, showVersions: false }
+          : { showValidation: false }
+      });
+    },
     setShowLegend: (v: React.SetStateAction<boolean>) => ctx.dispatch({ type: "SET_STATE", patch: { showLegend: typeof v === "function" ? v(state.showLegend) : v } }),
     setShowSaveModal: (v: React.SetStateAction<boolean>) => ctx.dispatch({ type: "SET_STATE", patch: { showSaveModal: typeof v === "function" ? v(state.showSaveModal) : v } }),
     setSessionLabel: (v: React.SetStateAction<string>) => ctx.dispatch({ type: "SET_STATE", patch: { sessionLabel: typeof v === "function" ? v(state.sessionLabel) : v } }),
@@ -55,13 +69,10 @@ function PedigreeCanvasInner() {
     },
     setShowShareModal: (v: React.SetStateAction<boolean>) => ctx.dispatch({ type: "SET_STATE", patch: { showShareModal: typeof v === "function" ? v(state.showShareModal) : v } }),
     setShowExportMenu: (v: React.SetStateAction<boolean>) => ctx.dispatch({ type: "SET_STATE", patch: { showExportMenu: typeof v === "function" ? v(state.showExportMenu) : v } }),
-    setShowVersionTimeline: (v: React.SetStateAction<boolean>) => ctx.dispatch({ type: "SET_STATE", patch: { showVersionTimeline: typeof v === "function" ? v(state.showVersionTimeline) : v } }),
-    setShowFollowMode: (v: React.SetStateAction<boolean>) => ctx.dispatch({ type: "SET_STATE", patch: { showFollowMode: typeof v === "function" ? v(state.showFollowMode) : v } }),
     setViewBox: (vb: React.SetStateAction<{ x: number; y: number; zoom: number }>) => ctx.dispatch({ type: "SET_STATE", patch: { viewBox: typeof vb === "function" ? vb(state.viewBox) : vb } }),
     setLinkMode: (m: React.SetStateAction<"couple" | "parent-child" | "consanguinity" | null>) => ctx.dispatch({ type: "SET_STATE", patch: { linkMode: typeof m === "function" ? m(state.linkMode) : m } }),
     setLinkSource: (s: React.SetStateAction<string | null>) => ctx.dispatch({ type: "SET_STATE", patch: { linkSource: typeof s === "function" ? s(state.linkSource) : s } }),
-    setFollowIndex: (i: React.SetStateAction<number>) => ctx.dispatch({ type: "SET_STATE", patch: { followIndex: typeof i === "function" ? i(state.followIndex) : i } }),
-  }), [ctx, state.snapEnabled, state.showGrid, state.showMinimap, state.showLayoutMenu, state.liveLayout, state.showAutoLabels, state.showLabelsMenu, state.showTemplates, state.showRiskPanel, state.showValidation, state.showLegend, state.showSaveModal, state.sessionLabel, state.showVersions, state.showShareModal, state.showExportMenu, state.showVersionTimeline, state.showFollowMode, state.viewBox, state.linkMode, state.linkSource, state.followIndex]);
+  }), [ctx, state.snapEnabled, state.showGrid, state.showMinimap, state.showLayoutMenu, state.liveLayout, state.showAutoLabels, state.showLabelsMenu, state.showTemplates, state.showRiskPanel, state.showValidation, state.showLegend, state.showSaveModal, state.sessionLabel, state.showVersions, state.showShareModal, state.showExportMenu, state.viewBox, state.linkMode, state.linkSource]);
 
   const he = (fn: (args?: any) => void | Promise<void>, fmt: string) => async (args?: any) => {
     ctx.dispatch({ type: "SET_STATE", patch: { showExportMenu: false, exportingFormat: fmt } });
@@ -82,10 +93,10 @@ function PedigreeCanvasInner() {
   });
 
   useEffect(() => {
-    if (!state.showVersionTimeline && !state.showFollowMode && state.isPreviewMode) {
+    if (!state.showVersions && state.isPreviewMode) {
       ctx.dispatch({ type: "EXIT_PREVIEW" });
     }
-  }, [state.showVersionTimeline, state.showFollowMode, state.isPreviewMode, ctx.dispatch]);
+  }, [state.showVersions, state.isPreviewMode, ctx.dispatch]);
 
   return (
     <div className="flex flex-col h-dvh overflow-hidden">
@@ -133,8 +144,6 @@ function PedigreeCanvasInner() {
         setShowShareModal={toggle.setShowShareModal}
         showExportMenu={state.showExportMenu} setShowExportMenu={toggle.setShowExportMenu}
         exportingFormat={state.exportingFormat}
-        showVersionTimeline={state.showVersionTimeline} setShowVersionTimeline={toggle.setShowVersionTimeline}
-        showFollowMode={state.showFollowMode} setShowFollowMode={toggle.setShowFollowMode}
         twinSelectMode={state.twinSelectMode}
         twinCandidateIds={state.twinCandidateIds}
         toggleTwinSelectMode={ops.toggleTwinSelectMode}
@@ -173,30 +182,6 @@ function PedigreeCanvasInner() {
 
       <PedigreeCanvasBody />
 
-      {state.showVersionTimeline && ctx.versions && (
-        <VersionTimeline
-          pedigreeId={pedigree?.id ?? 0}
-          currentCanvas={JSON.stringify(state.canvas)}
-          onPreview={(data, vid) => ctx.dispatch({ type: "ENTER_PREVIEW", canvas: parseCanvas(data), versionId: vid })}
-          onRestoreRequest={ops.handleRestoreVersion}
-        />
-      )}
-
-      {state.showFollowMode && ctx.versions && (
-        <FollowMode
-          versions={ctx.versions}
-          currentIndex={state.followIndex}
-          onChangeIndex={toggle.setFollowIndex}
-          onPreview={(data) => {
-            const currentVersionId = ctx.versions ? ctx.versions[state.followIndex]?.id || null : null;
-            ctx.dispatch({ type: "ENTER_PREVIEW", canvas: parseCanvas(data), versionId: currentVersionId });
-          }}
-          onClose={() => {
-            ctx.dispatch({ type: "EXIT_PREVIEW" });
-            ctx.dispatch({ type: "SET_STATE", patch: { showFollowMode: false } });
-          }}
-        />
-      )}
 
 
 

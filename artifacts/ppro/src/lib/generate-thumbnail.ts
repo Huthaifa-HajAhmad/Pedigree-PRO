@@ -15,7 +15,6 @@ interface Canvas {
 
 const W = 160;
 const H = 100;
-const NS = 9;          // node half-size
 const PAD = 12;
 const NEON = "#16a34a";
 const BG   = "#f8f9fa";
@@ -23,11 +22,13 @@ const LINE = "#94a3b8";
 const NODE_FILL = "#ffffff";
 const NODE_STROKE = "#334155";
 
-// ---------------------------------------------------------------------------
-// Fit canvas node coordinates into the thumbnail viewport
-// ---------------------------------------------------------------------------
 function makeMapper(nodes: PedigreeNode[]) {
-  if (nodes.length === 0) return (_x: number, _y: number) => ({ x: W / 2, y: H / 2 });
+  if (nodes.length === 0) {
+    return {
+      map: (_x: number, _y: number) => ({ x: W / 2, y: H / 2 }),
+      scale: 1
+    };
+  }
   const xs = nodes.map(n => n.x);
   const ys = nodes.map(n => n.y);
   const minX = Math.min(...xs) - 40;
@@ -37,10 +38,11 @@ function makeMapper(nodes: PedigreeNode[]) {
   const scale = Math.min((W - PAD * 2) / srcW, (H - PAD * 2) / srcH);
   const drawW = srcW * scale;
   const drawH = srcH * scale;
-  return (x: number, y: number) => ({
+  const map = (x: number, y: number) => ({
     x: PAD + (W - PAD * 2 - drawW) / 2 + (x - minX) * scale,
     y: PAD + (H - PAD * 2 - drawH) / 2 + (y - minY) * scale,
   });
+  return { map, scale };
 }
 
 // ---------------------------------------------------------------------------
@@ -80,9 +82,12 @@ export function generateThumbnail(canvas: Canvas): string {
     return `data:image/svg+xml;base64,${btoa(svg)}`;
   }
 
-  const map = makeMapper(canvas.nodes);
+  const { map, scale } = makeMapper(canvas.nodes);
   const byId = new Map(canvas.nodes.map(n => [n.id, n]));
   const parts: string[] = [];
+
+  // Dynamic node half-size, scaled down for larger pedigrees but constrained
+  const s = Math.max(2.5, Math.min(9, 14 * scale));
 
   // Background
   parts.push(`<rect width="${W}" height="${H}" fill="${BG}"/>`);
@@ -96,16 +101,16 @@ export function generateThumbnail(canvas: Canvas): string {
     const tp = map(tgt.x, tgt.y);
 
     if (edge.type === "couple" || edge.type === "divorced" || edge.type === "separated") {
-      parts.push(svgLine(sp.x + NS * 0.5, sp.y, tp.x - NS * 0.5, tp.y, LINE));
+      parts.push(svgLine(sp.x + s * 0.5, sp.y, tp.x - s * 0.5, tp.y, LINE));
     } else if (edge.type === "consanguinity") {
-      parts.push(svgLine(sp.x + NS * 0.5, sp.y - 1.2, tp.x - NS * 0.5, tp.y - 1.2, LINE, 0.5));
-      parts.push(svgLine(sp.x + NS * 0.5, sp.y + 1.2, tp.x - NS * 0.5, tp.y + 1.2, LINE, 0.5));
+      parts.push(svgLine(sp.x + s * 0.5, sp.y - 1.2 * scale, tp.x - s * 0.5, tp.y - 1.2 * scale, LINE, 0.5));
+      parts.push(svgLine(sp.x + s * 0.5, sp.y + 1.2 * scale, tp.x - s * 0.5, tp.y + 1.2 * scale, LINE, 0.5));
     } else {
       // parent-child: elbow
-      const dropY = sp.y + NS * 0.6 + 4;
-      parts.push(svgLine(sp.x, sp.y + NS * 0.6, sp.x, dropY, LINE));
+      const dropY = sp.y + s * 0.6 + 4 * scale;
+      parts.push(svgLine(sp.x, sp.y + s * 0.6, sp.x, dropY, LINE));
       parts.push(svgLine(sp.x, dropY, tp.x, dropY, LINE));
-      parts.push(svgLine(tp.x, dropY, tp.x, tp.y - NS * 0.6, LINE));
+      parts.push(svgLine(tp.x, dropY, tp.x, tp.y - s * 0.6, LINE));
     }
   }
 
@@ -116,30 +121,30 @@ export function generateThumbnail(canvas: Canvas): string {
     const stroke = node.affected ? NEON : node.deceased ? "#9ca3af" : NODE_STROKE;
 
     if (node.type === "male") {
-      parts.push(svgRect(x, y, NS, fill, stroke));
+      parts.push(svgRect(x, y, s, fill, stroke));
     } else if (node.type === "female") {
-      parts.push(svgCircle(x, y, NS, fill, stroke));
+      parts.push(svgCircle(x, y, s, fill, stroke));
     } else if (node.type === "pregnancy") {
-      parts.push(svgDiamond(x, y, NS, fill, stroke));
+      parts.push(svgDiamond(x, y, s, fill, stroke));
     } else if (node.type === "sab") {
-      parts.push(svgTriangle(x, y, NS, true, fill, stroke));
+      parts.push(svgTriangle(x, y, s, true, fill, stroke));
     } else {
-      parts.push(svgDiamond(x, y, NS, fill, stroke));
+      parts.push(svgDiamond(x, y, s, fill, stroke));
     }
 
     // Carrier dot
     if (node.carrier && !node.affected) {
-      parts.push(svgCircle(x, y, NS * 0.28, NEON, "none"));
+      parts.push(svgCircle(x, y, s * 0.28, NEON, "none"));
     }
 
     // Deceased slash
     if (node.deceased) {
-      parts.push(svgLine(x - NS - 1, y + NS + 1, x + NS + 1, y - NS - 1, "#9ca3af", 0.7));
+      parts.push(svgLine(x - s - 1 * scale, y + s + 1 * scale, x + s + 1 * scale, y - s - 1 * scale, "#9ca3af", 0.7));
     }
 
     // Proband arrow
     if (node.proband) {
-      parts.push(`<text x="${(x - NS - 3).toFixed(1)}" y="${(y + 3).toFixed(1)}" font-family="monospace" font-size="8" fill="${NEON}" text-anchor="end">→</text>`);
+      parts.push(`<text x="${(x - s - 3 * scale).toFixed(1)}" y="${(y + 3 * scale).toFixed(1)}" font-family="monospace" font-size="${Math.max(4, 8 * scale)}" fill="${NEON}" text-anchor="end">→</text>`);
     }
   }
 

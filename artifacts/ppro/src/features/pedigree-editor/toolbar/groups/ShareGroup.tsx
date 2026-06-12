@@ -111,9 +111,9 @@ export function ShareGroup({
 
   return (
     <div className="flex flex-col justify-between h-full flex-shrink-0 px-2 pt-2 pb-2">
-      <div className="flex-1 flex items-center gap-1">
+      <div className="flex-1 flex items-center gap-2">
         <button type="button" data-testid="button-share" onClick={() => setShowShareModal(true)} title="Share this pedigree" aria-label="Share this pedigree"
-          className="flex flex-col items-center gap-1.5 min-w-[44px] min-h-[44px] py-1 rounded text-[11px] leading-tight font-medium text-muted-foreground hover:bg-accent hover:text-foreground transition-colors">
+          className="flex flex-col items-center gap-1.5 min-w-[46px] min-h-[46px] py-1 rounded text-[11px] leading-tight font-medium text-muted-foreground hover:bg-accent hover:text-foreground transition-colors">
           <Share2 className="w-5 h-5" />
           <span>Share</span>
         </button>
@@ -123,7 +123,7 @@ export function ShareGroup({
           onClick={() => setShowExportMenu(true)}
           title="Export pedigree options"
           aria-label="Export pedigree options"
-          className="flex flex-col items-center gap-1.5 min-w-[44px] min-h-[44px] py-1 rounded text-[11px] leading-tight font-medium text-muted-foreground hover:bg-accent hover:text-foreground transition-colors">
+          className="flex flex-col items-center gap-1.5 min-w-[46px] min-h-[46px] py-1 rounded text-[11px] leading-tight font-medium text-muted-foreground hover:bg-accent hover:text-foreground transition-colors">
           <Download className="w-5 h-5" />
           <span>Export</span>
         </button>

@@ -34,9 +34,9 @@ export function PanelShell({
               type="button"
               aria-label={`Close ${title}`}
               onClick={onClose}
-              className="text-muted-foreground hover:text-foreground transition-colors p-0.5"
+              className="text-muted-foreground hover:text-foreground p-1 hover:bg-accent rounded-md transition-all duration-300 [transition-timing-function:cubic-bezier(0.34,1.56,0.64,1)] hover:scale-110 active:scale-90 focus:outline-none focus:ring-1 focus:ring-ring z-50 group"
             >
-              <X className="w-3.5 h-3.5" />
+              <X className="w-3.5 h-3.5 transition-transform duration-300 group-hover:rotate-90" />
             </button>
           )}
         </div>
