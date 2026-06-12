@@ -199,7 +199,7 @@ export function TabBar({
                     }}
                     onBlur={commitRename}
                     onClick={(e) => e.stopPropagation()}
-                    className="text-sm leading-5 bg-background border border-border rounded px-1.5 py-0 outline-none focus:border-primary text-foreground w-[120px]"
+                    className="text-sm leading-5 bg-background border border-border/80 rounded px-2 py-0.5 outline-none hover:bg-accent/20 focus:border-muted-foreground/45 focus-visible:ring-0 transition-all duration-200 text-foreground w-[120px]"
                     autoFocus
                   />
                 ) : (

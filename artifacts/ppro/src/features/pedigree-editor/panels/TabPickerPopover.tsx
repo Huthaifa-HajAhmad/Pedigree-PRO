@@ -90,7 +90,7 @@ export function TabPickerPopover({
     <div
       ref={panelRef}
       data-tab-picker
-      className="fixed z-50 bg-card border border-border rounded shadow-xl w-72"
+      className="fixed z-50 bg-card/95 backdrop-blur-md border border-border/80 rounded-xl shadow-xl w-72"
       style={pos ? { top: pos.top, left: pos.left } : { display: "none" }}
     >
       <div className="p-2 border-b border-border">
@@ -99,7 +99,7 @@ export function TabPickerPopover({
           aria-label="Search pedigrees"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="w-full text-xs bg-muted border border-border rounded px-2 py-1.5 outline-none focus:border-primary text-foreground placeholder:text-muted-foreground"
+          className="w-full text-xs bg-background border border-border/80 rounded-lg px-2.5 py-1.5 outline-none hover:bg-accent/20 focus:border-muted-foreground/45 focus-visible:ring-0 text-foreground placeholder:text-muted-foreground transition-all duration-200"
         />
       </div>
       <div className="max-h-56 overflow-y-auto py-1">
