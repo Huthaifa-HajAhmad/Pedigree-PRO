@@ -84,21 +84,21 @@ function computeMinimapEdges(
           if (e.type === "couple" || e.type === "divorced" || e.type === "separated") {
         result.push(
           <line key={e.id}
-            x1={left.x + HALF} y1={left.y}
-            x2={right.x - HALF} y2={right.y}
+            x1={left.x + SHAPE_R} y1={left.y}
+            x2={right.x - SHAPE_R} y2={right.y}
             stroke={stroke} strokeWidth={sw}
           />
         );
       } else {
-        const dx = (right.x - HALF) - (left.x + HALF);
+        const dx = (right.x - SHAPE_R) - (left.x + SHAPE_R);
         const dy = right.y - left.y;
         const len = Math.sqrt(dx * dx + dy * dy) || 1;
         const ox = (-dy / len) * 3;
         const oy = (dx / len) * 3;
         result.push(
           <g key={e.id} stroke={stroke} strokeWidth={sw} fill="none">
-            <line x1={left.x + HALF + ox} y1={left.y + oy} x2={right.x - HALF + ox} y2={right.y + oy} />
-            <line x1={left.x + HALF - ox} y1={left.y - oy} x2={right.x - HALF - ox} y2={right.y - oy} />
+            <line x1={left.x + SHAPE_R + ox} y1={left.y + oy} x2={right.x - SHAPE_R + ox} y2={right.y + oy} />
+            <line x1={left.x + SHAPE_R - ox} y1={left.y - oy} x2={right.x - SHAPE_R - ox} y2={right.y - oy} />
           </g>
         );
       }
@@ -139,7 +139,7 @@ function computeMinimapEdges(
       .filter((n): n is PedigreeNode => !!n);
     if (children.length === 0) continue;
 
-    const childTops = children.map((c) => c.y - HALF);
+    const childTops = children.map((c) => c.y - SHAPE_R);
     const minChildTop = Math.min(...childTops);
     const barY = minChildTop - 30; // fixed gap like main canvas MIN_BAR_CHILD_GAP
 
@@ -155,7 +155,7 @@ function computeMinimapEdges(
       dropX = p.x;
       result.push(
         <path key={`pc-drop-${pid}`}
-          d={`M ${dropX} ${p.y + HALF} L ${dropX} ${barY}`}
+          d={`M ${dropX} ${p.y + SHAPE_R} L ${dropX} ${barY}`}
           fill="none" stroke={stroke} strokeWidth={sw} strokeLinecap="square"
         />
       );
@@ -167,7 +167,7 @@ function computeMinimapEdges(
       if (!p1 || !p2) continue;
       const left = p1.x <= p2.x ? p1 : p2;
       const right = p1.x <= p2.x ? p2 : p1;
-      dropX = (left.x + HALF + right.x - HALF) / 2;
+      dropX = (left.x + SHAPE_R + right.x - SHAPE_R) / 2;
       result.push(
         <path key={`pc-drop-${pid1}-${pid2}`}
           d={`M ${dropX} ${left.y} L ${dropX} ${barY}`}
@@ -188,7 +188,7 @@ function computeMinimapEdges(
     for (const child of children) {
       result.push(
         <path key={`pc-child-${child.id}`}
-          d={`M ${child.x} ${barY} L ${child.x} ${child.y - HALF}`}
+          d={`M ${child.x} ${barY} L ${child.x} ${child.y - SHAPE_R}`}
           fill="none" stroke={stroke} strokeWidth={sw} strokeLinecap="square"
         />
       );
@@ -295,7 +295,7 @@ export function Minimap({
         onPan(cx, cy);
       }}
     >
-      <svg width={mmW} height={mmH} viewBox={`${minX} ${minY} ${W} ${H}`}>
+      <svg width={mmW} height={mmH} viewBox={`${minX} ${minY} ${W} ${H}`} className="overflow-hidden w-full h-full">
         {edgeElements}
         {nodes.map((n) => (
           <MinimapNode key={n.id} node={n} />

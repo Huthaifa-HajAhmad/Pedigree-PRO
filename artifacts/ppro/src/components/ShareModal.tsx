@@ -514,7 +514,7 @@ export function ShareModal({
                 <button
                   type="button"
                   onClick={() => setActiveTab("relay")}
-                  className="group flex flex-col items-start text-left p-4 rounded-xl border border-border/60 bg-card hover:bg-accent hover:border-border transition-all"
+                  className="group flex flex-col items-start text-left p-4 rounded-xl border border-border/60 bg-card hover:bg-accent hover:border-border transition-all active:scale-[0.98]"
                 >
                   <div className="p-2 rounded-lg bg-teal-500/10 group-hover:bg-teal-500/25 transition-colors mb-3">
                     <Link2 className="w-5 h-5 text-teal-500" />
@@ -530,7 +530,7 @@ export function ShareModal({
                 <button
                   type="button"
                   onClick={() => setActiveTab("lan")}
-                  className="group flex flex-col items-start text-left p-4 rounded-xl border border-border/60 bg-card hover:bg-accent hover:border-border transition-all"
+                  className="group flex flex-col items-start text-left p-4 rounded-xl border border-border/60 bg-card hover:bg-accent hover:border-border transition-all active:scale-[0.98]"
                 >
                   <div className="p-2 rounded-lg bg-sky-500/10 group-hover:bg-sky-500/25 transition-colors mb-3">
                     <Wifi className="w-5 h-5 text-sky-500" />
@@ -561,7 +561,7 @@ export function ShareModal({
                         <button
                           type="button"
                           onClick={() => setAccessMode("view")}
-                          className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg border text-xs font-bold transition-colors ${accessMode === "view" ? "border-teal-500/40 bg-teal-500/10 text-teal-600 dark:text-teal-400" : "border-border bg-muted/40 text-muted-foreground hover:bg-accent"}`}
+                          className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg border text-xs font-bold transition-colors active:scale-95 ${accessMode === "view" ? "border-teal-500/40 bg-teal-500/10 text-teal-600 dark:text-teal-400" : "border-border bg-muted/40 text-muted-foreground hover:bg-accent"}`}
                         >
                           <Eye className="w-3.5 h-3.5" />
                           View only
@@ -569,7 +569,7 @@ export function ShareModal({
                         <button
                           type="button"
                           onClick={() => setAccessMode("edit")}
-                          className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg border text-xs font-bold transition-colors ${accessMode === "edit" ? "border-teal-500/40 bg-teal-500/10 text-teal-600 dark:text-teal-400" : "border-border bg-muted/40 text-muted-foreground hover:bg-accent"}`}
+                          className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg border text-xs font-bold transition-colors active:scale-95 ${accessMode === "edit" ? "border-teal-500/40 bg-teal-500/10 text-teal-600 dark:text-teal-400" : "border-border bg-muted/40 text-muted-foreground hover:bg-accent"}`}
                         >
                           <Pencil className="w-3.5 h-3.5" />
                           Can edit
@@ -851,13 +851,14 @@ export function ShareModal({
             ) : (
               <div />
             )}
-            <button
+            <Button
               type="button"
-              onClick={() => onClose()}
-              className="px-4 py-1.5 text-xs font-bold rounded-lg border border-border hover:bg-accent transition-colors"
+              variant="outline"
+              size="sm"
+              onClick={onClose}
             >
               Close
-            </button>
+            </Button>
           </div>
         </div>
 

@@ -30,7 +30,7 @@ export function FormLayout<T extends FieldValues>({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       {trigger && <DialogTrigger asChild>{trigger}</DialogTrigger>}
-      <DialogContent className="glass-panel border-0 max-w-md">
+      <DialogContent className="border border-slate-200 dark:border-slate-800 max-w-md bg-background/95 backdrop-blur-lg shadow-2xl rounded-xl sm:rounded-xl">
         <DialogHeader>
           <DialogTitle className="text-sm uppercase tracking-wider text-primary">{title}</DialogTitle>
         </DialogHeader>

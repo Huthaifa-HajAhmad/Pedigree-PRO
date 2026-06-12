@@ -32,7 +32,7 @@ export function ConfirmDialog({
 }: ConfirmDialogProps) {
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v) onCancel(); }}>
-      <DialogContent className="sm:max-w-sm gap-0 p-6">
+      <DialogContent className="sm:max-w-sm gap-0 p-6 border border-slate-200 dark:border-slate-800 bg-background/95 backdrop-blur-lg shadow-2xl rounded-xl sm:rounded-xl">
         <DialogHeader className="flex flex-row items-start gap-3 mb-4 space-y-0">
           <div className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 ${
             variant === "destructive" ? "bg-destructive/10" : "bg-primary/10"

@@ -109,7 +109,7 @@ function DatePicker({
           aria-label={ariaLabel}
           className={cn(
             "flex h-9 w-full items-center rounded-md border border-input bg-transparent px-3 text-sm transition-colors shadow-sm",
-            "hover:bg-accent/50 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
+            "hover:bg-accent/50 focus:outline-none focus-visible:outline-none focus-visible:ring-0 focus:border-muted-foreground/45 focus-visible:border-muted-foreground/45",
             "disabled:cursor-not-allowed disabled:opacity-50",
             !value && "text-muted-foreground",
             className

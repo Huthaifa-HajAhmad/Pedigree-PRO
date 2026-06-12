@@ -16,7 +16,7 @@ test.describe("Pedigree PRO smoke tests", () => {
     await page.waitForLoadState("networkidle");
 
     await expect(page.getByTestId("nav-patients")).toBeVisible();
-    await expect(page.getByText("Patients")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Patients", exact: true })).toBeVisible();
   });
 
   test("pedigrees page loads successfully", async ({ page }) => {
@@ -24,14 +24,14 @@ test.describe("Pedigree PRO smoke tests", () => {
     await page.waitForLoadState("networkidle");
 
     await expect(page.getByTestId("nav-pedigrees")).toBeVisible();
-    await expect(page.getByText("Pedigrees")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Pedigrees", exact: true })).toBeVisible();
   });
 
   test("profiles page loads successfully", async ({ page }) => {
     await page.goto("/profiles");
     await page.waitForLoadState("networkidle");
 
-    await expect(page.getByTestId("button-new-profile")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "My Identity" })).toBeVisible();
   });
 
   test("navigation sidebar works", async ({ page }) => {
@@ -39,28 +39,24 @@ test.describe("Pedigree PRO smoke tests", () => {
     await page.waitForLoadState("networkidle");
 
     await page.getByTestId("nav-pedigrees").click();
-    await expect(page.getByText("Pedigrees")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Pedigrees", exact: true })).toBeVisible();
 
     await page.getByTestId("nav-patients").click();
-    await expect(page.getByText("Patients")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Patients", exact: true })).toBeVisible();
 
     await page.getByTestId("nav-dashboard").click();
-    await expect(page.getByText("Dashboard")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Clinical Dashboard", exact: true })).toBeVisible();
   });
 
   test("theme picker toggles theme options", async ({ page }) => {
-    await page.goto("/");
+    await page.goto("/settings");
     await page.waitForLoadState("networkidle");
 
-    const themePicker = page.getByLabel("Change color theme");
-    await expect(themePicker).toBeVisible();
-    await themePicker.click();
-
-    // Verify theme options are visible
+    // Verify theme options are visible in Settings
     await expect(page.getByText("Obsidian")).toBeVisible();
-    await expect(page.getByText("Clinical White")).toBeVisible();
+    await expect(page.getByText("Clinical", { exact: true })).toBeVisible();
     await expect(page.getByText("Midnight")).toBeVisible();
-    await expect(page.getByText("Amber")).toBeVisible();
+    await expect(page.getByText("Warm Neutral")).toBeVisible();
   });
 
   test("create patient flow", async ({ page }) => {
@@ -73,10 +69,10 @@ test.describe("Pedigree PRO smoke tests", () => {
     // Fill in patient details
     await page.getByTestId("input-firstName").fill("John");
     await page.getByTestId("input-lastName").fill("Doe");
-    await page.getByTestId("input-dob").fill("1980-01-15");
+    // DOB is a custom popover DatePicker component and is optional, so we omit filling it
 
     // Submit
-    await page.getByRole("button", { name: /save|create/i }).first().click();
+    await page.getByRole("button", { name: /register|save|create/i }).first().click();
     await page.waitForTimeout(500);
 
     // Verify patient appears in list
@@ -94,11 +90,11 @@ test.describe("Pedigree PRO smoke tests", () => {
     await page.getByTestId("input-title").fill("Test Family Pedigree");
 
     // Submit
-    await page.getByRole("button", { name: /save|create/i }).first().click();
+    await page.getByRole("button", { name: /register|save|create/i }).first().click();
     await page.waitForTimeout(500);
 
     // Verify pedigree appears in list
-    await expect(page.getByText("Test Family Pedigree")).toBeVisible();
+    await expect(page.getByText("Test Family Pedigree", { exact: true })).toBeVisible();
   });
 
   test("404 page shows on unknown route", async ({ page }) => {
@@ -112,7 +108,7 @@ test.describe("Pedigree PRO smoke tests", () => {
 
     // Navigate back to dashboard
     await page.getByTestId("button-go-home").click();
-    await expect(page.getByText("Dashboard")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Clinical Dashboard", exact: true })).toBeVisible();
 
     // No console errors
     expect(errors).toEqual([]);

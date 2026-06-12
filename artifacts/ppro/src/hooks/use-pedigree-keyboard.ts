@@ -12,7 +12,7 @@ export interface UsePedigreeKeyboardParams {
   navigateArrow: (dir: "ArrowUp" | "ArrowDown" | "ArrowLeft" | "ArrowRight") => void;
   showSearch: boolean;
   fitToScreen: () => void;
-  runAutoLayout: (respectPinned: boolean) => void;
+  runAutoLayout: (respectPinned: boolean, isManual?: boolean) => void;
   setShowSearch: Dispatch<SetStateAction<boolean>>;
   setSearchQuery: Dispatch<SetStateAction<string>>;
   setSelectedIds: Dispatch<SetStateAction<Set<string>>>;
@@ -128,7 +128,7 @@ export function usePedigreeKeyboard(params: UsePedigreeKeyboardParams) {
         return;
       }
       if (e.altKey) return;
-      if (e.key === "l" || e.key === "L") { k.runAutoLayout(true); return; }
+      if (e.key === "l" || e.key === "L") { k.runAutoLayout(true, true); return; }
 if (e.key === "c" || e.key === "C") {
         if (k.selectedIds.size === 2) {
           const ids = [...k.selectedIds];

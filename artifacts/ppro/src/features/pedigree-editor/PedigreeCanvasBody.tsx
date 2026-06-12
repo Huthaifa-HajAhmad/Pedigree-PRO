@@ -155,7 +155,7 @@ function SibshipLayer({ edges, nodes, invalidEdgeIds, annotations = [], showAuto
 }
 
 export function PedigreeCanvasBody() {
-  const { state, ops, memo, refs, dispatch, pedigree, versions, versionsLoading } = usePedigreeEditor();
+  const { state, ops, memo, refs, dispatch, pedigree, versions } = usePedigreeEditor();
 
   const {
     canvas, selectedIds, linkSource, showAutoLabels, viewBox,
@@ -176,7 +176,7 @@ export function PedigreeCanvasBody() {
     updateSelectedNode, bulkUpdate, alignSelected,
     handleNodeClick, handleNodeDoubleClick, handleNodeContextMenu, handleDragStart,
     handleMouseMove, handleMouseUp, handleSVGMouseDown, handleWheel, updateEdgeType,
-    getSVGCoords, handleSaveVersion, handleRestoreVersion, handleDeleteVersion,
+    getSVGCoords, handleRestoreVersion,
     addSiblings, markAsTwins, unmarkTwins,
   } = ops;
 
@@ -694,6 +694,7 @@ const RAIL_MAX_X = 400;
           showLegend={showLegend}
           legendEntries={legendEntries}
           singleSelected={selectedIds.size === 1}
+          anySelected={anySelected}
           showRiskPanel={showRiskPanel}
           showValidation={showValidation}
           showVersions={showVersions}
@@ -789,7 +790,17 @@ const RAIL_MAX_X = 400;
               validation={validation} expandedIssueId={expandedIssueId}
               onToggleIssue={(id) => dispatch({ type: "SET_STATE", patch: { expandedIssueId: expandedIssueId === id ? null : id } })}
               onFocusIssue={(nodeIds) => {
-                if (nodeIds.length > 0) { dispatch({ type: "SET_STATE", patch: { selectedIds: new Set(nodeIds), showValidation: true } }); }
+                if (nodeIds.length > 0) {
+                  dispatch({
+                    type: "SET_STATE",
+                    patch: {
+                      selectedIds: new Set(nodeIds),
+                      showValidation: true,
+                      showRiskPanel: false,
+                      showVersions: false,
+                    },
+                  });
+                }
               }}
               nodes={canvas.nodes}
               onClose={() => dispatch({ type: "SET_STATE", patch: { showValidation: false } })}
@@ -800,9 +811,7 @@ const RAIL_MAX_X = 400;
 
       {showVersions && (
         <VersionHistoryPanel
-          versions={versions ?? []} versionsLoading={versionsLoading}
-          onSave={handleSaveVersion} onRestore={handleRestoreVersion}
-          onDelete={handleDeleteVersion}
+          onClose={() => dispatch({ type: "SET_STATE", patch: { showVersions: false } })}
         />
       )}
 
@@ -813,7 +822,10 @@ const RAIL_MAX_X = 400;
           pedigreeData={JSON.stringify(canvas)}
           canvasNodes={canvas.nodes}
           canvasEdges={canvas.edges}
-          onPedigreeReceived={(data) => {
+          onPedigreeReceived={async (data) => {
+            if (ops.backgroundSaveVersion) {
+              await ops.backgroundSaveVersion("Auto-saved before Data Merge");
+            }
             dispatch({ type: "SET_CANVAS", canvas: typeof data === 'string' ? parseCanvas(data) : data as CanvasData });
           }}
           onClose={() => dispatch({ type: "SET_STATE", patch: { showShareModal: false } })}

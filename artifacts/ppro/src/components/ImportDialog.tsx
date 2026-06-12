@@ -135,7 +135,7 @@ export function ImportDialog({ children }: Props) {
   return (
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogTrigger asChild>{children}</DialogTrigger>
-      <DialogContent className="glass-panel border-0 max-w-lg">
+      <DialogContent className="border border-slate-200 dark:border-slate-800 max-w-lg bg-background/95 backdrop-blur-lg shadow-2xl rounded-xl sm:rounded-xl">
         <DialogHeader>
           <DialogTitle className="text-sm uppercase tracking-wider flex items-center gap-2 text-primary">
             <Upload className="w-4 h-4" /> Import Pedigree
