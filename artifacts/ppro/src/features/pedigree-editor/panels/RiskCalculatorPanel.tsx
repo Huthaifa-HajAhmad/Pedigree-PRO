@@ -32,7 +32,7 @@ export function RiskCalculatorPanel({
   return (
     <div className="space-y-4">
       {/* Mode tabs - styled as a segmented control */}
-      <div className="bg-muted rounded-lg p-1">
+      <div className="bg-muted/50 border border-border/30 rounded-lg p-1">
         <div className="grid grid-cols-4 gap-1">
           {MODES.map((m) => (
             <button
@@ -40,10 +40,10 @@ export function RiskCalculatorPanel({
               key={m.id}
               onClick={() => onModeChange(m.id)}
               title={m.title}
-              className={`py-1.5 rounded-md text-xs font-medium transition-all ${
+              className={`py-1.5 rounded-md text-xs font-semibold transition-all duration-200 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring ${
                 mode === m.id
-                  ? "bg-background text-primary shadow-sm border border-border/50"
-                  : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                  ? "bg-background text-primary shadow-xs border border-border/40"
+                  : "text-muted-foreground hover:text-foreground hover:bg-accent/10"
               }`}
             >
               {m.label}
@@ -57,7 +57,7 @@ export function RiskCalculatorPanel({
         {result.entries.map((e, i) => {
           const colors = TIER_COLORS[e.tier];
           return (
-            <div key={`${e.label}-${i}`} className="bg-muted/30 border border-border/50 rounded-md p-2">
+            <div key={`${e.label}-${i}`} className="bg-muted/30 border border-border/50 rounded-lg p-2.5">
               <div className="flex justify-between items-center mb-1.5">
                 <span className="text-xs font-medium text-foreground leading-tight pr-2">{e.label}</span>
                 <span className="text-xs font-bold flex-shrink-0 px-1.5 py-0.5 rounded bg-background border border-border/50" style={{ color: colors.text }}>
@@ -138,9 +138,15 @@ export function RiskPanelSidebar({
       <PanelSection title="Inheritance Mode">
         <div className="grid grid-cols-4 gap-1">
           {MODES.map((m) => (
-            <button type="button" key={m.id} onClick={() => onModeChange(m.id)} title={m.title}
-              className={`py-1 rounded text-xs border transition-all ${
-                mode === m.id ? "border-primary text-primary bg-primary/10" : "border-border text-muted-foreground hover:border-primary"
+            <button
+              type="button"
+              key={m.id}
+              onClick={() => onModeChange(m.id)}
+              title={m.title}
+              className={`py-1 rounded-lg text-xs border transition-all duration-200 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring ${
+                mode === m.id
+                  ? "border-primary/60 text-primary bg-primary/5 hover:bg-primary/10"
+                  : "border-border/80 text-muted-foreground hover:bg-accent/30 hover:border-muted-foreground/30 hover:text-foreground"
               }`}
             >
               {m.label}
@@ -157,9 +163,9 @@ export function RiskPanelSidebar({
             { label: "Carriers", value: summary.carriers, color: "hsl(var(--warning))"  },
             { label: "Proband",  value: summary.proband,  color: "hsl(var(--primary))"       },
           ] as const).map(({ label, value, color }) => (
-            <div key={label} className="border border-border rounded p-2 text-center">
+            <div key={label} className="border border-border/80 rounded-lg p-2 text-center bg-card/50">
               <div className="text-xl font-bold" style={{ color: color ?? "inherit" }}>{value}</div>
-              <div className="text-xs text-muted-foreground">{label}</div>
+              <div className="text-[10px] text-muted-foreground uppercase tracking-widest font-semibold">{label}</div>
             </div>
           ))}
         </div>
@@ -174,7 +180,7 @@ export function RiskPanelSidebar({
               id="risk-individual-select"
               value={effectiveFocusId ?? ""}
               onChange={(e) => setFocusId(e.target.value || null)}
-              className="w-full text-xs bg-background border border-border rounded px-2 py-1.5 mb-2 text-foreground"
+              className="w-full text-xs bg-background border border-border/80 rounded-lg px-2.5 py-1.5 mb-2 text-foreground outline-none hover:bg-accent/20 focus:border-muted-foreground/45 focus-visible:ring-0 transition-all duration-200"
             >
               <option value="">— select individual —</option>
               {validNodes.map((n) => (
@@ -203,9 +209,14 @@ export function RiskPanelSidebar({
         <PanelSection title={`All Members (${mode})`}>
           <div className="space-y-1">
             {memberRisks.map(({ node, topEntry }) => (
-              <button type="button" key={node.id} onClick={() => setFocusId(node.id)}
-                className={`w-full flex items-center justify-between px-2 py-1.5 rounded border transition-colors text-left ${
-                  node.id === effectiveFocusId ? "border-primary bg-primary/10" : "border-border hover:border-primary/50"
+              <button
+                type="button"
+                key={node.id}
+                onClick={() => setFocusId(node.id)}
+                className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg border transition-all duration-200 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring text-left ${
+                  node.id === effectiveFocusId
+                    ? "border-primary/60 bg-primary/5 text-primary hover:bg-primary/10"
+                    : "border-border/80 hover:border-muted-foreground/30 hover:bg-accent/20"
                 }`}
               >
                 <div className="min-w-0">
