@@ -16,6 +16,7 @@ export interface CanvasConfig {
   annFontFamily: string;
   annBold: boolean;
   annUppercase: boolean;
+  gridOpacity: number;
 }
 
 export const DEFAULT_CANVAS_CONFIG: CanvasConfig = {
@@ -33,6 +34,7 @@ export const DEFAULT_CANVAS_CONFIG: CanvasConfig = {
   annFontFamily: "Inter, sans-serif",
   annBold: true,
   annUppercase: false,
+  gridOpacity: 0.10,
 };
 
 const STORAGE_KEY = "ppro_canvas_config";

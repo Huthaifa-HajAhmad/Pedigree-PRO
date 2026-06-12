@@ -12,6 +12,7 @@ import { useDraggable } from "@/hooks/use-draggable";
 
 interface HelpGroupProps {
   labelHidden?: boolean;
+  children?: React.ReactNode;
 }
 
 // useDropdownPosition removed: positioning is now handled natively by Radix Popover.
@@ -167,7 +168,7 @@ const COLLABORATE_SECTIONS = [
   },
 ];
 
-export function HelpGroup({ labelHidden = false }: HelpGroupProps) {
+export function HelpGroup({ labelHidden = false, children }: HelpGroupProps) {
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState<TabId>("features");
   const [searchQuery, setSearchQuery] = useState("");
@@ -296,6 +297,7 @@ export function HelpGroup({ labelHidden = false }: HelpGroupProps) {
   return (
     <div className="flex flex-col justify-between h-full flex-shrink-0 px-2 pt-2 pb-2">
       <div className="flex-1 flex items-center gap-1">
+        {children}
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
             <button
@@ -595,7 +597,7 @@ export function HelpGroup({ labelHidden = false }: HelpGroupProps) {
           </DialogContent>
         </Dialog>
       </div>
-      {!labelHidden && <div className="text-[10px] text-muted-foreground uppercase tracking-wider text-center border-t border-border/40 pt-1">Help</div>}
+      {!labelHidden && <div className="text-[10px] text-muted-foreground uppercase tracking-wider text-center border-t border-border/40 pt-1">System</div>}
     </div>
   );
 }
