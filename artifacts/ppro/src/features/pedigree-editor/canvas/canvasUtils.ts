@@ -73,7 +73,7 @@ export function computeAnnotationMaxBottom(
     for (const ann of anns) {
       const fs = ann.fontSize ?? 12;
       const boxH = fs + 8;
-      const bottom = stackY + boxH + (ann.offsetY ?? 0);
+      const bottom = stackY + boxH;
       maxBottom = Math.max(maxBottom, bottom);
       stackY += boxH + 5;
     }
