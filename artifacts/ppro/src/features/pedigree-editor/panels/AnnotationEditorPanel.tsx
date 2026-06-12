@@ -71,7 +71,7 @@ export function AnnotationEditorPanel({
                 if (e.key === "Enter") { e.preventDefault(); commitText(); }
                 if (e.key === "Escape") { setDraftText(annotation.text); (e.target as HTMLInputElement).blur(); }
               }}
-              className="w-full bg-transparent border border-border rounded-md px-2.5 py-1.5 text-xs focus:border-primary outline-none transition-colors"
+              className="w-full bg-background border border-border/80 rounded-lg px-2.5 py-1.5 text-xs focus:border-muted-foreground/45 focus-visible:ring-0 outline-none hover:bg-accent/20 transition-all duration-200 shadow-none"
               aria-label="Annotation text"
             />
             <div className="text-[10px] text-muted-foreground/50 mt-1">Press Enter to apply</div>
@@ -138,10 +138,10 @@ export function AnnotationEditorPanel({
                     type="button"
                     key={p}
                     onClick={() => onUpdate({ position: p })}
-                    className={`flex-1 flex items-center justify-center py-1 rounded-md text-xs border transition-all ${
+                    className={`flex-1 flex items-center justify-center py-1 rounded-lg text-xs border transition-all duration-200 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring ${
                       annotation.position === p
-                        ? "border-primary text-primary bg-primary/10"
-                        : "border-border text-muted-foreground hover:border-primary"
+                        ? "border-primary/60 text-primary bg-primary/5 hover:bg-primary/10"
+                        : "border-border/80 text-muted-foreground hover:bg-accent/30 hover:border-muted-foreground/30 hover:text-foreground"
                     }`}
                     title={p}
                   >
@@ -157,19 +157,19 @@ export function AnnotationEditorPanel({
             <button
               type="button"
               onClick={() => onUpdate({ hidden: !annotation.hidden })}
-              className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+              className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground px-2 py-1 rounded-lg hover:bg-accent/30 transition-all duration-200"
               title={annotation.hidden ? "Show annotation" : "Hide annotation"}
             >
               {annotation.hidden ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
               {annotation.hidden ? "Hidden" : "Visible"}
             </button>
-
-            <div className="flex items-center gap-2">
+ 
+            <div className="flex items-center gap-1.5">
               {((annotation.offsetX ?? 0) !== 0 || (annotation.offsetY ?? 0) !== 0) && (
                 <button
                   type="button"
                   onClick={() => onUpdate({ offsetX: 0, offsetY: 0 })}
-                  className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                  className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground px-2 py-1 rounded-lg hover:bg-accent/30 transition-all duration-200"
                 >
                   <RotateCcw className="w-3 h-3" /> Reset
                 </button>
@@ -177,7 +177,7 @@ export function AnnotationEditorPanel({
               <button
                 type="button"
                 onClick={onDelete}
-                className="flex items-center gap-1 text-xs text-destructive/70 hover:text-destructive transition-colors"
+                className="flex items-center gap-1 text-xs text-destructive/80 hover:text-destructive hover:bg-destructive/10 px-2 py-1 rounded-lg transition-all duration-200"
               >
                 <Trash2 className="w-3 h-3" /> Remove
               </button>
