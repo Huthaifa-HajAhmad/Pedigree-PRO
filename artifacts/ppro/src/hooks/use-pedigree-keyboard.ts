@@ -31,6 +31,8 @@ export interface UsePedigreeKeyboardParams {
   selectedIds: Set<string>;
   canvasNodes: PedigreeNode[];
   createCoupleAndChild: (idA: string, idB: string) => void;
+  createCoupleEdge: (idA: string, idB: string) => void;
+  createConsanguinityEdge: (idA: string, idB: string) => void;
   W: number;
   H: number;
   isPreviewMode?: boolean;
@@ -66,7 +68,7 @@ export function usePedigreeKeyboard(params: UsePedigreeKeyboardParams) {
           // let these pass through
         } else {
           // Block editing shortcuts
-          if (["Delete", "Backspace", "c", "C", "r", "R", "b", "B", "m", "M", "f", "F", "u", "U", "p", "P", "k", "K", "s", "S", "l", "L"].includes(e.key) || (isControlModifier && ["z", "y"].includes(e.key))) {
+          if (["Delete", "Backspace", "c", "C", "r", "R", "b", "B", "m", "M", "f", "F", "u", "U", "p", "P", "k", "K", "s", "S", "l", "L", "g", "G"].includes(e.key) || (isControlModifier && ["z", "y"].includes(e.key))) {
             e.preventDefault();
           }
           return;
@@ -76,12 +78,13 @@ export function usePedigreeKeyboard(params: UsePedigreeKeyboardParams) {
       if (e.code === "Space") { e.preventDefault(); k.spaceHeldRef.current = true; k.setSpaceHeld(true); return; }
 
       if (e.metaKey || e.ctrlKey) {
-        if (e.key === "z" && !e.shiftKey) { e.preventDefault(); k.undo(); return; }
-        if ((e.key === "z" && e.shiftKey) || e.key === "y") { e.preventDefault(); k.redo(); return; }
+        const keyLower = e.key.toLowerCase();
+        if (keyLower === "z" && !e.shiftKey) { e.preventDefault(); k.undo(); return; }
+        if ((keyLower === "z" && e.shiftKey) || keyLower === "y") { e.preventDefault(); k.redo(); return; }
         if (e.key === "=" || e.key === "+") { e.preventDefault(); k.setViewBox((v) => ({ ...v, zoom: Math.max(0.25, v.zoom * 0.85) })); return; }
         if (e.key === "-" || e.key === "_") { e.preventDefault(); k.setViewBox((v) => ({ ...v, zoom: Math.min(4, v.zoom * 1.18) })); return; }
         if (e.key === "0") { e.preventDefault(); k.fitToScreen(); return; }
-        if (e.key === "f") {
+        if (keyLower === "f") {
           e.preventDefault();
           k.setShowSearch(true);
           cleanupSearchFocusTimeout();
@@ -162,7 +165,22 @@ if (e.key === "c" || e.key === "C") {
         return;
       }
       if (e.key === "p" || e.key === "P") { k.addNode("pregnancy"); return; }
-      if (e.key === "k" || e.key === "K") { k.setLinkMode((prev) => (prev === "consanguinity" ? null : "consanguinity")); k.setLinkSource(null); return; }
+      if (e.key === "k" || e.key === "K") {
+        if (k.selectedIds.size === 2) {
+          const ids = [...k.selectedIds];
+          k.createCoupleEdge(ids[0]!, ids[1]!);
+          k.setSelectedIds(new Set());
+        } else {
+          k.setLinkMode((prev) => (prev === "couple" ? null : "couple"));
+          k.setLinkSource(null);
+        }
+        return;
+      }
+      if (e.key === "g" || e.key === "G") {
+        k.setLinkMode((prev) => (prev === "consanguinity" ? null : "consanguinity"));
+        k.setLinkSource(null);
+        return;
+      }
       if (e.key === "s" || e.key === "S") { k.addNode("sab"); return; }
     };
 

@@ -141,6 +141,26 @@ export function usePedigreeCanvas(params: UsePedigreeCanvasParams) {
           updater: (prev: CanvasData) => {
             const ann = prev.annotations.find(a => a.id === annId);
             if (!ann) return prev;
+
+            const isFree = !ann.nodeId;
+            if (isFree) {
+              let finalX = newOffsetX;
+              let finalY = newOffsetY;
+              if (curState.snapEnabled) {
+                const snapSize = 20;
+                finalX = Math.round(newOffsetX / snapSize) * snapSize;
+                finalY = Math.round(newOffsetY / snapSize) * snapSize;
+              }
+              return {
+                ...prev,
+                annotations: prev.annotations.map((a) =>
+                  a.id === annId
+                    ? { ...a, x: finalX, y: finalY }
+                    : a
+                ),
+              };
+            }
+
             const node = prev.nodes.find(n => n.id === ann.nodeId);
             if (!node) return prev;
 
