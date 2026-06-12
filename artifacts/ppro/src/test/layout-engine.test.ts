@@ -167,12 +167,12 @@ describe("layout-engine", () => {
       const newC2_1 = result.find(n => n.id === "c2_1")!;
 
       // We expect Family 2 to be pushed by EXACTLY the amount needed to maintain NODE_GAP (96.8)
-      // from Family 1's right parent (target 248.4).
-      // So newF2 should be at 248.4 + 96.8 = 345.2
-      // And because f2 shifted by 45.2 (from 300 to 345.2), m2 and c2_1 must also shift by exactly 45.2.
-      expect(newF2.x).toBeCloseTo(345.2, 1);
-      expect(newM2.x).toBeCloseTo(445.2, 1);
-      expect(newC2_1.x).toBeCloseTo(395.2, 1);
+      // from Family 1's right parent (target 250).
+      // So newF2 should be at 250 + 96.8 = 346.8
+      // And because f2 shifted by 46.8 (from 300 to 346.8), m2 and c2_1 must also shift by exactly 46.8.
+      expect(newF2.x).toBeCloseTo(346.8, 1);
+      expect(newM2.x).toBeCloseTo(446.8, 1);
+      expect(newC2_1.x).toBeCloseTo(396.8, 1);
     });
 
     it("anchors parents of origin and does not shift them when both have parents", () => {
@@ -207,9 +207,9 @@ describe("layout-engine", () => {
       const newF1 = result.find(n => n.id === "f1")!;
       const newM1 = result.find(n => n.id === "m1")!;
 
-      // Both f1 and m1 should shift to center over child
-      expect(newF1.x).toBeCloseTo(301.6, 1);
-      expect(newM1.x).toBeCloseTo(398.4, 1);
+      // Both f1 and m1 should shift to center over child, keeping their original distance (300)
+      expect(newF1.x).toBeCloseTo(200, 1);
+      expect(newM1.x).toBeCloseTo(500, 1);
     });
 
     it("anchors the parent and aligns the spouse when only one has parents", () => {
@@ -237,9 +237,9 @@ describe("layout-engine", () => {
       const newF1 = result.find(n => n.id === "f1")!;
       const newM1 = result.find(n => n.id === "m1")!;
 
-      // Both f1 and m1 should shift to center over child
-      expect(newF1.x).toBeCloseTo(201.6, 1);
-      expect(newM1.x).toBeCloseTo(298.4, 1);
+      // Both f1 and m1 should shift to center over child, keeping their original distance (151.6)
+      expect(newF1.x).toBeCloseTo(174.2, 1);
+      expect(newM1.x).toBeCloseTo(325.8, 1);
     });
   });
 

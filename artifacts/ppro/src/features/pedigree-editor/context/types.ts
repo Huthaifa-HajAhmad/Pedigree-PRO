@@ -39,9 +39,11 @@ export interface PedigreeEditorState {
   showLabelsMenu: boolean;
   showMinimap: boolean;
   showGrid: boolean;
+  showSettings: boolean;
   contextMenu: { nodeId: string; x: number; y: number } | null;
   colorPickerNode: string | null;
   editModalNodeId: string | null;
+  editAnnotationId: string | null;
   showSearch: boolean;
   searchQuery: string;
   searchMatchIndex: number;
@@ -102,9 +104,11 @@ export const INITIAL_STATE: PedigreeEditorState = {
   showLabelsMenu: false,
   showMinimap: true,
   showGrid: true,
+  showSettings: false,
   contextMenu: null,
   colorPickerNode: null,
   editModalNodeId: null,
+  editAnnotationId: null,
   showSearch: false,
   searchQuery: "",
   searchMatchIndex: 0,
@@ -158,6 +162,7 @@ export interface PedigreeEditorOps {
   bulkUpdate: (updates: Partial<PedigreeNode>) => void;
   alignSelected: (axis: "x" | "y") => void;
   addAnnotation: (nodeId: string) => void;
+  addFreeAnnotation: (x: number, y: number) => void;
   updateAnnotation: (annId: string, updates: Partial<PedigreeAnnotation>) => void;
   deleteAnnotation: (annId: string) => void;
   runAutoLayout: (resetPins: boolean, isManual?: boolean) => void;
@@ -183,6 +188,7 @@ export interface PedigreeEditorOps {
   createConsanguinityEdge: (sourceId: string, targetId: string) => void;
   createCoupleEdge: (sourceId: string, targetId: string) => void;
   createCoupleAndChild: (maleId: string, femaleId: string) => void;
+  createParentsForGroup: (nodeIds: string[]) => void;
   addSiblings: (sourceId: string, siblings: Array<{ type: PedigreeNode["type"]; dob: string; affected?: boolean; carrier?: boolean; deceased?: boolean; proband?: boolean; condition?: string; notes?: string }>) => void;
   markAsTwins: (nodeIds: string[], twinType: "m" | "d") => void;
   unmarkTwins: (nodeIds: string[]) => void;

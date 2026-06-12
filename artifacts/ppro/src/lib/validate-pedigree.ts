@@ -15,7 +15,13 @@ export type IssueType =
   | "orphaned_edge"
   | "isolated_node"
   | "multi_couple"
-  | "single_parent";
+  | "single_parent"
+  | "invalid_parent_type"
+  | "invalid_partner_type"
+  | "too_many_parents"
+  | "same_sex_parents"
+  | "same_sex_couple"
+  | "sibling_marriage";
 
 export interface ValidationIssue {
   id: string;
@@ -245,6 +251,131 @@ export function validatePedigree(canvas: CanvasData): ValidationResult {
     }
   }
 
+  // ── 9. Invalid parent and partner types ──
+  for (const edge of edges) {
+    if (nodeSet.has(edge.sourceId) && nodeSet.has(edge.targetId)) {
+      const srcNode = nodes.find((n) => n.id === edge.sourceId);
+      const tgtNode = nodes.find((n) => n.id === edge.targetId);
+      if (edge.type === "parent-child") {
+        if (srcNode && (srcNode.type === "pregnancy" || srcNode.type === "sab" || srcNode.type === "unknown")) {
+          issues.push({
+            id: `invalid-parent-${edge.id}`,
+            type: "invalid_parent_type",
+            severity: "error",
+            message: "Invalid parent type",
+            detail: `"${srcNode.label || srcNode.id}" is a ${srcNode.type} but is marked as a parent of "${tgtNode?.label || edge.targetId}". Pregnancies, stillbirths (SABs), and individuals of unknown sex cannot be biological parents.`,
+            nodeIds: [edge.sourceId],
+            edgeIds: [edge.id],
+          });
+        }
+      } else if (edge.type === "couple" || edge.type === "consanguinity" || edge.type === "divorced" || edge.type === "separated") {
+        if (srcNode && (srcNode.type === "pregnancy" || srcNode.type === "sab")) {
+          issues.push({
+            id: `invalid-partner-${edge.id}-${srcNode.id}`,
+            type: "invalid_partner_type",
+            severity: "error",
+            message: "Invalid partner type",
+            detail: `"${srcNode.label || srcNode.id}" is a ${srcNode.type} and cannot have partner or marriage connections.`,
+            nodeIds: [srcNode.id],
+            edgeIds: [edge.id],
+          });
+        }
+        if (tgtNode && (tgtNode.type === "pregnancy" || tgtNode.type === "sab")) {
+          issues.push({
+            id: `invalid-partner-${edge.id}-${tgtNode.id}`,
+            type: "invalid_partner_type",
+            severity: "error",
+            message: "Invalid partner type",
+            detail: `"${tgtNode.label || tgtNode.id}" is a ${tgtNode.type} and cannot have partner or marriage connections.`,
+            nodeIds: [tgtNode.id],
+            edgeIds: [edge.id],
+          });
+        }
+      }
+    }
+  }
+
+  // ── 10. Parent counts & same-sex biological parents ──
+  for (const [childId, parentIds] of childParentIds) {
+    const child = nodes.find((n) => n.id === childId);
+    if (parentIds.length > 2) {
+      issues.push({
+        id: `too-many-parents-${childId}`,
+        type: "too_many_parents",
+        severity: "error",
+        message: "Too many parents",
+        detail: `"${child?.label || childId}" is connected to ${parentIds.length} biological parents. A child can have at most two biological parents.`,
+        nodeIds: [childId, ...parentIds],
+        edgeIds: [],
+      });
+    } else if (parentIds.length === 2) {
+      const p1 = nodes.find((n) => n.id === parentIds[0]);
+      const p2 = nodes.find((n) => n.id === parentIds[1]);
+      if (p1 && p2 && p1.type !== "unknown" && p2.type !== "unknown" && p1.type === p2.type) {
+        issues.push({
+          id: `same-sex-parents-${childId}`,
+          type: "same_sex_parents",
+          severity: "warning",
+          message: "Same-sex biological parents",
+          detail: `"${child?.label || childId}" has biological parents of the same sex: two ${p1.type}s ("${p1.label || p1.id}" and "${p2.label || p2.id}"). Biological pedigree charts require male and female roles for genetic inheritance.`,
+          nodeIds: [childId, p1.id, p2.id],
+          edgeIds: [],
+        });
+      }
+    }
+  }
+
+  // ── 11. Same-sex couples & Sibling marriages ──
+  const reportedSameSexCouples = new Set<string>();
+  const reportedSiblingMarriages = new Set<string>();
+
+  for (const edge of edges) {
+    if ((edge.type === "couple" || edge.type === "consanguinity" || edge.type === "divorced" || edge.type === "separated") && nodeSet.has(edge.sourceId) && nodeSet.has(edge.targetId)) {
+      const p1 = nodes.find((n) => n.id === edge.sourceId);
+      const p2 = nodes.find((n) => n.id === edge.targetId);
+      if (p1 && p2) {
+        // Same-sex couples
+        if (p1.type !== "unknown" && p2.type !== "unknown" && p1.type === p2.type) {
+          const coupleKey = [p1.id, p2.id].sort().join(":");
+          if (!reportedSameSexCouples.has(coupleKey)) {
+            reportedSameSexCouples.add(coupleKey);
+            issues.push({
+              id: `same-sex-couple-${edge.id}`,
+              type: "same_sex_couple",
+              severity: "warning",
+              message: "Same-sex couple",
+              detail: `The couple link connects two individuals of the same sex: two ${p1.type}s ("${p1.label || p1.id}" and "${p2.label || p2.id}").`,
+              nodeIds: [p1.id, p2.id],
+              edgeIds: [edge.id],
+            });
+          }
+        }
+
+        // Sibling marriages (sharing one or more biological parents)
+        const parents1 = childParentIds.get(p1.id) || [];
+        const parents2 = childParentIds.get(p2.id) || [];
+        if (parents1.length > 0 && parents2.length > 0) {
+          const sharedParents = parents1.filter((pId) => parents2.includes(pId));
+          if (sharedParents.length > 0) {
+            const coupleKey = [p1.id, p2.id].sort().join(":");
+            if (!reportedSiblingMarriages.has(coupleKey)) {
+              reportedSiblingMarriages.add(coupleKey);
+              issues.push({
+                id: `sibling-marriage-${edge.id}`,
+                type: "sibling_marriage",
+                severity: "error",
+                message: "Incompatible biological relationship",
+                detail: `"${p1.label || p1.id}" and "${p2.label || p2.id}" share biological parent(s) (${sharedParents.map(id => nodes.find(n => n.id === id)?.label || id).join(", ")}). Sibling and parent-child pairings are restricted in biological pedigrees.`,
+                nodeIds: [p1.id, p2.id],
+                edgeIds: [edge.id],
+              });
+            }
+          }
+        }
+      }
+    }
+  }
+
   // ── Aggregate results ──────────────────────────────────────────────────────
   const invalidNodeIds = new Set<string>(issues.flatMap((i) => i.nodeIds));
   const invalidEdgeIds = new Set<string>(issues.flatMap((i) => i.edgeIds));
@@ -263,4 +394,10 @@ export const ISSUE_TYPE_LABELS: Record<IssueType, string> = {
   isolated_node: "Isolated Node",
   multi_couple: "Multiple Partners",
   single_parent: "Single Parent",
+  invalid_parent_type: "Invalid Parent Type",
+  invalid_partner_type: "Invalid Partner Type",
+  too_many_parents: "Too Many Parents",
+  same_sex_parents: "Same-Sex Biological Parents",
+  same_sex_couple: "Same-Sex Couple",
+  sibling_marriage: "Incompatible Sibling Relationship",
 };

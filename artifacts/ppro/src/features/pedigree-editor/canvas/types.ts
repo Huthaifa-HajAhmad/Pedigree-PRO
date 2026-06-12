@@ -40,6 +40,11 @@ export interface PedigreeAnnotation {
   offsetX?: number;
   offsetY?: number;
   hidden?: boolean;
+  bold?: boolean;
+  italic?: boolean;
+  uppercase?: boolean;
+  x?: number;
+  y?: number;
 }
 
 export interface CanvasData {
