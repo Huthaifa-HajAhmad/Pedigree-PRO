@@ -31,409 +31,486 @@ interface ClinicalGroupProps {
 }
 
 const getTemplateSvg = (key: string) => {
+  const commonSvgProps = {
+    className: "w-28 h-[70px] text-foreground transition-all duration-300 drop-shadow-sm hover:drop-shadow-md",
+    viewBox: "0 0 100 60",
+    fill: "none",
+  };
+
+  const shadowDef = (
+    <defs>
+      <filter id="thumb-shadow" x="-30%" y="-30%" width="160%" height="160%">
+        <feDropShadow dx="0" dy="1.2" stdDeviation="0.8" floodColor="black" floodOpacity="0.15" />
+      </filter>
+    </defs>
+  );
+
+  const strokeNormal = "hsl(var(--foreground) / 0.55)";
+  const strokeLineColor = "hsl(var(--foreground) / 0.4)";
+  const fillCard = "hsl(var(--card))";
+  
+  const affectedStroke = "hsl(var(--primary))";
+  const affectedFill = "hsl(var(--primary))";
+  const carrierDotColor = "hsl(var(--primary))";
+
   if (key === "nuclear") {
     return (
-      <svg className="w-16 h-12 text-slate-700 dark:text-slate-300" viewBox="0 0 100 60" fill="none" stroke="currentColor" strokeWidth="2">
-        <rect x="25" y="12" width="12" height="12" rx="1" />
-        <circle cx="71" cy="18" r="6" />
-        <line x1="37" y1="18" x2="65" y2="18" />
-        <line x1="51" y1="18" x2="51" y2="35" />
-        <path d="M51 35 L57 41 L51 47 L45 41 Z" />
-        <path d="M39 47 L45 42 M41 42 L45 42 L45 46" strokeWidth="1.5" />
+      <svg {...commonSvgProps}>
+        {shadowDef}
+        <line x1="37" y1="18" x2="65" y2="18" stroke={strokeLineColor} strokeWidth="1.5" strokeLinecap="round" />
+        <line x1="51" y1="18" x2="51" y2="35" stroke={strokeLineColor} strokeWidth="1.5" strokeLinecap="round" />
+        <rect x="25" y="12" width="12" height="12" rx="1.5" stroke={strokeNormal} fill={fillCard} strokeWidth="1.5" filter="url(#thumb-shadow)" />
+        <circle cx="71" cy="18" r="6" stroke={strokeNormal} fill={fillCard} strokeWidth="1.5" filter="url(#thumb-shadow)" />
+        <polygon points="51,35 57,41 51,47 45,41" stroke={strokeNormal} fill={fillCard} strokeWidth="1.5" filter="url(#thumb-shadow)" />
+        <path d="M39 47 L45 42 M41 42 L45 42 L45 46" stroke={affectedStroke} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
       </svg>
     );
   }
   if (key === "three-gen") {
     return (
-      <svg className="w-16 h-12 text-slate-700 dark:text-slate-300" viewBox="0 0 100 60" fill="none" stroke="currentColor" strokeWidth="1.5">
-        <rect x="10" y="8" width="8" height="8" rx="0.5" />
-        <circle cx="28" cy="12" r="4" />
-        <line x1="18" y1="12" x2="24" y2="12" />
-        <line x1="21" y1="12" x2="21" y2="22" />
+      <svg {...commonSvgProps}>
+        {shadowDef}
+        <line x1="18" y1="12" x2="24" y2="12" stroke={strokeLineColor} strokeWidth="1.2" strokeLinecap="round" />
+        <line x1="21" y1="12" x2="21" y2="22" stroke={strokeLineColor} strokeWidth="1.2" strokeLinecap="round" />
+        <line x1="80" y1="12" x2="86" y2="12" stroke={strokeLineColor} strokeWidth="1.2" strokeLinecap="round" />
+        <line x1="83" y1="12" x2="83" y2="22" stroke={strokeLineColor} strokeWidth="1.2" strokeLinecap="round" />
+        <line x1="25" y1="26" x2="79" y2="26" stroke={strokeLineColor} strokeWidth="1.2" strokeLinecap="round" />
+        <line x1="52" y1="26" x2="52" y2="40" stroke={strokeLineColor} strokeWidth="1.2" strokeLinecap="round" />
 
-        <rect x="72" y="8" width="8" height="8" rx="0.5" />
-        <circle cx="90" cy="12" r="4" />
-        <line x1="80" y1="12" x2="86" y2="12" />
-        <line x1="83" y1="12" x2="83" y2="22" />
+        <rect x="10" y="8" width="8" height="8" rx="1" stroke={strokeNormal} fill={fillCard} strokeWidth="1.2" filter="url(#thumb-shadow)" />
+        <circle cx="28" cy="12" r="4" stroke={strokeNormal} fill={fillCard} strokeWidth="1.2" filter="url(#thumb-shadow)" />
+        <rect x="72" y="8" width="8" height="8" rx="1" stroke={strokeNormal} fill={fillCard} strokeWidth="1.2" filter="url(#thumb-shadow)" />
+        <circle cx="90" cy="12" r="4" stroke={strokeNormal} fill={fillCard} strokeWidth="1.2" filter="url(#thumb-shadow)" />
 
-        <rect x="17" y="22" width="8" height="8" rx="0.5" />
-        <circle cx="83" cy="26" r="4" />
-        <line x1="25" y1="26" x2="79" y2="26" />
-        <line x1="52" y1="26" x2="52" y2="40" />
+        <rect x="17" y="22" width="8" height="8" rx="1" stroke={strokeNormal} fill={fillCard} strokeWidth="1.2" filter="url(#thumb-shadow)" />
+        <circle cx="83" cy="26" r="4" stroke={strokeNormal} fill={fillCard} strokeWidth="1.2" filter="url(#thumb-shadow)" />
 
-        <path d="M52 40 L57 45 L52 50 L47 45 Z" />
-        <path d="M41 51 L47 46 M43 46 L47 46 L47 50" strokeWidth="1.2" />
+        <polygon points="52,40 57,45 52,50 47,45" stroke={strokeNormal} fill={fillCard} strokeWidth="1.2" filter="url(#thumb-shadow)" />
+        <path d="M41 51 L47 46 M43 46 L47 46 L47 50" stroke={affectedStroke} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
       </svg>
     );
   }
   if (key === "affected-siblings") {
     return (
-      <svg className="w-16 h-12 text-slate-700 dark:text-slate-300" viewBox="0 0 100 60" fill="none" stroke="currentColor" strokeWidth="1.8">
-        <rect x="34" y="10" width="10" height="10" rx="0.5" />
-        <circle cx="66" cy="15" r="5" />
-        <line x1="44" y1="15" x2="61" y2="15" />
-        <line x1="52.5" y1="15" x2="52.5" y2="26" />
-        <line x1="25" y1="26" x2="80" y2="26" />
-        <line x1="25" y1="26" x2="25" y2="36" />
-        <line x1="52.5" y1="26" x2="52.5" y2="36" />
-        <line x1="80" y1="26" x2="80" y2="36" />
+      <svg {...commonSvgProps}>
+        {shadowDef}
+        <line x1="44" y1="15" x2="61" y2="15" stroke={strokeLineColor} strokeWidth="1.5" strokeLinecap="round" />
+        <line x1="52.5" y1="15" x2="52.5" y2="26" stroke={strokeLineColor} strokeWidth="1.5" strokeLinecap="round" />
+        <line x1="25" y1="26" x2="80" y2="26" stroke={strokeLineColor} strokeWidth="1.5" strokeLinecap="round" />
+        <line x1="25" y1="26" x2="25" y2="36" stroke={strokeLineColor} strokeWidth="1.5" strokeLinecap="round" />
+        <line x1="52.5" y1="26" x2="52.5" y2="36" stroke={strokeLineColor} strokeWidth="1.5" strokeLinecap="round" />
+        <line x1="80" y1="26" x2="80" y2="36" stroke={strokeLineColor} strokeWidth="1.5" strokeLinecap="round" />
 
-        <rect x="20" y="36" width="10" height="10" rx="0.5" />
-        <path d="M52.5 36 L57.5 41 L52.5 46 L47.5 41 Z" fill="currentColor" />
-        <circle cx="80" cy="41" r="5" fill="currentColor" />
+        <rect x="34" y="10" width="10" height="10" rx="1.5" stroke={strokeNormal} fill={fillCard} strokeWidth="1.5" filter="url(#thumb-shadow)" />
+        <circle cx="66" cy="15" r="5" stroke={strokeNormal} fill={fillCard} strokeWidth="1.5" filter="url(#thumb-shadow)" />
+
+        <rect x="20" y="36" width="10" height="10" rx="1.5" stroke={strokeNormal} fill={fillCard} strokeWidth="1.5" filter="url(#thumb-shadow)" />
+        <polygon points="52.5,36 57.5,41 52.5,46 47.5,41" stroke={affectedStroke} fill={affectedFill} strokeWidth="1.5" filter="url(#thumb-shadow)" />
+        <circle cx="80" cy="41" r="5" stroke={affectedStroke} fill={affectedFill} strokeWidth="1.5" filter="url(#thumb-shadow)" />
       </svg>
     );
   }
   if (key === "consanguineous") {
     return (
-      <svg className="w-16 h-12 text-slate-700 dark:text-slate-300" viewBox="0 0 100 60" fill="none" stroke="currentColor" strokeWidth="2">
-        <rect x="25" y="12" width="12" height="12" rx="1" />
-        <circle cx="71" cy="18" r="6" />
-        <line x1="37" y1="16" x2="65" y2="16" />
-        <line x1="37" y1="20" x2="65" y2="20" />
-        <line x1="51" y1="18" x2="51" y2="35" />
-        <path d="M51 35 L57 41 L51 47 L45 41 Z" />
+      <svg {...commonSvgProps}>
+        {shadowDef}
+        <line x1="37" y1="16" x2="65" y2="16" stroke={affectedStroke} strokeWidth="1.2" strokeLinecap="round" />
+        <line x1="37" y1="20" x2="65" y2="20" stroke={affectedStroke} strokeWidth="1.2" strokeLinecap="round" />
+        <line x1="51" y1="18" x2="51" y2="35" stroke={strokeLineColor} strokeWidth="1.5" strokeLinecap="round" />
+
+        <rect x="25" y="12" width="12" height="12" rx="1.5" stroke={strokeNormal} fill={fillCard} strokeWidth="1.5" filter="url(#thumb-shadow)" />
+        <circle cx="71" cy="18" r="6" stroke={strokeNormal} fill={fillCard} strokeWidth="1.5" filter="url(#thumb-shadow)" />
+        <polygon points="51,35 57,41 51,47 45,41" stroke={strokeNormal} fill={fillCard} strokeWidth="1.5" filter="url(#thumb-shadow)" />
       </svg>
     );
   }
   if (key === "cousin-marriage") {
     return (
-      <svg className="w-16 h-12 text-slate-700 dark:text-slate-300" viewBox="0 0 100 60" fill="none" stroke="currentColor" strokeWidth="1.5">
-        {/* Shared Grandparents */}
-        <rect x="42" y="5" width="8" height="8" rx="0.5" />
-        <circle cx="58" cy="9" r="4" />
-        <line x1="50" y1="9" x2="54" y2="9" />
-        <line x1="52" y1="9" x2="52" y2="18" />
-        <line x1="34" y1="18" x2="70" y2="18" />
-        <line x1="34" y1="18" x2="34" y2="24" />
-        <line x1="70" y1="18" x2="70" y2="24" />
+      <svg {...commonSvgProps}>
+        {shadowDef}
+        <line x1="50" y1="9" x2="54" y2="9" stroke={strokeLineColor} strokeWidth="1.2" strokeLinecap="round" />
+        <line x1="52" y1="9" x2="52" y2="18" stroke={strokeLineColor} strokeWidth="1.2" strokeLinecap="round" />
+        <line x1="34" y1="18" x2="70" y2="18" stroke={strokeLineColor} strokeWidth="1.2" strokeLinecap="round" />
+        <line x1="34" y1="18" x2="34" y2="24" stroke={strokeLineColor} strokeWidth="1.2" strokeLinecap="round" />
+        <line x1="70" y1="18" x2="70" y2="24" stroke={strokeLineColor} strokeWidth="1.2" strokeLinecap="round" />
 
-        {/* Siblings & Spouses */}
-        <rect x="30" y="24" width="8" height="8" rx="0.5" />
-        <circle cx="16" cy="28" r="4" />
-        <line x1="20" y1="28" x2="30" y2="28" />
-        <line x1="25" y1="28" x2="25" y2="36" />
+        <rect x="42" y="5" width="8" height="8" rx="1" stroke={strokeNormal} fill={fillCard} strokeWidth="1.2" filter="url(#thumb-shadow)" />
+        <circle cx="58" cy="9" r="4" stroke={strokeNormal} fill={fillCard} strokeWidth="1.2" filter="url(#thumb-shadow)" />
 
-        <circle cx="70" cy="28" r="4" />
-        <rect x="84" y="24" width="8" height="8" rx="0.5" />
-        <line x1="74" y1="28" x2="84" y2="28" />
-        <line x1="79" y1="28" x2="79" y2="36" />
+        <line x1="20" y1="28" x2="30" y2="28" stroke={strokeLineColor} strokeWidth="1.2" strokeLinecap="round" />
+        <line x1="25" y1="28" x2="25" y2="36" stroke={strokeLineColor} strokeWidth="1.2" strokeLinecap="round" />
+        <line x1="74" y1="28" x2="84" y2="28" stroke={strokeLineColor} strokeWidth="1.2" strokeLinecap="round" />
+        <line x1="79" y1="28" x2="79" y2="36" stroke={strokeLineColor} strokeWidth="1.2" strokeLinecap="round" />
 
-        {/* Cousin Marriage (consanguinity double line) */}
-        <rect x="21" y="36" width="8" height="8" rx="0.5" />
-        <circle cx="75" cy="40" r="4" />
-        <line x1="29" y1="38" x2="71" y2="38" />
-        <line x1="29" y1="42" x2="71" y2="42" />
-        <line x1="50" y1="40" x2="50" y2="50" />
+        <circle cx="16" cy="28" r="4" stroke={strokeNormal} fill={fillCard} strokeWidth="1.2" filter="url(#thumb-shadow)" />
+        <rect x="30" y="24" width="8" height="8" rx="1" stroke={strokeNormal} fill={fillCard} strokeWidth="1.2" filter="url(#thumb-shadow)" />
+        <circle cx="70" cy="28" r="4" stroke={strokeNormal} fill={fillCard} strokeWidth="1.2" filter="url(#thumb-shadow)" />
+        <rect x="84" y="24" width="8" height="8" rx="1" stroke={strokeNormal} fill={fillCard} strokeWidth="1.2" filter="url(#thumb-shadow)" />
 
-        {/* Proband Child */}
-        <path d="M50 50 L54 54 L50 58 L46 54 Z" />
+        <line x1="29" y1="38" x2="71" y2="38" stroke={affectedStroke} strokeWidth="1.0" strokeLinecap="round" />
+        <line x1="29" y1="42" x2="71" y2="42" stroke={affectedStroke} strokeWidth="1.0" strokeLinecap="round" />
+        <line x1="50" y1="40" x2="50" y2="50" stroke={strokeLineColor} strokeWidth="1.2" strokeLinecap="round" />
+
+        <rect x="21" y="36" width="8" height="8" rx="1" stroke={strokeNormal} fill={fillCard} strokeWidth="1.2" filter="url(#thumb-shadow)" />
+        <circle cx="75" cy="40" r="4" stroke={strokeNormal} fill={fillCard} strokeWidth="1.2" filter="url(#thumb-shadow)" />
+
+        <polygon points="50,50 54,54 50,58 46,54" stroke={strokeNormal} fill={fillCard} strokeWidth="1.2" filter="url(#thumb-shadow)" />
       </svg>
     );
   }
   if (key === "dominant-transmission") {
     return (
-      <svg className="w-16 h-12 text-slate-700 dark:text-slate-300" viewBox="0 0 100 60" fill="none" stroke="currentColor" strokeWidth="1.5">
-        <rect x="30" y="6" width="8" height="8" rx="0.5" fill="currentColor" />
-        <circle cx="50" cy="10" r="4" />
-        <line x1="38" y1="10" x2="46" y2="10" />
-        <line x1="42" y1="10" x2="42" y2="18" />
-        <line x1="22" y1="18" x2="42" y2="18" />
-        <line x1="22" y1="18" x2="22" y2="20" />
-        <line x1="42" y1="18" x2="42" y2="20" />
-        <rect x="18" y="20" width="8" height="8" rx="0.5" />
-        <circle cx="42" cy="24" r="4" fill="currentColor" />
-        <rect x="58" y="20" width="8" height="8" rx="0.5" />
-        <line x1="46" y1="24" x2="58" y2="24" />
-        <line x1="52" y1="24" x2="52" y2="34" />
-        <line x1="38" y1="34" x2="66" y2="34" />
-        <line x1="38" y1="34" x2="38" y2="38" />
-        <line x1="66" y1="34" x2="66" y2="38" />
-        <path d="M38 38 L42 42 L38 46 L34 42 Z" fill="currentColor" />
-        <circle cx="66" cy="42" r="4" />
+      <svg {...commonSvgProps}>
+        {shadowDef}
+        <line x1="38" y1="10" x2="46" y2="10" stroke={strokeLineColor} strokeWidth="1.2" strokeLinecap="round" />
+        <line x1="42" y1="10" x2="42" y2="18" stroke={strokeLineColor} strokeWidth="1.2" strokeLinecap="round" />
+        <line x1="22" y1="18" x2="42" y2="18" stroke={strokeLineColor} strokeWidth="1.2" strokeLinecap="round" />
+        <line x1="22" y1="18" x2="22" y2="20" stroke={strokeLineColor} strokeWidth="1.2" strokeLinecap="round" />
+        <line x1="42" y1="18" x2="42" y2="20" stroke={strokeLineColor} strokeWidth="1.2" strokeLinecap="round" />
+
+        <line x1="46" y1="24" x2="58" y2="24" stroke={strokeLineColor} strokeWidth="1.2" strokeLinecap="round" />
+        <line x1="52" y1="24" x2="52" y2="34" stroke={strokeLineColor} strokeWidth="1.2" strokeLinecap="round" />
+        <line x1="38" y1="34" x2="66" y2="34" stroke={strokeLineColor} strokeWidth="1.2" strokeLinecap="round" />
+        <line x1="38" y1="34" x2="38" y2="38" stroke={strokeLineColor} strokeWidth="1.2" strokeLinecap="round" />
+        <line x1="66" y1="34" x2="66" y2="38" stroke={strokeLineColor} strokeWidth="1.2" strokeLinecap="round" />
+
+        <rect x="30" y="6" width="8" height="8" rx="1" stroke={affectedStroke} fill={affectedFill} strokeWidth="1.2" filter="url(#thumb-shadow)" />
+        <circle cx="50" cy="10" r="4" stroke={strokeNormal} fill={fillCard} strokeWidth="1.2" filter="url(#thumb-shadow)" />
+
+        <rect x="18" y="20" width="8" height="8" rx="1" stroke={strokeNormal} fill={fillCard} strokeWidth="1.2" filter="url(#thumb-shadow)" />
+        <circle cx="42" cy="24" r="4" stroke={affectedStroke} fill={affectedFill} strokeWidth="1.2" filter="url(#thumb-shadow)" />
+        <rect x="58" y="20" width="8" height="8" rx="1" stroke={strokeNormal} fill={fillCard} strokeWidth="1.2" filter="url(#thumb-shadow)" />
+
+        <polygon points="38,38 42,42 38,46 34,42" stroke={affectedStroke} fill={affectedFill} strokeWidth="1.2" filter="url(#thumb-shadow)" />
+        <circle cx="66" cy="42" r="4" stroke={strokeNormal} fill={fillCard} strokeWidth="1.2" filter="url(#thumb-shadow)" />
       </svg>
     );
   }
   if (key === "recessive-transmission") {
     return (
-      <svg className="w-16 h-12 text-slate-700 dark:text-slate-300" viewBox="0 0 100 60" fill="none" stroke="currentColor" strokeWidth="1.5">
-        <rect x="30" y="6" width="8" height="8" rx="0.5" />
-        <circle cx="50" cy="10" r="4" />
-        <line x1="38" y1="10" x2="46" y2="10" />
-        <line x1="42" y1="10" x2="42" y2="18" />
-        <line x1="22" y1="18" x2="42" y2="18" />
-        <line x1="22" y1="18" x2="22" y2="20" />
-        <line x1="42" y1="18" x2="42" y2="20" />
-        <rect x="18" y="20" width="8" height="8" rx="0.5" />
-        <circle cx="42" cy="24" r="4" />
-        <circle cx="42" cy="24" r="1.2" fill="currentColor" />
-        <rect x="58" y="20" width="8" height="8" rx="0.5" />
-        <circle cx="62" cy="24" r="1.2" fill="currentColor" />
-        <line x1="46" y1="24" x2="58" y2="24" />
-        <line x1="52" y1="24" x2="52" y2="34" />
-        <line x1="38" y1="34" x2="66" y2="34" />
-        <line x1="38" y1="34" x2="38" y2="38" />
-        <line x1="66" y1="34" x2="66" y2="38" />
-        <path d="M38 38 L42 42 L38 46 L34 42 Z" fill="currentColor" />
-        <circle cx="66" cy="42" r="4" />
-        <circle cx="66" cy="42" r="1.2" fill="currentColor" />
+      <svg {...commonSvgProps}>
+        {shadowDef}
+        <line x1="38" y1="10" x2="46" y2="10" stroke={strokeLineColor} strokeWidth="1.2" strokeLinecap="round" />
+        <line x1="42" y1="10" x2="42" y2="18" stroke={strokeLineColor} strokeWidth="1.2" strokeLinecap="round" />
+        <line x1="22" y1="18" x2="42" y2="18" stroke={strokeLineColor} strokeWidth="1.2" strokeLinecap="round" />
+        <line x1="22" y1="18" x2="22" y2="20" stroke={strokeLineColor} strokeWidth="1.2" strokeLinecap="round" />
+        <line x1="42" y1="18" x2="42" y2="20" stroke={strokeLineColor} strokeWidth="1.2" strokeLinecap="round" />
+        <line x1="46" y1="24" x2="58" y2="24" stroke={strokeLineColor} strokeWidth="1.2" strokeLinecap="round" />
+        <line x1="52" y1="24" x2="52" y2="34" stroke={strokeLineColor} strokeWidth="1.2" strokeLinecap="round" />
+        <line x1="38" y1="34" x2="66" y2="34" stroke={strokeLineColor} strokeWidth="1.2" strokeLinecap="round" />
+        <line x1="38" y1="34" x2="38" y2="38" stroke={strokeLineColor} strokeWidth="1.2" strokeLinecap="round" />
+        <line x1="66" y1="34" x2="66" y2="38" stroke={strokeLineColor} strokeWidth="1.2" strokeLinecap="round" />
+
+        <rect x="30" y="6" width="8" height="8" rx="1" stroke={strokeNormal} fill={fillCard} strokeWidth="1.2" filter="url(#thumb-shadow)" />
+        <circle cx="34" cy="10" r="1.2" fill={carrierDotColor} />
+
+        <circle cx="50" cy="10" r="4" stroke={strokeNormal} fill={fillCard} strokeWidth="1.2" filter="url(#thumb-shadow)" />
+        <circle cx="50" cy="10" r="1.2" fill={carrierDotColor} />
+
+        <rect x="18" y="20" width="8" height="8" rx="1" stroke={strokeNormal} fill={fillCard} strokeWidth="1.2" filter="url(#thumb-shadow)" />
+        <circle cx="22" cy="24" r="1.2" fill={carrierDotColor} />
+
+        <circle cx="42" cy="24" r="4" stroke={strokeNormal} fill={fillCard} strokeWidth="1.2" filter="url(#thumb-shadow)" />
+        <circle cx="42" cy="24" r="1.2" fill={carrierDotColor} />
+
+        <rect x="58" y="20" width="8" height="8" rx="1" stroke={strokeNormal} fill={fillCard} strokeWidth="1.2" filter="url(#thumb-shadow)" />
+        <circle cx="62" cy="24" r="1.2" fill={carrierDotColor} />
+
+        <polygon points="38,38 42,42 38,46 34,42" stroke={affectedStroke} fill={affectedFill} strokeWidth="1.2" filter="url(#thumb-shadow)" />
+
+        <circle cx="66" cy="42" r="4" stroke={strokeNormal} fill={fillCard} strokeWidth="1.2" filter="url(#thumb-shadow)" />
+        <circle cx="66" cy="42" r="1.2" fill={carrierDotColor} />
       </svg>
     );
   }
   if (key === "x-linked-carrier") {
     return (
-      <svg className="w-16 h-12 text-slate-700 dark:text-slate-300" viewBox="0 0 100 60" fill="none" stroke="currentColor" strokeWidth="1.5">
-        <rect x="30" y="6" width="8" height="8" rx="0.5" fill="currentColor" />
-        <circle cx="50" cy="10" r="4" />
-        <line x1="38" y1="10" x2="46" y2="10" />
-        <line x1="42" y1="10" x2="42" y2="18" />
-        <line x1="22" y1="18" x2="42" y2="18" />
-        <line x1="22" y1="18" x2="22" y2="20" />
-        <line x1="42" y1="18" x2="42" y2="20" />
-        <rect x="18" y="20" width="8" height="8" rx="0.5" />
-        <circle cx="42" cy="24" r="4" />
-        <circle cx="42" cy="24" r="1.2" fill="currentColor" />
-        <rect x="58" y="20" width="8" height="8" rx="0.5" />
-        <line x1="46" y1="24" x2="58" y2="24" />
-        <line x1="52" y1="24" x2="52" y2="34" />
-        <line x1="38" y1="34" x2="66" y2="34" />
-        <line x1="38" y1="34" x2="38" y2="38" />
-        <line x1="66" y1="34" x2="66" y2="38" />
-        <rect x="34" y="38" width="8" height="8" rx="0.5" fill="currentColor" />
-        <circle cx="66" cy="42" r="4" />
-        <circle cx="66" cy="42" r="1.2" fill="currentColor" />
+      <svg {...commonSvgProps}>
+        {shadowDef}
+        <line x1="38" y1="10" x2="46" y2="10" stroke={strokeLineColor} strokeWidth="1.2" strokeLinecap="round" />
+        <line x1="42" y1="10" x2="42" y2="18" stroke={strokeLineColor} strokeWidth="1.2" strokeLinecap="round" />
+        <line x1="22" y1="18" x2="42" y2="18" stroke={strokeLineColor} strokeWidth="1.2" strokeLinecap="round" />
+        <line x1="22" y1="18" x2="22" y2="20" stroke={strokeLineColor} strokeWidth="1.2" strokeLinecap="round" />
+        <line x1="42" y1="18" x2="42" y2="20" stroke={strokeLineColor} strokeWidth="1.2" strokeLinecap="round" />
+        <line x1="46" y1="24" x2="58" y2="24" stroke={strokeLineColor} strokeWidth="1.2" strokeLinecap="round" />
+        <line x1="52" y1="24" x2="52" y2="34" stroke={strokeLineColor} strokeWidth="1.2" strokeLinecap="round" />
+        <line x1="38" y1="34" x2="66" y2="34" stroke={strokeLineColor} strokeWidth="1.2" strokeLinecap="round" />
+        <line x1="38" y1="34" x2="38" y2="38" stroke={strokeLineColor} strokeWidth="1.2" strokeLinecap="round" />
+        <line x1="66" y1="34" x2="66" y2="38" stroke={strokeLineColor} strokeWidth="1.2" strokeLinecap="round" />
+
+        <rect x="30" y="6" width="8" height="8" rx="1" stroke={affectedStroke} fill={affectedFill} strokeWidth="1.2" filter="url(#thumb-shadow)" />
+        <circle cx="50" cy="10" r="4" stroke={strokeNormal} fill={fillCard} strokeWidth="1.2" filter="url(#thumb-shadow)" />
+        <circle cx="50" cy="10" r="1.2" fill={carrierDotColor} />
+
+        <rect x="18" y="20" width="8" height="8" rx="1" stroke={strokeNormal} fill={fillCard} strokeWidth="1.2" filter="url(#thumb-shadow)" />
+        <circle cx="42" cy="24" r="4" stroke={strokeNormal} fill={fillCard} strokeWidth="1.2" filter="url(#thumb-shadow)" />
+        <circle cx="42" cy="24" r="1.2" fill={carrierDotColor} />
+        <rect x="58" y="20" width="8" height="8" rx="1" stroke={strokeNormal} fill={fillCard} strokeWidth="1.2" filter="url(#thumb-shadow)" />
+
+        <rect x="34" y="38" width="8" height="8" rx="1" stroke={affectedStroke} fill={affectedFill} strokeWidth="1.2" filter="url(#thumb-shadow)" />
+        <circle cx="66" cy="42" r="4" stroke={strokeNormal} fill={fillCard} strokeWidth="1.2" filter="url(#thumb-shadow)" />
+        <circle cx="66" cy="42" r="1.2" fill={carrierDotColor} />
       </svg>
     );
   }
   if (key === "x-linked-dominant") {
     return (
-      <svg className="w-16 h-12 text-slate-700 dark:text-slate-300" viewBox="0 0 100 60" fill="none" stroke="currentColor" strokeWidth="1.5">
-        <rect x="30" y="6" width="8" height="8" rx="0.5" fill="currentColor" />
-        <circle cx="50" cy="10" r="4" />
-        <line x1="38" y1="10" x2="46" y2="10" />
-        <line x1="42" y1="10" x2="42" y2="18" />
-        <line x1="22" y1="18" x2="42" y2="18" />
-        <line x1="22" y1="18" x2="22" y2="20" />
-        <line x1="42" y1="18" x2="42" y2="20" />
-        <rect x="18" y="20" width="8" height="8" rx="0.5" />
-        <circle cx="42" cy="24" r="4" fill="currentColor" />
-        <rect x="58" y="20" width="8" height="8" rx="0.5" />
-        <line x1="46" y1="24" x2="58" y2="24" />
-        <line x1="52" y1="24" x2="52" y2="34" />
-        <line x1="38" y1="34" x2="66" y2="34" />
-        <line x1="38" y1="34" x2="38" y2="38" />
-        <line x1="66" y1="34" x2="66" y2="38" />
-        <path d="M38 38 L42 42 L38 46 L34 42 Z" fill="currentColor" />
-        <circle cx="66" cy="42" r="4" fill="currentColor" />
+      <svg {...commonSvgProps}>
+        {shadowDef}
+        <line x1="38" y1="10" x2="46" y2="10" stroke={strokeLineColor} strokeWidth="1.2" strokeLinecap="round" />
+        <line x1="42" y1="10" x2="42" y2="18" stroke={strokeLineColor} strokeWidth="1.2" strokeLinecap="round" />
+        <line x1="22" y1="18" x2="42" y2="18" stroke={strokeLineColor} strokeWidth="1.2" strokeLinecap="round" />
+        <line x1="22" y1="18" x2="22" y2="20" stroke={strokeLineColor} strokeWidth="1.2" strokeLinecap="round" />
+        <line x1="42" y1="18" x2="42" y2="20" stroke={strokeLineColor} strokeWidth="1.2" strokeLinecap="round" />
+        <line x1="46" y1="24" x2="58" y2="24" stroke={strokeLineColor} strokeWidth="1.2" strokeLinecap="round" />
+        <line x1="52" y1="24" x2="52" y2="34" stroke={strokeLineColor} strokeWidth="1.2" strokeLinecap="round" />
+        <line x1="38" y1="34" x2="66" y2="34" stroke={strokeLineColor} strokeWidth="1.2" strokeLinecap="round" />
+        <line x1="38" y1="34" x2="38" y2="38" stroke={strokeLineColor} strokeWidth="1.2" strokeLinecap="round" />
+        <line x1="66" y1="34" x2="66" y2="38" stroke={strokeLineColor} strokeWidth="1.2" strokeLinecap="round" />
+
+        <rect x="30" y="6" width="8" height="8" rx="1" stroke={affectedStroke} fill={affectedFill} strokeWidth="1.2" filter="url(#thumb-shadow)" />
+        <circle cx="50" cy="10" r="4" stroke={strokeNormal} fill={fillCard} strokeWidth="1.2" filter="url(#thumb-shadow)" />
+
+        <rect x="18" y="20" width="8" height="8" rx="1" stroke={strokeNormal} fill={fillCard} strokeWidth="1.2" filter="url(#thumb-shadow)" />
+        <circle cx="42" cy="24" r="4" stroke={affectedStroke} fill={affectedFill} strokeWidth="1.2" filter="url(#thumb-shadow)" />
+
+        <polygon points="38,38 42,42 38,46 34,42" stroke={affectedStroke} fill={affectedFill} strokeWidth="1.2" filter="url(#thumb-shadow)" />
+        <circle cx="66" cy="42" r="4" stroke={affectedStroke} fill={affectedFill} strokeWidth="1.2" filter="url(#thumb-shadow)" />
       </svg>
     );
   }
   if (key === "mitochondrial-transmission") {
     return (
-      <svg className="w-16 h-12 text-slate-700 dark:text-slate-300" viewBox="0 0 100 60" fill="none" stroke="currentColor" strokeWidth="1.5">
-        <rect x="30" y="6" width="8" height="8" rx="0.5" />
-        <circle cx="50" cy="10" r="4" fill="currentColor" />
-        <line x1="38" y1="10" x2="46" y2="10" />
-        <line x1="42" y1="10" x2="42" y2="18" />
-        <line x1="22" y1="18" x2="42" y2="18" />
-        <line x1="22" y1="18" x2="22" y2="20" />
-        <line x1="42" y1="18" x2="42" y2="20" />
-        <rect x="18" y="20" width="8" height="8" rx="0.5" fill="currentColor" />
-        <circle cx="42" cy="24" r="4" fill="currentColor" />
-        <rect x="58" y="20" width="8" height="8" rx="0.5" />
-        <line x1="46" y1="24" x2="58" y2="24" />
-        <line x1="52" y1="24" x2="52" y2="34" />
-        <line x1="38" y1="34" x2="66" y2="34" />
-        <line x1="38" y1="34" x2="38" y2="38" />
-        <line x1="66" y1="34" x2="66" y2="38" />
-        <path d="M38 38 L42 42 L38 46 L34 42 Z" fill="currentColor" />
-        <circle cx="66" cy="42" r="4" fill="currentColor" />
+      <svg {...commonSvgProps}>
+        {shadowDef}
+        <line x1="38" y1="10" x2="46" y2="10" stroke={strokeLineColor} strokeWidth="1.2" strokeLinecap="round" />
+        <line x1="42" y1="10" x2="42" y2="18" stroke={strokeLineColor} strokeWidth="1.2" strokeLinecap="round" />
+        <line x1="22" y1="18" x2="42" y2="18" stroke={strokeLineColor} strokeWidth="1.2" strokeLinecap="round" />
+        <line x1="22" y1="18" x2="22" y2="20" stroke={strokeLineColor} strokeWidth="1.2" strokeLinecap="round" />
+        <line x1="42" y1="18" x2="42" y2="20" stroke={strokeLineColor} strokeWidth="1.2" strokeLinecap="round" />
+        <line x1="46" y1="24" x2="58" y2="24" stroke={strokeLineColor} strokeWidth="1.2" strokeLinecap="round" />
+        <line x1="52" y1="24" x2="52" y2="34" stroke={strokeLineColor} strokeWidth="1.2" strokeLinecap="round" />
+        <line x1="38" y1="34" x2="66" y2="34" stroke={strokeLineColor} strokeWidth="1.2" strokeLinecap="round" />
+        <line x1="38" y1="34" x2="38" y2="38" stroke={strokeLineColor} strokeWidth="1.2" strokeLinecap="round" />
+        <line x1="66" y1="34" x2="66" y2="38" stroke={strokeLineColor} strokeWidth="1.2" strokeLinecap="round" />
+
+        <rect x="30" y="6" width="8" height="8" rx="1" stroke={strokeNormal} fill={fillCard} strokeWidth="1.2" filter="url(#thumb-shadow)" />
+        <circle cx="50" cy="10" r="4" stroke={affectedStroke} fill={affectedFill} strokeWidth="1.2" filter="url(#thumb-shadow)" />
+
+        <rect x="18" y="20" width="8" height="8" rx="1" stroke={affectedStroke} fill={affectedFill} strokeWidth="1.2" filter="url(#thumb-shadow)" />
+        <circle cx="42" cy="24" r="4" stroke={affectedStroke} fill={affectedFill} strokeWidth="1.2" filter="url(#thumb-shadow)" />
+
+        <polygon points="38,38 42,42 38,46 34,42" stroke={affectedStroke} fill={affectedFill} strokeWidth="1.2" filter="url(#thumb-shadow)" />
+        <circle cx="66" cy="42" r="4" stroke={affectedStroke} fill={affectedFill} strokeWidth="1.2" filter="url(#thumb-shadow)" />
       </svg>
     );
   }
   if (key === "y-linked-transmission") {
     return (
-      <svg className="w-16 h-12 text-slate-700 dark:text-slate-300" viewBox="0 0 100 60" fill="none" stroke="currentColor" strokeWidth="1.5">
-        <rect x="30" y="6" width="8" height="8" rx="0.5" fill="currentColor" />
-        <circle cx="50" cy="10" r="4" />
-        <line x1="38" y1="10" x2="46" y2="10" />
-        <line x1="42" y1="10" x2="42" y2="18" />
-        <line x1="22" y1="18" x2="42" y2="18" />
-        <line x1="22" y1="18" x2="22" y2="20" />
-        <line x1="42" y1="18" x2="42" y2="20" />
-        <rect x="18" y="20" width="8" height="8" rx="0.5" fill="currentColor" />
-        <circle cx="42" cy="24" r="4" />
-        <rect x="58" y="20" width="8" height="8" rx="0.5" fill="currentColor" />
-        <line x1="46" y1="24" x2="58" y2="24" />
-        <line x1="52" y1="24" x2="52" y2="34" />
-        <line x1="38" y1="34" x2="66" y2="34" />
-        <line x1="38" y1="34" x2="38" y2="38" />
-        <line x1="66" y1="34" x2="66" y2="38" />
-        <rect x="34" y="38" width="8" height="8" rx="0.5" fill="currentColor" />
-        <circle cx="66" cy="42" r="4" />
+      <svg {...commonSvgProps}>
+        {shadowDef}
+        <line x1="38" y1="10" x2="46" y2="10" stroke={strokeLineColor} strokeWidth="1.2" strokeLinecap="round" />
+        <line x1="42" y1="10" x2="42" y2="18" stroke={strokeLineColor} strokeWidth="1.2" strokeLinecap="round" />
+        <line x1="22" y1="18" x2="42" y2="18" stroke={strokeLineColor} strokeWidth="1.2" strokeLinecap="round" />
+        <line x1="22" y1="18" x2="22" y2="20" stroke={strokeLineColor} strokeWidth="1.2" strokeLinecap="round" />
+        <line x1="42" y1="18" x2="42" y2="20" stroke={strokeLineColor} strokeWidth="1.2" strokeLinecap="round" />
+        <line x1="46" y1="24" x2="58" y2="24" stroke={strokeLineColor} strokeWidth="1.2" strokeLinecap="round" />
+        <line x1="52" y1="24" x2="52" y2="34" stroke={strokeLineColor} strokeWidth="1.2" strokeLinecap="round" />
+        <line x1="38" y1="34" x2="66" y2="34" stroke={strokeLineColor} strokeWidth="1.2" strokeLinecap="round" />
+        <line x1="38" y1="34" x2="38" y2="38" stroke={strokeLineColor} strokeWidth="1.2" strokeLinecap="round" />
+        <line x1="66" y1="34" x2="66" y2="38" stroke={strokeLineColor} strokeWidth="1.2" strokeLinecap="round" />
+
+        <rect x="30" y="6" width="8" height="8" rx="1" stroke={affectedStroke} fill={affectedFill} strokeWidth="1.2" filter="url(#thumb-shadow)" />
+        <circle cx="50" cy="10" r="4" stroke={strokeNormal} fill={fillCard} strokeWidth="1.2" filter="url(#thumb-shadow)" />
+
+        <rect x="18" y="20" width="8" height="8" rx="1" stroke={affectedStroke} fill={affectedFill} strokeWidth="1.2" filter="url(#thumb-shadow)" />
+        <circle cx="42" cy="24" r="4" stroke={strokeNormal} fill={fillCard} strokeWidth="1.2" filter="url(#thumb-shadow)" />
+
+        <rect x="34" y="38" width="8" height="8" rx="1" stroke={affectedStroke} fill={affectedFill} strokeWidth="1.2" filter="url(#thumb-shadow)" />
+        <circle cx="66" cy="42" r="4" stroke={strokeNormal} fill={fillCard} strokeWidth="1.2" filter="url(#thumb-shadow)" />
       </svg>
     );
   }
   if (key === "incomplete-penetrance") {
     return (
-      <svg className="w-16 h-12 text-slate-700 dark:text-slate-300" viewBox="0 0 100 60" fill="none" stroke="currentColor" strokeWidth="1.5">
-        <rect x="30" y="6" width="8" height="8" rx="0.5" fill="currentColor" />
-        <circle cx="50" cy="10" r="4" />
-        <line x1="38" y1="10" x2="46" y2="10" />
-        <line x1="42" y1="10" x2="42" y2="18" />
-        <line x1="22" y1="18" x2="42" y2="18" />
-        <line x1="22" y1="18" x2="22" y2="20" />
-        <line x1="42" y1="18" x2="42" y2="20" />
-        <rect x="18" y="20" width="8" height="8" rx="0.5" fill="currentColor" />
-        <circle cx="42" cy="24" r="4" />
-        <rect x="58" y="20" width="8" height="8" rx="0.5" />
-        <line x1="46" y1="24" x2="58" y2="24" />
-        <line x1="52" y1="24" x2="52" y2="34" />
-        <line x1="38" y1="34" x2="66" y2="34" />
-        <line x1="38" y1="34" x2="38" y2="38" />
-        <line x1="66" y1="34" x2="66" y2="38" />
-        <path d="M38 38 L42 42 L38 46 L34 42 Z" fill="currentColor" />
-        <circle cx="66" cy="42" r="4" />
+      <svg {...commonSvgProps}>
+        {shadowDef}
+        <line x1="38" y1="10" x2="46" y2="10" stroke={strokeLineColor} strokeWidth="1.2" strokeLinecap="round" />
+        <line x1="42" y1="10" x2="42" y2="18" stroke={strokeLineColor} strokeWidth="1.2" strokeLinecap="round" />
+        <line x1="22" y1="18" x2="42" y2="18" stroke={strokeLineColor} strokeWidth="1.2" strokeLinecap="round" />
+        <line x1="22" y1="18" x2="22" y2="20" stroke={strokeLineColor} strokeWidth="1.2" strokeLinecap="round" />
+        <line x1="42" y1="18" x2="42" y2="20" stroke={strokeLineColor} strokeWidth="1.2" strokeLinecap="round" />
+        <line x1="46" y1="24" x2="58" y2="24" stroke={strokeLineColor} strokeWidth="1.2" strokeLinecap="round" />
+        <line x1="52" y1="24" x2="52" y2="34" stroke={strokeLineColor} strokeWidth="1.2" strokeLinecap="round" />
+        <line x1="38" y1="34" x2="66" y2="34" stroke={strokeLineColor} strokeWidth="1.2" strokeLinecap="round" />
+        <line x1="38" y1="34" x2="38" y2="38" stroke={strokeLineColor} strokeWidth="1.2" strokeLinecap="round" />
+        <line x1="66" y1="34" x2="66" y2="38" stroke={strokeLineColor} strokeWidth="1.2" strokeLinecap="round" />
+
+        <rect x="30" y="6" width="8" height="8" rx="1" stroke={affectedStroke} fill={affectedFill} strokeWidth="1.2" filter="url(#thumb-shadow)" />
+        <circle cx="50" cy="10" r="4" stroke={strokeNormal} fill={fillCard} strokeWidth="1.2" filter="url(#thumb-shadow)" />
+
+        <rect x="18" y="20" width="8" height="8" rx="1" stroke={strokeNormal} fill={fillCard} strokeWidth="1.2" filter="url(#thumb-shadow)" />
+        <circle cx="42" cy="24" r="4" stroke={strokeNormal} fill={fillCard} strokeWidth="1.2" filter="url(#thumb-shadow)" />
+
+        <polygon points="38,38 42,42 38,46 34,42" stroke={affectedStroke} fill={affectedFill} strokeWidth="1.2" filter="url(#thumb-shadow)" />
+        <circle cx="66" cy="42" r="4" stroke={strokeNormal} fill={fillCard} strokeWidth="1.2" filter="url(#thumb-shadow)" />
       </svg>
     );
   }
   if (key === "imprinting-paternal") {
     return (
-      <svg className="w-16 h-12 text-slate-700 dark:text-slate-300" viewBox="0 0 100 60" fill="none" stroke="currentColor" strokeWidth="1.5">
-        <rect x="30" y="6" width="8" height="8" rx="0.5" fill="currentColor" />
-        <circle cx="50" cy="10" r="4" />
-        <line x1="38" y1="10" x2="46" y2="10" />
-        <line x1="42" y1="10" x2="42" y2="18" />
-        <line x1="22" y1="18" x2="42" y2="18" />
-        <line x1="22" y1="18" x2="22" y2="20" />
-        <line x1="42" y1="18" x2="42" y2="20" />
-        <rect x="18" y="20" width="8" height="8" rx="0.5" />
-        <circle cx="42" cy="24" r="4" />
-        <rect x="58" y="20" width="8" height="8" rx="0.5" />
-        <line x1="46" y1="24" x2="58" y2="24" />
-        <line x1="52" y1="24" x2="52" y2="34" />
-        <line x1="38" y1="34" x2="66" y2="34" />
-        <line x1="38" y1="34" x2="38" y2="38" />
-        <line x1="66" y1="34" x2="66" y2="38" />
-        <path d="M38 38 L42 42 L38 46 L34 42 Z" fill="currentColor" />
-        <circle cx="66" cy="42" r="4" />
+      <svg {...commonSvgProps}>
+        {shadowDef}
+        <line x1="38" y1="10" x2="46" y2="10" stroke={strokeLineColor} strokeWidth="1.2" strokeLinecap="round" />
+        <line x1="42" y1="10" x2="42" y2="18" stroke={strokeLineColor} strokeWidth="1.2" strokeLinecap="round" />
+        <line x1="22" y1="18" x2="42" y2="18" stroke={strokeLineColor} strokeWidth="1.2" strokeLinecap="round" />
+        <line x1="22" y1="18" x2="22" y2="20" stroke={strokeLineColor} strokeWidth="1.2" strokeLinecap="round" />
+        <line x1="42" y1="18" x2="42" y2="20" stroke={strokeLineColor} strokeWidth="1.2" strokeLinecap="round" />
+        <line x1="46" y1="24" x2="58" y2="24" stroke={strokeLineColor} strokeWidth="1.2" strokeLinecap="round" />
+        <line x1="52" y1="24" x2="52" y2="34" stroke={strokeLineColor} strokeWidth="1.2" strokeLinecap="round" />
+        <line x1="38" y1="34" x2="66" y2="34" stroke={strokeLineColor} strokeWidth="1.2" strokeLinecap="round" />
+        <line x1="38" y1="34" x2="38" y2="38" stroke={strokeLineColor} strokeWidth="1.2" strokeLinecap="round" />
+        <line x1="66" y1="34" x2="66" y2="38" stroke={strokeLineColor} strokeWidth="1.2" strokeLinecap="round" />
+
+        <rect x="30" y="6" width="8" height="8" rx="1" stroke={affectedStroke} fill={affectedFill} strokeWidth="1.2" filter="url(#thumb-shadow)" />
+        <circle cx="50" cy="10" r="4" stroke={strokeNormal} fill={fillCard} strokeWidth="1.2" filter="url(#thumb-shadow)" />
+
+        <rect x="18" y="20" width="8" height="8" rx="1" stroke={strokeNormal} fill={fillCard} strokeWidth="1.2" filter="url(#thumb-shadow)" />
+        <circle cx="42" cy="24" r="4" stroke={strokeNormal} fill={fillCard} strokeWidth="1.2" filter="url(#thumb-shadow)" />
+
+        <polygon points="38,38 42,42 38,46 34,42" stroke={affectedStroke} fill={affectedFill} strokeWidth="1.2" filter="url(#thumb-shadow)" />
+        <circle cx="66" cy="42" r="4" stroke={strokeNormal} fill={fillCard} strokeWidth="1.2" filter="url(#thumb-shadow)" />
       </svg>
     );
   }
   if (key === "imprinting-maternal") {
     return (
-      <svg className="w-16 h-12 text-slate-700 dark:text-slate-300" viewBox="0 0 100 60" fill="none" stroke="currentColor" strokeWidth="1.5">
-        <rect x="30" y="6" width="8" height="8" rx="0.5" fill="currentColor" />
-        <circle cx="50" cy="10" r="4" />
-        <line x1="38" y1="10" x2="46" y2="10" />
-        <line x1="42" y1="10" x2="42" y2="18" />
-        <line x1="22" y1="18" x2="42" y2="18" />
-        <line x1="22" y1="18" x2="22" y2="20" />
-        <line x1="42" y1="18" x2="42" y2="20" />
-        <rect x="18" y="20" width="8" height="8" rx="0.5" fill="currentColor" />
-        <circle cx="42" cy="24" r="4" fill="currentColor" />
-        <rect x="58" y="20" width="8" height="8" rx="0.5" />
-        <line x1="46" y1="24" x2="58" y2="24" />
-        <line x1="52" y1="24" x2="52" y2="34" />
-        <line x1="38" y1="34" x2="66" y2="34" />
-        <line x1="38" y1="34" x2="38" y2="38" />
-        <line x1="66" y1="34" x2="66" y2="38" />
-        <path d="M38 38 L42 42 L38 46 L34 42 Z" />
-        <circle cx="66" cy="42" r="4" fill="currentColor" />
+      <svg {...commonSvgProps}>
+        {shadowDef}
+        <line x1="38" y1="10" x2="46" y2="10" stroke={strokeLineColor} strokeWidth="1.2" strokeLinecap="round" />
+        <line x1="42" y1="10" x2="42" y2="18" stroke={strokeLineColor} strokeWidth="1.2" strokeLinecap="round" />
+        <line x1="22" y1="18" x2="42" y2="18" stroke={strokeLineColor} strokeWidth="1.2" strokeLinecap="round" />
+        <line x1="22" y1="18" x2="22" y2="20" stroke={strokeLineColor} strokeWidth="1.2" strokeLinecap="round" />
+        <line x1="42" y1="18" x2="42" y2="20" stroke={strokeLineColor} strokeWidth="1.2" strokeLinecap="round" />
+        <line x1="46" y1="24" x2="58" y2="24" stroke={strokeLineColor} strokeWidth="1.2" strokeLinecap="round" />
+        <line x1="52" y1="24" x2="52" y2="34" stroke={strokeLineColor} strokeWidth="1.2" strokeLinecap="round" />
+        <line x1="38" y1="34" x2="66" y2="34" stroke={strokeLineColor} strokeWidth="1.2" strokeLinecap="round" />
+        <line x1="38" y1="34" x2="38" y2="38" stroke={strokeLineColor} strokeWidth="1.2" strokeLinecap="round" />
+        <line x1="66" y1="34" x2="66" y2="38" stroke={strokeLineColor} strokeWidth="1.2" strokeLinecap="round" />
+
+        <rect x="30" y="6" width="8" height="8" rx="1" stroke={strokeNormal} fill={fillCard} strokeWidth="1.2" filter="url(#thumb-shadow)" />
+        <circle cx="50" cy="10" r="4" stroke={affectedStroke} fill={affectedFill} strokeWidth="1.2" filter="url(#thumb-shadow)" />
+
+        <rect x="18" y="20" width="8" height="8" rx="1" stroke={affectedStroke} fill={affectedFill} strokeWidth="1.2" filter="url(#thumb-shadow)" />
+        <circle cx="42" cy="24" r="4" stroke={affectedStroke} fill={affectedFill} strokeWidth="1.2" filter="url(#thumb-shadow)" />
+
+        <polygon points="38,38 42,42 38,46 34,42" stroke={strokeNormal} fill={fillCard} strokeWidth="1.2" filter="url(#thumb-shadow)" />
+        <circle cx="66" cy="42" r="4" stroke={affectedStroke} fill={affectedFill} strokeWidth="1.2" filter="url(#thumb-shadow)" />
       </svg>
     );
   }
   if (key === "pseudodominance") {
     return (
-      <svg className="w-16 h-12 text-slate-700 dark:text-slate-300" viewBox="0 0 100 60" fill="none" stroke="currentColor" strokeWidth="1.5">
-        <rect x="30" y="6" width="8" height="8" rx="0.5" />
-        <circle cx="50" cy="10" r="4" />
-        <line x1="38" y1="10" x2="46" y2="10" />
-        <line x1="42" y1="10" x2="42" y2="18" />
-        <line x1="22" y1="18" x2="42" y2="18" />
-        <line x1="22" y1="18" x2="22" y2="20" />
-        <line x1="42" y1="18" x2="42" y2="20" />
-        <rect x="18" y="20" width="8" height="8" rx="0.5" fill="currentColor" />
-        <circle cx="42" cy="24" r="4" />
-        <circle cx="42" cy="24" r="1.2" fill="currentColor" />
-        <rect x="58" y="20" width="8" height="8" rx="0.5" />
-        <circle cx="62" cy="24" r="1.2" fill="currentColor" />
-        <line x1="46" y1="24" x2="58" y2="24" />
-        <line x1="52" y1="24" x2="52" y2="34" />
-        <line x1="38" y1="34" x2="66" y2="34" />
-        <line x1="38" y1="34" x2="38" y2="38" />
-        <line x1="66" y1="34" x2="66" y2="38" />
-        <path d="M38 38 L42 42 L38 46 L34 42 Z" fill="currentColor" />
-        <circle cx="66" cy="42" r="4" />
-        <circle cx="66" cy="42" r="1.2" fill="currentColor" />
+      <svg {...commonSvgProps}>
+        {shadowDef}
+        <line x1="38" y1="10" x2="46" y2="10" stroke={strokeLineColor} strokeWidth="1.2" strokeLinecap="round" />
+        <line x1="42" y1="10" x2="42" y2="18" stroke={strokeLineColor} strokeWidth="1.2" strokeLinecap="round" />
+        <line x1="22" y1="18" x2="42" y2="18" stroke={strokeLineColor} strokeWidth="1.2" strokeLinecap="round" />
+        <line x1="22" y1="18" x2="22" y2="20" stroke={strokeLineColor} strokeWidth="1.2" strokeLinecap="round" />
+        <line x1="42" y1="18" x2="42" y2="20" stroke={strokeLineColor} strokeWidth="1.2" strokeLinecap="round" />
+        <line x1="46" y1="24" x2="58" y2="24" stroke={strokeLineColor} strokeWidth="1.2" strokeLinecap="round" />
+        <line x1="52" y1="24" x2="52" y2="34" stroke={strokeLineColor} strokeWidth="1.2" strokeLinecap="round" />
+        <line x1="38" y1="34" x2="66" y2="34" stroke={strokeLineColor} strokeWidth="1.2" strokeLinecap="round" />
+        <line x1="38" y1="34" x2="38" y2="38" stroke={strokeLineColor} strokeWidth="1.2" strokeLinecap="round" />
+        <line x1="66" y1="34" x2="66" y2="38" stroke={strokeLineColor} strokeWidth="1.2" strokeLinecap="round" />
+
+        <rect x="30" y="6" width="8" height="8" rx="1" stroke={affectedStroke} fill={affectedFill} strokeWidth="1.2" filter="url(#thumb-shadow)" />
+        <circle cx="50" cy="10" r="4" stroke={strokeNormal} fill={fillCard} strokeWidth="1.2" filter="url(#thumb-shadow)" />
+        <circle cx="50" cy="10" r="1.2" fill={carrierDotColor} />
+
+        <rect x="18" y="20" width="8" height="8" rx="1" stroke={affectedStroke} fill={affectedFill} strokeWidth="1.2" filter="url(#thumb-shadow)" />
+        <circle cx="42" cy="24" r="4" stroke={strokeNormal} fill={fillCard} strokeWidth="1.2" filter="url(#thumb-shadow)" />
+        <circle cx="42" cy="24" r="1.2" fill={carrierDotColor} />
+        <rect x="58" y="20" width="8" height="8" rx="1" stroke={strokeNormal} fill={fillCard} strokeWidth="1.2" filter="url(#thumb-shadow)" />
+        <circle cx="62" cy="24" r="1.2" fill={carrierDotColor} />
+
+        <polygon points="38,38 42,42 38,46 34,42" stroke={affectedStroke} fill={affectedFill} strokeWidth="1.2" filter="url(#thumb-shadow)" />
+        <circle cx="66" cy="42" r="4" stroke={strokeNormal} fill={fillCard} strokeWidth="1.2" filter="url(#thumb-shadow)" />
+        <circle cx="66" cy="42" r="1.2" fill={carrierDotColor} />
       </svg>
     );
   }
   if (key === "germline-mosaicism") {
     return (
-      <svg className="w-16 h-12 text-slate-700 dark:text-slate-300" viewBox="0 0 100 60" fill="none" stroke="currentColor" strokeWidth="1.5">
-        <rect x="34" y="12" width="10" height="10" rx="0.5" />
-        <circle cx="66" cy="17" r="5" />
-        <line x1="44" y1="17" x2="61" y2="17" />
-        <line x1="52.5" y1="17" x2="52.5" y2="28" />
-        <line x1="25" y1="28" x2="80" y2="28" />
-        <line x1="25" y1="28" x2="25" y2="38" />
-        <line x1="52.5" y1="28" x2="52.5" y2="38" />
-        <line x1="80" y1="28" x2="80" y2="38" />
-        <rect x="20" y="38" width="10" height="10" rx="0.5" fill="currentColor" />
-        <path d="M52.5 38 L57.5 43 L52.5 48 L47.5 43 Z" fill="currentColor" />
-        <circle cx="80" cy="43" r="5" />
+      <svg {...commonSvgProps}>
+        {shadowDef}
+        <line x1="44" y1="17" x2="61" y2="17" stroke={strokeLineColor} strokeWidth="1.5" strokeLinecap="round" />
+        <line x1="52.5" y1="17" x2="52.5" y2="28" stroke={strokeLineColor} strokeWidth="1.5" strokeLinecap="round" />
+        <line x1="25" y1="28" x2="80" y2="28" stroke={strokeLineColor} strokeWidth="1.5" strokeLinecap="round" />
+        <line x1="25" y1="28" x2="25" y2="38" stroke={strokeLineColor} strokeWidth="1.5" strokeLinecap="round" />
+        <line x1="52.5" y1="28" x2="52.5" y2="38" stroke={strokeLineColor} strokeWidth="1.5" strokeLinecap="round" />
+        <line x1="80" y1="28" x2="80" y2="38" stroke={strokeLineColor} strokeWidth="1.5" strokeLinecap="round" />
+
+        <rect x="34" y="12" width="10" height="10" rx="1.5" stroke={strokeNormal} fill={fillCard} strokeWidth="1.5" filter="url(#thumb-shadow)" />
+        <circle cx="66" cy="17" r="5" stroke={strokeNormal} fill={fillCard} strokeWidth="1.5" filter="url(#thumb-shadow)" />
+
+        <rect x="20" y="38" width="10" height="10" rx="1.5" stroke={affectedStroke} fill={affectedFill} strokeWidth="1.5" filter="url(#thumb-shadow)" />
+        <polygon points="52.5,38 57.5,43 52.5,48 47.5,43" stroke={affectedStroke} fill={affectedFill} strokeWidth="1.5" filter="url(#thumb-shadow)" />
+        <circle cx="80" cy="43" r="5" stroke={strokeNormal} fill={fillCard} strokeWidth="1.5" filter="url(#thumb-shadow)" />
       </svg>
     );
   }
   if (key === "de-novo") {
     return (
-      <svg className="w-16 h-12 text-slate-700 dark:text-slate-300" viewBox="0 0 100 60" fill="none" stroke="currentColor" strokeWidth="1.5">
-        <rect x="30" y="6" width="8" height="8" rx="0.5" />
-        <circle cx="50" cy="10" r="4" />
-        <line x1="38" y1="10" x2="46" y2="10" />
-        <line x1="42" y1="10" x2="42" y2="18" />
-        <line x1="22" y1="18" x2="42" y2="18" />
-        <line x1="22" y1="18" x2="22" y2="20" />
-        <line x1="42" y1="18" x2="42" y2="20" />
-        <rect x="18" y="20" width="8" height="8" rx="0.5" />
-        <circle cx="42" cy="24" r="4" />
-        <rect x="58" y="20" width="8" height="8" rx="0.5" />
-        <line x1="46" y1="24" x2="58" y2="24" />
-        <line x1="52" y1="24" x2="52" y2="34" />
-        <line x1="38" y1="34" x2="66" y2="34" />
-        <line x1="38" y1="34" x2="38" y2="38" />
-        <line x1="66" y1="34" x2="66" y2="38" />
-        <path d="M38 38 L42 42 L38 46 L34 42 Z" fill="currentColor" />
-        <circle cx="66" cy="42" r="4" />
+      <svg {...commonSvgProps}>
+        {shadowDef}
+        <line x1="38" y1="10" x2="46" y2="10" stroke={strokeLineColor} strokeWidth="1.2" strokeLinecap="round" />
+        <line x1="42" y1="10" x2="42" y2="18" stroke={strokeLineColor} strokeWidth="1.2" strokeLinecap="round" />
+        <line x1="22" y1="18" x2="42" y2="18" stroke={strokeLineColor} strokeWidth="1.2" strokeLinecap="round" />
+        <line x1="22" y1="18" x2="22" y2="20" stroke={strokeLineColor} strokeWidth="1.2" strokeLinecap="round" />
+        <line x1="42" y1="18" x2="42" y2="20" stroke={strokeLineColor} strokeWidth="1.2" strokeLinecap="round" />
+        <line x1="46" y1="24" x2="58" y2="24" stroke={strokeLineColor} strokeWidth="1.2" strokeLinecap="round" />
+        <line x1="52" y1="24" x2="52" y2="34" stroke={strokeLineColor} strokeWidth="1.2" strokeLinecap="round" />
+        <line x1="38" y1="34" x2="66" y2="34" stroke={strokeLineColor} strokeWidth="1.2" strokeLinecap="round" />
+        <line x1="38" y1="34" x2="38" y2="38" stroke={strokeLineColor} strokeWidth="1.2" strokeLinecap="round" />
+        <line x1="66" y1="34" x2="66" y2="38" stroke={strokeLineColor} strokeWidth="1.2" strokeLinecap="round" />
+
+        <rect x="30" y="6" width="8" height="8" rx="1" stroke={strokeNormal} fill={fillCard} strokeWidth="1.2" filter="url(#thumb-shadow)" />
+        <circle cx="50" cy="10" r="4" stroke={strokeNormal} fill={fillCard} strokeWidth="1.2" filter="url(#thumb-shadow)" />
+
+        <polygon points="38,38 42,42 38,46 34,42" stroke={affectedStroke} fill={affectedFill} strokeWidth="1.2" filter="url(#thumb-shadow)" />
+        <circle cx="66" cy="42" r="4" stroke={strokeNormal} fill={fillCard} strokeWidth="1.2" filter="url(#thumb-shadow)" />
       </svg>
     );
   }
   if (key === "twins-template") {
     return (
-      <svg className="w-16 h-12 text-slate-700 dark:text-slate-300" viewBox="0 0 100 60" fill="none" stroke="currentColor" strokeWidth="1.8">
-        <rect x="32" y="8" width="10" height="10" rx="0.5" />
-        <circle cx="68" cy="13" r="5" />
-        <line x1="42" y1="13" x2="63" y2="13" />
-        <line x1="52.5" y1="13" x2="52.5" y2="24" />
-        
-        {/* MZ twins branch */}
-        <line x1="52.5" y1="24" x2="30" y2="40" />
-        <line x1="52.5" y1="24" x2="48" y2="40" />
-        <line x1="38" y1="30" x2="42" y2="30" />
-        <rect x="25" y="40" width="10" height="10" rx="0.5" />
-        <rect x="43" y="40" width="10" height="10" rx="0.5" />
+      <svg {...commonSvgProps}>
+        {shadowDef}
+        <line x1="42" y1="13" x2="63" y2="13" stroke={strokeLineColor} strokeWidth="1.5" strokeLinecap="round" />
+        <line x1="52.5" y1="13" x2="52.5" y2="24" stroke={strokeLineColor} strokeWidth="1.5" strokeLinecap="round" />
 
-        {/* DZ twins branch */}
-        <line x1="52.5" y1="24" x2="65" y2="40" />
-        <line x1="52.5" y1="24" x2="80" y2="40" />
-        <circle cx="65" cy="45" r="5" />
-        <circle cx="80" cy="45" r="5" />
+        <line x1="52.5" y1="24" x2="30" y2="40" stroke={strokeLineColor} strokeWidth="1.5" strokeLinecap="round" />
+        <line x1="52.5" y1="24" x2="48" y2="40" stroke={strokeLineColor} strokeWidth="1.5" strokeLinecap="round" />
+        <line x1="38.5" y1="31" x2="40" y2="31" stroke={strokeLineColor} strokeWidth="1.5" />
+
+        <line x1="52.5" y1="24" x2="65" y2="40" stroke={strokeLineColor} strokeWidth="1.5" strokeLinecap="round" />
+        <line x1="52.5" y1="24" x2="80" y2="40" stroke={strokeLineColor} strokeWidth="1.5" strokeLinecap="round" />
+
+        <rect x="32" y="8" width="10" height="10" rx="1.5" stroke={strokeNormal} fill={fillCard} strokeWidth="1.5" filter="url(#thumb-shadow)" />
+        <circle cx="68" cy="13" r="5" stroke={strokeNormal} fill={fillCard} strokeWidth="1.5" filter="url(#thumb-shadow)" />
+
+        <rect x="25" y="40" width="10" height="10" rx="1.5" stroke={strokeNormal} fill={fillCard} strokeWidth="1.5" filter="url(#thumb-shadow)" />
+        <rect x="43" y="40" width="10" height="10" rx="1.5" stroke={strokeNormal} fill={fillCard} strokeWidth="1.5" filter="url(#thumb-shadow)" />
+
+        <circle cx="65" cy="45" r="5" stroke={strokeNormal} fill={fillCard} strokeWidth="1.5" filter="url(#thumb-shadow)" />
+        <circle cx="80" cy="45" r="5" stroke={strokeNormal} fill={fillCard} strokeWidth="1.5" filter="url(#thumb-shadow)" />
       </svg>
     );
   }
   return null;
 };
+
 
 export function ClinicalGroup({
   showTemplates, setShowTemplates, showRiskPanel, setShowRiskPanel,

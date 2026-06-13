@@ -142,6 +142,13 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
               icon={<Hash className="w-3.5 h-3.5" />}
             />
             <ToggleRow
+              label="Generation Rail"
+              description="Show vertical Roman numeral rail on the left"
+              checked={state.showGenerationRail}
+              onChange={() => dispatch({ type: "SET_STATE", patch: { showGenerationRail: !state.showGenerationRail } })}
+              icon={<Eye className="w-3.5 h-3.5" />}
+            />
+            <ToggleRow
               label="Live Layout"
               description="Auto-arrange canvas during drawing"
               checked={state.liveLayout}

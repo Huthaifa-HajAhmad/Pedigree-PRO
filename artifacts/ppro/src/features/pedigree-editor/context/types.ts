@@ -66,6 +66,7 @@ export interface PedigreeEditorState {
   siblingSourceId: string | null;
   alignGuides: Array<{ axis: "x" | "y"; pos: number; strength: "near" | "snap" }>;
   railX: number;
+  showGenerationRail: boolean;
 }
 
 export const INITIAL_STATE: PedigreeEditorState = {
@@ -131,6 +132,7 @@ export const INITIAL_STATE: PedigreeEditorState = {
   siblingSourceId: null,
   alignGuides: [],
   railX: 44,
+  showGenerationRail: true,
 };
 
 export type PedigreeEditorAction =
