@@ -534,7 +534,9 @@ export function usePedigreeCanvas(params: UsePedigreeCanvasParams) {
 
   const handleSVGMouseDown = useCallback((e: React.MouseEvent) => {
     const s = stateRef.current;
-    if (e.target !== svgRef.current) return;
+    const isBackground = e.target === svgRef.current || (e.target instanceof SVGElement && e.target.getAttribute("data-canvas-background") === "true");
+    if (!isBackground) return;
+
     if (s.isPreviewMode) {
       if (e.button === 1 || e.button === 2 || e.altKey || spaceHeldRef.current) {
         e.preventDefault();
@@ -553,6 +555,12 @@ export function usePedigreeCanvas(params: UsePedigreeCanvasParams) {
       });
       return;
     }
+
+    // Clear selection on background left click (closes properties panels)
+    if (e.button === 0) {
+      dispatch({ type: "SET_STATE", patch: { selectedIds: new Set(), selectedAnnotationId: null } });
+    }
+
     const coords = getSVGCoords(e);
     if (!coords) return;
     const svg = svgRef.current;

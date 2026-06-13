@@ -576,7 +576,7 @@ const RAIL_MAX_X = 400;
                 <path d="M 40 0 L 0 0 0 40" fill="none" stroke="currentColor" strokeWidth={1} vectorEffect="non-scaling-stroke" opacity={config.gridOpacity ?? 0.10} />
               </pattern>
             </defs>
-            <rect x={viewBox.x} y={viewBox.y} width={vbW} height={vbH} fill="white" />
+            <rect x={viewBox.x} y={viewBox.y} width={vbW} height={vbH} fill="white" data-canvas-background="true" />
             {showGrid && (
               <rect x={viewBox.x} y={viewBox.y} width={vbW} height={vbH} fill="url(#grid-pattern)" pointerEvents="none" />
             )}
