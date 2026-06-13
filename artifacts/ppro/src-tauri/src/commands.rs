@@ -1120,10 +1120,15 @@ fn validate_import_path(app: &tauri::AppHandle, path: &str) -> Result<(), String
         .map_err(|e| format!("Invalid path '{}': {}", path, e))?;
     let app_data = app.path().app_data_dir()
         .map_err(|e| format!("Cannot resolve app data dir: {}", e))?;
+    let home_dir = dirs::home_dir().unwrap_or_else(|| {
+        #[cfg(target_os = "windows")]
+        { PathBuf::from(std::env::var("USERPROFILE").unwrap_or_else(|_| "C:\\".into())) }
+        #[cfg(not(target_os = "windows"))]
+        { PathBuf::from("/") }
+    });
     let allowed_dirs = vec![
         app_data.clone(),
-        PathBuf::from(std::env::var("USERPROFILE").unwrap_or_else(|_| "C:\\".into())),
-        PathBuf::from(std::env::var("HOME").unwrap_or_else(|_| "/".into())),
+        home_dir,
     ];
     let is_allowed = allowed_dirs.iter().any(|dir| {
         let dir_canonical = dir.canonicalize().unwrap_or_else(|_| dir.clone());
@@ -1216,10 +1221,18 @@ pub fn disable_zoom(window: tauri::WebviewWindow) -> Result<(), String> {
 }
 
 #[tauri::command]
+#[cfg(target_os = "windows")]
 pub fn reset_zoom(window: tauri::WebviewWindow) -> Result<(), String> {
     let _ = window.with_webview(|webview| {
         let controller = webview.controller();
         let _ = unsafe { controller.SetZoomFactor(1.0) };
     });
+    Ok(())
+}
+
+#[tauri::command]
+#[cfg(not(target_os = "windows"))]
+pub fn reset_zoom(_window: tauri::WebviewWindow) -> Result<(), String> {
+    // Zoom reset is handled by the frontend on macOS/Linux
     Ok(())
 }
