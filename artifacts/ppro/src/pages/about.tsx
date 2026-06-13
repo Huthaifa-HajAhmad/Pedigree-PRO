@@ -109,8 +109,44 @@ export default function AboutPage() {
                   <span className="w-1.5 h-1.5 rounded-full bg-primary" />
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="text-sm font-semibold">Version 1.2.0</span>
+                  <span className="text-sm font-semibold">Version 1.2.2</span>
                   <span className="bg-primary/10 text-primary text-[10px] px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">Latest</span>
+                </div>
+                <p className="text-[10px] text-muted-foreground mt-0.5">June 2026</p>
+                <ul className="mt-2.5 space-y-2 text-xs text-muted-foreground">
+                  <li className="flex items-start gap-2">
+                    <span className="text-primary font-bold select-none mt-0.5">•</span>
+                    <span><strong>Cross-platform macOS build:</strong> Full macOS build support — WebView2 zoom reset guarded with platform-specific compilation, cross-platform home directory resolution, and Windows-only DLLs moved to platform-specific config.</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-primary font-bold select-none mt-0.5">•</span>
+                    <span><strong>Pedigree Wizard:</strong> Guided step-by-step wizard for creating family pedigrees, accessible from the toolbar.</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-primary font-bold select-none mt-0.5">•</span>
+                    <span><strong>Onboarding flow:</strong> New users see a guided setup screen instead of a blank app.</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-primary font-bold select-none mt-0.5">•</span>
+                    <span><strong>Profile danger zone:</strong> Delete profiles with confirmation dialog and key revocation warning.</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-primary font-bold select-none mt-0.5">•</span>
+                    <span><strong>Sibling spacing:</strong> New evenOutSiblingSpacing algorithm and spouse placement optimization for cleaner layouts.</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-primary font-bold select-none mt-0.5">•</span>
+                    <span><strong>Canvas UX:</strong> Click canvas background to clear selection and close panels.</span>
+                  </li>
+                </ul>
+              </div>
+
+              <div className="relative">
+                <div className="absolute -left-[31px] top-1 w-3.5 h-3.5 rounded-full border border-border bg-background flex items-center justify-center">
+                  <span className="w-1.5 h-1.5 rounded-full bg-primary" />
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-semibold">Version 1.2.0</span>
                 </div>
                 <p className="text-[10px] text-muted-foreground mt-0.5">June 2026</p>
                 <ul className="mt-2.5 space-y-2 text-xs text-muted-foreground">
