@@ -8,6 +8,12 @@ on:
     branches: [main]
   workflow_dispatch:
 
+permissions:
+  contents: write
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
 jobs:
   # ── Type Checking ────────────────────────────────────────────
   typecheck:
@@ -54,6 +60,8 @@ jobs:
           choco install openssl -y
           $opensslDir = "C:\Program Files\OpenSSL-Win64"
           echo "OPENSSL_DIR=$opensslDir" >> $env:GITHUB_ENV
+          echo "OPENSSL_LIB_DIR=$opensslDir\lib\VC\x64\MD" >> $env:GITHUB_ENV
+          echo "OPENSSL_INCLUDE_DIR=$opensslDir\include" >> $env:GITHUB_ENV
           echo "OPENSSL_STATIC=1" >> $env:GITHUB_ENV
       - run: pnpm install --no-frozen-lockfile --ignore-scripts
       - run: pnpm --filter @workspace/browser-backend run build
@@ -68,7 +76,6 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          OPENSSL_DIR: ${{ env.OPENSSL_DIR }}
 
   # ── Tauri Desktop Build (macOS) ──────────────────────────────
   build-tauri-macos:
