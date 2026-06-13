@@ -435,7 +435,30 @@ function orderNodesForGen(
     }
   }
 
+  // Optimize placement order within sibling groups to place spouses closest to their partners
+  const ownParentX = avgParentX(nodeIds, parentsOf, couplesOf, knownPos, nodeMap);
+
+  const getSpouseOffset = (groupIds: string[]): number => {
+    let offset = 0;
+    for (const id of groupIds) {
+      const partners = couplesOf.get(id) ?? [];
+      for (const p of partners) {
+        if (!nodeIds.includes(p)) {
+          const spouseParentX = avgParentX([p], parentsOf, couplesOf, knownPos, nodeMap);
+          offset += (spouseParentX - ownParentX);
+        }
+      }
+    }
+    return offset;
+  };
+
   groups.sort((a, b) => {
+    const aOffset = getSpouseOffset(a);
+    const bOffset = getSpouseOffset(b);
+    if (Math.abs(aOffset - bOffset) > 1) {
+      return aOffset - bOffset;
+    }
+
     const aX = avgParentX(a, parentsOf, couplesOf, knownPos, nodeMap);
     const bX = avgParentX(b, parentsOf, couplesOf, knownPos, nodeMap);
     return aX - bX;
