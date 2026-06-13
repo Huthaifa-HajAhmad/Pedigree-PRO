@@ -173,7 +173,14 @@ export function RibbonToolbar(props: RibbonToolbarProps) {
           </Link>
         </div>
 
-        <NodeGroup addNode={props.addNode} labelHidden={hideLabels} />
+        <NodeGroup
+          addNode={props.addNode}
+          labelHidden={hideLabels}
+          updateCanvas={props.updateCanvas}
+          canvasNodes={props.canvasNodes}
+          openConfirm={openConfirm}
+          runAutoLayout={props.runAutoLayout}
+        />
         <ConnectGroup
           linkMode={props.linkMode} setLinkMode={props.setLinkMode} setLinkSource={props.setLinkSource}
           selectedIds={props.selectedIds} canvasNodes={props.canvasNodes} canvasEdges={props.canvasEdges}
@@ -207,7 +214,8 @@ export function RibbonToolbar(props: RibbonToolbarProps) {
           validation={props.validation} templates={props.templates}
           buildTemplate={props.buildTemplate} updateCanvas={props.updateCanvas}
           canvasNodes={props.canvasNodes} openConfirm={openConfirm} labelHidden={hideLabels || compactSecondaries}
-          onClearSelection={props.clearSelection} />
+          onClearSelection={props.clearSelection}
+          runAutoLayout={props.runAutoLayout} />
 
         <FileGroup handleSaveVersion={props.handleSaveVersion}
           showSaveModal={props.showSaveModal} setShowSaveModal={props.setShowSaveModal}

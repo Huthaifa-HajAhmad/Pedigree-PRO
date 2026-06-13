@@ -1,16 +1,29 @@
 import { useState } from "react";
-import { Baby, MoreHorizontal, Square, Circle, Diamond } from "lucide-react";
+import { Baby, MoreHorizontal, Square, Circle, Diamond, Sparkles } from "lucide-react";
 import { NodeIcon } from "@/features/pedigree-editor/toolbar/NodeIcon";
-import type { PedigreeNode } from "@/features/pedigree-editor/canvas/types";
+import type { PedigreeNode, CanvasData } from "@/features/pedigree-editor/canvas/types";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
+import { PedigreeWizardDialog } from "./PedigreeWizardDialog";
 
 interface NodeGroupProps {
   addNode: (type: PedigreeNode["type"]) => void;
   labelHidden?: boolean;
+  updateCanvas: (updater: (prev: CanvasData) => CanvasData) => void;
+  canvasNodes: any[];
+  openConfirm: (title: string, message: string, onConfirm: () => void) => void;
+  runAutoLayout: (respectPinned: boolean, isManual?: boolean) => void;
 }
 
-export function NodeGroup({ addNode, labelHidden = false }: NodeGroupProps) {
+export function NodeGroup({
+  addNode,
+  labelHidden = false,
+  updateCanvas,
+  canvasNodes,
+  openConfirm,
+  runAutoLayout,
+}: NodeGroupProps) {
   const [showMoreNodes, setShowMoreNodes] = useState(false);
+  const [showWizard, setShowWizard] = useState(false);
 
   return (
     <div className="flex flex-col justify-between h-full border-r border-border flex-shrink-0 px-2 pt-2 pb-2">
@@ -71,6 +84,31 @@ export function NodeGroup({ addNode, labelHidden = false }: NodeGroupProps) {
             </button>
           </PopoverContent>
         </Popover>
+
+        <button
+          type="button"
+          data-testid="button-wizard"
+          onClick={() => { setShowWizard(true); }}
+          title="Pedigree wizard builder"
+          aria-label="Pedigree wizard builder"
+          className={`flex flex-col items-center gap-1.5 min-w-[44px] min-h-[44px] py-1 rounded text-[11px] leading-tight font-medium transition-colors ${
+            showWizard ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-accent hover:text-foreground"
+          }`}
+        >
+          <div className="w-5 h-5 flex items-center justify-center">
+            <Sparkles className="w-5 h-5 text-primary animate-pulse" />
+          </div>
+          <span className="text-[11px] leading-tight font-medium">Wizard</span>
+        </button>
+
+        <PedigreeWizardDialog
+          open={showWizard}
+          onClose={() => setShowWizard(false)}
+          updateCanvas={updateCanvas}
+          canvasNodes={canvasNodes}
+          openConfirm={openConfirm}
+          runAutoLayout={runAutoLayout}
+        />
       </div>
       {!labelHidden && <div className="text-[10px] text-muted-foreground uppercase tracking-wider text-center border-t border-border/40 pt-1">Nodes</div>}
     </div>
