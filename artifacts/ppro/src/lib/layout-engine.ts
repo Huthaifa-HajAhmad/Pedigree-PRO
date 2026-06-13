@@ -681,6 +681,63 @@ export function recenterAllChildren(
   return currentNodes;
 }
 
+export function evenOutSiblingSpacing(
+  nodes: PedigreeNode[],
+  edges: PedigreeEdge[],
+  excludeIds?: Set<string>,
+): PedigreeNode[] {
+  const currentNodes = [...nodes.map(n => ({ ...n }))];
+  const adj = buildAdjacency(currentNodes, edges);
+  const nodeMap = buildNodeMap(currentNodes);
+
+  // Group by parents
+  const families = new Map<string, { parentIds: string[]; childIds: string[] }>();
+  for (const [childId, pIds] of adj.parentsOf.entries()) {
+    if (pIds.length === 0) continue;
+    const key = [...pIds].sort().join("_");
+    if (!families.has(key)) families.set(key, { parentIds: pIds, childIds: [] });
+    families.get(key)!.childIds.push(childId);
+  }
+
+  for (const [, f] of families) {
+    const siblings = f.childIds.map(id => nodeMap.get(id)).filter((n): n is PedigreeNode => !!n);
+    if (siblings.length < 3) continue;
+
+    siblings.sort((a, b) => a.x - b.x);
+
+    // Check if all inner siblings are free to shift
+    let allInnerFree = true;
+    for (let i = 1; i < siblings.length - 1; i++) {
+      const sib = siblings[i]!;
+      const hasCouples = (adj.couplesOf.get(sib.id) ?? []).length > 0;
+      const hasChildren = (adj.childrenOf.get(sib.id) ?? []).length > 0;
+      const isExcluded = excludeIds?.has(sib.id);
+      if (hasCouples || hasChildren || isExcluded) {
+        allInnerFree = false;
+        break;
+      }
+    }
+
+    if (allInnerFree) {
+      const firstX = siblings[0]!.x;
+      const lastX = siblings[siblings.length - 1]!.x;
+      const totalSpan = lastX - firstX;
+      const step = totalSpan / (siblings.length - 1);
+
+      for (let i = 1; i < siblings.length - 1; i++) {
+        const sib = siblings[i]!;
+        const targetX = firstX + i * step;
+        const node = currentNodes.find(n => n.id === sib.id);
+        if (node) {
+          node.x = targetX;
+        }
+      }
+    }
+  }
+
+  return currentNodes;
+}
+
 export function recenterAllFamilies(
   nodes: PedigreeNode[],
   edges: PedigreeEdge[],
@@ -754,6 +811,9 @@ export function recenterAllFamilies(
 
   // Run top-down child recentering pass to align children under parent midpoints
   currentNodes = recenterAllChildren(currentNodes, edges, excludeIds);
+
+  // Even out sibling spacing for inner siblings
+  currentNodes = evenOutSiblingSpacing(currentNodes, edges, excludeIds);
 
   // Final snap to remove topological deltas (0.01)
   return currentNodes.map(n => ({

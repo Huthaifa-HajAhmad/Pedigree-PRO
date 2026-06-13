@@ -5,6 +5,7 @@ import {
   resolveAllCollisions,
   recenterParents,
   recenterAllFamilies,
+  evenOutSiblingSpacing,
   buildAdjacency,
   buildNodeMap,
   ROW_TOLERANCE,
@@ -281,6 +282,65 @@ describe("layout-engine", () => {
       expect(newC1.x).toBeCloseTo((newF1.x + newM1.x) / 2, 1);
       expect(newC2.x).toBeCloseTo((newF2.x + newM2.x) / 2, 1);
       expect(newProband.x).toBeCloseTo((newC1.x + newC2.x) / 2, 1);
+    });
+  });
+
+  describe("evenOutSiblingSpacing", () => {
+    it("evenly spaces three siblings when the third one is shifted far to the right", () => {
+      const nodes: PedigreeNode[] = [
+        { id: "father", x: 150, y: 100, type: "male", ...baseNode },
+        { id: "mother", x: 240, y: 100, type: "female", ...baseNode },
+        // Siblings
+        { id: "sib1", x: 100, y: 220, type: "male", ...baseNode },
+        { id: "sib2", x: 210, y: 220, type: "female", ...baseNode },
+        { id: "sib3", x: 500, y: 220, type: "male", ...baseNode },
+      ];
+      const edges: PedigreeEdge[] = [
+        { id: "e1", sourceId: "father", targetId: "mother", type: "couple" },
+        { id: "e2", sourceId: "father", targetId: "sib1", type: "parent-child" },
+        { id: "e3", sourceId: "mother", targetId: "sib1", type: "parent-child" },
+        { id: "e4", sourceId: "father", targetId: "sib2", type: "parent-child" },
+        { id: "e5", sourceId: "mother", targetId: "sib2", type: "parent-child" },
+        { id: "e6", sourceId: "father", targetId: "sib3", type: "parent-child" },
+        { id: "e7", sourceId: "mother", targetId: "sib3", type: "parent-child" },
+      ];
+
+      const result = evenOutSiblingSpacing(nodes, edges);
+      
+      const newSib1 = result.find(n => n.id === "sib1")!;
+      const newSib2 = result.find(n => n.id === "sib2")!;
+      const newSib3 = result.find(n => n.id === "sib3")!;
+
+      expect(newSib1.x).toBe(100);
+      expect(newSib3.x).toBe(500);
+      expect(newSib2.x).toBeCloseTo(300);
+    });
+
+    it("does not shift inner sibling if it has couples or children", () => {
+      const nodes: PedigreeNode[] = [
+        { id: "father", x: 150, y: 100, type: "male", ...baseNode },
+        { id: "mother", x: 240, y: 100, type: "female", ...baseNode },
+        // Siblings
+        { id: "sib1", x: 100, y: 220, type: "male", ...baseNode },
+        { id: "sib2", x: 210, y: 220, type: "female", ...baseNode },
+        { id: "sib3", x: 500, y: 220, type: "male", ...baseNode },
+        { id: "partner2", x: 300, y: 220, type: "male", ...baseNode },
+      ];
+      const edges: PedigreeEdge[] = [
+        { id: "e1", sourceId: "father", targetId: "mother", type: "couple" },
+        { id: "e2", sourceId: "father", targetId: "sib1", type: "parent-child" },
+        { id: "e3", sourceId: "mother", targetId: "sib1", type: "parent-child" },
+        { id: "e4", sourceId: "father", targetId: "sib2", type: "parent-child" },
+        { id: "e5", sourceId: "mother", targetId: "sib2", type: "parent-child" },
+        { id: "e6", sourceId: "father", targetId: "sib3", type: "parent-child" },
+        { id: "e7", sourceId: "mother", targetId: "sib3", type: "parent-child" },
+        { id: "e8", sourceId: "sib2", targetId: "partner2", type: "couple" },
+      ];
+
+      const result = evenOutSiblingSpacing(nodes, edges);
+      
+      const newSib2 = result.find(n => n.id === "sib2")!;
+      expect(newSib2.x).toBe(210);
     });
   });
 });
