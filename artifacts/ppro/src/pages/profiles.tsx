@@ -1,9 +1,10 @@
 import { useState, useEffect } from "react";
-import { useListProfiles, useCreateProfile, useUpdateProfile } from "@workspace/api-client-react";
+import { useListProfiles, useCreateProfile, useUpdateProfile, useDeleteProfile } from "@workspace/api-client-react";
 import { UserCircle, Copy, Check, Shield, KeyRound, Pencil, Save, X } from "lucide-react";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { Skeleton } from "@/components/shared/Skeleton";
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
 
 function truncate(str: string, len: number) {
   return str.length > len ? str.slice(0, len) + "…" : str;
@@ -13,15 +14,8 @@ export default function Profiles() {
   const { data: profiles, isLoading } = useListProfiles();
   const createProfile = useCreateProfile();
   const updateProfile = useUpdateProfile();
-
-  // Auto-create default profile on first load if none exist
-  const [autoCreated, setAutoCreated] = useState(false);
-  useEffect(() => {
-    if (!isLoading && profiles?.length === 0 && !autoCreated) {
-      setAutoCreated(true);
-      createProfile.mutate({ display_name: "Clinician", role_label: "Clinical Geneticist" });
-    }
-  }, [isLoading, profiles, autoCreated, createProfile]);
+  const deleteProfile = useDeleteProfile();
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
 
   // Inline editing state
   const [editing, setEditing] = useState(false);
@@ -66,8 +60,8 @@ export default function Profiles() {
     <section className="p-6">
       <PageHeader
         icon={UserCircle}
-        title="My Identity"
-        subtitle="Your clinician profile and sharing key"
+        title="My Profile"
+        subtitle="Your profile details and sharing key"
       />
 
       {isLoading ? (
@@ -82,7 +76,7 @@ export default function Profiles() {
           <Shield className="w-8 h-8 text-muted-foreground mx-auto mb-3" />
           <p className="text-muted-foreground text-sm mb-4">No identity found. Creating one automatically…</p>
           <Button
-            onClick={() => createProfile.mutate({ display_name: "Clinician", role_label: "Clinical Geneticist" })}
+            onClick={() => createProfile.mutate({ display_name: "User", role_label: "Clinical Geneticist" })}
             disabled={createProfile.isPending}
           >
             {createProfile.isPending ? "Creating…" : "Create Identity"}
@@ -225,7 +219,7 @@ export default function Profiles() {
                 </button>
               </div>
               <p className="text-[11px] text-muted-foreground mt-1.5">
-                Share this key with other clinicians so they can send you encrypted pedigrees.
+                Share this key with other users so they can send you encrypted pedigrees.
               </p>
             </div>
 
@@ -239,7 +233,49 @@ export default function Profiles() {
               </p>
             </div>
           </div>
+
+          {/* Danger Zone */}
+          <div className="border-t border-border px-6 py-5 bg-destructive/5 dark:bg-destructive/10">
+            <h3 className="text-xs font-bold text-destructive uppercase tracking-wider mb-1">
+              Danger Zone
+            </h3>
+            <p className="text-xs text-muted-foreground mb-4">
+              Permanently delete this profile and its associated encryption keys. You will lose access to all pedigrees encrypted with this profile.
+            </p>
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={() => setDeleteConfirmOpen(true)}
+              disabled={deleteProfile.isPending}
+              className="bg-destructive hover:bg-destructive/90 text-destructive-foreground font-bold"
+            >
+              Delete Profile
+            </Button>
+          </div>
         </div>
+      )}
+
+      {profile && (
+        <ConfirmDialog
+          open={deleteConfirmOpen}
+          title="Delete Profile"
+          message="Warning: Deleting your profile will permanently remove your digital signature keys and profile data. You will no longer be able to open pedigrees secured by this profile. This action is irreversible, and you will need to create a new profile to continue using the application. Are you sure you want to proceed?"
+          confirmLabel="Yes, Delete Profile"
+          cancelLabel="Cancel"
+          variant="destructive"
+          onConfirm={() => {
+            deleteProfile.mutate(profile.id, {
+              onSuccess: () => {
+                setDeleteConfirmOpen(false);
+                window.location.reload();
+              },
+              onError: () => {
+                setDeleteConfirmOpen(false);
+              }
+            });
+          }}
+          onCancel={() => setDeleteConfirmOpen(false)}
+        />
       )}
     </section>
   );
