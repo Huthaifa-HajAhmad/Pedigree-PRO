@@ -5,20 +5,22 @@
   "identifier": "org.pedigreepro.app",
   "build": {
     "beforeDevCommand": "pnpm dev",
-    "devUrl": "http://localhost:5173",
+    "devUrl": "http://localhost:4173",
     "beforeBuildCommand": "npx vite build --config vite.config.ts",
     "frontendDist": "../dist/public"
   },
   "app": {
     "windows": [
       {
+        "label": "main",
         "title": "Pedigree PRO",
         "width": 1400,
         "height": 900,
         "minWidth": 1024,
         "minHeight": 700,
         "resizable": true,
-        "fullscreen": false
+        "fullscreen": false,
+        "url": "index.html"
       }
     ],
     "security": {

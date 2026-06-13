@@ -139,10 +139,7 @@ fn get_or_create_master_secret(key_path: &PathBuf) -> Result<Vec<u8>, String> {
     Ok(secret)
 }
 
-fn get_or_create_device_id(db_path: &PathBuf, db_exists: bool) -> Result<String, String> {
-    if !db_exists {
-        return Ok(uuid::Uuid::new_v4().to_string());
-    }
+fn get_or_create_device_id(db_path: &PathBuf, _db_exists: bool) -> Result<String, String> {
     let mut hasher = Sha256::new();
     hasher.update(db_path.to_string_lossy().as_bytes());
     let hash = hasher.finalize();
