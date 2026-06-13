@@ -265,6 +265,7 @@ const getTemplateSvg = (key: string) => {
 
         <rect x="18" y="20" width="8" height="8" rx="1" stroke={strokeNormal} fill={fillCard} strokeWidth="1.2" filter="url(#thumb-shadow)" />
         <circle cx="42" cy="24" r="4" stroke={affectedStroke} fill={affectedFill} strokeWidth="1.2" filter="url(#thumb-shadow)" />
+        <rect x="58" y="20" width="8" height="8" rx="1" stroke={strokeNormal} fill={fillCard} strokeWidth="1.2" filter="url(#thumb-shadow)" />
 
         <polygon points="38,38 42,42 38,46 34,42" stroke={affectedStroke} fill={affectedFill} strokeWidth="1.2" filter="url(#thumb-shadow)" />
         <circle cx="66" cy="42" r="4" stroke={affectedStroke} fill={affectedFill} strokeWidth="1.2" filter="url(#thumb-shadow)" />
@@ -291,6 +292,7 @@ const getTemplateSvg = (key: string) => {
 
         <rect x="18" y="20" width="8" height="8" rx="1" stroke={affectedStroke} fill={affectedFill} strokeWidth="1.2" filter="url(#thumb-shadow)" />
         <circle cx="42" cy="24" r="4" stroke={affectedStroke} fill={affectedFill} strokeWidth="1.2" filter="url(#thumb-shadow)" />
+        <rect x="58" y="20" width="8" height="8" rx="1" stroke={strokeNormal} fill={fillCard} strokeWidth="1.2" filter="url(#thumb-shadow)" />
 
         <polygon points="38,38 42,42 38,46 34,42" stroke={affectedStroke} fill={affectedFill} strokeWidth="1.2" filter="url(#thumb-shadow)" />
         <circle cx="66" cy="42" r="4" stroke={affectedStroke} fill={affectedFill} strokeWidth="1.2" filter="url(#thumb-shadow)" />
@@ -317,6 +319,7 @@ const getTemplateSvg = (key: string) => {
 
         <rect x="18" y="20" width="8" height="8" rx="1" stroke={affectedStroke} fill={affectedFill} strokeWidth="1.2" filter="url(#thumb-shadow)" />
         <circle cx="42" cy="24" r="4" stroke={strokeNormal} fill={fillCard} strokeWidth="1.2" filter="url(#thumb-shadow)" />
+        <rect x="58" y="20" width="8" height="8" rx="1" stroke={affectedStroke} fill={affectedFill} strokeWidth="1.2" filter="url(#thumb-shadow)" />
 
         <rect x="34" y="38" width="8" height="8" rx="1" stroke={affectedStroke} fill={affectedFill} strokeWidth="1.2" filter="url(#thumb-shadow)" />
         <circle cx="66" cy="42" r="4" stroke={strokeNormal} fill={fillCard} strokeWidth="1.2" filter="url(#thumb-shadow)" />
@@ -343,6 +346,7 @@ const getTemplateSvg = (key: string) => {
 
         <rect x="18" y="20" width="8" height="8" rx="1" stroke={strokeNormal} fill={fillCard} strokeWidth="1.2" filter="url(#thumb-shadow)" />
         <circle cx="42" cy="24" r="4" stroke={strokeNormal} fill={fillCard} strokeWidth="1.2" filter="url(#thumb-shadow)" />
+        <rect x="58" y="20" width="8" height="8" rx="1" stroke={strokeNormal} fill={fillCard} strokeWidth="1.2" filter="url(#thumb-shadow)" />
 
         <polygon points="38,38 42,42 38,46 34,42" stroke={affectedStroke} fill={affectedFill} strokeWidth="1.2" filter="url(#thumb-shadow)" />
         <circle cx="66" cy="42" r="4" stroke={strokeNormal} fill={fillCard} strokeWidth="1.2" filter="url(#thumb-shadow)" />
@@ -369,6 +373,7 @@ const getTemplateSvg = (key: string) => {
 
         <rect x="18" y="20" width="8" height="8" rx="1" stroke={strokeNormal} fill={fillCard} strokeWidth="1.2" filter="url(#thumb-shadow)" />
         <circle cx="42" cy="24" r="4" stroke={strokeNormal} fill={fillCard} strokeWidth="1.2" filter="url(#thumb-shadow)" />
+        <rect x="58" y="20" width="8" height="8" rx="1" stroke={strokeNormal} fill={fillCard} strokeWidth="1.2" filter="url(#thumb-shadow)" />
 
         <polygon points="38,38 42,42 38,46 34,42" stroke={affectedStroke} fill={affectedFill} strokeWidth="1.2" filter="url(#thumb-shadow)" />
         <circle cx="66" cy="42" r="4" stroke={strokeNormal} fill={fillCard} strokeWidth="1.2" filter="url(#thumb-shadow)" />
@@ -395,6 +400,7 @@ const getTemplateSvg = (key: string) => {
 
         <rect x="18" y="20" width="8" height="8" rx="1" stroke={affectedStroke} fill={affectedFill} strokeWidth="1.2" filter="url(#thumb-shadow)" />
         <circle cx="42" cy="24" r="4" stroke={affectedStroke} fill={affectedFill} strokeWidth="1.2" filter="url(#thumb-shadow)" />
+        <rect x="58" y="20" width="8" height="8" rx="1" stroke={strokeNormal} fill={fillCard} strokeWidth="1.2" filter="url(#thumb-shadow)" />
 
         <polygon points="38,38 42,42 38,46 34,42" stroke={strokeNormal} fill={fillCard} strokeWidth="1.2" filter="url(#thumb-shadow)" />
         <circle cx="66" cy="42" r="4" stroke={affectedStroke} fill={affectedFill} strokeWidth="1.2" filter="url(#thumb-shadow)" />
