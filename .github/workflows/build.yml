@@ -54,37 +54,8 @@ jobs:
         with: { version: '9' }
       - uses: actions/setup-node@v4
         with: { node-version: '22', cache: 'pnpm' }
-      - name: Install OpenSSL for SQLCipher
-        shell: pwsh
-        run: |
-          choco install openssl -y --no-progress
-          $sslBase = "C:\Program Files\OpenSSL-Win64"
-          if (!(Test-Path "$sslBase\include\openssl\crypto.h")) {
-            $sslBase = "C:\OpenSSL-Win64"
-          }
-          $sslLib = Get-ChildItem -Path "$sslBase\lib" -Recurse -Filter "libcrypto.lib" | Select-Object -First 1
-          if ($null -eq $sslLib) {
-            $sslLib = Get-ChildItem -Path "$sslBase" -Recurse -Filter "libcrypto.lib" | Select-Object -First 1
-          }
-          $libDir = Split-Path $sslLib.FullName
-          Write-Host "OPENSSL_DIR=$sslBase"
-          Write-Host "OPENSSL_LIB_DIR=$libDir"
-          Write-Host "OPENSSL_INCLUDE_DIR=$sslBase\include"
-          echo "OPENSSL_DIR=$sslBase" >> $env:GITHUB_ENV
-          echo "OPENSSL_LIB_DIR=$libDir" >> $env:GITHUB_ENV
-          echo "OPENSSL_INCLUDE_DIR=$sslBase\include" >> $env:GITHUB_ENV
-          echo "OPENSSL_STATIC=1" >> $env:GITHUB_ENV
-          # Copy runtime DLLs for Tauri bundle (tauri.windows.conf.json)
-          $dstDir = "artifacts/ppro/src-tauri"
-          foreach ($dll in @("libcrypto-4-x64.dll", "libssl-4-x64.dll")) {
-            $src = Get-ChildItem -Path $sslBase -Recurse -Filter $dll | Select-Object -First 1
-            if ($src) {
-              Copy-Item $src.FullName -Destination $dstDir -Force
-              Write-Host "Copied $($dll) from $($src.FullName)"
-            } else {
-              Write-Host "WARNING: $dll not found in $sslBase"
-            }
-          }
+      - name: Install Perl for vendored-openssl
+        run: choco install strawberryperl -y --no-progress
       - run: pnpm install --no-frozen-lockfile --ignore-scripts
       - run: pnpm --filter @workspace/browser-backend run build
       - run: pnpm --filter @workspace/api-client-react exec tsc -p tsconfig.json
