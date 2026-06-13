@@ -177,6 +177,7 @@ export function PedigreeCanvasBody() {
     alignGuides,
     twinSelectMode, twinCandidateIds,
     railX,
+    showGenerationRail,
   } = state;
 
   const {
@@ -585,7 +586,7 @@ const RAIL_MAX_X = 400;
             />
           ))}
 
-          {generationRailEntries.length > 0 && (() => {
+          {showGenerationRail && generationRailEntries.length > 0 && (() => {
             // Enforce minimum 24px vertical spacing between rail entries
             const spacedEntries = generationRailEntries.reduce<{ roman: string; y: number }[]>((acc, entry) => {
               if (acc.length === 0) return [{ roman: entry.roman, y: entry.y }];
