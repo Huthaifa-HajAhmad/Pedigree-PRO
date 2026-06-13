@@ -9,6 +9,7 @@ import { Loader2 } from "lucide-react";
 import { ThemeProvider } from "@/lib/theme";
 import { FontProvider } from "@/lib/font";
 import { CanvasConfigProvider } from "@/features/pedigree-editor/context/CanvasConfigContext";
+import { useListProfiles } from "@workspace/api-client-react";
 
 const NotFound = lazy(() => import("@/pages/not-found"));
 const Dashboard = lazy(() => import("@/pages/dashboard"));
@@ -20,6 +21,7 @@ const PedigreeShare = lazy(() => import("@/pages/pedigree-share"));
 const Profiles = lazy(() => import("@/pages/profiles"));
 const Settings = lazy(() => import("@/pages/settings"));
 const About = lazy(() => import("@/pages/about"));
+const Onboarding = lazy(() => import("@/components/Onboarding"));
 
 function PageLoader() {
   return (
@@ -37,10 +39,27 @@ const queryClient = new QueryClient({
 });
 
 function Router() {
+  const { data: profiles, isLoading } = useListProfiles();
+
   // In Tauri desktop mode, add a top border to visually separate the native
   // title bar from the web toolbar / ribbon. This prevents the title bar
   // from visually blending into the app chrome on Windows.
   const isTauri = typeof window !== "undefined" && ("__TAURI_INTERNALS__" in window || "__TAURI__" in window);
+
+  if (isLoading) {
+    return <PageLoader />;
+  }
+
+  if (!profiles || profiles.length === 0) {
+    return (
+      <div className={isTauri ? "border-t border-border/60" : ""}>
+        <Suspense fallback={<PageLoader />}>
+          <Onboarding />
+        </Suspense>
+      </div>
+    );
+  }
+
   return (
     <div className={isTauri ? "border-t border-border/60" : ""}>
     <Suspense fallback={<PageLoader />}>
