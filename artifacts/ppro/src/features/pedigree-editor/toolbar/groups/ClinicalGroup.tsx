@@ -28,6 +28,7 @@ interface ClinicalGroupProps {
   openConfirm: (title: string, message: string, onConfirm: () => void) => void;
   labelHidden?: boolean;
   onClearSelection?: () => void;
+  runAutoLayout: (respectPinned: boolean, isManual?: boolean) => void;
 }
 
 const getTemplateSvg = (key: string) => {
@@ -519,6 +520,7 @@ export function ClinicalGroup({
   showValidation, setShowValidation, showLegend, setShowLegend,
   validation, templates, buildTemplate, updateCanvas, canvasNodes, openConfirm, labelHidden = false,
   onClearSelection,
+  runAutoLayout,
 }: ClinicalGroupProps) {
 
   const [activeCategory, setActiveCategory] = useState<string>("all");
@@ -607,6 +609,7 @@ export function ClinicalGroup({
           <LayoutTemplate className="w-5 h-5" />
           <span>Templates</span>
         </button>
+
         <button
           type="button"
           data-testid="button-risk"
@@ -824,6 +827,8 @@ export function ClinicalGroup({
 
           </DialogContent>
         </Dialog>
+
+
       </div>
       {!labelHidden && <div className="text-[10px] text-muted-foreground uppercase tracking-wider text-center border-t border-border/40 pt-1">Clinical</div>}
     </div>
