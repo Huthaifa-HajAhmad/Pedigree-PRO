@@ -48,6 +48,13 @@ jobs:
         with: { version: '9' }
       - uses: actions/setup-node@v4
         with: { node-version: '22', cache: 'pnpm' }
+      - name: Install OpenSSL for SQLCipher
+        shell: pwsh
+        run: |
+          choco install openssl -y
+          $opensslDir = "C:\Program Files\OpenSSL-Win64"
+          echo "OPENSSL_DIR=$opensslDir" >> $env:GITHUB_ENV
+          echo "OPENSSL_STATIC=1" >> $env:GITHUB_ENV
       - run: pnpm install --no-frozen-lockfile --ignore-scripts
       - run: pnpm --filter @workspace/browser-backend run build
       - run: pnpm --filter @workspace/api-client-react exec tsc -p tsconfig.json
@@ -55,12 +62,13 @@ jobs:
         with:
           projectPath: artifacts/ppro
           tagName: ${{ github.ref_name }}
-          releaseName: 'Pedigree PRO v__VERSION__ (Windows)'
+          releaseName: 'Pedigree PRO v__VERSION__'
           releaseBody: 'See CHANGELOG.md for details.'
           includeUpdaterJson: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          OPENSSL_DIR: ${{ env.OPENSSL_DIR }}
 
   # ── Tauri Desktop Build (macOS) ──────────────────────────────
   build-tauri-macos:
@@ -73,15 +81,19 @@ jobs:
         with: { version: '9' }
       - uses: actions/setup-node@v4
         with: { node-version: '22', cache: 'pnpm' }
+      - name: Install Rust stable with Apple targets
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
       - run: pnpm install --no-frozen-lockfile --ignore-scripts
       - run: pnpm --filter @workspace/browser-backend run build
       - run: pnpm --filter @workspace/api-client-react exec tsc -p tsconfig.json
-      - run: rustup target add aarch64-apple-darwin
       - uses: tauri-apps/tauri-action@v0
         with:
           projectPath: artifacts/ppro
           tagName: ${{ github.ref_name }}
-          releaseName: 'Pedigree PRO v__VERSION__ (macOS)'
+          releaseName: 'Pedigree PRO v__VERSION__'
+          releaseBody: 'See CHANGELOG.md for details.'
           args: '--target universal-apple-darwin'
           includeUpdaterJson: true
         env:
@@ -101,7 +113,7 @@ jobs:
         with: { node-version: '22', cache: 'pnpm' }
       - run: |
           sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libssl-dev
       - run: pnpm install --no-frozen-lockfile --ignore-scripts
       - run: pnpm --filter @workspace/browser-backend run build
       - run: pnpm --filter @workspace/api-client-react exec tsc -p tsconfig.json
@@ -109,7 +121,8 @@ jobs:
         with:
           projectPath: artifacts/ppro
           tagName: ${{ github.ref_name }}
-          releaseName: 'Pedigree PRO v__VERSION__ (Linux)'
+          releaseName: 'Pedigree PRO v__VERSION__'
+          releaseBody: 'See CHANGELOG.md for details.'
           includeUpdaterJson: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
