@@ -120,7 +120,7 @@ export const NodeShape = memo(function NodeShape({
       {node.type === "pregnancy" && (
         <>
           <polygon points={`0,${-S / 2} ${S / 2},0 0,${S / 2} ${-S / 2},0`} fill={fill} stroke={stroke} strokeWidth={strokeWidth} style={glow} strokeDasharray={strokeDash} />
-          {!node.insideText && <text x={0} y={4} textAnchor="middle" fontSize={9} fill={stroke} style={{ userSelect: "none", fontFamily: "JetBrains Mono, monospace" }}>P</text>}
+          {!node.insideText && <text x={0} y={0} textAnchor="middle" dominantBaseline="central" fontSize={9} fill={stroke} style={{ userSelect: "none", fontFamily: "JetBrains Mono, monospace" }}>P</text>}
         </>
       )}
       {node.type === "sab" && (
@@ -128,7 +128,7 @@ export const NodeShape = memo(function NodeShape({
           fill={fill} stroke={stroke} strokeWidth={strokeWidth} style={glow} strokeDasharray={strokeDash} />
       )}
       {node.insideText && (
-        <text x={0} y={4} textAnchor="middle" fontSize={S * 0.38} fill={node.affected ? "white" : "#374151"} style={{ userSelect: "none", fontFamily: "Inter, sans-serif", fontWeight: 600 }}>
+        <text x={0} y={0} textAnchor="middle" dominantBaseline="central" fontSize={S * 0.38} fill={node.affected ? (node.color ? "white" : "hsl(var(--card))") : "hsl(var(--foreground))"} style={{ userSelect: "none", fontFamily: "Inter, sans-serif", fontWeight: 600 }}>
           {node.insideText}
         </text>
       )}
@@ -143,17 +143,71 @@ export const NodeShape = memo(function NodeShape({
         </g>
       )}
       {/* Labels */}
-      {autoLabel && <text x={0} y={S / 2 + 13} textAnchor="middle" fontSize={8} fill="hsl(var(--foreground) / 0.45)" style={{ userSelect: "none", fontFamily: "JetBrains Mono, monospace", letterSpacing: "0.05em" }}>{autoLabel}</text>}
-      {/* Only show node.label when autoLabel is NOT displayed to avoid garbled/overlapping text */}
-      {!autoLabel && node.label && <text x={0} y={S / 2 + 14} textAnchor="middle" fontSize={9} fill="hsl(var(--foreground))" style={{ userSelect: "none", fontFamily: "JetBrains Mono, monospace" }}>{node.label}</text>}
-      {node.age && <text x={0} y={(autoLabel ? S / 2 + 24 : S / 2 + 14) + (!autoLabel && node.label ? 11 : 0)} textAnchor="middle" fontSize={8} fill="hsl(var(--foreground) / 0.55)" style={{ userSelect: "none", fontFamily: "JetBrains Mono, monospace" }}>{node.age}y</text>}
-      {node.dob && !node.age && <text x={0} y={(autoLabel ? S / 2 + 24 : S / 2 + 14) + (!autoLabel && node.label ? 11 : 0)} textAnchor="middle" fontSize={8} fill="hsl(var(--foreground) / 0.5)" style={{ userSelect: "none", fontFamily: "JetBrains Mono, monospace" }}>{node.dob.length >= 4 ? `b.${node.dob.slice(0, 4)}` : node.dob}</text>}
-      {node.condition && (
-        <text x={0} y={(autoLabel ? S / 2 + 24 : S / 2 + 14) + (!autoLabel && node.label ? 11 : 0) + ((node.age || node.dob) ? 11 : 0) + 11}
-          textAnchor="middle" fontSize={8} fill="hsl(var(--foreground) / 0.65)" style={{ userSelect: "none", fontFamily: "JetBrains Mono, monospace", fontStyle: "italic" }}>
-          {node.condition.length > 18 ? node.condition.slice(0, 17) + "…" : node.condition}
-        </text>
-      )}
+      {(() => {
+        let labelHeight = 0;
+        if (autoLabel) {
+          labelHeight = 13;
+        } else if (node.label) {
+          labelHeight = 14;
+        }
+
+        const ageY = S / 2 + (labelHeight > 0 ? labelHeight + 11 : 14);
+        if (node.age || node.dob) {
+          labelHeight = labelHeight > 0 ? labelHeight + 11 : 14;
+        }
+
+        const conditionY = S / 2 + (labelHeight > 0 ? labelHeight + 11 : 14);
+        if (node.condition) {
+          labelHeight = labelHeight > 0 ? labelHeight + 11 : 14;
+        }
+
+        const genotypeOffset = cfg.config.genotypeOffset ?? 3;
+        const genotypeFontSize = cfg.config.genotypeFontSize ?? 12;
+        const genotypeY = S / 2 + labelHeight + genotypeFontSize + genotypeOffset;
+
+        const renderGenotype = (genotype: string) => {
+          const mutantColor = cfg.config.genotypeMutantColor || "#EF4444";
+          const wildtypeColor = cfg.config.genotypeWildtypeColor || "#4B5563";
+          const separatorColor = cfg.config.genotypeSeparatorColor || "#9CA3AF";
+
+          return Array.from(genotype).map((char, idx) => {
+            let fill = wildtypeColor;
+            let fontWeight = "normal";
+            if (char === "+") {
+              fill = mutantColor;
+              fontWeight = "bold";
+            } else if (char === "/") {
+              fill = separatorColor;
+            }
+            return (
+              <tspan key={idx} fill={fill} fontWeight={fontWeight}>
+                {char}
+              </tspan>
+            );
+          });
+        };
+
+        return (
+          <>
+            {autoLabel && <text x={0} y={S / 2 + 13} textAnchor="middle" fontSize={8} fill="hsl(var(--foreground) / 0.45)" style={{ userSelect: "none", fontFamily: "JetBrains Mono, monospace", letterSpacing: "0.05em" }}>{autoLabel}</text>}
+            {!autoLabel && node.label && <text x={0} y={S / 2 + 14} textAnchor="middle" fontSize={9} fill="hsl(var(--foreground))" style={{ userSelect: "none", fontFamily: "JetBrains Mono, monospace" }}>{node.label}</text>}
+            {node.age && <text x={0} y={ageY} textAnchor="middle" fontSize={8} fill="hsl(var(--foreground) / 0.55)" style={{ userSelect: "none", fontFamily: "JetBrains Mono, monospace" }}>{node.age}y</text>}
+            {node.dob && !node.age && <text x={0} y={ageY} textAnchor="middle" fontSize={8} fill="hsl(var(--foreground) / 0.5)" style={{ userSelect: "none", fontFamily: "JetBrains Mono, monospace" }}>{node.dob.length >= 4 ? `b.${node.dob.slice(0, 4)}` : node.dob}</text>}
+            {node.condition && (
+              <text x={0} y={conditionY}
+                textAnchor="middle" fontSize={8} fill="hsl(var(--foreground) / 0.65)" style={{ userSelect: "none", fontFamily: "JetBrains Mono, monospace", fontStyle: "italic" }}>
+                {node.condition.length > 18 ? node.condition.slice(0, 17) + "…" : node.condition}
+              </text>
+            )}
+            {cfg.config.showGenotypes && node.genotype && (
+              <text x={0} y={genotypeY}
+                textAnchor="middle" fontSize={cfg.config.genotypeFontSize ?? 12} style={{ userSelect: "none", fontFamily: "JetBrains Mono, monospace" }}>
+                {renderGenotype(node.genotype)}
+              </text>
+            )}
+          </>
+        );
+      })()}
       {showHint && hasEdges && (
         <>
           <rect x={-66} y={-S / 2 - 32} width={132} height={26} rx={6}

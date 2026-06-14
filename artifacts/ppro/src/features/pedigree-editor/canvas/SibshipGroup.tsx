@@ -1,6 +1,5 @@
 import { useMemo } from "react";
 import type { PedigreeNode, PedigreeAnnotation, PedigreeEdge } from "./types";
-import { NODE_SIZE } from "./types";
 import { useCanvasConfig } from "@/features/pedigree-editor/context/CanvasConfigContext";
 import {
   getIntermediateNodes,
@@ -45,6 +44,7 @@ export function computeFamilyChildYOffset(
   autoLabels?: Map<string, string>,
   parentOffsets?: Map<string, number>,
   edges?: PedigreeEdge[],
+  config?: { showGenotypes: boolean; genotypeFontSize: number; genotypeOffset: number }
 ): Map<string, number> {
   const result = new Map<string, number>();
   const nodeMap = new Map(nodes.map((n) => [n.id, n]));
@@ -73,14 +73,15 @@ export function computeFamilyChildYOffset(
     nodeSize,
     showAutoLabels,
     autoLabels,
-    parentOffsets
+    parentOffsets,
+    config
   );
 
   let maxNodeBottom = -Infinity;
   for (const n of [...parentIds.map((id) => nodeMap.get(id)), ...intermediateNodeIds].filter(Boolean) as PedigreeNode[]) {
     const nOff = parentOffsets?.get(n.id) ?? 0;
     const autoLabel = showAutoLabels ? autoLabels?.get(n.id) : undefined;
-    const labelH = computeLabelBelowHeight(n, autoLabel);
+    const labelH = computeLabelBelowHeight(n, autoLabel, config);
     const bottom = n.y + nOff + nodeSize / 2 + labelH;
     maxNodeBottom = Math.max(maxNodeBottom, bottom);
   }
@@ -95,7 +96,7 @@ export function computeFamilyChildYOffset(
   const idealBarY = childTopY - MIN_BAR_CHILD_GAP - sibTrack * 12;
   const minRequiredBarY = maxBottom + 22 + maxTrackIndex * 8;
   const barY = Math.max(idealBarY, minRequiredBarY);
-  const ABSOLUTE_MIN_GAP = 12;
+  const ABSOLUTE_MIN_GAP = MIN_BAR_CHILD_GAP;
   const delta = Math.max(0, barY + ABSOLUTE_MIN_GAP - childTopY);
 
   if (delta > 0) {
@@ -118,7 +119,7 @@ export function SibshipGroup({ parentIds, childIds, nodes, edges = [], invalid, 
   childOffsets?: Map<string, number>;
 }) {
   const cfg = useCanvasConfig();
-  const S = NODE_SIZE;
+  const S = cfg.config.nodeSize;
   const stroke = invalid ? "hsl(var(--destructive))" : cfg.config.edgeColor.startsWith("hsl(") ? "hsl(var(--foreground) / 0.5)" : cfg.config.edgeColor;
   const sw = invalid ? 2 : cfg.config.edgeWidthNormal;
   const dash = invalid ? "5 3" : undefined;
@@ -147,9 +148,10 @@ export function SibshipGroup({ parentIds, childIds, nodes, edges = [], invalid, 
       S,
       showAutoLabels,
       autoLabels,
-      parentOffsets
+      parentOffsets,
+      cfg.config
     ),
-    [parentIds, intermediateNodes, annotations, nodeMap, S, showAutoLabels, autoLabels, parentOffsets],
+    [parentIds, intermediateNodes, annotations, nodeMap, S, showAutoLabels, autoLabels, parentOffsets, cfg.config]
   );
 
   const maxNodeBottom = useMemo(() => {
@@ -160,12 +162,12 @@ export function SibshipGroup({ parentIds, childIds, nodes, edges = [], invalid, 
       if (!n) continue;
       const nOff = parentOffsets?.get(n.id) ?? 0;
       const autoLabel = showAutoLabels ? autoLabels?.get(n.id) : undefined;
-      const labelH = computeLabelBelowHeight(n, autoLabel);
+      const labelH = computeLabelBelowHeight(n, autoLabel, cfg.config);
       const bottom = n.y + nOff + S / 2 + labelH;
       maxB = Math.max(maxB, bottom);
     }
     return maxB;
-  }, [parentIds, intermediateNodes, nodeMap, S, showAutoLabels, autoLabels, parentOffsets]);
+  }, [parentIds, intermediateNodes, nodeMap, S, showAutoLabels, autoLabels, parentOffsets, cfg.config]);
 
   const twinMap = useMemo(() => {
     const map = new Map<string, { twinGroup: string; twinType?: "m" | "d" }>();
