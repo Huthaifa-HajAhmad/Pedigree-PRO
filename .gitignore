@@ -95,12 +95,11 @@ test-results/
 # Typecheck helper scripts
 typecheck.bat
 
-# Local-only files
+# Local-only files and folders
 README.local.md
 landing-page.png
-
+context (don't push)/
 
 # Test data artifacts
 hpcsv_family-1.utf8
 *.utf8
-
