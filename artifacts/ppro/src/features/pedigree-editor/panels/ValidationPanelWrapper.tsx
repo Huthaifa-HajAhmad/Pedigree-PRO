@@ -32,7 +32,7 @@ export function ValidationPanelWrapper({
           ? <AlertTriangle className={`w-3.5 h-3.5 ${hasErrors ? "text-red-400" : "text-yellow-400"}`} />
           : <ShieldCheck className="w-3.5 h-3.5 text-primary" />
       }
-      width="w-72"
+      width="w-80"
       onClose={onClose}
       actions={
         hasIssues ? (

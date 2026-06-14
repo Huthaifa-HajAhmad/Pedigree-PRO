@@ -216,7 +216,18 @@ export function ReadOnlyCanvas({ canvas, showGrid = false, showAutoLabels = fals
     for (const py of sortedRowYs) {
       const rowFamilies = familiesByRow.get(py)!;
       for (const fam of rowFamilies) {
-        const familyMap = computeFamilyChildYOffset(fam.parentIds, fam.childIds, canvas.nodes, canvas.annotations, NODE_SIZE, showAutoLabels, autoLabels, offsets, canvas.edges);
+        const familyMap = computeFamilyChildYOffset(
+          fam.parentIds,
+          fam.childIds,
+          canvas.nodes,
+          canvas.annotations,
+          config.nodeSize,
+          showAutoLabels,
+          autoLabels,
+          offsets,
+          canvas.edges,
+          config
+        );
         for (const [nid, delta] of familyMap) offsets.set(nid, delta);
       }
 
@@ -241,7 +252,7 @@ export function ReadOnlyCanvas({ canvas, showGrid = false, showAutoLabels = fals
       }
     }
     return offsets;
-  }, [canvas.nodes, canvas.edges, canvas.annotations, showAutoLabels, autoLabels]);
+  }, [canvas.nodes, canvas.edges, canvas.annotations, showAutoLabels, autoLabels, config.genotypeFontSize, config.genotypeOffset, config.showGenotypes, config.nodeSize]);
 
   return (
     <div className="flex-1 overflow-hidden relative canvas-spared flex items-center justify-center p-4">

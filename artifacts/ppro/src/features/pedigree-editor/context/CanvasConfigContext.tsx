@@ -17,6 +17,12 @@ export interface CanvasConfig {
   annBold: boolean;
   annUppercase: boolean;
   gridOpacity: number;
+  genotypeMutantColor: string;
+  genotypeWildtypeColor: string;
+  genotypeSeparatorColor: string;
+  showGenotypes: boolean;
+  genotypeFontSize: number;
+  genotypeOffset: number;
 }
 
 export const DEFAULT_CANVAS_CONFIG: CanvasConfig = {
@@ -35,6 +41,12 @@ export const DEFAULT_CANVAS_CONFIG: CanvasConfig = {
   annBold: true,
   annUppercase: false,
   gridOpacity: 0.10,
+  genotypeMutantColor: "#EF4444",
+  genotypeWildtypeColor: "#4B5563",
+  genotypeSeparatorColor: "#9CA3AF",
+  showGenotypes: true,
+  genotypeFontSize: 12,
+  genotypeOffset: 3,
 };
 
 const STORAGE_KEY = "ppro_canvas_config";

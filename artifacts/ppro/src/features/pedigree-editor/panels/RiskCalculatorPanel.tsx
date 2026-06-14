@@ -32,7 +32,7 @@ export function RiskCalculatorPanel({
   return (
     <div className="space-y-4">
       {/* Mode tabs - styled as a segmented control */}
-      <div className="bg-muted/50 border border-border/30 rounded-lg p-1">
+      <div className="bg-muted/60 border border-border/60 rounded-lg p-1">
         <div className="grid grid-cols-4 gap-1">
           {MODES.map((m) => (
             <button
@@ -42,8 +42,8 @@ export function RiskCalculatorPanel({
               title={m.title}
               className={`py-1.5 rounded-md text-xs font-semibold transition-all duration-200 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring ${
                 mode === m.id
-                  ? "bg-background text-primary shadow-xs border border-border/40"
-                  : "text-muted-foreground hover:text-foreground hover:bg-accent/10"
+                  ? "bg-card text-primary shadow-xs border border-border/70"
+                  : "text-muted-foreground hover:text-foreground hover:bg-card/25"
               }`}
             >
               {m.label}
@@ -93,12 +93,13 @@ export function RiskCalculatorPanel({
 }
 
 export function RiskPanelSidebar({
-  canvas, mode, onModeChange, onClose,
+  canvas, mode, onModeChange, onClose, width,
 }: {
   canvas: { nodes: PedigreeNode[]; edges: PedigreeEdge[] };
   mode: InheritanceMode;
   onModeChange: (m: InheritanceMode) => void;
   onClose: () => void;
+  width?: string;
 }) {
   const [focusId, setFocusId] = useState<string | null>(null);
 
@@ -134,7 +135,7 @@ export function RiskPanelSidebar({
   const validNodes = canvas.nodes.filter((n) => n.type !== "sab" && n.type !== "pregnancy");
 
   return (
-    <PanelShell title="Risk Calculator" icon={<TrendingUp className="w-4 h-4" />} onClose={onClose}>
+    <PanelShell title="Risk Calculator" icon={<TrendingUp className="w-4 h-4" />} onClose={onClose} width={width}>
       <PanelSection title="Inheritance Mode">
         <div className="grid grid-cols-4 gap-1">
           {MODES.map((m) => (

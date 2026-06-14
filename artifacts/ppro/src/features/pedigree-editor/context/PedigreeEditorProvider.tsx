@@ -468,13 +468,13 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
 
   const handleNodeContextMenu = useCallback((nid: string, e: React.MouseEvent) => {
     e.preventDefault(); e.stopPropagation();
-    dispatch({ type: "SET_STATE", patch: { selectedIds: new Set([nid]), contextMenu: { nodeId: nid, x: e.clientX, y: e.clientY } } });
+    dispatch({ type: "SET_STATE", patch: { selectedIds: new Set([nid]), contextMenu: { nodeId: nid, x: e.clientX, y: e.clientY }, showSettings: false } });
   }, []);
 
   const handleNodeDoubleClick = useCallback((nid: string, e: React.MouseEvent) => {
     e.stopPropagation();
     if (Date.now() - lastDragEndTimeRef.current < 400) return;
-    dispatch({ type: "SET_STATE", patch: { selectedIds: new Set([nid]), editModalNodeId: nid } });
+    dispatch({ type: "SET_STATE", patch: { selectedIds: new Set([nid]), editModalNodeId: nid, showSettings: false } });
   }, []);
 
   const deleteSelected = useCallback(() => {
@@ -606,11 +606,11 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
       } else {
         const n = new Set(s.selectedIds);
         n.has(nid) ? n.delete(nid) : n.add(nid);
-        dispatch({ type: "SET_STATE", patch: { selectedIds: n } });
+        dispatch({ type: "SET_STATE", patch: { selectedIds: n, showSettings: false } });
       }
     }
     else {
-      dispatch({ type: "SET_STATE", patch: { selectedIds: new Set([nid]), showRiskPanel: false, showValidation: false, showVersions: false } });
+      dispatch({ type: "SET_STATE", patch: { selectedIds: new Set([nid]), showRiskPanel: false, showValidation: false, showVersions: false, showSettings: false } });
       justCtrlSelectedNodeIdRef.current = null;
     }
   }, []);

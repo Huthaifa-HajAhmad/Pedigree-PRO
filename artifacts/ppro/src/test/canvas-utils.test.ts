@@ -7,6 +7,7 @@ import {
   computeRelationDropY,
   computeCrossingXCoordinates,
   computeVerticalCrossingYCoordinates,
+  computeLabelBelowHeight,
 } from "../features/pedigree-editor/canvas/canvasUtils";
 
 const baseNode = {
@@ -232,5 +233,32 @@ describe("canvasUtils loop tracking", () => {
     );
     expect(crossings).toContain(184); // e2
     expect(crossings).toContain(192); // e1
+  });
+
+  it("computes label below height correctly with genotypes", () => {
+    const node: PedigreeNode = {
+      id: "n1",
+      x: 100,
+      y: 150,
+      type: "male",
+      ...baseNode,
+      label: "Alice",
+      genotype: "+/-",
+    };
+
+    const hDefault = computeLabelBelowHeight(node);
+    // label Alice = 14px, genotype +/- (default 12px size + 3px offset) = 15px. Total = 29px
+    expect(hDefault).toBe(29);
+
+    const nodeNoGenotype: PedigreeNode = {
+      id: "n2",
+      x: 100,
+      y: 150,
+      type: "male",
+      ...baseNode,
+      label: "Alice",
+    };
+    const hNoGenotype = computeLabelBelowHeight(nodeNoGenotype);
+    expect(hNoGenotype).toBe(14);
   });
 });

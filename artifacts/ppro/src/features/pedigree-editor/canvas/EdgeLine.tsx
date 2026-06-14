@@ -32,12 +32,12 @@ export const EdgeLine = memo(function EdgeLine({ edge, nodes, invalid, renderOff
 
   const intermediateNodes = getIntermediateNodes(left, right, nodes, renderOffsets);
   const hasIntermediate = intermediateNodes.length > 0;
-  const baseDropY = hasIntermediate ? computeRelationDropY(left, right, intermediateNodes, nodes, annotations, S, renderOffsets, showAutoLabels, autoLabels) : 0;
+  const baseDropY = hasIntermediate ? computeRelationDropY(left, right, intermediateNodes, nodes, annotations, S, renderOffsets, showAutoLabels, autoLabels, cfg.config) : 0;
   const trackIndex = hasIntermediate ? computeEdgeLoopTrack(edge.id, edges, nodes, renderOffsets) : 0;
   const yDrop = baseDropY + trackIndex * 8;
 
   const crossings = hasIntermediate
-    ? computeCrossingXCoordinates(edge, yDrop, leftX, rightX, edges, nodes, renderOffsets, S, showAutoLabels, autoLabels)
+    ? computeCrossingXCoordinates(edge, yDrop, leftX, rightX, edges, nodes, renderOffsets, S, showAutoLabels, autoLabels, cfg.config)
     : [];
 
   const buildPath = (

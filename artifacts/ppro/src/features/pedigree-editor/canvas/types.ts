@@ -17,6 +17,7 @@ export interface PedigreeNode {
   y: number;
   pinned?: boolean;
   color?: string;
+  genotype?: string;
 }
 
 export interface PedigreeEdge {

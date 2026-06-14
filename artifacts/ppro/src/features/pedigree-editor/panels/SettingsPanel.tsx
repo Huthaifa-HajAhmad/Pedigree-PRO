@@ -1,4 +1,4 @@
-import { Palette, Ruler, Hash, Check, RotateCcw, Settings, Type, Grid, Eye } from "lucide-react";
+import { Palette, Ruler, Hash, Check, RotateCcw, Settings, Type, Grid, Eye, Dna } from "lucide-react";
 import { PanelShell } from "@/components/shared/panels/PanelShell";
 import { PanelSection } from "@/components/shared/panels/PanelSection";
 import { usePedigreeEditor } from "@/features/pedigree-editor/context";
@@ -125,7 +125,7 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
                 step={0.05}
                 value={config.gridOpacity ?? 0.10}
                 onChange={(e) => updateConfig({ gridOpacity: Number(e.target.value) })}
-                className="w-full accent-primary h-1.5"
+                className="w-full cursor-pointer border-none outline-none focus-visible:ring-1 focus-visible:ring-primary"
               />
             </div>
           </div>
@@ -136,7 +136,7 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
           <div className="space-y-3">
             <ToggleRow
               label="Generation Labels"
-              description="Show auto-generated identifiers (I-1, II-3)"
+              description="Show auto-generated labels (I-1, II-3)"
               checked={state.showAutoLabels}
               onChange={() => dispatch({ type: "SET_STATE", patch: { showAutoLabels: !state.showAutoLabels } })}
               icon={<Hash className="w-3.5 h-3.5" />}
@@ -148,7 +148,7 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
               onChange={() => dispatch({ type: "SET_STATE", patch: { showGenerationRail: !state.showGenerationRail } })}
               icon={<Eye className="w-3.5 h-3.5" />}
             />
-            <ToggleRow
+             <ToggleRow
               label="Live Layout"
               description="Auto-arrange canvas during drawing"
               checked={state.liveLayout}
@@ -158,7 +158,6 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
               }}
               icon={<Settings className="w-3.5 h-3.5" />}
             />
-
             <div className="pt-2 space-y-2 border-t border-border/40">
               <button
                 type="button"
@@ -206,223 +205,326 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
           </div>
         </PanelSection>
 
+        {/* Section: Segregation & Genotypes */}
+        <PanelSection title="Segregation & Genotypes" icon={<Dna className="w-3.5 h-3.5" />} defaultOpen={true}>
+          <div className="space-y-4">
+            <ToggleRow
+              label="Show Genotypes"
+              description="Show variant/wild-type status under symbols"
+              checked={config.showGenotypes}
+              onChange={() => updateConfig({ showGenotypes: !config.showGenotypes })}
+              icon={<Hash className="w-3.5 h-3.5" />}
+            />
+
+            {config.showGenotypes && (
+              <div className="pl-6 pt-1.5 pb-2 border-l-2 border-primary/20 space-y-4 mt-1 ml-1.5 animate-in slide-in-from-left-2 duration-200">
+                {/* Font Size Slider */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between text-[11px]">
+                    <span className="text-muted-foreground font-semibold uppercase tracking-wider">Genotype Size</span>
+                    <span className="font-mono text-primary font-bold">{config.genotypeFontSize ?? 12}px</span>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <span className="text-[10px] text-muted-foreground">8px</span>
+                    <input
+                      type="range"
+                      min={8}
+                      max={24}
+                      step={1}
+                      value={config.genotypeFontSize ?? 12}
+                      onChange={(e) => updateConfig({ genotypeFontSize: parseInt(e.target.value) })}
+                      className="flex-1 cursor-pointer border-none outline-none focus-visible:ring-1 focus-visible:ring-primary"
+                    />
+                    <span className="text-[10px] text-muted-foreground">24px</span>
+                  </div>
+                </div>
+
+                {/* Offset Slider */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between text-[11px]">
+                    <span className="text-muted-foreground font-semibold uppercase tracking-wider">Genotype Offset</span>
+                    <span className="font-mono text-primary font-bold">{config.genotypeOffset ?? 3}px</span>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <span className="text-[10px] text-muted-foreground">0px</span>
+                    <input
+                      type="range"
+                      min={0}
+                      max={12}
+                      step={1}
+                      value={config.genotypeOffset ?? 3}
+                      onChange={(e) => updateConfig({ genotypeOffset: parseInt(e.target.value) })}
+                      className="flex-1 cursor-pointer border-none outline-none focus-visible:ring-1 focus-visible:ring-primary"
+                    />
+                    <span className="text-[10px] text-muted-foreground">12px</span>
+                  </div>
+                </div>
+
+                {/* Colors */}
+                <div className="space-y-2">
+                  <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold block">Genotype Colors</span>
+                  <div className="grid grid-cols-3 gap-2.5">
+                    {[
+                      { key: "genotypeMutantColor" as const, label: "Mutant (+)", defaultVal: "#EF4444" },
+                      { key: "genotypeWildtypeColor" as const, label: "Wild-type (-)", defaultVal: "#4B5563" },
+                      { key: "genotypeSeparatorColor" as const, label: "Separator (/)", defaultVal: "#9CA3AF" }
+                    ].map(({ key, label, defaultVal }) => (
+                      <div key={key} className="flex flex-col gap-1 min-w-0">
+                        <span className="text-[9px] text-muted-foreground truncate font-medium" title={label}>{label}</span>
+                        <div className="flex items-center gap-1.5">
+                          <label
+                            className="relative w-5 h-5 rounded overflow-hidden flex-shrink-0 border border-border/85 cursor-pointer shadow-xs transition-transform hover:scale-110"
+                            style={{ background: config[key] || defaultVal }}
+                          >
+                            <input
+                              type="color"
+                              value={config[key] || defaultVal}
+                              onChange={(e) => updateConfig({ [key]: e.target.value })}
+                              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                            />
+                          </label>
+                          <span className="text-[8px] font-mono text-muted-foreground/80 truncate uppercase">{(config[key] || defaultVal).slice(1)}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </PanelSection>
+
         {/* Section 4: Canvas Geometry & Spacing */}
         <PanelSection title="Geometry & Spacing" icon={<Ruler className="w-3.5 h-3.5" />} defaultOpen={false}>
           <div className="space-y-4">
-            {/* Node Size */}
-            <div className="space-y-1">
-              <div className="flex items-center justify-between text-xs">
-                <div className="flex items-center gap-1.5">
-                  <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">Node Size</span>
-                  {(config.nodeSize !== DEFAULT_CANVAS_CONFIG.nodeSize) && (
-                    <button
-                      type="button"
-                      onClick={() => updateConfig({ nodeSize: DEFAULT_CANVAS_CONFIG.nodeSize })}
-                      className="text-[9px] text-primary hover:text-primary-foreground hover:bg-primary/20 px-1 rounded transition-colors"
-                      title={`Reset to ${DEFAULT_CANVAS_CONFIG.nodeSize}px`}
-                    >
-                      Reset
-                    </button>
-                  )}
-                </div>
-                <span className="font-mono text-foreground tabular-nums">{config.nodeSize}px</span>
+            {/* Node Configuration Group */}
+            <div className="p-3 rounded-lg border border-border/50 bg-card/50 space-y-3.5 shadow-xs animate-in fade-in duration-200">
+              <div className="text-[10px] font-bold text-foreground/80 uppercase tracking-wider flex items-center gap-1.5 border-b border-border/40 pb-1.5 mb-1">
+                Node Configuration
               </div>
-              <input
-                type="range"
-                min={28}
-                max={64}
-                step={2}
-                value={config.nodeSize}
-                onChange={(e) => updateConfig({ nodeSize: Number(e.target.value) })}
-                className="w-full accent-primary h-1.5"
-              />
-            </div>
 
-            {/* Sibling Gap */}
-            <div className="space-y-1">
-              <div className="flex items-center justify-between text-xs">
-                <div className="flex items-center gap-1.5">
-                  <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">Sibling Gap (H)</span>
-                  {(config.nodeGap !== DEFAULT_CANVAS_CONFIG.nodeGap) && (
-                    <button
-                      type="button"
-                      onClick={() => updateConfig({ nodeGap: DEFAULT_CANVAS_CONFIG.nodeGap })}
-                      className="text-[9px] text-primary hover:text-primary-foreground hover:bg-primary/20 px-1 rounded transition-colors"
-                      title={`Reset to ${DEFAULT_CANVAS_CONFIG.nodeGap}px`}
-                    >
-                      Reset
-                    </button>
-                  )}
+              {/* Node Size */}
+              <div className="space-y-1 border-b border-border/35 pb-4 pt-1">
+                <div className="flex items-center justify-between text-xs">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">Node Size</span>
+                    {(config.nodeSize !== DEFAULT_CANVAS_CONFIG.nodeSize) && (
+                      <button
+                        type="button"
+                        onClick={() => updateConfig({ nodeSize: DEFAULT_CANVAS_CONFIG.nodeSize })}
+                        className="text-[9px] text-primary hover:text-primary-foreground hover:bg-primary/20 px-1 rounded transition-colors"
+                        title={`Reset to ${DEFAULT_CANVAS_CONFIG.nodeSize}px`}
+                      >
+                        Reset
+                      </button>
+                    )}
+                  </div>
+                  <span className="font-mono text-foreground tabular-nums">{config.nodeSize}px</span>
                 </div>
-                <span className="font-mono text-foreground tabular-nums">{config.nodeGap}px</span>
-              </div>
-              <input
-                type="range"
-                min={60}
-                max={150}
-                step={5}
-                value={config.nodeGap}
-                onChange={(e) => updateConfig({ nodeGap: Number(e.target.value) })}
-                className="w-full accent-primary h-1.5"
-              />
-            </div>
-
-            {/* Generation Spacing */}
-            <div className="space-y-1">
-              <div className="flex items-center justify-between text-xs">
-                <div className="flex items-center gap-1.5">
-                  <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">Gen Gap (V)</span>
-                  {(config.genGrid !== DEFAULT_CANVAS_CONFIG.genGrid) && (
-                    <button
-                      type="button"
-                      onClick={() => updateConfig({ genGrid: DEFAULT_CANVAS_CONFIG.genGrid })}
-                      className="text-[9px] text-primary hover:text-primary-foreground hover:bg-primary/20 px-1 rounded transition-colors"
-                      title={`Reset to ${DEFAULT_CANVAS_CONFIG.genGrid}px`}
-                    >
-                      Reset
-                    </button>
-                  )}
-                </div>
-                <span className="font-mono text-foreground tabular-nums">{config.genGrid}px</span>
-              </div>
-              <input
-                type="range"
-                min={80}
-                max={200}
-                step={10}
-                value={config.genGrid}
-                onChange={(e) => updateConfig({ genGrid: Number(e.target.value) })}
-                className="w-full accent-primary h-1.5"
-              />
-            </div>
-
-            {/* Carrier Dot Size */}
-            <div className="space-y-1">
-              <div className="flex items-center justify-between text-xs">
-                <div className="flex items-center gap-1.5">
-                  <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">Carrier Dot Size</span>
-                  {(config.carrierDotRadius !== DEFAULT_CANVAS_CONFIG.carrierDotRadius) && (
-                    <button
-                      type="button"
-                      onClick={() => updateConfig({ carrierDotRadius: DEFAULT_CANVAS_CONFIG.carrierDotRadius })}
-                      className="text-[9px] text-primary hover:text-primary-foreground hover:bg-primary/20 px-1 rounded transition-colors"
-                      title={`Reset to ${DEFAULT_CANVAS_CONFIG.carrierDotRadius}px`}
-                    >
-                      Reset
-                    </button>
-                  )}
-                </div>
-                <span className="font-mono text-foreground tabular-nums">{config.carrierDotRadius}px</span>
-              </div>
-              <input
-                type="range"
-                min={3}
-                max={8}
-                step={1}
-                value={config.carrierDotRadius}
-                onChange={(e) => updateConfig({ carrierDotRadius: Number(e.target.value) })}
-                className="w-full accent-primary h-1.5"
-              />
-            </div>
-
-            {/* Node Border Color */}
-            <div className="space-y-1.5">
-              <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">Node Border Color</span>
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => updateConfig({ nodeStrokeColor: "#000000" })}
-                  className="w-6 h-6 rounded-full border border-border/50 flex-shrink-0 transition-all hover:scale-110"
-                  style={{
-                    background: "#000000",
-                    outline: (!config.nodeStrokeColor || config.nodeStrokeColor === "#000000") ? "2px solid hsl(var(--primary))" : "2px solid transparent",
-                    outlineOffset: 2,
-                  }}
-                  aria-label="Black node border color"
-                  title="Black"
+                <input
+                  type="range"
+                  min={28}
+                  max={64}
+                  step={2}
+                  value={config.nodeSize}
+                  onChange={(e) => updateConfig({ nodeSize: Number(e.target.value) })}
+                  className="w-full cursor-pointer border-none outline-none focus-visible:ring-1 focus-visible:ring-primary"
                 />
-                <label
-                  className="relative w-6 h-6 rounded-full overflow-hidden flex-shrink-0 transition-all hover:scale-110 cursor-pointer"
-                  style={{
-                    boxShadow: "0 0 0 1px hsl(var(--border)/0.3)",
-                    background: "conic-gradient(red, yellow, lime, aqua, blue, magenta, red)",
-                    outline: (config.nodeStrokeColor && config.nodeStrokeColor !== "#000000") ? "2px solid hsl(var(--primary))" : "2px solid transparent",
-                    outlineOffset: 2,
-                  }}
-                  title="Custom color"
-                >
-                  <input
-                    type="color"
-                    value={config.nodeStrokeColor?.startsWith("hsl(") ? "#000000" : (config.nodeStrokeColor ?? "#000000")}
-                    onChange={(e) => updateConfig({ nodeStrokeColor: e.target.value })}
-                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                  />
-                </label>
               </div>
-            </div>
 
-            {/* Edge Width */}
-            <div className="space-y-1">
-              <div className="flex items-center justify-between text-xs">
-                <div className="flex items-center gap-1.5">
-                  <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">Edge Width</span>
-                  {(config.edgeWidthNormal !== DEFAULT_CANVAS_CONFIG.edgeWidthNormal) && (
-                    <button
-                      type="button"
-                      onClick={() => updateConfig({ edgeWidthNormal: DEFAULT_CANVAS_CONFIG.edgeWidthNormal })}
-                      className="text-[9px] text-primary hover:text-primary-foreground hover:bg-primary/20 px-1 rounded transition-colors"
-                      title={`Reset to ${DEFAULT_CANVAS_CONFIG.edgeWidthNormal}px`}
-                    >
-                      Reset
-                    </button>
-                  )}
+              {/* Sibling Gap */}
+              <div className="space-y-1 border-b border-border/35 pb-4 pt-1">
+                <div className="flex items-center justify-between text-xs">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">Sibling Gap (H)</span>
+                    {(config.nodeGap !== DEFAULT_CANVAS_CONFIG.nodeGap) && (
+                      <button
+                        type="button"
+                        onClick={() => updateConfig({ nodeGap: DEFAULT_CANVAS_CONFIG.nodeGap })}
+                        className="text-[9px] text-primary hover:text-primary-foreground hover:bg-primary/20 px-1 rounded transition-colors"
+                        title={`Reset to ${DEFAULT_CANVAS_CONFIG.nodeGap}px`}
+                      >
+                        Reset
+                      </button>
+                    )}
+                  </div>
+                  <span className="font-mono text-foreground tabular-nums">{config.nodeGap}px</span>
                 </div>
-                <span className="font-mono text-foreground tabular-nums">{config.edgeWidthNormal}px</span>
+                <input
+                  type="range"
+                  min={60}
+                  max={150}
+                  step={5}
+                  value={config.nodeGap}
+                  onChange={(e) => updateConfig({ nodeGap: Number(e.target.value) })}
+                  className="w-full cursor-pointer border-none outline-none focus-visible:ring-1 focus-visible:ring-primary"
+                />
               </div>
-              <input
-                type="range"
-                min={0.5}
-                max={4}
-                step={0.5}
-                value={config.edgeWidthNormal}
-                onChange={(e) => updateConfig({ edgeWidthNormal: Number(e.target.value) })}
-                className="w-full accent-primary h-1.5"
-              />
+
+              {/* Generation Spacing */}
+              <div className="space-y-1 border-b border-border/35 pb-4 pt-1">
+                <div className="flex items-center justify-between text-xs">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">Gen Gap (V)</span>
+                    {(config.genGrid !== DEFAULT_CANVAS_CONFIG.genGrid) && (
+                      <button
+                        type="button"
+                        onClick={() => updateConfig({ genGrid: DEFAULT_CANVAS_CONFIG.genGrid })}
+                        className="text-[9px] text-primary hover:text-primary-foreground hover:bg-primary/20 px-1 rounded transition-colors"
+                        title={`Reset to ${DEFAULT_CANVAS_CONFIG.genGrid}px`}
+                      >
+                        Reset
+                      </button>
+                    )}
+                  </div>
+                  <span className="font-mono text-foreground tabular-nums">{config.genGrid}px</span>
+                </div>
+                <input
+                  type="range"
+                  min={80}
+                  max={200}
+                  step={10}
+                  value={config.genGrid}
+                  onChange={(e) => updateConfig({ genGrid: Number(e.target.value) })}
+                  className="w-full cursor-pointer border-none outline-none focus-visible:ring-1 focus-visible:ring-primary"
+                />
+              </div>
+
+              {/* Carrier Dot Size */}
+              <div className="space-y-1 border-b border-border/35 pb-4 pt-1">
+                <div className="flex items-center justify-between text-xs">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">Carrier Dot Size</span>
+                    {(config.carrierDotRadius !== DEFAULT_CANVAS_CONFIG.carrierDotRadius) && (
+                      <button
+                        type="button"
+                        onClick={() => updateConfig({ carrierDotRadius: DEFAULT_CANVAS_CONFIG.carrierDotRadius })}
+                        className="text-[9px] text-primary hover:text-primary-foreground hover:bg-primary/20 px-1 rounded transition-colors"
+                        title={`Reset to ${DEFAULT_CANVAS_CONFIG.carrierDotRadius}px`}
+                      >
+                        Reset
+                      </button>
+                    )}
+                  </div>
+                  <span className="font-mono text-foreground tabular-nums">{config.carrierDotRadius}px</span>
+                </div>
+                <input
+                  type="range"
+                  min={3}
+                  max={8}
+                  step={1}
+                  value={config.carrierDotRadius}
+                  onChange={(e) => updateConfig({ carrierDotRadius: Number(e.target.value) })}
+                  className="w-full cursor-pointer border-none outline-none focus-visible:ring-1 focus-visible:ring-primary"
+                />
+              </div>
+
+              {/* Node Border Color */}
+              <div className="space-y-2.5 pt-1.5 pb-1">
+                <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold block">Node Border Color</span>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => updateConfig({ nodeStrokeColor: "#000000" })}
+                    className="w-6 h-6 rounded-full border border-border/50 flex-shrink-0 transition-all hover:scale-110"
+                    style={{
+                      background: "#000000",
+                      outline: (!config.nodeStrokeColor || config.nodeStrokeColor === "#000000") ? "2px solid hsl(var(--primary))" : "2px solid transparent",
+                      outlineOffset: 2,
+                    }}
+                    aria-label="Black node border color"
+                    title="Black"
+                  />
+                  <label
+                    className="relative w-6 h-6 rounded-full overflow-hidden flex-shrink-0 transition-all hover:scale-110 cursor-pointer"
+                    style={{
+                      boxShadow: "0 0 0 1px hsl(var(--border)/0.3)",
+                      background: "conic-gradient(red, yellow, lime, aqua, blue, magenta, red)",
+                      outline: (config.nodeStrokeColor && config.nodeStrokeColor !== "#000000") ? "2px solid hsl(var(--primary))" : "2px solid transparent",
+                      outlineOffset: 2,
+                    }}
+                    title="Custom color"
+                  >
+                    <input
+                      type="color"
+                      value={config.nodeStrokeColor?.startsWith("hsl(") ? "#000000" : (config.nodeStrokeColor ?? "#000000")}
+                      onChange={(e) => updateConfig({ nodeStrokeColor: e.target.value })}
+                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                    />
+                  </label>
+                </div>
+              </div>
             </div>
 
-            {/* Edge Color */}
-            <div className="space-y-1.5">
-              <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">Edge Color</span>
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => updateConfig({ edgeColor: "#000000" })}
-                  className="w-6 h-6 rounded-full border border-border/50 flex-shrink-0 transition-all hover:scale-110"
-                  style={{
-                    background: "#000000",
-                    outline: (!config.edgeColor || config.edgeColor === "#000000") ? "2px solid hsl(var(--primary))" : "2px solid transparent",
-                    outlineOffset: 2,
-                  }}
-                  aria-label="Black edge color"
-                  title="Black"
+            {/* Edge Configuration Group */}
+            <div className="p-3 rounded-lg border border-border/50 bg-card/50 space-y-3 shadow-xs animate-in fade-in duration-200">
+              <div className="text-[10px] font-bold text-foreground/80 uppercase tracking-wider flex items-center gap-1.5 border-b border-border/40 pb-1.5 mb-1">
+                Edge Configuration
+              </div>
+
+              {/* Edge Width */}
+              <div className="space-y-1 border-b border-border/35 pb-4 pt-1">
+                <div className="flex items-center justify-between text-xs">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">Edge Width</span>
+                    {(config.edgeWidthNormal !== DEFAULT_CANVAS_CONFIG.edgeWidthNormal) && (
+                      <button
+                        type="button"
+                        onClick={() => updateConfig({ edgeWidthNormal: DEFAULT_CANVAS_CONFIG.edgeWidthNormal })}
+                        className="text-[9px] text-primary hover:text-primary-foreground hover:bg-primary/20 px-1 rounded transition-colors"
+                        title={`Reset to ${DEFAULT_CANVAS_CONFIG.edgeWidthNormal}px`}
+                      >
+                        Reset
+                      </button>
+                    )}
+                  </div>
+                  <span className="font-mono text-foreground tabular-nums">{config.edgeWidthNormal}px</span>
+                </div>
+                <input
+                  type="range"
+                  min={0.5}
+                  max={4}
+                  step={0.5}
+                  value={config.edgeWidthNormal}
+                  onChange={(e) => updateConfig({ edgeWidthNormal: Number(e.target.value) })}
+                  className="w-full cursor-pointer border-none outline-none focus-visible:ring-1 focus-visible:ring-primary"
                 />
-                <label
-                  className="relative w-6 h-6 rounded-full overflow-hidden flex-shrink-0 transition-all hover:scale-110 cursor-pointer"
-                  style={{
-                    boxShadow: "0 0 0 1px hsl(var(--border)/0.3)",
-                    background: "conic-gradient(red, yellow, lime, aqua, blue, magenta, red)",
-                    outline: (config.edgeColor && config.edgeColor !== "#000000") ? "2px solid hsl(var(--primary))" : "2px solid transparent",
-                    outlineOffset: 2,
-                  }}
-                  title="Custom color"
-                >
-                  <input
-                    type="color"
-                    value={config.edgeColor?.startsWith("hsl(") ? "#000000" : (config.edgeColor ?? "#000000")}
-                    onChange={(e) => updateConfig({ edgeColor: e.target.value })}
-                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+              </div>
+
+              {/* Edge Color */}
+              <div className="space-y-2.5 pt-1.5 pb-1">
+                <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold block">Edge Color</span>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => updateConfig({ edgeColor: "#000000" })}
+                    className="w-6 h-6 rounded-full border border-border/50 flex-shrink-0 transition-all hover:scale-110"
+                    style={{
+                      background: "#000000",
+                      outline: (!config.edgeColor || config.edgeColor === "#000000") ? "2px solid hsl(var(--primary))" : "2px solid transparent",
+                      outlineOffset: 2,
+                    }}
+                    aria-label="Black edge color"
+                    title="Black"
                   />
-                </label>
+                  <label
+                    className="relative w-6 h-6 rounded-full overflow-hidden flex-shrink-0 transition-all hover:scale-110 cursor-pointer"
+                    style={{
+                      boxShadow: "0 0 0 1px hsl(var(--border)/0.3)",
+                      background: "conic-gradient(red, yellow, lime, aqua, blue, magenta, red)",
+                      outline: (config.edgeColor && config.edgeColor !== "#000000") ? "2px solid hsl(var(--primary))" : "2px solid transparent",
+                      outlineOffset: 2,
+                    }}
+                    title="Custom color"
+                  >
+                    <input
+                      type="color"
+                      value={config.edgeColor?.startsWith("hsl(") ? "#000000" : (config.edgeColor ?? "#000000")}
+                      onChange={(e) => updateConfig({ edgeColor: e.target.value })}
+                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                    />
+                  </label>
+                </div>
               </div>
             </div>
           </div>

@@ -25,7 +25,7 @@ export function VersionHistoryPanel({ onClose }: { onClose: () => void }) {
       title="Version History"
       icon={<Clock className="w-3.5 h-3.5" />}
       onClose={onClose}
-      width="w-72"
+      width="w-80"
       actions={
         <button
           type="button"

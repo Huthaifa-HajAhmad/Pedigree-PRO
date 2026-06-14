@@ -1,3 +1,4 @@
+import { getModuleCanvasConfig } from "@/features/pedigree-editor/context/CanvasConfigContext";
 import type { PedigreeNode, PedigreeAnnotation, PedigreeEdge } from "./types";
 
 const ROW_TOLERANCE = 30; // standard tolerance to group nodes on the same horizontal row
@@ -33,12 +34,20 @@ export function getIntermediateNodes(
 /**
  * Computes the vertical height occupied by a node's labels below the node box.
  */
-export function computeLabelBelowHeight(node: PedigreeNode, autoLabel?: string): number {
+export function computeLabelBelowHeight(
+  node: PedigreeNode,
+  autoLabel?: string,
+  config?: { showGenotypes: boolean; genotypeFontSize: number; genotypeOffset: number }
+): number {
+  const cfg = config || getModuleCanvasConfig();
   let h = 0;
   if (autoLabel) h = 13;
   if (node.label) h = autoLabel ? 24 : 14;
   if (node.age || node.dob) h += 11;
   if (node.condition) h += 11;
+  if (cfg.showGenotypes && node.genotype) {
+    h += (cfg.genotypeFontSize ?? 12) + (cfg.genotypeOffset ?? 3);
+  }
   return h;
 }
 
@@ -53,6 +62,7 @@ export function computeAnnotationMaxBottom(
   showAutoLabels: boolean,
   autoLabels?: Map<string, string>,
   parentOffsets?: Map<string, number>,
+  config?: { showGenotypes: boolean; genotypeFontSize: number; genotypeOffset: number }
 ): number {
   let maxBottom = -Infinity;
   const parentBelowMap = new Map<string, PedigreeAnnotation[]>();
@@ -68,7 +78,7 @@ export function computeAnnotationMaxBottom(
     if (!p) continue;
     const pOff = parentOffsets?.get(pid) ?? 0;
     const autoLabel = showAutoLabels ? autoLabels?.get(p.id) : undefined;
-    const labelH = computeLabelBelowHeight(p, autoLabel);
+    const labelH = computeLabelBelowHeight(p, autoLabel, config);
     let stackY = p.y + pOff + S / 2 + labelH + 4;
     for (const ann of anns) {
       const fs = ann.fontSize ?? 12;
@@ -93,7 +103,8 @@ export function computeRelationDropY(
   S: number,
   renderOffsets?: Map<string, number>,
   showAutoLabels: boolean = false,
-  autoLabels?: Map<string, string>
+  autoLabels?: Map<string, string>,
+  config?: { showGenotypes: boolean; genotypeFontSize: number; genotypeOffset: number }
 ): number {
   const nodeMap = new Map(nodes.map((n) => [n.id, n]));
   const parentIds = [n1.id, n2.id];
@@ -106,14 +117,15 @@ export function computeRelationDropY(
     S,
     showAutoLabels,
     autoLabels,
-    renderOffsets
+    renderOffsets,
+    config
   );
 
   let maxNodeBottom = -Infinity;
   for (const n of [...parentIds.map((id) => nodeMap.get(id)), ...intermediateNodes].filter(Boolean) as PedigreeNode[]) {
     const nOff = renderOffsets?.get(n.id) ?? 0;
     const autoLabel = showAutoLabels ? autoLabels?.get(n.id) : undefined;
-    const labelH = computeLabelBelowHeight(n, autoLabel);
+    const labelH = computeLabelBelowHeight(n, autoLabel, config);
     const bottom = n.y + nOff + S / 2 + labelH;
     maxNodeBottom = Math.max(maxNodeBottom, bottom);
   }
@@ -241,7 +253,8 @@ export function computeCrossingXCoordinates(
   renderOffsets?: Map<string, number>,
   S: number = 44,
   showAutoLabels: boolean = false,
-  autoLabels?: Map<string, string>
+  autoLabels?: Map<string, string>,
+  config?: { showGenotypes: boolean; genotypeFontSize: number; genotypeOffset: number }
 ): number[] {
   const nodeMap = new Map(nodes.map((n) => [n.id, n]));
   const crossXs: number[] = [];
@@ -281,7 +294,8 @@ export function computeCrossingXCoordinates(
       S,
       renderOffsets,
       showAutoLabels,
-      autoLabels
+      autoLabels,
+      config
     );
     const otherTrack = computeEdgeLoopTrack(other.id, allEdges, nodes, renderOffsets);
     const otherYDrop = otherBaseY + otherTrack * 8;
@@ -339,14 +353,15 @@ export function computeCrossingXCoordinates(
       S,
       false,
       undefined,
-      renderOffsets
+      renderOffsets,
+      config
     );
 
     let maxNodeBottom = -Infinity;
     for (const n of [...parentIds.map((id) => nodeMap.get(id)), ...intermediateNodeIds].filter(Boolean) as PedigreeNode[]) {
       const nOff = renderOffsets?.get(n.id) ?? 0;
       const autoLabel = showAutoLabels ? autoLabels?.get(n.id) : undefined;
-      const bottom = n.y + nOff + S / 2 + computeLabelBelowHeight(n, autoLabel);
+      const bottom = n.y + nOff + S / 2 + computeLabelBelowHeight(n, autoLabel, config);
       maxNodeBottom = Math.max(maxNodeBottom, bottom);
     }
     const maxBottom = Math.max(maxNodeBottom, maxAnnBottom);
