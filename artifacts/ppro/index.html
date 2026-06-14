@@ -21,6 +21,11 @@
           if (["terminal","clinical","midnight","arctic","daylight","warm"].indexOf(v) !== -1) theme = v;
         } catch(e) {}
         document.documentElement.setAttribute("data-theme", theme);
+        if (theme === "terminal" || theme === "midnight") {
+          document.documentElement.classList.add("dark");
+        } else {
+          document.documentElement.classList.remove("dark");
+        }
       })();
     </script>
     <script>

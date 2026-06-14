@@ -63,6 +63,12 @@ export function getStoredTheme(): ThemeId {
 
 export function applyTheme(id: ThemeId) {
   document.documentElement.setAttribute("data-theme", id);
+  const t = THEMES.find((x) => x.id === id);
+  if (t?.isDark) {
+    document.documentElement.classList.add("dark");
+  } else {
+    document.documentElement.classList.remove("dark");
+  }
   try { localStorage.setItem(STORAGE_KEY, id); } catch {}
 }
 

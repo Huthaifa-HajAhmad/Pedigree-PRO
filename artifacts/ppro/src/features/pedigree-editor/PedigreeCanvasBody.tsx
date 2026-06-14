@@ -18,6 +18,8 @@ import { RiskPanelSidebar } from "@/features/pedigree-editor/panels/RiskCalculat
 import { VersionHistoryPanel } from "@/features/pedigree-editor/panels/VersionHistoryPanel";
 import { ValidationPanelWrapper } from "@/features/pedigree-editor/panels/ValidationPanelWrapper";
 import { SettingsPanel } from "@/features/pedigree-editor/panels/SettingsPanel";
+import { TabBar } from "@/features/pedigree-editor/panels/TabBar";
+import { useLocation } from "wouter";
 import { ShareModal } from "@/components/ShareModal";
 import { usePedigreeEditor } from "@/features/pedigree-editor/context/usePedigreeEditor";
 import { useCanvasConfig } from "@/features/pedigree-editor/context/CanvasConfigContext";
@@ -162,7 +164,10 @@ function SibshipLayer({ edges, nodes, invalidEdgeIds, annotations = [], showAuto
 }
 
 export function PedigreeCanvasBody() {
-  const { state, ops, memo, refs, dispatch, pedigree, versions } = usePedigreeEditor();
+  const ctx = usePedigreeEditor();
+  const [, navigate] = useLocation();
+  const {
+    state, ops, memo, refs, dispatch, pedigree, versions } = ctx;
   const { config } = useCanvasConfig();
 
   const {
@@ -194,6 +199,9 @@ export function PedigreeCanvasBody() {
     autoLabels, validation, searchMatches, generationRailEntries, legendEntries,
     visibleGenRows, vbW, vbH, MM_W, MM_H, anySelected,
   } = memo;
+
+  const isPropertiesPanelOpen = (anySelected || selectedAnnotationId !== null) && !showRiskPanel && !showValidation && !showVersions && !showSettings && !editModalNodeId;
+  const isSidePanelOpen = isPropertiesPanelOpen || showSettings || showRiskPanel || showValidation || showVersions;
 
   const {
     svgRef, preDragCanvasRef, lassoRectRef, searchInputRef,
@@ -346,7 +354,7 @@ const RAIL_MAX_X = 400;
   }, [handleWheel]);
 
   const handleAnnotationClick = useCallback((annId: string, nodeId: string) => {
-    dispatch({ type: "SET_STATE", patch: { selectedAnnotationId: selectedAnnotationId === annId ? null : annId, selectedIds: nodeId ? new Set([nodeId]) : new Set() } });
+    dispatch({ type: "SET_STATE", patch: { selectedAnnotationId: selectedAnnotationId === annId ? null : annId, selectedIds: nodeId ? new Set([nodeId]) : new Set(), showSettings: false } });
   }, [selectedAnnotationId]);
 
   const handleAnnotationDragStart = useCallback((annId: string, e: React.MouseEvent) => {
@@ -418,7 +426,18 @@ const RAIL_MAX_X = 400;
     for (const py of sortedRowYs) {
       const rowFamilies = familiesByRow.get(py)!;
       for (const fam of rowFamilies) {
-        const familyMap = computeFamilyChildYOffset(fam.parentIds, fam.childIds, canvas.nodes, canvas.annotations, NODE_SIZE, showAutoLabels, autoLabels, offsets, canvas.edges);
+        const familyMap = computeFamilyChildYOffset(
+          fam.parentIds,
+          fam.childIds,
+          canvas.nodes,
+          canvas.annotations,
+          config.nodeSize,
+          showAutoLabels,
+          autoLabels,
+          offsets,
+          canvas.edges,
+          config
+        );
         for (const [nid, delta] of familyMap) offsets.set(nid, delta);
       }
 
@@ -443,7 +462,7 @@ const RAIL_MAX_X = 400;
       }
     }
     return offsets;
-  }, [canvas.nodes, canvas.edges, canvas.annotations, showAutoLabels, autoLabels]);
+  }, [canvas.nodes, canvas.edges, canvas.annotations, showAutoLabels, autoLabels, config.genotypeFontSize, config.genotypeOffset, config.showGenotypes, config.nodeSize]);
 
   const diffs = useMemo(() => {
     if (!state.isPreviewMode || !state.showVisualDiff || !state.liveCanvasCache) {
@@ -504,7 +523,21 @@ const RAIL_MAX_X = 400;
   }, [getSVGCoords, addFreeAnnotation]);
 
   return (
-    <div className="flex flex-1 overflow-hidden" data-print-area>
+    <div className="flex flex-col flex-1 overflow-hidden relative" data-print-area>
+      <TabBar
+        tabs={memo.tabItems}
+        currentId={pedigree?.id ?? 0}
+        showTabPicker={state.showTabPicker}
+        onToggleTabPicker={() => dispatch({ type: "SET_STATE", patch: { showTabPicker: !state.showTabPicker } })}
+        onCloseTabPicker={() => dispatch({ type: "SET_STATE", patch: { showTabPicker: false } })}
+        onCloseTab={ops.handleCloseTab}
+        onRenameTab={ops.renameTab}
+        onNavigate={navigate}
+        onOpenTab={(tid, title) => { ops.openTab(tid, title); navigate(`/pedigrees/${tid}`); }}
+        onReorderTab={ops.reorderTabs}
+        onDeletePedigree={ops.handleDeletePedigree}
+        saveStatus={state.saveStatus}
+      />
       <div className="flex-1 overflow-hidden relative canvas-spared flex items-center justify-center p-4" style={{ touchAction: "none", overscrollBehavior: "none" }}>
         {twinSelectMode && (
           <div className="absolute top-3 left-1/2 -translate-x-1/2 z-20 px-3 py-1.5 rounded-full bg-amber-500 text-white text-xs font-medium shadow-md pointer-events-none">
@@ -770,11 +803,7 @@ const RAIL_MAX_X = 400;
           onMinimapPan={(cx, cy) => dispatch({ type: "SET_STATE", patch: { viewBox: { ...viewBox, x: cx - vbW / 2, y: cy - vbH / 2 } } })}
           showLegend={showLegend}
           legendEntries={legendEntries}
-          singleSelected={selectedIds.size === 1}
-          anySelected={anySelected}
-          showRiskPanel={showRiskPanel}
-          showValidation={showValidation}
-          showVersions={showVersions}
+          panelOpen={isSidePanelOpen}
         />
 
         {editModalNodeId && (() => {
@@ -845,9 +874,10 @@ const RAIL_MAX_X = 400;
             />
           );
         })()}
+      </div>
 
-        {(anySelected || selectedAnnotationId !== null) && !showRiskPanel && !showValidation && !showVersions && !showSettings && (
-          <PropertiesPanel
+      {(anySelected || selectedAnnotationId !== null) && !showRiskPanel && !showValidation && !showVersions && !showSettings && !editModalNodeId && (
+        <PropertiesPanel
             selectedIds={selectedIds}
             canvasNodes={canvas.nodes} canvasEdges={canvas.edges}
             canvasAnnotations={canvas.annotations}
@@ -891,6 +921,7 @@ const RAIL_MAX_X = 400;
             <RiskPanelSidebar canvas={canvas} mode={riskMode}
               onModeChange={(m) => dispatch({ type: "SET_STATE", patch: { riskMode: m } })}
               onClose={() => dispatch({ type: "SET_STATE", patch: { showRiskPanel: false } })}
+              width="w-80"
             />
           </div>
         )}
@@ -918,7 +949,6 @@ const RAIL_MAX_X = 400;
             />
           </div>
         )}
-      </div>
 
       {showVersions && (
         <VersionHistoryPanel

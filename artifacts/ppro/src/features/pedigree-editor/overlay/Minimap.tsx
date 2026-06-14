@@ -285,7 +285,7 @@ export function Minimap({
 
   return (
     <div
-      className={`absolute bottom-4 rounded-lg border border-border/50 overflow-hidden select-none bg-popover/95 backdrop-blur-sm shadow-lg ${shifted ? "right-[296px] z-40" : "right-4 z-20"} ${containerClassName}`}
+      className={`absolute bottom-4 rounded-lg border border-border/50 overflow-hidden select-none bg-popover/95 backdrop-blur-sm shadow-lg ${shifted ? "right-[336px] z-40" : "right-4 z-20"} ${containerClassName}`}
       style={{ width: mmW, height: mmH }}
       title="Click to pan, drag viewport to scroll"
       onClick={(e) => {
