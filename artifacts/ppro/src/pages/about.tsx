@@ -109,8 +109,36 @@ export default function AboutPage() {
                   <span className="w-1.5 h-1.5 rounded-full bg-primary" />
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="text-sm font-semibold">Version 1.2.2</span>
+                  <span className="text-sm font-semibold">Version 1.2.5</span>
                   <span className="bg-primary/10 text-primary text-[10px] px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">Latest</span>
+                </div>
+                <p className="text-[10px] text-muted-foreground mt-0.5">June 2026</p>
+                <ul className="mt-2.5 space-y-2 text-xs text-muted-foreground">
+                  <li className="flex items-start gap-2">
+                    <span className="text-primary font-bold select-none mt-0.5">•</span>
+                    <span><strong>Genotype Customization:</strong> Custom font sizes, symbol offsets, and colors for mutant (+), wild-type (-), and separator (/) symbols dynamically rendered under nodes.</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-primary font-bold select-none mt-0.5">•</span>
+                    <span><strong>Segmented Panel Controls:</strong> Upgraded Gender, Affection Status, and Genotype inputs to interactive segmented buttons with premium icons.</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-primary font-bold select-none mt-0.5">•</span>
+                    <span><strong>Interactive Onboarding Tour:</strong> Feature walkthrough modal explaining shortcuts, validation alerts, risk calculations, and offline capabilities.</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-primary font-bold select-none mt-0.5">•</span>
+                    <span><strong>Canvas Layout Integration:</strong> Cleaned up interface layouts by moving the TabBar inside the canvas area and aligning overlays with collapsible sidebars.</span>
+                  </li>
+                </ul>
+              </div>
+
+              <div className="relative">
+                <div className="absolute -left-[31px] top-1 w-3.5 h-3.5 rounded-full border border-border bg-background flex items-center justify-center">
+                  <span className="w-1.5 h-1.5 rounded-full bg-primary" />
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-semibold">Version 1.2.2</span>
                 </div>
                 <p className="text-[10px] text-muted-foreground mt-0.5">June 2026</p>
                 <ul className="mt-2.5 space-y-2 text-xs text-muted-foreground">
