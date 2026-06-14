@@ -1,16 +1,16 @@
-import { useMemo, useEffect } from "react";
-import { useParams, useLocation } from "wouter";
+import { useMemo, useEffect, useState } from "react";
+import { useParams } from "wouter";
 import { useGetPedigree } from "@workspace/api-client-react";
 import { exportPPRO, exportPDF, exportPPTX, exportClinicalReport, exportPNG, exportSVG, exportJSON } from "@/lib/export-pedigree";
 import { PedigreeEditorProvider, usePedigreeEditor } from "@/features/pedigree-editor/context";
 import { PedigreeCanvasBody } from "@/features/pedigree-editor/PedigreeCanvasBody";
 import type { PedigreeNode, PedigreeEdge, PedigreeAnnotation, CanvasData, DragState } from "@/features/pedigree-editor/canvas/types";
 export type { PedigreeNode, PedigreeEdge, PedigreeAnnotation, CanvasData, DragState };
-import { TabBar } from "@/features/pedigree-editor/panels/TabBar";
 import { RibbonToolbar } from "@/features/pedigree-editor/toolbar/RibbonToolbar";
 import { DraftBanner } from "@/features/pedigree-editor/overlay/DraftBanner";
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
 import { buildTemplate, getTemplateOptions } from "@/features/pedigree-editor/utils/templates";
+import { FeatureTourModal } from "@/components/FeatureTourModal";
 
 const PEDIGREE_TEMPLATES = getTemplateOptions();
 
@@ -31,7 +31,14 @@ export default function PedigreeCanvas() {
 function PedigreeCanvasInner() {
   const ctx = usePedigreeEditor();
   const { state, ops, memo, pedigree, profiles, showDraftBanner, onRestoreDraft, handleDismissDraft } = ctx;
-  const [, navigate] = useLocation();
+  const [showTour, setShowTour] = useState(false);
+
+  useEffect(() => {
+    const seen = localStorage.getItem("ppro_feature_tour_seen");
+    if (seen !== "true") {
+      setShowTour(true);
+    }
+  }, []);
 
   const toggle = useMemo(() => ({
     setSnapEnabled: (v: React.SetStateAction<boolean>) => ctx.dispatch({ type: "SET_STATE", patch: { snapEnabled: typeof v === "function" ? v(state.snapEnabled) : v } }),
@@ -72,7 +79,14 @@ function PedigreeCanvasInner() {
       ctx.dispatch({
         type: "SET_STATE",
         patch: newVal
-          ? { showSettings: true, showRiskPanel: false, showValidation: false, showVersions: false }
+          ? {
+              showSettings: true,
+              showRiskPanel: false,
+              showValidation: false,
+              showVersions: false,
+              selectedIds: new Set(),
+              selectedAnnotationId: null,
+            }
           : { showSettings: false }
       });
     },
@@ -175,25 +189,7 @@ function PedigreeCanvasInner() {
         onDeletePedigree={() => ops.handleDeletePedigree(pedigree?.id ?? 0, pedigree?.title ?? "")}
       />
 
-      <TabBar
-        tabs={memo.tabItems}
-        currentId={pedigree?.id ?? 0}
-        showTabPicker={state.showTabPicker}
-        onToggleTabPicker={() => ctx.dispatch({ type: "SET_STATE", patch: { showTabPicker: !state.showTabPicker } })}
-        onCloseTabPicker={() => ctx.dispatch({ type: "SET_STATE", patch: { showTabPicker: false } })}
-        onCloseTab={ops.handleCloseTab}
-        onRenameTab={ops.renameTab}
-        onNavigate={navigate}
-        onOpenTab={(tid, title) => { ops.openTab(tid, title); navigate(`/pedigrees/${tid}`); }}
-        onReorderTab={ops.reorderTabs}
-        onDeletePedigree={ops.handleDeletePedigree}
-        saveStatus={state.saveStatus}
-      />
-
       <PedigreeCanvasBody />
-
-
-
 
       {state.confirmProps && (
         <ConfirmDialog
@@ -205,6 +201,11 @@ function PedigreeCanvasInner() {
           onCancel={() => ctx.dispatch({ type: "SET_STATE", patch: { confirmOpen: false } })}
         />
       )}
+
+      <FeatureTourModal
+        open={showTour}
+        onClose={() => setShowTour(false)}
+      />
     </div>
   );
 }

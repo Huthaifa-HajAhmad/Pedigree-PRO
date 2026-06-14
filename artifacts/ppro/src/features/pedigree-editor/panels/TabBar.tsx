@@ -266,17 +266,18 @@ export function TabBar({
       </div>
 
       {/* Right: save status */}
-      <div className="flex items-center gap-2 px-2.5 flex-shrink-0 border-l border-border text-xs text-muted-foreground/40">
+      <div className="flex items-center px-3.5 flex-shrink-0">
         {saveStatus === "saving" && (
-          <span className="inline-flex items-center gap-1">
-            <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+          <div className="inline-flex items-center gap-1.5 bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 px-2.5 py-0.5 rounded-full font-medium text-[10px] shadow-xs select-none">
+            <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
             <span>Saving</span>
-          </span>
+          </div>
         )}
         {saveStatus === "saved" && (
-          <span className="inline-flex items-center gap-1 text-emerald-500/70">
+          <div className="inline-flex items-center gap-1.5 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 px-2.5 py-0.5 rounded-full font-medium text-[10px] shadow-xs select-none">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
             <span>Saved</span>
-          </span>
+          </div>
         )}
       </div>
 
