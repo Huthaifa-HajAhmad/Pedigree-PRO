@@ -23,12 +23,15 @@ A privacy-first pedigree drawing tool for clinical geneticists. No cloud. No acc
 - Sibship groups, relationship lines, and annotation overlays
 - Context menu with keyboard navigation for quick node operations
 - Minimap, find bar, and zoom controls for large pedigrees
-- Version history with thumbnail previews (virtualized for 50+ versions)
+- Version history with virtualized thumbnail previews for 50+ versions
+- **Interactive onboarding tour** — guided walkthrough modal for first-time users
+- **Smart genotype rendering** — dynamic rendering of genotype strings beneath pedigree nodes with custom colors, font sizes, and offsets
 
 ### Clinical Annotations
 - HPO terms, OMIM IDs, variant HGVS notation per node
 - Phenotype tracking with inheritance mode
-- Affected/carrier status indicators
+- Affected/carrier/unaffected status indicators via segmented panel controls
+- Genotype input fields with quick selector presets (`+/-`, `+/+`, `-/-`, `+/Y`, `-/Y`)
 - Risk calculator panel
 
 ### Privacy & Compliance
