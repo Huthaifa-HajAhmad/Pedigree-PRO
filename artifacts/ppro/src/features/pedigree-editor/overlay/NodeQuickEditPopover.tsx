@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from "react";
+import React, { useEffect, useRef, useState, useCallback } from "react";
 import type { PedigreeNode } from "@/features/pedigree-editor/canvas/types";
 import { X, ArrowRight } from "lucide-react";
 import { usePedigreeEditor } from "@/features/pedigree-editor/context";
@@ -19,15 +19,9 @@ export function NodeQuickEditPopover({
   const [pos, setPos] = useState<{ x: number; y: number; placement: "left" | "right" } | null>(null);
   const [draft, setDraft] = useState(node.insideText ?? "");
   const { memo: { autoLabels } } = usePedigreeEditor();
-  const [statusSelect, setStatusSelect] = useState<"affected" | "unaffected" | "unknown">("unaffected");
-
   useEffect(() => {
     setDraft(node.insideText ?? "");
   }, [node.id, node.insideText]);
-
-  useEffect(() => {
-    setStatusSelect(node.affected ? "affected" : "unaffected");
-  }, [node.id, node.affected]);
 
   useEffect(() => {
     // Select text on input mount or when node changes
@@ -43,18 +37,26 @@ export function NodeQuickEditPopover({
     if (!ctm) return;
     const screenX = ctm.a * node.x + ctm.e;
     const screenY = ctm.d * node.y + ctm.f;
-    const pw = 300;
-    const ph = 390;
+    const pw = 330;
+    const ph = 375;
     let placement: "left" | "right" = "right";
     let x = screenX + 36;
     let y = screenY - ph / 2;
 
-    if (x + pw > window.innerWidth - 8) {
-      x = Math.max(8, screenX - pw - 36);
-      placement = "left";
+    if (x + pw > window.innerWidth - 12) {
+      const leftX = screenX - pw - 36;
+      if (leftX >= 12) {
+        x = leftX;
+        placement = "left";
+      } else {
+        x = Math.max(12, window.innerWidth - pw - 12);
+        placement = "right";
+      }
     }
-    if (y < 8) y = 8;
-    if (y + ph > window.innerHeight - 8) y = window.innerHeight - ph - 8;
+
+    // Clamp to viewport
+    x = Math.max(12, Math.min(x, window.innerWidth - pw - 12));
+    y = Math.max(12, Math.min(y, window.innerHeight - ph - 12));
     setPos({ x, y, placement });
   }, [node.x, node.y, svgRef]);
 
@@ -80,13 +82,8 @@ export function NodeQuickEditPopover({
     if (trimmed !== (node.insideText ?? "")) onUpdateNode({ insideText: trimmed || undefined });
   };
 
-  const handleStatusChange = (val: "affected" | "unaffected" | "unknown") => {
-    setStatusSelect(val);
-    if (val === "affected") {
-      onUpdateNode({ affected: true });
-    } else {
-      onUpdateNode({ affected: false });
-    }
+  const handleStatusChange = (val: "unaffected" | "affected" | "carrier") => {
+    onUpdateNode({ affected: val === "affected", carrier: val === "carrier" });
   };
 
   if (!pos) return null;
@@ -94,7 +91,7 @@ export function NodeQuickEditPopover({
   return (
     <div
       ref={popoverRef}
-      className="fixed z-50 w-[300px] border border-border/80 rounded-xl shadow-2xl bg-background/95 backdrop-blur-md p-4.5 outline-none animate-in fade-in zoom-in-95 duration-200 [transition-timing-function:cubic-bezier(0.34,1.56,0.64,1)] flex flex-col gap-4"
+      className="fixed z-50 w-[330px] border border-border/80 rounded-xl shadow-2xl bg-background/95 backdrop-blur-md p-4.5 outline-none animate-in fade-in zoom-in-95 duration-200 [transition-timing-function:cubic-bezier(0.34,1.56,0.64,1)] flex flex-col gap-3.5"
       style={{ left: pos.x, top: pos.y }}
       role="dialog"
       aria-label="Quick edit node"
@@ -171,11 +168,7 @@ export function NodeQuickEditPopover({
       </div>
 
       {/* SECTION 1: Basic Information */}
-      <div className="flex flex-col gap-3">
-        <div className="text-[9px] font-bold text-muted-foreground/60 uppercase tracking-widest border-b border-border/20 pb-1">
-          Basic Information
-        </div>
-
+      <div className="flex flex-col gap-2.5">
         {/* Inside Text */}
         <div className="space-y-1">
           <label htmlFor="quick-inside-text" className="text-[10px] font-semibold text-foreground/80">Inside Text</label>
@@ -194,85 +187,120 @@ export function NodeQuickEditPopover({
         </div>
 
         {/* Type Segmented Controls */}
-        <div className="space-y-1.5">
-          <label className="text-[10px] font-semibold text-foreground/80">Type</label>
-          <div className="grid grid-cols-2 gap-1.5 bg-muted/20 p-1 rounded-lg border border-border/40">
-            {(["male", "female", "unknown", "pregnancy", "sab"] as const).map((t) => {
+        <div className="space-y-1">
+          <label className="text-[10px] font-semibold text-foreground/80 uppercase tracking-wider block">Type</label>
+          <div className="flex bg-muted/60 p-0.5 rounded-lg border border-border/60 items-stretch w-full">
+            {(["male", "female", "unknown", "pregnancy", "sab"] as const).map((t, idx) => {
               const isActive = node.type === t;
               const labelText = t === "sab" ? "SAB" : t.charAt(0).toUpperCase() + t.slice(1);
               return (
-                <button
-                  type="button"
-                  key={t}
-                  onClick={() => onUpdateNode({ type: t })}
-                  className={`py-1.5 px-2 rounded-md text-xs transition-all duration-200 flex items-center gap-2 ${
-                    isActive
-                      ? "bg-background text-foreground shadow-xs border border-border/30 font-semibold"
-                      : "text-muted-foreground hover:text-foreground hover:bg-background/40"
-                  } ${t === "sab" ? "col-span-2 justify-center" : ""}`}
-                >
-                  <svg className="w-3.5 h-3.5 flex-shrink-0 text-foreground" viewBox="0 0 24 24" fill="none">
-                    {(() => {
-                      const sw = 2.5;
-                      const stroke = "currentColor";
-                      const r = 6;
-                      const cx = 12;
-                      const cy = 12;
-                      if (t === "male") return <rect x={cx - r} y={cy - r} width={r * 2} height={r * 2} stroke={stroke} strokeWidth={sw} rx={0.5} />;
-                      if (t === "female") return <circle cx={cx} cy={cy} r={r} stroke={stroke} strokeWidth={sw} />;
-                      if (t === "sab") return <polygon points={`${cx},${cy - r} ${cx + r},${cy + r} ${cx - r},${cy + r}`} stroke={stroke} strokeWidth={sw} />;
-                      return <polygon points={`${cx},${cy - r} ${cx + r},${cy} ${cx},${cy + r} ${cx - r},${cy}`} stroke={stroke} strokeWidth={sw} />;
-                    })()}
-                  </svg>
-                  <span className="truncate">{labelText}</span>
-                </button>
+                <React.Fragment key={t}>
+                  {idx > 0 && <div className="w-[1px] h-3.5 bg-border/50 shrink-0 self-center" />}
+                  <button
+                    type="button"
+                    key={t}
+                    onClick={() => onUpdateNode({ type: t })}
+                    title={labelText}
+                    className={`flex-1 py-1 rounded-md text-[10px] transition-all duration-200 border flex flex-col items-center justify-center gap-0.5 min-w-0 ${
+                      isActive
+                        ? "bg-card text-primary border-border/75 shadow-xs font-semibold"
+                        : "border-transparent text-muted-foreground hover:text-foreground hover:bg-card/25"
+                    }`}
+                  >
+                    <svg className="w-3.5 h-3.5 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                      {(() => {
+                        const sw = 2.2;
+                        const r = 6;
+                        const cx = 12;
+                        const cy = 12;
+                        if (t === "male") return <rect x={cx - r} y={cy - r} width={r * 2} height={r * 2} strokeWidth={sw} rx={0.5} />;
+                        if (t === "female") return <circle cx={cx} cy={cy} r={r} strokeWidth={sw} />;
+                        if (t === "sab") return <polygon points={`${cx},${cy - r} ${cx + r},${cy + r} ${cx - r},${cy + r}`} strokeWidth={sw} />;
+                        return <polygon points={`${cx},${cy - r} ${cx + r},${cy} ${cx},${cy + r} ${cx - r},${cy}`} strokeWidth={sw} />;
+                      })()}
+                    </svg>
+                    <span className="text-[8px] leading-none tracking-tight">{labelText}</span>
+                  </button>
+                </React.Fragment>
               );
             })}
           </div>
         </div>
       </div>
+
+      <hr className="border-border/30 my-0.5" />
 
       {/* SECTION 2: Clinical Information */}
       <div className="flex flex-col gap-2.5">
-        <div className="text-[9px] font-bold text-muted-foreground/60 uppercase tracking-widest border-b border-border/20 pb-1">
-          Clinical Information
-        </div>
-
-        {/* Status Radio Group */}
-        <div className="space-y-1.5">
-          <label className="text-[10px] font-semibold text-foreground/80">Status</label>
-          <div className="flex items-center gap-4 py-1">
+        {/* Status Segmented Controls */}
+        <div className="space-y-1">
+          <label className="text-[10px] font-semibold text-foreground/80 uppercase tracking-wider block">Status</label>
+          <div className="flex bg-muted/60 p-0.5 rounded-lg border border-border/60 items-stretch w-full">
             {([
               { value: "unaffected", label: "Unaffected" },
               { value: "affected", label: "Affected" },
-              { value: "unknown", label: "Unknown" },
-            ] as const).map((opt) => {
-              const isSelected = statusSelect === opt.value;
+              { value: "carrier", label: "Carrier" }
+            ] as const).map((opt, idx) => {
+              const isActive = (node.affected ? "affected" : node.carrier ? "carrier" : "unaffected") === opt.value;
               return (
-                <button
-                  type="button"
-                  key={opt.value}
-                  onClick={() => handleStatusChange(opt.value)}
-                  className="flex items-center gap-2 text-xs text-foreground/80 hover:text-foreground transition-colors"
-                >
-                  <span className={`w-3.5 h-3.5 rounded-full border flex items-center justify-center transition-all ${
-                    isSelected ? "border-primary bg-primary text-primary-foreground" : "border-border bg-background"
-                  }`}>
-                    {isSelected && <span className="w-1 h-1 rounded-full bg-background" />}
-                  </span>
-                  <span>{opt.label}</span>
-                </button>
+                <React.Fragment key={opt.value}>
+                  {idx > 0 && <div className="w-[1px] h-3.5 bg-border/50 shrink-0 self-center" />}
+                  <button
+                    type="button"
+                    onClick={() => handleStatusChange(opt.value)}
+                    className={`flex-1 py-1 rounded-md text-[10px] font-medium transition-all border text-center ${
+                      isActive
+                        ? "bg-card text-primary border-border/75 shadow-xs font-semibold"
+                        : "border-transparent text-muted-foreground hover:text-foreground hover:bg-card/25"
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                </React.Fragment>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Genotype */}
+        <div className="space-y-1">
+          <label htmlFor="quick-node-genotype" className="text-[10px] font-semibold text-foreground/80 uppercase tracking-wider block">Genotype</label>
+          <input
+            id="quick-node-genotype"
+            type="text"
+            value={node.genotype ?? ""}
+            onChange={(e) => onUpdateNode({ genotype: e.target.value || undefined })}
+            placeholder="e.g. +/- or custom"
+            className="w-full bg-muted/20 border border-border/80 hover:border-border rounded-lg px-2.5 py-1.5 text-xs focus:border-primary/50 focus:ring-4 focus:ring-primary/5 outline-none transition-all"
+          />
+          <div className="flex bg-muted/60 p-0.5 rounded-lg border border-border/60 items-stretch w-full mt-1.5">
+            {(["+/-", "+/+", "-/-", "+/Y", "-/Y"] as const).map((g, idx) => {
+              const isActive = node.genotype === g;
+              return (
+                <React.Fragment key={g}>
+                  {idx > 0 && <div className="w-[1px] h-3.5 bg-border/50 shrink-0 self-center" />}
+                  <button
+                    type="button"
+                    onClick={() => onUpdateNode({ genotype: isActive ? undefined : g })}
+                    className={`flex-1 py-1 rounded-md text-[10px] border font-mono transition-all duration-200 ${
+                      isActive
+                        ? "bg-card text-primary border-border/75 shadow-xs font-bold"
+                        : "border-transparent text-muted-foreground hover:text-foreground hover:bg-card/25"
+                    }`}
+                  >
+                    {g}
+                  </button>
+                </React.Fragment>
               );
             })}
           </div>
         </div>
       </div>
 
+      <hr className="border-border/30 my-0.5" />
+
       {/* SECTION 3: Traits */}
       <div className="flex flex-col gap-2.5">
-        <div className="text-[9px] font-bold text-muted-foreground/60 uppercase tracking-widest border-b border-border/20 pb-1">
-          Traits
-        </div>
 
         <div className="grid grid-cols-3 gap-1.5">
           {([
