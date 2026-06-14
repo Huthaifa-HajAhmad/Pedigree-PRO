@@ -55,6 +55,12 @@ cd artifacts/ppro
 pnpm tauri build
 ```
 
+**Local build requires Perl** for `bundled-sqlcipher-vendored-openssl` (the `openssl-sys` crate compiles OpenSSL from source). Install via:
+```bash
+choco install strawberryperl -y
+```
+On GitHub Windows runners, `choco install strawberryperl -y --no-progress` is used in CI (see `.github/workflows/build.yml`).
+
 ## Security Model
 
 ### Encryption at Rest (Browser Mode)
@@ -180,6 +186,46 @@ Invoke-WebRequest -Uri "http://127.0.0.1:3788/console?limit=20" -UseBasicParsing
 4. Check console: `GET /console`
 5. Evaluate interactively: `POST /eval {"expression":"..."}`
 
+## CI / Release (GitHub Actions)
+
+### Workflow: `.github/workflows/build.yml`
+
+The `Build & Release` workflow triggers on pushes to `main` (typecheck + test + deploy-web) and on `v*` tags (full build + release).
+
+**Tag-triggered builds** produce artifacts for all three platforms:
+- **Windows**: `windows-latest` runner, installs Strawberry Perl via Chocolatey for vendored-openssl build, produces `.exe` (NSIS) + `.msi`
+- **macOS**: `macos-latest` runner, builds universal (`aarch64-apple-darwin` + `x86_64-apple-darwin`), produces `.dmg`
+- **Linux**: `ubuntu-latest` runner, installs `libwebkit2gtk-4.1-dev` etc., produces `.AppImage` + `.deb` + `.rpm`
+
+**Release workflow:**
+1. Push a `v*` tag → triggers CI
+2. `tauri-apps/tauri-action@v0` builds + creates/updates a GitHub Release
+3. Caution: re-pushing the same tag creates a **new draft release** each time. Clean up duplicate drafts with `gh api` (see below).
+
+**Cleaning up duplicate draft releases:**
+```powershell
+gh api "repos/Huthaifa-HajAhmad/Pedigree-PRO/releases" | ConvertFrom-Json |
+  Where-Object { $_.tag_name -eq 'v1.2.2' -and $_.draft -eq $true } |
+  ForEach-Object { gh api -X DELETE "repos/Huthaifa-HajAhmad/Pedigree-PRO/releases/$($_.id)" }
+```
+
+**Retriggering a tag build:**
+```powershell
+git push origin --delete v1.2.2
+git tag -d v1.2.2
+git tag v1.2.2
+git push origin v1.2.2
+```
+
+**Key learnings from v1.2.2 CI debugging:**
+- `choco install openssl` on GitHub Windows runners installs to inconsistent paths (`C:\Program Files\OpenSSL-Win64` vs `C:\OpenSSL-Win64`), and the lib structure (`lib/VC/x64/MD/`) doesn't match what `openssl-sys` expects by default. **Do not use this approach.**
+- `bundled-sqlcipher-vendored-openssl` is the correct rusqlite feature: it compiles OpenSSL from source and links statically, eliminating DLL distribution entirely.
+- Strawberry Perl is required on Windows for the vendored OpenSSL build (used by `openssl-sys`'s `Makefile`-based build process).
+- Tauri v2 auto-merges `tauri.{platform}.conf.json` files (e.g., `tauri.windows.conf.json`). If you create one, it will be deep-merged into `tauri.conf.json` at build time. With vendored openssl, no platform-specific config is needed.
+- PowerShell heredocs (`<<'EOF'`) don't work with `gh release edit --notes-file`. Write to a temp file and use `--notes-file path/to/file.md` instead.
+- `gh release edit --notes` (inline) truncates multi-line content in PowerShell. Always use `--notes-file`.
+- Unsigned Windows builds will trigger SmartScreen warnings; unsigned macOS builds trigger Gatekeeper. Users bypass via "Run anyway" or right-click → Open.
+
 ## Future Work
 
 ### Completed (May 2026)
@@ -276,11 +322,11 @@ Prior approaches attempted (all failed):
 
 ## Migration Notes
 
-## Migration Notes
-
 - `lib/api-spec/` and `lib/api-zod/` were deleted. No OpenAPI or Zod generation remains.
 - `pnpm-workspace.yaml` no longer includes `services/*`.
 - The `mockup-sandbox` artifact was deleted.
 - `canvas-theme.ts` was deleted (May 2026) — use `"hsl(var(--primary))"` directly instead of importing `CANVAS_PRIMARY`.
 - `useVersionManagement.ts` was deleted (dead code, never referenced).
 - All `.hpcl` references rebranded to `.ppro` across source files (Rust, TypeScript, docs). Internal draft key prefixes (`haplopainter_draft_*`) retained as they are localStorage keys, not user-facing.
+- `tauri.windows.conf.json` was deleted (June 2026) — no longer needed because `bundled-sqlcipher-vendored-openssl` links OpenSSL statically instead of bundling DLLs.
+- `bundled-sqlcipher` was replaced with `bundled-sqlcipher-vendored-openssl` in `artifacts/ppro/src-tauri/Cargo.toml`. This compiles OpenSSL from source during `cargo build`, requiring Perl on Windows. The benefit: no external DLLs to distribute, no fragile PATH detection on CI.
