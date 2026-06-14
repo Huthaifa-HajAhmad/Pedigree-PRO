@@ -4,7 +4,7 @@ import { AnnotationEditorPanel } from "@/features/pedigree-editor/panels/Annotat
 import { PanelShell } from "@/components/shared/panels/PanelShell";
 import { PanelSection } from "@/components/shared/panels/PanelSection";
 import { computeAutoLabels } from "@/lib/pedigree-labels";
-import { useMemo } from "react";
+import React, { useMemo } from "react";
 
 const COUPLE_LABELS: Record<string, string> = {
   couple: "Couple",
@@ -71,7 +71,7 @@ export function PropertiesPanel({
   return (
     <div className="absolute right-0 top-0 bottom-0 z-30 overflow-hidden rounded-l-lg h-full shadow-[-4px_0_12px_rgba(0,0,0,0.08),0_4px_12px_rgba(0,0,0,0.08)]">
       {selectedIds.size > 1 ? (
-        <PanelShell title={`${selectedIds.size} Nodes`} icon={<Users className="w-3.5 h-3.5" />} width="w-full md:w-72">
+        <PanelShell title={`${selectedIds.size} Nodes`} icon={<Users className="w-3.5 h-3.5" />} width="w-full md:w-80">
           {/* Bulk Status */}
           <PanelSection title="Bulk Status" icon={<Dna className="w-3 h-3" />}>
             <div>
@@ -340,7 +340,7 @@ export function PropertiesPanel({
           </button>
         </PanelShell>
       ) : singleSelected ? (
-        <PanelShell title={`${singleSelected.type}`} icon={<User className="w-3.5 h-3.5" />} width="w-full md:w-72">
+        <PanelShell title={`${singleSelected.type}`} icon={<User className="w-3.5 h-3.5" />} width="w-full md:w-80">
           {/* Basic Info */}
           <PanelSection title="Basic Info" icon={<User className="w-3 h-3" />}>
             <div>
@@ -365,44 +365,110 @@ export function PropertiesPanel({
 
           {/* Type & Status */}
           <PanelSection title="Type & Status" icon={<Dna className="w-3 h-3" />}>
-            <div>
-              <label htmlFor="prop-node-gender" className="text-xs text-muted-foreground uppercase tracking-wider block mb-1">Gender</label>
-              <div className="grid grid-cols-2 gap-1">
-                {(["male", "female", "unknown", "pregnancy", "sab"] as const).map((t) => (
-                  <button
-                    type="button"
-                    key={t}
-                    data-testid={`button-sex-${t}`}
-                    onClick={() => onUpdateSelectedNode({ type: t })}
-                    className={`py-1 rounded-lg text-xs border transition-all duration-200 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring ${
-                      singleSelected.type === t
-                        ? "border-primary/60 text-primary bg-primary/5 hover:bg-primary/10"
-                        : "border-border/80 text-muted-foreground hover:bg-accent/30 hover:border-muted-foreground/30 hover:text-foreground"
-                    }`}
-                  >
-                    {t === "sab" ? "SAB" : <span className="capitalize">{t}</span>}
-                  </button>
-                ))}
+            <div className="space-y-3">
+              <div>
+                <label htmlFor="prop-node-gender" className="text-xs text-muted-foreground uppercase tracking-wider block mb-1">Gender</label>
+                <div className="flex bg-muted/60 p-0.5 rounded-lg border border-border/60 items-stretch w-full">
+                  {(["male", "female", "unknown", "pregnancy", "sab"] as const).map((t, idx) => {
+                    const isActive = singleSelected.type === t;
+                    const labelText = t === "sab" ? "SAB" : t.charAt(0).toUpperCase() + t.slice(1);
+                    return (
+                      <React.Fragment key={t}>
+                        {idx > 0 && <div className="w-[1px] h-3.5 bg-border/50 shrink-0 self-center" />}
+                        <button
+                          type="button"
+                          key={t}
+                          data-testid={`button-sex-${t}`}
+                          onClick={() => onUpdateSelectedNode({ type: t })}
+                          title={labelText}
+                          className={`flex-1 py-1 rounded-md text-[10px] transition-all duration-200 border flex flex-col items-center justify-center gap-0.5 min-w-0 ${
+                            isActive
+                              ? "bg-card text-primary border-border/75 shadow-xs font-semibold"
+                              : "border-transparent text-muted-foreground hover:text-foreground hover:bg-card/25"
+                          }`}
+                        >
+                          <svg className="w-3.5 h-3.5 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                            {(() => {
+                              const sw = 2.2;
+                              const r = 6;
+                              const cx = 12;
+                              const cy = 12;
+                              if (t === "male") return <rect x={cx - r} y={cy - r} width={r * 2} height={r * 2} strokeWidth={sw} rx={0.5} />;
+                              if (t === "female") return <circle cx={cx} cy={cy} r={r} strokeWidth={sw} />;
+                              if (t === "sab") return <polygon points={`${cx},${cy - r} ${cx + r},${cy + r} ${cx - r},${cy + r}`} strokeWidth={sw} />;
+                              return <polygon points={`${cx},${cy - r} ${cx + r},${cy} ${cx},${cy + r} ${cx - r},${cy}`} strokeWidth={sw} />;
+                            })()}
+                          </svg>
+                          <span className="text-[8px] leading-none tracking-tight">{labelText}</span>
+                        </button>
+                      </React.Fragment>
+                    );
+                  })}
+                </div>
               </div>
-            </div>
-            <div>
-              <label className="text-xs text-muted-foreground uppercase tracking-wider block mb-1">Status</label>
-              <div className="grid grid-cols-3 gap-1">
-                {(["unaffected", "affected", "carrier"] as const).map((s) => (
-                  <button
-                    type="button"
-                    key={s}
-                    data-testid={`button-status-${s}`}
-                    onClick={() => applyStatus(s)}
-                    className={`py-1 rounded-lg text-xs border transition-all duration-200 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring ${
-                      getStatus(singleSelected) === s
-                        ? "border-primary/60 text-primary bg-primary/5 hover:bg-primary/10"
-                        : "border-border/80 text-muted-foreground hover:bg-accent/30 hover:border-muted-foreground/30 hover:text-foreground"
-                    }`}
-                  >
-                    {s === "unaffected" ? "—" : s === "affected" ? "Affected" : "Carrier"}
-                  </button>
-                ))}
+
+              <div>
+                <label className="text-xs text-muted-foreground uppercase tracking-wider block mb-1">Status</label>
+                <div className="flex bg-muted/60 p-0.5 rounded-lg border border-border/60 items-stretch w-full">
+                  {([
+                    { value: "unaffected", label: "Unaffected" },
+                    { value: "affected", label: "Affected" },
+                    { value: "carrier", label: "Carrier" }
+                  ] as const).map((opt, idx) => {
+                    const isActive = getStatus(singleSelected) === opt.value;
+                    return (
+                      <React.Fragment key={opt.value}>
+                        {idx > 0 && <div className="w-[1px] h-3.5 bg-border/50 shrink-0 self-center" />}
+                        <button
+                          type="button"
+                          key={opt.value}
+                          data-testid={`button-status-${opt.value}`}
+                          onClick={() => applyStatus(opt.value)}
+                          className={`flex-1 py-1 rounded-md text-[10px] font-medium transition-all border text-center ${
+                            isActive
+                              ? "bg-card text-primary border-border/75 shadow-xs font-semibold"
+                              : "border-transparent text-muted-foreground hover:text-foreground hover:bg-card/25"
+                          }`}
+                        >
+                          {opt.label}
+                        </button>
+                      </React.Fragment>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div>
+                <label htmlFor="prop-node-genotype" className="text-xs text-muted-foreground uppercase tracking-wider block mb-1">Genotype</label>
+                <input
+                  id="prop-node-genotype"
+                  value={singleSelected.genotype ?? ""}
+                  onChange={(e) => onUpdateSelectedNode({ genotype: e.target.value || undefined })}
+                  placeholder="e.g. +/- or custom"
+                  className="w-full bg-background border border-border/80 rounded-lg px-2.5 py-1.5 text-xs outline-none hover:bg-accent/20 focus:border-muted-foreground/45 focus-visible:ring-0 shadow-none transition-all duration-200"
+                />
+                <div className="flex bg-muted/60 p-0.5 rounded-lg border border-border/60 items-stretch w-full mt-1.5">
+                  {(["+/-", "+/+", "-/-", "+/Y", "-/Y"] as const).map((g, idx) => {
+                    const isActive = singleSelected.genotype === g;
+                    return (
+                      <React.Fragment key={g}>
+                        {idx > 0 && <div className="w-[1px] h-3.5 bg-border/50 shrink-0 self-center" />}
+                        <button
+                          type="button"
+                          key={g}
+                          onClick={() => onUpdateSelectedNode({ genotype: isActive ? undefined : g })}
+                          className={`flex-1 py-1 rounded-md text-[10px] border font-mono transition-all duration-200 ${
+                            isActive
+                              ? "bg-card text-primary border-border/75 shadow-xs font-bold"
+                              : "border-transparent text-muted-foreground hover:text-foreground hover:bg-card/25"
+                          }`}
+                        >
+                          {g}
+                        </button>
+                      </React.Fragment>
+                    );
+                  })}
+                </div>
               </div>
             </div>
           </PanelSection>
@@ -490,7 +556,7 @@ export function PropertiesPanel({
         const ann = canvasAnnotations.find((a) => a.id === selectedAnnotationId);
         if (!ann) return null;
         return (
-          <PanelShell title="Text Note" icon={<MessageSquare className="w-3.5 h-3.5" />} width="w-full md:w-72">
+          <PanelShell title="Text Note" icon={<MessageSquare className="w-3.5 h-3.5" />} width="w-full md:w-80">
             <PanelSection title="Edit Text Note" icon={<MessageSquare className="w-3 h-3" />} defaultOpen={true}>
               <AnnotationEditorPanel
                 annotation={ann}

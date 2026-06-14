@@ -182,7 +182,7 @@ export function AnnotationQuickEditPopover({
               step={1}
               value={annotation.fontSize}
               onChange={(e) => onUpdateAnnotation({ fontSize: Number(e.target.value) })}
-              className="w-full accent-primary h-1"
+              className="w-full cursor-pointer border-none outline-none focus-visible:ring-1 focus-visible:ring-primary"
             />
           </div>
         </div>
