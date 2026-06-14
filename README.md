@@ -4,7 +4,7 @@
 
 **Zero-server clinical pedigree editor**
 
-[![Release](https://img.shields.io/github/v/release/Huthaifa-HajAhmad/Pedigree-PRO?include_prereleases&label=beta)](https://github.com/Huthaifa-HajAhmad/Pedigree-PRO/releases)
+[![Release](https://img.shields.io/badge/release-v1.2.5--beta-blue)](https://github.com/Huthaifa-HajAhmad/Pedigree-PRO/releases)
 [![License](https://img.shields.io/badge/license-Proprietary-blue)](LICENSE)
 
 A privacy-first pedigree drawing tool for clinical geneticists. No cloud. No accounts. No data leaves your device.
@@ -94,12 +94,17 @@ The frontend uses a **unified adapter** (`lib/api-client-react/src/adapter.ts`) 
 
 ## Installation
 
-### Windows (Beta)
+Latest release binaries are built automatically in CI for Windows, macOS, and Linux:
 
-| Installer | Download |
-|---|---|
-| **MSI** (enterprise) | [`Pedigree PRO_1.0.0-1_x64_en-US.msi`](https://github.com/Huthaifa-HajAhmad/Pedigree-PRO/releases/download/v1.0.0-1/Pedigree.PRO_1.0.0-1_x64_en-US.msi) |
-| **NSIS** (standard) | [`Pedigree PRO_1.0.0-1_x64-setup.exe`](https://github.com/Huthaifa-HajAhmad/Pedigree-PRO/releases/download/v1.0.0-1/Pedigree.PRO_1.0.0-1_x64-setup.exe) |
+| Platform | Format | Download |
+|---|---|---|
+| **Windows** | MSI (enterprise) | [`Pedigree.PRO_1.2.5_x64_en-US.msi`](https://github.com/Huthaifa-HajAhmad/Pedigree-PRO/releases/download/v1.2.5/Pedigree.PRO_1.2.5_x64_en-US.msi) |
+| | NSIS (standard) | [`Pedigree.PRO_1.2.5_x64-setup.exe`](https://github.com/Huthaifa-HajAhmad/Pedigree-PRO/releases/download/v1.2.5/Pedigree.PRO_1.2.5_x64-setup.exe) |
+| **macOS** | DMG (universal) | [`Pedigree.PRO_1.2.5_universal.dmg`](https://github.com/Huthaifa-HajAhmad/Pedigree-PRO/releases/download/v1.2.5/Pedigree.PRO_1.2.5_universal.dmg) |
+| **Linux** | AppImage | [`Pedigree.PRO_1.2.5_amd64.AppImage`](https://github.com/Huthaifa-HajAhmad/Pedigree-PRO/releases/download/v1.2.5/Pedigree.PRO_1.2.5_amd64.AppImage) |
+| | Debian | [`pedigree-pro_1.2.5_amd64.deb`](https://github.com/Huthaifa-HajAhmad/Pedigree-PRO/releases/download/v1.2.5/pedigree-pro_1.2.5_amd64.deb) |
+| | RPM | [`pedigree-pro-1.2.5.x86_64.rpm`](https://github.com/Huthaifa-HajAhmad/Pedigree-PRO/releases/download/v1.2.5/pedigree-pro-1.2.5.x86_64.rpm) |
+
 
 ### Browser Mode
 
