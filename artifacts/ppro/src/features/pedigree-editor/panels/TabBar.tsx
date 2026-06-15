@@ -89,7 +89,7 @@ export function TabBar({
 
   return (
     <div
-      className="tabs-bar relative flex items-stretch h-11 flex-shrink-0 border-b border-black/10 overflow-visible"
+      className="tabs-bar relative flex items-stretch h-12 flex-shrink-0 overflow-visible"
       style={{ background: "transparent" }}
     >
       {/* Scrollable tab rail */}
@@ -166,7 +166,7 @@ export function TabBar({
                   }
                 }}
                 className={`
-                  group relative flex items-center h-9 gap-1.5 px-4 pr-3 flex-shrink-0 cursor-pointer
+                  group relative flex items-center h-10 gap-1.5 px-4 pr-3 flex-shrink-0 cursor-pointer
                   transition-all duration-150 outline-none select-none
                   focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-primary/60
                   ${isDropTarget ? "border-l-2 border-l-primary" : ""}
@@ -234,7 +234,7 @@ export function TabBar({
             onClick={onToggleTabPicker}
             title="Open pedigree"
             aria-label="Open another pedigree"
-            className="flex items-center justify-center w-8 h-8 mb-0.5 rounded-full flex-shrink-0 text-gray-700/50 hover:text-gray-900 hover:bg-black/5 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/60"
+            className="flex items-center justify-center w-8 h-9 mb-0.5 rounded-full flex-shrink-0 text-gray-700/50 hover:text-gray-900 hover:bg-black/5 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/60"
           >
             <Plus className="w-4 h-4" />
           </button>
@@ -246,7 +246,7 @@ export function TabBar({
               onClick={onToggleTabPicker}
               title="Switch pedigree"
               aria-label="Switch pedigree"
-              className="flex items-center justify-center w-7 h-8 mb-0.5 rounded-full flex-shrink-0 text-gray-700/40 hover:text-gray-900 hover:bg-black/5 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/60"
+              className="flex items-center justify-center w-7 h-9 mb-0.5 rounded-full flex-shrink-0 text-gray-700/40 hover:text-gray-900 hover:bg-black/5 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/60"
             >
               <ChevronDown className="w-3.5 h-3.5" />
             </button>
