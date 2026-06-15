@@ -524,20 +524,6 @@ const RAIL_MAX_X = 400;
 
   return (
     <div className="flex flex-col flex-1 overflow-hidden relative" data-print-area>
-      <TabBar
-        tabs={memo.tabItems}
-        currentId={pedigree?.id ?? 0}
-        showTabPicker={state.showTabPicker}
-        onToggleTabPicker={() => dispatch({ type: "SET_STATE", patch: { showTabPicker: !state.showTabPicker } })}
-        onCloseTabPicker={() => dispatch({ type: "SET_STATE", patch: { showTabPicker: false } })}
-        onCloseTab={ops.handleCloseTab}
-        onRenameTab={ops.renameTab}
-        onNavigate={navigate}
-        onOpenTab={(tid, title) => { ops.openTab(tid, title); navigate(`/pedigrees/${tid}`); }}
-        onReorderTab={ops.reorderTabs}
-        onDeletePedigree={ops.handleDeletePedigree}
-        saveStatus={state.saveStatus}
-      />
       <div className="flex-1 overflow-hidden relative canvas-spared flex items-center justify-center p-4" style={{ touchAction: "none", overscrollBehavior: "none" }}>
         {twinSelectMode && (
           <div className="absolute top-3 left-1/2 -translate-x-1/2 z-20 px-3 py-1.5 rounded-full bg-amber-500 text-white text-xs font-medium shadow-md pointer-events-none">
@@ -589,30 +575,47 @@ const RAIL_MAX_X = 400;
           </div>
         )}
         <div
-          className="relative bg-white shadow-md border border-border/75 rounded-lg overflow-hidden flex-shrink-0"
+          className="flex flex-col flex-shrink-0 relative overflow-visible"
           style={{ aspectRatio: "14 / 9", width: "100%", height: "100%", maxWidth: "100%", maxHeight: "100%", margin: "auto" }}
         >
-          <svg
-            ref={svgRef}
-            data-canvas-svg="true"
-            data-pedigree-canvas
-            className="w-full h-full"
-            viewBox={`${viewBox.x} ${viewBox.y} ${vbW} ${vbH}`}
-            onMouseMove={handleMouseMove} onMouseUp={handleMouseUp}
-            onMouseDown={handleSVGMouseDown}
-            onDoubleClick={handleSVGDoubleClick}
-            onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp}
-            style={{ touchAction: "none", cursor: panning ? "grabbing" : spaceHeld ? "grab" : lassoVisible ? "crosshair" : "default" }}
+          <TabBar
+            tabs={memo.tabItems}
+            currentId={pedigree?.id ?? 0}
+            showTabPicker={state.showTabPicker}
+            onToggleTabPicker={() => dispatch({ type: "SET_STATE", patch: { showTabPicker: !state.showTabPicker } })}
+            onCloseTabPicker={() => dispatch({ type: "SET_STATE", patch: { showTabPicker: false } })}
+            onCloseTab={ops.handleCloseTab}
+            onRenameTab={ops.renameTab}
+            onNavigate={navigate}
+            onOpenTab={(tid, title) => { ops.openTab(tid, title); navigate(`/pedigrees/${tid}`); }}
+            onReorderTab={ops.reorderTabs}
+            onDeletePedigree={ops.handleDeletePedigree}
+            saveStatus={state.saveStatus}
+          />
+          <div
+            className="flex-1 relative skeuo-page border-l border-r border-b border-black/10 rounded-b-lg overflow-hidden flex flex-col"
           >
-            <defs>
-              <pattern id="grid-pattern" width="40" height="40" patternUnits="userSpaceOnUse">
-                <path d="M 40 0 L 0 0 0 40" fill="none" stroke="currentColor" strokeWidth={1} vectorEffect="non-scaling-stroke" opacity={config.gridOpacity ?? 0.10} />
-              </pattern>
-            </defs>
-            <rect x={viewBox.x} y={viewBox.y} width={vbW} height={vbH} fill="white" data-canvas-background="true" />
-            {showGrid && (
-              <rect x={viewBox.x} y={viewBox.y} width={vbW} height={vbH} fill="url(#grid-pattern)" pointerEvents="none" />
-            )}
+            <svg
+              ref={svgRef}
+              data-canvas-svg="true"
+              data-pedigree-canvas
+              className="w-full h-full"
+              viewBox={`${viewBox.x} ${viewBox.y} ${vbW} ${vbH}`}
+              onMouseMove={handleMouseMove} onMouseUp={handleMouseUp}
+              onMouseDown={handleSVGMouseDown}
+              onDoubleClick={handleSVGDoubleClick}
+              onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp}
+              style={{ touchAction: "none", cursor: panning ? "grabbing" : spaceHeld ? "grab" : lassoVisible ? "crosshair" : "default" }}
+            >
+              <defs>
+                <pattern id="grid-pattern" width="40" height="40" patternUnits="userSpaceOnUse">
+                  <path d="M 40 0 L 0 0 0 40" fill="none" stroke="currentColor" strokeWidth={1} vectorEffect="non-scaling-stroke" opacity={config.gridOpacity ?? 0.10} />
+                </pattern>
+              </defs>
+              <rect x={viewBox.x} y={viewBox.y} width={vbW} height={vbH} fill="transparent" data-canvas-background="true" />
+              {showGrid && (
+                <rect x={viewBox.x} y={viewBox.y} width={vbW} height={vbH} fill="url(#grid-pattern)" pointerEvents="none" />
+              )}
           {visibleGenRows.map((row) => (
             <line key={row} x1={viewBox.x} y1={row} x2={viewBox.x + vbW} y2={row}
               stroke={"hsl(var(--primary) / 0.5)"} strokeWidth={0.8} strokeDasharray="8 5" opacity={0.4}
@@ -774,6 +777,7 @@ const RAIL_MAX_X = 400;
             </text>
           )}
         </svg>
+        </div>
         </div>
 
         {showSearch && (

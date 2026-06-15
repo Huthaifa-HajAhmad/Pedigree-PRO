@@ -1,7 +1,6 @@
 import { useRef, useState, useCallback, useEffect } from "react";
 import { ChevronDown, Plus, X, Pencil, Trash2 } from "lucide-react";
 import { TabPickerPopover } from "@/features/pedigree-editor/panels/TabPickerPopover";
-import { useTheme } from "@/lib/theme";
 
 
 interface TabEntry {
@@ -38,7 +37,6 @@ export function TabBar({
   onDeletePedigree,
   saveStatus = "idle",
 }: TabBarProps) {
-  const { theme } = useTheme();
   const dragIndexRef = useRef<number | null>(null);
   const [dropIndex, setDropIndex] = useState<number | null>(null);
   const [draggingId, setDraggingId] = useState<number | null>(null);
@@ -91,19 +89,19 @@ export function TabBar({
 
   return (
     <div
-      className="tabs-bar relative flex items-stretch h-10 flex-shrink-0 border-b border-border border-t border-border/40 rounded-b-lg overflow-hidden"
-      style={{ background: "hsl(var(--background))" }}
+      className="tabs-bar relative flex items-stretch h-11 flex-shrink-0 border-b border-black/10 overflow-visible"
+      style={{ background: "transparent" }}
     >
       {/* Scrollable tab rail */}
-      <div className="relative flex-1 min-w-0">
+      <div className="relative flex-1 min-w-0 overflow-visible">
         {/* Left fade */}
         {canScrollLeft && (
-          <div className="absolute left-0 top-0 bottom-0 w-6 z-10 pointer-events-none" style={{ background: "linear-gradient(to right, hsl(var(--background)), transparent)" }} />
+          <div className="absolute left-0 top-0 bottom-0 w-6 z-10 pointer-events-none" style={{ background: "linear-gradient(to right, rgba(0,0,0,0.05), transparent)" }} />
         )}
 
         <div
           ref={scrollContainerRef}
-          className="flex items-stretch h-full overflow-x-auto overflow-y-hidden gap-0.5 pl-0 pr-1"
+          className="flex items-end h-full overflow-x-auto overflow-y-hidden gap-1.5 pl-4 pr-1"
           role="tablist"
           aria-label="Open pedigrees"
         >
@@ -168,17 +166,13 @@ export function TabBar({
                   }
                 }}
                 className={`
-                  group relative flex items-center gap-1.5 px-3 pr-2 flex-shrink-0 cursor-pointer
+                  group relative flex items-center h-9 gap-1.5 px-4 pr-3 flex-shrink-0 cursor-pointer
                   transition-all duration-150 outline-none select-none
                   focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-primary/60
                   ${isDropTarget ? "border-l-2 border-l-primary" : ""}
                   ${draggingId === tab.id ? "opacity-40" : ""}
-                  ${isActive
-                    ? "bg-card text-foreground shadow-sm"
-                    : "bg-muted/40 text-muted-foreground border border-transparent hover:text-foreground hover:bg-muted/70 hover:border-border/60 shadow-[0_1px_2px_rgba(0,0,0,0.06)]"
-                  }
+                  ${isActive ? "skeuo-tab-active" : "skeuo-tab-inactive"}
                 `}
-                style={isActive ? { borderBottom: `2px solid ${theme.accent}` } : undefined}
               >
                 {/* Unsaved indicator dot */}
                 {showUnsavedDot && (
@@ -199,11 +193,11 @@ export function TabBar({
                     }}
                     onBlur={commitRename}
                     onClick={(e) => e.stopPropagation()}
-                    className="text-sm leading-5 bg-background border border-border/80 rounded px-2 py-0.5 outline-none hover:bg-accent/20 focus:border-muted-foreground/45 focus-visible:ring-0 transition-all duration-200 text-foreground w-[120px]"
+                    className="text-xs leading-5 bg-white border border-gray-300 rounded px-2 py-0.5 outline-none focus:border-gray-400 text-gray-800 w-[120px]"
                     autoFocus
                   />
                 ) : (
-                  <span className="text-sm leading-5 truncate max-w-[140px]">
+                  <span className="text-sm font-semibold leading-5 truncate max-w-[140px] tracking-wide">
                     {tab.title}
                   </span>
                 )}
@@ -212,11 +206,11 @@ export function TabBar({
                 <button
                   type="button"
                   className={`
-                    flex-shrink-0 w-4 h-4 flex items-center justify-center rounded-sm
+                    flex-shrink-0 w-4 h-4 flex items-center justify-center rounded-full
                     transition-all duration-100
                     ${isActive
-                      ? "text-muted-foreground hover:text-foreground hover:bg-accent"
-                      : "opacity-0 group-hover:opacity-60 hover:!opacity-100 text-muted-foreground hover:bg-accent"
+                      ? "text-orange-950/60 hover:text-orange-950 hover:bg-black/5"
+                      : "opacity-0 group-hover:opacity-60 hover:!opacity-100 text-gray-700/60 hover:text-gray-900 hover:bg-black/10"
                     }
                     focus-visible:opacity-100 focus-visible:ring-1 focus-visible:ring-primary/60
                   `}
@@ -240,9 +234,9 @@ export function TabBar({
             onClick={onToggleTabPicker}
             title="Open pedigree"
             aria-label="Open another pedigree"
-            className="flex items-center justify-center w-8 my-1.5 rounded flex-shrink-0 text-muted-foreground/50 hover:text-foreground hover:bg-accent/60 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/60"
+            className="flex items-center justify-center w-8 h-8 mb-0.5 rounded-full flex-shrink-0 text-gray-700/50 hover:text-gray-900 hover:bg-black/5 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/60"
           >
-            <Plus className="w-3.5 h-3.5" />
+            <Plus className="w-4 h-4" />
           </button>
 
           {/* Tab picker chevron button inside rail */}
@@ -252,16 +246,16 @@ export function TabBar({
               onClick={onToggleTabPicker}
               title="Switch pedigree"
               aria-label="Switch pedigree"
-              className="flex items-center justify-center w-7 my-1.5 rounded flex-shrink-0 text-muted-foreground/40 hover:text-foreground hover:bg-accent/60 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/60"
+              className="flex items-center justify-center w-7 h-8 mb-0.5 rounded-full flex-shrink-0 text-gray-700/40 hover:text-gray-900 hover:bg-black/5 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/60"
             >
-              <ChevronDown className="w-3 h-3" />
+              <ChevronDown className="w-3.5 h-3.5" />
             </button>
           )}
         </div>
 
         {/* Right fade */}
         {canScrollRight && (
-          <div className="absolute right-0 top-0 bottom-0 w-6 z-10 pointer-events-none" style={{ background: "linear-gradient(to left, hsl(var(--background)), transparent)" }} />
+          <div className="absolute right-0 top-0 bottom-0 w-6 z-10 pointer-events-none" style={{ background: "linear-gradient(to left, rgba(0,0,0,0.05), transparent)" }} />
         )}
       </div>
 
