@@ -524,7 +524,7 @@ const RAIL_MAX_X = 400;
 
   return (
     <div className="flex flex-col flex-1 overflow-hidden relative" data-print-area>
-      <div className="flex-1 overflow-hidden relative canvas-spared flex items-center justify-center p-4" style={{ touchAction: "none", overscrollBehavior: "none" }}>
+      <div className="flex-1 overflow-hidden relative canvas-spared flex items-center justify-center pt-2 pb-4 px-4" style={{ touchAction: "none", overscrollBehavior: "none" }}>
         {twinSelectMode && (
           <div className="absolute top-3 left-1/2 -translate-x-1/2 z-20 px-3 py-1.5 rounded-full bg-amber-500 text-white text-xs font-medium shadow-md pointer-events-none">
             Twin select: {twinCandidateIds.size} node{twinCandidateIds.size !== 1 ? "s" : ""}
@@ -593,7 +593,7 @@ const RAIL_MAX_X = 400;
             saveStatus={state.saveStatus}
           />
           <div
-            className="flex-1 relative skeuo-page border-l border-r border-b border-black/10 rounded-b-lg overflow-hidden flex flex-col"
+            className="flex-1 relative skeuo-page border border-black/10 rounded-lg overflow-hidden flex flex-col"
           >
             <svg
               ref={svgRef}

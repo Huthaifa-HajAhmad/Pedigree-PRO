@@ -101,7 +101,7 @@ export function TabBar({
 
         <div
           ref={scrollContainerRef}
-          className="flex items-end h-full overflow-x-auto overflow-y-hidden gap-1.5 pl-4 pr-1"
+          className="flex items-end h-[calc(100%+2px)] overflow-x-auto overflow-y-hidden gap-1.5 pl-4 pr-1 pb-[2px] z-10"
           role="tablist"
           aria-label="Open pedigrees"
         >
