@@ -280,7 +280,7 @@ input[type="color"]::-moz-color-swatch {
 
 /* Skeuomorphic Paper Planner Design */
 .skeuo-page {
-  background-color: #faf6ee !important;
+  background-color: #ffffff !important;
   background-image: 
     radial-gradient(rgba(0, 0, 0, 0.015) 1px, transparent 0),
     radial-gradient(rgba(0, 0, 0, 0.01) 1px, transparent 0),
@@ -291,36 +291,38 @@ input[type="color"]::-moz-color-swatch {
   box-shadow: 
     0 10px 20px -5px rgba(0, 0, 0, 0.08),
     0 5px 10px -3px rgba(0, 0, 0, 0.04),
-    inset 0 0 30px rgba(230, 224, 211, 0.15) !important;
+    inset 0 0 30px rgba(0, 0, 0, 0.02) !important;
 }
 
 .skeuo-tab-active {
-  background-color: #faf6ee !important;
+  background-color: #ffffff !important;
   background-image: 
     radial-gradient(rgba(0, 0, 0, 0.015) 1px, transparent 0),
     radial-gradient(rgba(0, 0, 0, 0.01) 1px, transparent 0),
     repeating-linear-gradient(45deg, rgba(0, 0, 0, 0.0015) 0px, rgba(0, 0, 0, 0.0015) 2px, transparent 2px, transparent 10px),
-    repeating-linear-gradient(-45deg, rgba(0, 0, 0, 0.0015) 0px, rgba(0, 0, 0, 0.0015) 2px, transparent 2px, transparent 10px) !important;
-  background-size: 8px 8px, 8px 8px, 12px 12px, 12px 12px !important;
-  background-position: 0 0, 4px 4px, 0 0, 0 0 !important;
+    repeating-linear-gradient(-45deg, rgba(0, 0, 0, 0.0015) 0px, rgba(0, 0, 0, 0.0015) 2px, transparent 2px, transparent 10px),
+    linear-gradient(to bottom, #ffffff, #f7f7f7) !important;
+  background-size: 8px 8px, 8px 8px, 12px 12px, 12px 12px, 100% 100% !important;
+  background-position: 0 0, 4px 4px, 0 0, 0 0, 0 0 !important;
   border-top: 1px solid rgba(0, 0, 0, 0.12) !important;
   border-left: 1px solid rgba(0, 0, 0, 0.12) !important;
   border-right: 1px solid rgba(0, 0, 0, 0.12) !important;
-  border-bottom: 1px solid #faf6ee !important;
+  border-bottom: 1px solid #ffffff !important;
   z-index: 10 !important;
-  transform: translateY(1px) !important;
+  transform: translateY(2px) !important;
   border-top-left-radius: 8px !important;
   border-top-right-radius: 8px !important;
-  color: #4a3e2a !important;
-  box-shadow: 0 -3px 5px -2px rgba(0, 0, 0, 0.06), 0 -1px 2px -1px rgba(0, 0, 0, 0.04) !important;
+  color: #1a1a1a !important;
+  box-shadow: 0 -4px 6px -1px rgba(0, 0, 0, 0.08), 0 -2px 4px -1px rgba(0, 0, 0, 0.04) !important;
 }
 
 .skeuo-tab-inactive {
-  background-color: #e6e0d3 !important;
+  background-color: #f0f0f0 !important;
   background-image: 
     radial-gradient(rgba(0, 0, 0, 0.01) 1px, transparent 0),
-    repeating-linear-gradient(45deg, rgba(0, 0, 0, 0.001) 0px, rgba(0, 0, 0, 0.001) 2px, transparent 2px, transparent 10px) !important;
-  background-size: 8px 8px, 12px 12px !important;
+    repeating-linear-gradient(45deg, rgba(0, 0, 0, 0.001) 0px, rgba(0, 0, 0, 0.001) 2px, transparent 2px, transparent 10px),
+    linear-gradient(to bottom, #eeeeee, #dddddd) !important;
+  background-size: 8px 8px, 12px 12px, 100% 100% !important;
   border-top: 1px solid rgba(0, 0, 0, 0.14) !important;
   border-left: 1px solid rgba(0, 0, 0, 0.14) !important;
   border-right: 1px solid rgba(0, 0, 0, 0.14) !important;
@@ -329,12 +331,12 @@ input[type="color"]::-moz-color-swatch {
   transform: translateY(0) !important;
   border-top-left-radius: 8px !important;
   border-top-right-radius: 8px !important;
-  color: rgba(0, 0, 0, 0.45) !important;
-  box-shadow: inset 0 -3px 5px -2px rgba(0, 0, 0, 0.08) !important;
+  color: rgba(0, 0, 0, 0.5) !important;
+  box-shadow: inset 0 -3px 5px -2px rgba(0, 0, 0, 0.12), 0 -1px 2px rgba(0, 0, 0, 0.05) !important;
 }
 
 .skeuo-tab-inactive:hover {
-  background-color: #ede7db !important;
-  color: rgba(0, 0, 0, 0.6) !important;
+  background-color: #f5f5f5 !important;
+  color: rgba(0, 0, 0, 0.65) !important;
 }
 
