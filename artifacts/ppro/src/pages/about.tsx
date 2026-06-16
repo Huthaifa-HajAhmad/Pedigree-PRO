@@ -130,6 +130,10 @@ export default function AboutPage() {
                     <span className="text-primary font-bold select-none mt-0.5">•</span>
                     <span><strong>Canvas Layout Integration:</strong> Cleaned up interface layouts by moving the TabBar inside the canvas area and aligning overlays with collapsible sidebars.</span>
                   </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-primary font-bold select-none mt-0.5">•</span>
+                    <span><strong>Skeuomorphic Planner Tabs:</strong> Redesigned tab bar and canvas page with cream paper texture, stacked index-tab aesthetic, 3D gradients, white background, scaled-up sizing, and aligned corner radii.</span>
+                  </li>
                 </ul>
               </div>
 

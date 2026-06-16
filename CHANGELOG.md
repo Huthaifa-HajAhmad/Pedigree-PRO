@@ -2,7 +2,7 @@
 
 All notable changes to the Pedigree PRO project.
 
-## [1.2.5] — 2026-06-14
+## [1.2.5] — 2026-06-15
 
 ### Added
 - **Genotype Customization Support**: Canvas support for rendering genotypes dynamically below pedigree nodes. Added settings for genotype font size (8px–24px), symbol offset, and colors for mutant (+), wild-type (-), and separator (/) symbols.
@@ -10,6 +10,7 @@ All notable changes to the Pedigree PRO project.
 - **Interactive Feature Tour**: Added onboarding feature tour modal (`FeatureTourModal`) highlighting offline privacy, rapid shortcuts, genotype customization, risk calculation, and peer-to-peer sharing.
 - **Canvas Layout Integration**: Relocated the pedigree `TabBar` inside the canvas container for a cleaner view and updated overlays like the Minimap to align correctly with collapsible side panels.
 - **Theme-Adaptive Inputs**: Configured dynamic theme loaders to add/remove the `.dark` class to `document.documentElement` for Tailwind-like styling, and custom styled all range inputs across light, dark, and specialized themes.
+- **Skeuomorphic Planner Tab Design**: Redesigned the tab bar and canvas page with a cream paper texture and stacked index-tab aesthetic; tab visuals now use 3D gradients with a white background, no dividing border, scaled-up sizing, lightened inactive tint, and aligned corner radii for a cohesive planner look.
 
 ## [1.2.2] — 2026-06-13
 
