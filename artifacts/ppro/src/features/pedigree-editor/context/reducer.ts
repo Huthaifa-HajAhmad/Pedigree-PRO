@@ -53,6 +53,27 @@ export function autoDetectConsanguinity(nodes: PedigreeNode[], edges: PedigreeEd
   });
 }
 
+export function autoDetectInvertedCouples(nodes: PedigreeNode[], edges: PedigreeEdge[]): PedigreeEdge[] {
+  const nodeMap = new Map(nodes.map(n => [n.id, n]));
+  return edges.map((e) => {
+    if (e.type === "couple" || e.type === "consanguinity" || e.type === "divorced" || e.type === "separated") {
+      const n1 = nodeMap.get(e.sourceId);
+      const n2 = nodeMap.get(e.targetId);
+      if (n1 && n2) {
+        const male = n1.type === "male" ? n1 : n2.type === "male" ? n2 : null;
+        const female = n1.type === "female" ? n1 : n2.type === "female" ? n2 : null;
+        if (male && female && male.id !== female.id) {
+          const isInverted = male.x > female.x;
+          if (e.inverted !== isInverted) {
+            return { ...e, inverted: isInverted };
+          }
+        }
+      }
+    }
+    return e;
+  });
+}
+
 export function pedigreeEditorReducer(
   state: PedigreeEditorState,
   action: PedigreeEditorAction,
@@ -63,6 +84,7 @@ export function pedigreeEditorReducer(
 
     case "SET_CANVAS": {
       const canvas = { ...action.canvas };
+      canvas.edges = autoDetectInvertedCouples(canvas.nodes, canvas.edges);
       canvas.edges = autoDetectConsanguinity(canvas.nodes, canvas.edges);
       return { ...state, canvas };
     }
@@ -70,6 +92,7 @@ export function pedigreeEditorReducer(
     case "ENTER_PREVIEW": {
       const liveCanvasCache = state.liveCanvasCache || state.canvas;
       const canvas = { ...action.canvas };
+      canvas.edges = autoDetectInvertedCouples(canvas.nodes, canvas.edges);
       canvas.edges = autoDetectConsanguinity(canvas.nodes, canvas.edges);
       return {
         ...state,
@@ -103,12 +126,13 @@ export function pedigreeEditorReducer(
       const next = action.updater(prev);
       const pushHistory = action.pushHistory !== false;
       
-      const updatedEdges = autoDetectConsanguinity(next.nodes, next.edges);
-      const nextWithConsanguinity = { ...next, edges: updatedEdges };
+      const withInverted = autoDetectInvertedCouples(next.nodes, next.edges);
+      const updatedEdges = autoDetectConsanguinity(next.nodes, withInverted);
+      const nextWithInverted = { ...next, edges: updatedEdges };
 
       return {
         ...state,
-        canvas: nextWithConsanguinity,
+        canvas: nextWithInverted,
         history: pushHistory ? [...state.history.slice(-49), prev] : state.history,
         future: pushHistory ? [] : state.future,
       };
@@ -142,7 +166,8 @@ export function pedigreeEditorReducer(
       const removeSet = new Set(action.edgeIds);
       const newEdges = state.canvas.edges.filter((e) => !removeSet.has(e.id));
       const prev = state.canvas;
-      const updatedEdges = autoDetectConsanguinity(state.canvas.nodes, newEdges);
+      const withInverted = autoDetectInvertedCouples(state.canvas.nodes, newEdges);
+      const updatedEdges = autoDetectConsanguinity(state.canvas.nodes, withInverted);
       return {
         ...state,
         canvas: { ...state.canvas, edges: updatedEdges },

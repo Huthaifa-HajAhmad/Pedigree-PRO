@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { autoDetectConsanguinity, pedigreeEditorReducer } from "@/features/pedigree-editor/context/reducer";
+import { autoDetectConsanguinity, autoDetectInvertedCouples, pedigreeEditorReducer } from "@/features/pedigree-editor/context/reducer";
 import { INITIAL_STATE } from "@/features/pedigree-editor/context/types";
 import type { PedigreeNode, PedigreeEdge } from "@/features/pedigree-editor/canvas/types";
 
@@ -157,6 +157,20 @@ describe("Version Preview Mode", () => {
       enabled: false
     });
     expect(toggledOff.showVisualDiff).toBe(false);
+  });
+
+  it("handles auto-detection of inverted couple edges in the reducer", () => {
+    // Male node on the right of female node
+    const nodes: PedigreeNode[] = [
+      { id: "II:5", type: "female", x: 100, y: 120, affected: false, carrier: false, deceased: false, proband: false, label: "II:5", age: "" },
+      { id: "II:6", type: "male", x: 200, y: 120, affected: false, carrier: false, deceased: false, proband: false, label: "II:6", age: "" },
+    ];
+    const edges: PedigreeEdge[] = [
+      { id: "e1", type: "couple", sourceId: "II:5", targetId: "II:6" }
+    ];
+
+    const updated = autoDetectInvertedCouples(nodes, edges);
+    expect(updated[0]?.inverted).toBe(true);
   });
 });
 

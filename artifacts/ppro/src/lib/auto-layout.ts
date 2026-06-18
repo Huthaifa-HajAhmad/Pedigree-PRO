@@ -32,6 +32,7 @@ export interface LayoutEdge {
   type: "couple" | "parent-child" | "consanguinity" | "divorced" | "separated";
   sourceId: string;
   targetId: string;
+  inverted?: boolean;
 }
 
 import { GEN_GRID, NODE_GAP } from "@/features/pedigree-editor/canvas/types";
@@ -109,46 +110,43 @@ export function computeAutoLayout(
     if (!genOf.has(n.id)) genOf.set(n.id, 0);
   }
 
-  // ── Spouse alignment pass: ensure both partners share the max generation ──
-  // Married-in founders may have been assigned gen 0 by the BFS but their
-  // partner has a higher gen from parental lineage. Re-align them.
-  let spouseChanged = true;
-  let spouseSafety = 0;
-  while (spouseChanged && spouseSafety++ < 50) {
-    spouseChanged = false;
+  // ── Unified spouse alignment, child downward and parent upward propagation loop ──
+  // This keeps the entire pedigree generation-aligned, even when ancestors
+  // get auto-created parents (which shifts generations at the top).
+  let stable = false;
+  let safety = 0;
+  while (!stable && safety++ < 100) {
+    stable = true;
+
     for (const n of nodes) {
       const myGen = genOf.get(n.id) ?? 0;
+
+      // 1. Spouse alignment: spouses must be in the same generation
       for (const partnerId of couplesOf.get(n.id) ?? []) {
         const partnerGen = genOf.get(partnerId) ?? 0;
-        const maxGen = Math.max(myGen, partnerGen);
-        if (myGen < maxGen) {
-          genOf.set(n.id, maxGen);
-          spouseChanged = true;
-        }
-        if (partnerGen < maxGen) {
-          genOf.set(partnerId, maxGen);
-          spouseChanged = true;
+        if (partnerGen !== myGen) {
+          const max = Math.max(myGen, partnerGen);
+          genOf.set(n.id, max);
+          genOf.set(partnerId, max);
+          stable = false;
         }
       }
-    }
-  }
 
-  // ── Re-propagate children after spouse alignment ──────────────────────
-  // Spouse alignment may have promoted some nodes, so their children need
-  // to be at parentGen + 1 at minimum. Iterate until stable because
-  // promoting a child may cascade to grandchildren.
-  let repropChanged = true;
-  let repropSafety = 0;
-  while (repropChanged && repropSafety++ < 50) {
-    repropChanged = false;
-    const byGen = [...genOf.entries()].sort((a, b) => a[1] - b[1]);
-    for (const [id] of byGen) {
-      const myGen = genOf.get(id) ?? 0;
-      for (const childId of childrenOf.get(id) ?? []) {
+      // 2. Downward child propagation: children must be at least myGen + 1
+      for (const childId of childrenOf.get(n.id) ?? []) {
         const childGen = genOf.get(childId) ?? 0;
-        if (childGen <= myGen) {
+        if (childGen < myGen + 1) {
           genOf.set(childId, myGen + 1);
-          repropChanged = true;
+          stable = false;
+        }
+      }
+
+      // 3. Upward parent propagation: parents must be at least myGen - 1
+      for (const parentId of parentsOf.get(n.id) ?? []) {
+        const parentGen = genOf.get(parentId) ?? 0;
+        if (parentGen < myGen - 1) {
+          genOf.set(parentId, myGen - 1);
+          stable = false;
         }
       }
     }
@@ -164,22 +162,30 @@ export function computeAutoLayout(
 
   // ── Determine Y for each generation ────────────────────────────────────
   const genYOf = new Map<number, number>();
-  for (const gen of sortedGens) {
-    const nodeIds = genGroups.get(gen)!;
-    if (respectPinned) {
+  let anchorGen: number | null = null;
+  let anchorY = 0;
+
+  if (respectPinned) {
+    for (const gen of sortedGens) {
+      const nodeIds = genGroups.get(gen)!;
       const pinnedYs = nodeIds
         .map((id) => nodeMap.get(id))
         .filter((n): n is LayoutNode => !!n?.pinned)
         .map((n) => n.y);
       if (pinnedYs.length > 0) {
-        genYOf.set(
-          gen,
-          pinnedYs.reduce((a, b) => a + b, 0) / pinnedYs.length
-        );
-        continue;
+        anchorGen = gen;
+        anchorY = pinnedYs.reduce((a, b) => a + b, 0) / pinnedYs.length;
+        break;
       }
     }
-    genYOf.set(gen, GEN_Y_START + gen * GEN_SPACING);
+  }
+
+  for (const gen of sortedGens) {
+    if (anchorGen !== null) {
+      genYOf.set(gen, anchorY + (gen - anchorGen) * GEN_SPACING);
+    } else {
+      genYOf.set(gen, GEN_Y_START + gen * GEN_SPACING);
+    }
   }
 
 
@@ -247,21 +253,103 @@ export function computeAutoLayout(
     // 3. Group remaining founders (founder couples and single founders)
     const assignedFounders = new Set<string>();
     let founderGroupIndex = 0;
+    const founderGroups: { key: string; ids: string[] }[] = [];
     for (const id of remainingFounders) {
       if (assignedFounders.has(id)) continue;
       const key = `founder_gp_${founderGroupIndex++}`;
-      groupsMap.set(key, [id]);
-      groupCenterX.set(key, CANVAS_CENTER_X);
+      const groupIds = [id];
       assignedFounders.add(id);
       nodeToGroupKey.set(id, key);
 
       const partners = (couplesOf.get(id) ?? []).filter((p) => remainingFounders.includes(p) && !assignedFounders.has(p));
       if (partners.length > 0 && partners[0]) {
-        groupsMap.get(key)!.push(partners[0]);
+        groupIds.push(partners[0]);
         assignedFounders.add(partners[0]);
         nodeToGroupKey.set(partners[0], key);
       }
+      founderGroups.push({ key, ids: groupIds });
     }
+
+    // 4. Build connection graph between founder groups based on child marriages
+    const childrenOfFg = new Map<string, Set<string>>();
+    for (const fg of founderGroups) {
+      const childSet = new Set<string>();
+      for (const memberId of fg.ids) {
+        for (const childId of childrenOf.get(memberId) ?? []) {
+          childSet.add(childId);
+        }
+      }
+      childrenOfFg.set(fg.key, childSet);
+    }
+
+    const adjFg = new Map<string, Set<string>>();
+    for (const fg of founderGroups) {
+      adjFg.set(fg.key, new Set());
+    }
+
+    for (let i = 0; i < founderGroups.length; i++) {
+      for (let j = i + 1; j < founderGroups.length; j++) {
+        const fgA = founderGroups[i]!;
+        const fgB = founderGroups[j]!;
+
+        const childrenA = childrenOfFg.get(fgA.key)!;
+        const childrenB = childrenOfFg.get(fgB.key)!;
+
+        let connected = false;
+        for (const childA of childrenA) {
+          const partners = couplesOf.get(childA) ?? [];
+          for (const partner of partners) {
+            if (childrenB.has(partner)) {
+              connected = true;
+              break;
+            }
+          }
+          if (connected) break;
+        }
+
+        if (connected) {
+          adjFg.get(fgA.key)!.add(fgB.key);
+          adjFg.get(fgB.key)!.add(fgA.key);
+        }
+      }
+    }
+
+    // 5. Traverse components to order connected founder groups adjacent to each other
+    const orderedFgKeys: string[] = [];
+    const visitedFg = new Set<string>();
+
+    for (const fg of founderGroups) {
+      if (visitedFg.has(fg.key)) continue;
+
+      const component: string[] = [];
+      const queue = [fg.key];
+      while (queue.length > 0) {
+        const curr = queue.shift()!;
+        if (visitedFg.has(curr)) continue;
+        visitedFg.add(curr);
+        component.push(curr);
+
+        for (const neighbor of adjFg.get(curr) ?? []) {
+          if (!visitedFg.has(neighbor)) {
+            queue.push(neighbor);
+          }
+        }
+      }
+      orderedFgKeys.push(...component);
+    }
+
+    // 6. Set ordered founder groups X center coordinates
+    const founderGroupByKey = new Map(founderGroups.map(fg => [fg.key, fg]));
+    let fIdx = 0;
+    const spacing = 200;
+    for (const key of orderedFgKeys) {
+      const fg = founderGroupByKey.get(key)!;
+      groupsMap.set(fg.key, fg.ids);
+      const cx = CANVAS_CENTER_X + (fIdx - (orderedFgKeys.length - 1) / 2) * spacing;
+      groupCenterX.set(fg.key, cx);
+      fIdx++;
+    }
+
 
     // Convert to the array shape sibGroups expects
     const sibGroups: { ids: string[]; centerX: number }[] = [];
@@ -279,9 +367,11 @@ export function computeAutoLayout(
       const ordered = orderNodesForGen(
         group.ids,
         couplesOf,
+        childrenOf,
         parentsOf,
         knownPos,
-        nodeMap
+        nodeMap,
+        edges
       );
 
       let totalWidth = 0;
@@ -309,7 +399,7 @@ export function computeAutoLayout(
         }
         knownPos.set(curr, { x, y });
       }
-      nextAvailableX = x + Math.round(NODE_GAP * 2.0);
+      nextAvailableX = x + Math.round(NODE_GAP * 1.3);
     }
   }
 
@@ -357,11 +447,15 @@ function swapCouplePartners(nodes: LayoutNode[], edges: LayoutEdge[]): LayoutNod
         if (maleIdx !== -1 && femaleIdx !== -1) {
           const maleNode = result[maleIdx]!;
           const femaleNode = result[femaleIdx]!;
-          // If male is to the right of female, swap their X coordinates
-          if (maleNode.x > femaleNode.x) {
-            const tempX = maleNode.x;
-            maleNode.x = femaleNode.x;
-            femaleNode.x = tempX;
+          
+          const expectedLeft = e.inverted ? femaleNode : maleNode;
+          const expectedRight = e.inverted ? maleNode : femaleNode;
+
+          // If expectedLeft is to the right of expectedRight, swap their X coordinates
+          if (expectedLeft.x > expectedRight.x) {
+            const tempX = expectedLeft.x;
+            expectedLeft.x = expectedRight.x;
+            expectedRight.x = tempX;
           }
         }
       }
@@ -403,9 +497,11 @@ function getEffectiveParentXs(
 function orderNodesForGen(
   nodeIds: string[],
   couplesOf: Map<string, string[]>,
+  childrenOf: Map<string, string[]>,
   parentsOf: Map<string, string[]>,
   knownPos: Map<string, { x: number; y: number }>,
-  nodeMap: Map<string, LayoutNode>
+  nodeMap: Map<string, LayoutNode>,
+  edges: LayoutEdge[]
 ): string[] {
   const seen = new Set<string>();
   const groups: string[][] = [];
@@ -418,11 +514,22 @@ function orderNodesForGen(
     );
     if (partners.length > 0 && partners[0]) {
       seen.add(partners[0]);
-      // Enforce male on the left, female on the right
+      // Enforce male on the left, female on the right (unless inverted)
       const p1 = nodeMap.get(id);
       const p2 = nodeMap.get(partners[0]);
+      
+      const coupleEdge = edges.find(
+        (e) =>
+          (e.type === "couple" || e.type === "consanguinity" || e.type === "divorced" || e.type === "separated") &&
+          ((e.sourceId === id && e.targetId === partners[0]) || (e.sourceId === partners[0] && e.targetId === id))
+      );
+      const isInverted = coupleEdge?.inverted ?? false;
+
       if (p1 && p2) {
-        if (p1.type === "female" || p2.type === "male") {
+        const shouldSwap = isInverted
+          ? (p1.type === "male" || p2.type === "female") // Inverted: female left, male right
+          : (p1.type === "female" || p2.type === "male"); // Normal: male left, female right
+        if (shouldSwap) {
           groups.push([partners[0], id]);
         } else {
           groups.push([id, partners[0]]);
@@ -461,7 +568,36 @@ function orderNodesForGen(
 
     const aX = avgParentX(a, parentsOf, couplesOf, knownPos, nodeMap);
     const bX = avgParentX(b, parentsOf, couplesOf, knownPos, nodeMap);
-    return aX - bX;
+    if (Math.abs(aX - bX) > 1) {
+      return aX - bX;
+    }
+
+    // Tie-breaker: preserve canonical sibling order from parent-child edges
+    const getGroupSiblingIndex = (groupIds: string[]): number => {
+      const indices = groupIds.map((id) => {
+        const pIds = parentsOf.get(id) ?? [];
+        if (pIds.length === 0) return 999;
+        const pid = pIds[0]!;
+        const children = childrenOf.get(pid) ?? [];
+        const idx = children.indexOf(id);
+        return idx !== -1 ? idx : 999;
+      });
+      const minIdx = Math.min(...indices);
+      if (minIdx === 999) {
+        return Math.min(...groupIds.map((id) => nodeIds.indexOf(id)));
+      }
+      return minIdx;
+    };
+
+    const idxA = getGroupSiblingIndex(a);
+    const idxB = getGroupSiblingIndex(b);
+    
+    if (idxA === idxB) {
+      const originalIdxA = Math.min(...a.map((id) => nodeIds.indexOf(id)));
+      const originalIdxB = Math.min(...b.map((id) => nodeIds.indexOf(id)));
+      return originalIdxA - originalIdxB;
+    }
+    return idxA - idxB;
   });
 
   return groups.flat();

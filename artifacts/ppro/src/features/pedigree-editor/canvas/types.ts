@@ -1,3 +1,6 @@
+import type { ThemeId } from "@/lib/theme";
+import type { CanvasConfig } from "@/features/pedigree-editor/context/CanvasConfigContext";
+
 export interface PedigreeNode {
   id: string;
   type: "male" | "female" | "unknown" | "pregnancy" | "sab";
@@ -27,6 +30,7 @@ export interface PedigreeEdge {
   targetId: string;
   twinGroup?: string;
   twinType?: "m" | "d";
+  inverted?: boolean;
 }
 
 export type CoupleEdgeType = "couple" | "consanguinity" | "divorced" | "separated";
@@ -52,6 +56,10 @@ export interface CanvasData {
   nodes: PedigreeNode[];
   edges: PedigreeEdge[];
   annotations: PedigreeAnnotation[];
+  settings?: {
+    themeId?: ThemeId;
+    config?: Partial<CanvasConfig>;
+  };
 }
 
 export interface DragState {
