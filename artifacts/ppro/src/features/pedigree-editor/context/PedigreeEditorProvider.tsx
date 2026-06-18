@@ -8,7 +8,7 @@ import {
 import { getDefaultAnnotationColor } from "@/lib/theme";
 import { validatePedigree } from "@/lib/validate-pedigree";
 import { computeAutoLayout } from "@/lib/auto-layout";
-import { resolveAllCollisions, resolveAndRecenter, recenterAllFamilies, makeSpaceAtX, buildAdjacency, collectSubtree, ROW_TOLERANCE } from "@/lib/layout-engine";
+import { resolveAllCollisions, resolveAndRecenter, recenterAllFamilies, makeSpaceAtX, ROW_TOLERANCE } from "@/lib/layout-engine";
 import { computeAutoLabels, romanToInt } from "@/lib/pedigree-labels";
 import { generateThumbnail } from "@/lib/generate-thumbnail";
 import { toast } from "@/hooks/use-toast";
@@ -776,13 +776,7 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
     } });
   }, []);
 
-  // Helper: parse DOB string (YYYY or YYYY-MM or YYYY-MM-DD) for sorting
-  const parseDobYear = (dob?: string): number => {
-    if (!dob) return 9999; // Unknown/empty DOB sorts last (youngest)
-    const parts = dob.split("-");
-    const year = parseInt(parts[0] || "", 10);
-    return isNaN(year) ? 9999 : year;
-  };
+
 
   // Helper: calculate age from DOB string
   const calculateAgeFromDob = (dob?: string): string => {
@@ -800,19 +794,36 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
 
   const addSiblingsBlockedRef = useRef(false);
 
-  const addSiblings = useCallback((sourceId: string, siblings: Array<{ type: PedigreeNode["type"]; dob: string; affected?: boolean; carrier?: boolean; deceased?: boolean; proband?: boolean; condition?: string; notes?: string }>) => {
+  const addSiblings = useCallback((
+    sourceId: string,
+    siblings: Array<{
+      id: string;
+      type: PedigreeNode["type"];
+      dob: string;
+      affected?: boolean;
+      carrier?: boolean;
+      deceased?: boolean;
+      proband?: boolean;
+      condition?: string;
+      notes?: string;
+      isSource?: boolean;
+    }>
+  ) => {
     addSiblingsBlockedRef.current = false;
     dispatch({ type: "UPDATE_CANVAS", updater: (p) => {
       const s = p.nodes.find((n) => n.id === sourceId); if (!s) return p;
       const SY = GEN_GRID;
-      // Sort siblings by DOB - older (lower year) first = left
-      const sortedSiblings = [...siblings].sort((a, b) => parseDobYear(a.dob) - parseDobYear(b.dob));
       const nd = { affected: false, carrier: false, deceased: false, proband: false, label: "", age: "" };
+
+      // Separate new siblings from the source node
+      const newSiblingEntries = siblings.filter((sib) => !sib.isSource);
+
       const parentEdges = p.edges.filter((e) => e.type === "parent-child" && e.targetId === sourceId);
       let parentIds = parentIdsFromEdges(parentEdges);
       const now = Date.now();
-      let newNodes: PedigreeNode[] = [];
-      const newEdges: PedigreeEdge[] = [];
+
+      let createdParents: PedigreeNode[] = [];
+      const coupleEdges: PedigreeEdge[] = [];
 
       // If no parents exist, auto-create them above the source node
       if (parentIds.length === 0) {
@@ -821,184 +832,148 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
         const parentY = s.y - SY;
         const fatherX = Math.max(GEN_GRID, s.x - NODE_GAP / 2 + 0.01);
         const motherX = Math.max(fatherX + NODE_GAP, s.x + NODE_GAP / 2 - 0.01);
-        
-        newNodes.push(
+
+        createdParents.push(
           { id: fid, type: "male", ...nd, x: fatherX, y: parentY, label: "" },
           { id: mid, type: "female", ...nd, x: motherX, y: parentY, label: "" }
         );
-        newEdges.push(
-          { id: `e${now}_couple`, type: "couple", sourceId: fid, targetId: mid },
-          { id: `e${now}_pf`, type: "parent-child", sourceId: fid, targetId: sourceId },
-          { id: `e${now}_pm`, type: "parent-child", sourceId: mid, targetId: sourceId }
+        coupleEdges.push(
+          { id: `e${now}_couple`, type: "couple", sourceId: fid, targetId: mid }
         );
         parentIds = [fid, mid];
       }
 
-      const allChildIds = new Set<string>();
+      // Get all existing children of these parents
+      const existingChildren = p.nodes.filter((n) =>
+        p.edges.some(
+          (e) =>
+            e.type === "parent-child" &&
+            parentIds.includes(e.sourceId) &&
+            e.targetId === n.id
+        )
+      );
+      // Sort existing children by their current X coordinate to get original horizontal order
+      existingChildren.sort((a, b) => a.x - b.x);
+      const existingChildIds = existingChildren.map((n) => n.id);
+
+      // Map each sibling in the modal-confirmed order to its final node ID
+      const orderedChildIds = siblings.map((sib) => (sib.isSource ? sourceId : sib.id));
+
+      // Reconstruct final child order by replacing the source node with the ordered subset
+      const finalChildIdsOrder = [...existingChildIds];
+      const sourceIndex = existingChildIds.indexOf(sourceId);
+      if (sourceIndex !== -1) {
+        finalChildIdsOrder.splice(sourceIndex, 1, ...orderedChildIds);
+      } else {
+        finalChildIdsOrder.push(...orderedChildIds);
+      }
+
+      console.log("DEBUG SIBLING ADDITION:", {
+        parentIds,
+        existingChildIds,
+        orderedChildIds,
+        finalChildIdsOrder,
+      });
+
+      // Remove all parent-child edges of the parents so we can rebuild/reorder them
+      const filteredEdges = p.edges.filter(
+        (e) => !(e.type === "parent-child" && parentIds.includes(e.sourceId))
+      );
+
+      // Rebuild parent-child edges in the exact order of finalChildIdsOrder
+      const parentChildEdges: PedigreeEdge[] = [];
+      let edgeIndex = 0;
       for (const pid of parentIds) {
-        for (const e of [...p.edges, ...newEdges]) {
-          if (e.type === "parent-child" && e.sourceId === pid) allChildIds.add(e.targetId);
-        }
-      }
-      allChildIds.add(sourceId);
-
-      for (let i = 0; i < sortedSiblings.length; i++) {
-        const sb = sortedSiblings[i]!;
-        const age = calculateAgeFromDob(sb.dob);
-        const nid = `n${now + i}-${Math.random().toString(36).slice(2, 6)}`;
-        newNodes.push({
-          id: nid, type: sb.type,
-          affected: sb.affected ?? false, carrier: sb.carrier ?? false,
-          deceased: sb.deceased ?? false, proband: sb.proband ?? false, label: "", age,
-          x: 0, y: s.y,
-          dob: sb.dob || undefined, condition: sb.condition || undefined, notes: sb.notes || undefined,
-        });
-        allChildIds.add(nid);
-        for (const pid of parentIds) {
-          newEdges.push({ id: `e${now + i}_${parentIds.indexOf(pid)}`, type: "parent-child", sourceId: pid, targetId: nid });
-        }
-      }
-
-      const allNodes = [...p.nodes, ...newNodes];
-      const allEdges = [...p.edges, ...newEdges];
-      const adj = buildAdjacency(allNodes, allEdges);
-      const childMap = new Map<string, PedigreeNode>();
-      for (const n of allNodes) {
-        if (allChildIds.has(n.id)) childMap.set(n.id, n);
-      }
-      const allChildren = [...childMap.values()].sort((a, b) => parseDobYear(a.dob) - parseDobYear(b.dob));
-
-      let positionedNodes = [...allNodes];
-      
-      const parents = parentIds
-        .map((id) => p.nodes.find((n) => n.id === id) || newNodes.find((n) => n.id === id))
-        .filter(Boolean) as PedigreeNode[];
-
-      // Calculate parents center C to anchor children symmetrically
-      let C = s.x;
-      if (parents.length >= 2) {
-        C = (parents[0]!.x + parents[1]!.x) / 2;
-      } else if (parents.length === 1) {
-        C = parents[0]!.x;
-      }
-
-      // Subtree-aware child spacing calculation to prevent child/descendant collisions
-      const N = allChildren.length;
-      const nodeMap = new Map(allNodes.map(n => [n.id, n]));
-
-      const getSubtreeRelativeOffsets = (nodeId: string) => {
-        const subtree = collectSubtree(nodeId, adj);
-        const node = nodeMap.get(nodeId);
-        if (!node) return { left: 0, right: 0 };
-
-        let minX = node.x;
-        let maxX = node.x;
-        for (const memberId of subtree) {
-          const member = nodeMap.get(memberId);
-          if (member) {
-            minX = Math.min(minX, member.x);
-            maxX = Math.max(maxX, member.x);
-          }
-        }
-        return {
-          left: minX - node.x,
-          right: maxX - node.x
-        };
-      };
-
-      const offsets: number[] = [];
-      let currentOffset = 0;
-      offsets.push(0);
-
-      for (let i = 1; i < N; i++) {
-        const leftNode = allChildren[i - 1]!;
-        const rightNode = allChildren[i]!;
-
-        const offsetsLeft = getSubtreeRelativeOffsets(leftNode.id);
-        const offsetsRight = getSubtreeRelativeOffsets(rightNode.id);
-        const gap = Math.max(NODE_GAP, NODE_GAP + offsetsLeft.right - offsetsRight.left);
-
-        currentOffset += gap;
-        offsets.push(currentOffset);
-      }
-
-      const totalWidth = offsets[N - 1] ?? 0;
-      let startX = C - totalWidth / 2;
-
-      // Exclude all family subtrees from blockers to prevent treating our own partners as blocking nodes
-      const familyRowNodeIds = new Set<string>();
-      for (const child of allChildren) {
-        const subtree = collectSubtree(child.id, adj);
-        for (const id of subtree) {
-          familyRowNodeIds.add(id);
-        }
-      }
-
-      const otherRowNodes = positionedNodes.filter(n => Math.abs(n.y - s.y) < ROW_TOLERANCE && !familyRowNodeIds.has(n.id));
-      const leftNodes = otherRowNodes.filter(n => n.x < C - 0.1);
-      if (leftNodes.length > 0) {
-        const maxLeftX = Math.max(...leftNodes.map(n => n.x));
-        const minXLimit = maxLeftX + NODE_GAP;
-        if (startX < minXLimit) {
-          startX = minXLimit;
-        }
-      }
-
-      // Ensure space to the right of the siblings to prevent crossing/interlacing
-      const emptyStartX = startX - 0.1;
-      const emptyEndX = startX + totalWidth + NODE_GAP - 0.1;
-      const rightNodes = otherRowNodes.filter(n => n.x > emptyStartX);
-      if (rightNodes.length > 0) {
-        const minRightX = Math.min(...rightNodes.map(n => n.x));
-        if (minRightX < emptyEndX - 0.05) {
-          const requiredShift = emptyEndX - minRightX;
-          
-          // Collect all nodes to the right of minRightX, expanded to their descendant subtrees
-          const nodesToShift = new Set<string>();
-          for (const n of positionedNodes) {
-            if (n.x >= minRightX - 0.05 && !familyRowNodeIds.has(n.id)) {
-              const subtree = collectSubtree(n.id, adj);
-              for (const memberId of subtree) {
-                if (!familyRowNodeIds.has(memberId)) {
-                  nodesToShift.add(memberId);
-                }
-              }
-            }
-          }
-
-          positionedNodes = positionedNodes.map(n => {
-            if (nodesToShift.has(n.id)) {
-              return { ...n, x: n.x + requiredShift };
-            }
-            return n;
+        for (const cid of finalChildIdsOrder) {
+          parentChildEdges.push({
+            id: `e_pc_${now}_${pid}_${cid}_${edgeIndex++}`,
+            type: "parent-child",
+            sourceId: pid,
+            targetId: cid,
           });
         }
       }
 
-      const shiftedNodeIds = new Set<string>();
-      for (let i = 0; i < N; i++) {
-        const child = allChildren[i]!;
-        const targetX = startX + offsets[i]!;
-        const deltaX = targetX - child.x;
-
-        const subtree = collectSubtree(child.id, adj);
-        for (const memberId of subtree) {
-          if (shiftedNodeIds.has(memberId)) continue;
-          shiftedNodeIds.add(memberId);
-
-          const idx = positionedNodes.findIndex(n => n.id === memberId);
-          if (idx !== -1) {
-            positionedNodes[idx] = {
-              ...positionedNodes[idx]!,
-              x: positionedNodes[idx]!.x + deltaX,
-              ...(memberId === child.id ? { y: s.y } : {})
-            };
-          }
-        }
+      // Assign initial positions to the new siblings based on their position in finalChildIdsOrder
+      const currentX = new Map<string, number>();
+      for (const child of existingChildren) {
+        currentX.set(child.id, child.x);
       }
 
-      // Resolve collisions globally and recenter parents bottom-up
-      const final = resolveAndRecenter(positionedNodes, allEdges, allChildIds);
+      // Construct new nodes for the new siblings
+      const newNodes: PedigreeNode[] = [];
+      for (const sb of newSiblingEntries) {
+        const age = calculateAgeFromDob(sb.dob);
+
+        // Find position of sb.id in finalChildIdsOrder
+        const idx = finalChildIdsOrder.indexOf(sb.id);
+        let xVal = s.x; // Fallback
+        if (idx !== -1) {
+          // Find closest left sibling with assigned X
+          let leftIdx = -1;
+          for (let i = idx - 1; i >= 0; i--) {
+            if (currentX.has(finalChildIdsOrder[i]!)) {
+              leftIdx = i;
+              break;
+            }
+          }
+          // Find closest right sibling with assigned X
+          let rightIdx = -1;
+          for (let i = idx + 1; i < finalChildIdsOrder.length; i++) {
+            if (currentX.has(finalChildIdsOrder[i]!)) {
+              rightIdx = i;
+              break;
+            }
+          }
+
+          if (leftIdx !== -1 && rightIdx !== -1) {
+            const leftId = finalChildIdsOrder[leftIdx]!;
+            const rightId = finalChildIdsOrder[rightIdx]!;
+            const leftX = currentX.get(leftId)!;
+            const rightX = currentX.get(rightId)!;
+            const ratio = (idx - leftIdx) / (rightIdx - leftIdx);
+            xVal = leftX + ratio * (rightX - leftX);
+          } else if (leftIdx !== -1) {
+            const leftId = finalChildIdsOrder[leftIdx]!;
+            const leftX = currentX.get(leftId)!;
+            xVal = leftX + (idx - leftIdx) * NODE_GAP;
+          } else if (rightIdx !== -1) {
+            const rightId = finalChildIdsOrder[rightIdx]!;
+            const rightX = currentX.get(rightId)!;
+            xVal = rightX - (rightIdx - idx) * NODE_GAP;
+          }
+        }
+
+        newNodes.push({
+          id: sb.id,
+          type: sb.type,
+          affected: sb.affected ?? false,
+          carrier: sb.carrier ?? false,
+          deceased: sb.deceased ?? false,
+          proband: sb.proband ?? false,
+          label: "",
+          age,
+          x: xVal,
+          y: s.y,
+          dob: sb.dob || undefined,
+          condition: sb.condition || undefined,
+          notes: sb.notes || undefined,
+        });
+
+        currentX.set(sb.id, xVal);
+      }
+
+      const allNodes = [...p.nodes, ...createdParents, ...newNodes];
+      const allEdges = [...filteredEdges, ...coupleEdges, ...parentChildEdges];
+
+      const excludeIds = new Set(newNodes.map(n => n.id));
+      let final = resolveAndRecenter(allNodes, allEdges, excludeIds);
+
+      const minY = Math.min(...final.map(n => n.y));
+      if (minY < GEN_GRID) {
+        const shiftY = GEN_GRID - minY;
+        final = final.map(n => ({ ...n, y: n.y + shiftY }));
+      }
 
       return { ...p, nodes: final, edges: allEdges };
     } });

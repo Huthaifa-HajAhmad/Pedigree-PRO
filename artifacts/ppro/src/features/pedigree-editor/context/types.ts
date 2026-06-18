@@ -191,7 +191,7 @@ export interface PedigreeEditorOps {
   createCoupleEdge: (sourceId: string, targetId: string) => void;
   createCoupleAndChild: (maleId: string, femaleId: string) => void;
   createParentsForGroup: (nodeIds: string[]) => void;
-  addSiblings: (sourceId: string, siblings: Array<{ type: PedigreeNode["type"]; dob: string; affected?: boolean; carrier?: boolean; deceased?: boolean; proband?: boolean; condition?: string; notes?: string }>) => void;
+  addSiblings: (sourceId: string, siblings: Array<{ id: string; type: PedigreeNode["type"]; dob: string; affected?: boolean; carrier?: boolean; deceased?: boolean; proband?: boolean; condition?: string; notes?: string; isSource?: boolean }>) => void;
   markAsTwins: (nodeIds: string[], twinType: "m" | "d") => void;
   unmarkTwins: (nodeIds: string[]) => void;
   removeEdges: (edgeIds: string[]) => void;
