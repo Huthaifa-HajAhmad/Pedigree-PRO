@@ -424,10 +424,12 @@ export function computeVerticalCrossingYCoordinates(
   showAutoLabels: boolean = false,
   autoLabels?: Map<string, string>,
   ownEdgeId?: string,
+  annotations?: PedigreeAnnotation[],
 ): number[] {
   const nodeMap = new Map(nodes.map((n) => [n.id, n]));
   const crossYs: number[] = [];
 
+  // 1. Loop edges crossings (divorced, consanguinity, long couple edges)
   for (const e of allEdges) {
     if (e.type === "parent-child") continue;
     if (e.id === ownEdgeId) continue;
@@ -455,6 +457,121 @@ export function computeVerticalCrossingYCoordinates(
     // Check if this yDrop falls between topY and bottomY (with margin)
     if (yDrop > topY + 5 && yDrop < bottomY - 5) {
       crossYs.push(yDrop);
+    }
+  }
+
+  // 2. Sibling horizontal bars crossings
+  const pcEdges = allEdges.filter((e) => e.type === "parent-child");
+  const childParents = new Map<string, string[]>();
+  for (const e of pcEdges) {
+    if (!childParents.has(e.targetId)) childParents.set(e.targetId, []);
+    childParents.get(e.targetId)!.push(e.sourceId);
+  }
+
+  const families: Array<{ parentIds: string[]; childIds: string[] }> = [];
+  const groupedKeys = new Set<string>();
+  for (const pIds of childParents.values()) {
+    const key = [...pIds].sort().join("|");
+    if (groupedKeys.has(key)) continue;
+    groupedKeys.add(key);
+    
+    // Find all children belonging to this same key/parents
+    const siblings = Array.from(childParents.entries())
+      .filter(([_, parentList]) => [...parentList].sort().join("|") === key)
+      .map(([childId]) => childId);
+    
+    families.push({ parentIds: [...pIds].sort(), childIds: siblings });
+  }
+
+  for (const f of families) {
+    const familyParents = f.parentIds.map(id => nodeMap.get(id)).filter((n): n is PedigreeNode => !!n);
+    const familyChildren = f.childIds.map(id => nodeMap.get(id)).filter((n): n is PedigreeNode => !!n);
+    if (familyParents.length === 0 || familyChildren.length === 0) continue;
+
+    // Calculate maxBottom for parents of this sibling group
+    let maxNodeBottom = -Infinity;
+    const intermediateNodeIds: string[] = [];
+    if (f.parentIds.length === 2) {
+      const p1 = nodeMap.get(f.parentIds[0]!);
+      const p2 = nodeMap.get(f.parentIds[1]!);
+      if (p1 && p2) {
+        const intermediates = getIntermediateNodes(p1, p2, nodes, renderOffsets);
+        for (const n of intermediates) {
+          intermediateNodeIds.push(n.id);
+        }
+      }
+    }
+
+    const idsToCheck = [...f.parentIds, ...intermediateNodeIds];
+    for (const id of idsToCheck) {
+      const n = nodeMap.get(id);
+      if (!n) continue;
+      const nOff = renderOffsets?.get(n.id) ?? 0;
+      const autoLabel = showAutoLabels ? autoLabels?.get(n.id) : undefined;
+      const labelH = computeLabelBelowHeight(n, autoLabel);
+      const bottom = n.y + nOff + S / 2 + labelH;
+      maxNodeBottom = Math.max(maxNodeBottom, bottom);
+    }
+
+    const maxAnnBottom = annotations
+      ? computeAnnotationMaxBottom(
+          [...f.parentIds, ...intermediateNodeIds],
+          annotations,
+          nodeMap,
+          S,
+          showAutoLabels,
+          autoLabels,
+          renderOffsets
+        )
+      : -Infinity;
+
+    const maxBottom = Math.max(maxNodeBottom, maxAnnBottom);
+
+    const childTopY = Math.min(...familyChildren.map((c) => c.y + (renderOffsets?.get(c.id) ?? 0))) - S / 2;
+    const p1 = familyParents[0]!;
+    const rowY = p1.y + (renderOffsets?.get(p1.id) ?? 0);
+    const maxTrackIndex = computeMaxLoopTrackOnRow(rowY, allEdges, nodes, renderOffsets);
+    const sibTrack = computeSibshipGroupTrack(f.parentIds, f.childIds, allEdges, nodes, renderOffsets, renderOffsets);
+    
+    const barY = Math.max(childTopY - 30 - sibTrack * 12, maxBottom + 22 + maxTrackIndex * 8);
+
+    // Calculate horizontal span and check crossings
+    let midParentX = 0;
+    const parent1 = familyParents[0];
+    const parent2 = familyParents[1];
+    if (familyParents.length >= 2 && parent1 && parent2) {
+      midParentX = (parent1.x + parent2.x) / 2;
+    } else if (parent1) {
+      midParentX = parent1.x;
+    }
+
+    const childXs = familyChildren.map(c => c.x);
+    const minChildX = Math.min(...childXs);
+    const maxChildX = Math.max(...childXs);
+
+    const barLeft = Math.min(midParentX, minChildX);
+    const barRight = Math.max(midParentX, maxChildX);
+
+    // Is there a horizontal sibling bar crossing?
+    if (midX > barLeft + 1 && midX < barRight - 1) {
+      if (barY > topY + 5 && barY < bottomY - 5) {
+        crossYs.push(barY);
+      }
+    }
+
+    // Is there a stepped line crossing?
+    const childCenter = (minChildX + maxChildX) / 2;
+    const isStepped = midParentX < minChildX || midParentX > maxChildX;
+    
+    if (isStepped) {
+      const stepY = barY - 15;
+      const stepLeft = Math.min(midParentX, childCenter);
+      const stepRight = Math.max(midParentX, childCenter);
+      if (midX > stepLeft + 1 && midX < stepRight - 1) {
+        if (stepY > topY + 5 && stepY < bottomY - 5) {
+          crossYs.push(stepY);
+        }
+      }
     }
   }
 

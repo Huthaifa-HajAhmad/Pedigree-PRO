@@ -261,4 +261,40 @@ describe("canvasUtils loop tracking", () => {
     const hNoGenotype = computeLabelBelowHeight(nodeNoGenotype);
     expect(hNoGenotype).toBe(14);
   });
+
+  it("detects vertical crossings over sibling bars", () => {
+    // We construct Couple 1: n1 (male) at x=100, y=100 & n2 (female) at x=200, y=100
+    // Children n3 at x=100, n3_2 at x=200, y=220 (forms a sibling bar at ~y=168, span [100, 200])
+    // Couple 2: n4 (male) at x=120, y=50 & n5 (female) at x=180, y=50 (placed next to n1/n2)
+    // Child n6 at x=150, y=340.
+    // The vertical line for Couple 2 goes from coupleY=50 to barY=310.
+    // This vertical line at midX=150 should cross Couple 1's sibling bar at y=168.
+    const nodes: PedigreeNode[] = [
+      { id: "n1", x: 100, y: 100, type: "male", ...baseNode },
+      { id: "n2", x: 200, y: 100, type: "female", ...baseNode },
+      { id: "n3", x: 100, y: 220, type: "male", ...baseNode }, // child 1 of n1 & n2
+      { id: "n3_2", x: 200, y: 220, type: "female", ...baseNode }, // child 2 of n1 & n2
+      { id: "n4", x: 120, y: 50, type: "male", ...baseNode },
+      { id: "n5", x: 180, y: 50, type: "female", ...baseNode },
+      { id: "n6", x: 150, y: 340, type: "male", ...baseNode }, // child of n4 & n5
+    ];
+
+    const edges: PedigreeEdge[] = [
+      { id: "e1", sourceId: "n1", targetId: "n2", type: "couple" },
+      { id: "e1_pc1", sourceId: "n1", targetId: "n3", type: "parent-child" },
+      { id: "e1_pc2", sourceId: "n2", targetId: "n3", type: "parent-child" },
+      { id: "e1_pc3", sourceId: "n1", targetId: "n3_2", type: "parent-child" },
+      { id: "e1_pc4", sourceId: "n2", targetId: "n3_2", type: "parent-child" },
+      { id: "e2", sourceId: "n4", targetId: "n5", type: "couple" },
+      { id: "e2_pc1", sourceId: "n4", targetId: "n6", type: "parent-child" },
+      { id: "e2_pc2", sourceId: "n5", targetId: "n6", type: "parent-child" },
+    ];
+
+    const crossings = computeVerticalCrossingYCoordinates(
+      150, 50, 310, edges, nodes, undefined, 44, false, undefined, undefined, []
+    );
+
+    expect(crossings.length).toBeGreaterThan(0);
+    expect(crossings).toContain(168);
+  });
 });

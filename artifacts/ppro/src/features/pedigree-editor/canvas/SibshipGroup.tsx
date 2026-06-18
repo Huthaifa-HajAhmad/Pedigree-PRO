@@ -223,10 +223,17 @@ export function SibshipGroup({ parentIds, childIds, nodes, edges = [], invalid, 
     const coupleY = p.y + pOff + S / 2;
     if (children.length === 1) {
       const c = children[0]!;
-      const verticalCrossings = computeVerticalCrossingYCoordinates(
-        p.x, coupleY, barY, edges, nodes, parentOffsets, S, showAutoLabels, autoLabels
-      );
-      paths.push(buildVerticalPathWithBridges(p.x, coupleY, barY, verticalCrossings), `M ${p.x} ${barY} L ${c.x} ${barY} L ${c.x} ${cy(c)}`);
+      if (Math.abs(p.x - c.x) < 1) {
+        const verticalCrossings = computeVerticalCrossingYCoordinates(
+          p.x, coupleY, cy(c), edges, nodes, parentOffsets, S, showAutoLabels, autoLabels, undefined, annotations
+        );
+        paths.push(buildVerticalPathWithBridges(p.x, coupleY, cy(c), verticalCrossings));
+      } else {
+        const verticalCrossings = computeVerticalCrossingYCoordinates(
+          p.x, coupleY, barY, edges, nodes, parentOffsets, S, showAutoLabels, autoLabels, undefined, annotations
+        );
+        paths.push(buildVerticalPathWithBridges(p.x, coupleY, barY, verticalCrossings), `M ${p.x} ${barY} L ${c.x} ${barY} L ${c.x} ${cy(c)}`);
+      }
     } else {
       // C6 fix: bar spans non-twin children + twin drop midpoints (not twin node positions)
       const nonTwinXs = children.filter((c) => !twinChildIds.has(c.id)).map((c) => c.x);
@@ -248,7 +255,7 @@ export function SibshipGroup({ parentIds, childIds, nodes, edges = [], invalid, 
       if (isStepped) {
         const stepY = barY - 15;
         const verticalCrossings = computeVerticalCrossingYCoordinates(
-          parentX, coupleY, stepY, edges, nodes, parentOffsets, S, showAutoLabels, autoLabels
+          parentX, coupleY, stepY, edges, nodes, parentOffsets, S, showAutoLabels, autoLabels, undefined, annotations
         );
         paths.push(
           buildVerticalPathWithBridges(parentX, coupleY, stepY, verticalCrossings),
@@ -257,7 +264,7 @@ export function SibshipGroup({ parentIds, childIds, nodes, edges = [], invalid, 
         );
       } else {
         const verticalCrossings = computeVerticalCrossingYCoordinates(
-          parentX, coupleY, barY, edges, nodes, parentOffsets, S, showAutoLabels, autoLabels
+          parentX, coupleY, barY, edges, nodes, parentOffsets, S, showAutoLabels, autoLabels, undefined, annotations
         );
         paths.push(
           buildVerticalPathWithBridges(parentX, coupleY, barY, verticalCrossings),
@@ -330,65 +337,73 @@ export function SibshipGroup({ parentIds, childIds, nodes, edges = [], invalid, 
       : false;
     const startY = (hasBridgeAtMid ? coupleY - 6 : coupleY) + (hasIntermediate && edgeType === "consanguinity" ? 1.75 : 0);
 
-    // C6 fix: bar spans non-twin children + twin drop midpoints (not twin node positions)
-    const nonTwinXs = children.filter((c) => !twinChildIds.has(c.id)).map((c) => c.x);
-    const twinDropMidXs: number[] = [];
-    for (const [, members] of twinGroups) {
-      if (members.length >= 2) {
-        const twinXs = members.map((m) => m.x);
-        twinDropMidXs.push(twinXs.reduce((a, b) => a + b, 0) / twinXs.length);
-      }
-    }
-    const allBarXs = [...nonTwinXs, ...twinDropMidXs];
-    const barLeft = Math.min(...allBarXs);
-    const barRight = Math.max(...allBarXs);
-    
-    const childCenter = (barLeft + barRight) / 2;
-    const isStepped = midX < barLeft || midX > barRight;
-    
-    if (isStepped) {
-      const stepY = barY - 15;
+    if (children.length === 1 && Math.abs(midX - children[0]!.x) < 1) {
+      const c = children[0]!;
       const verticalCrossings = computeVerticalCrossingYCoordinates(
-        midX, startY, stepY, edges, nodes, parentOffsets, S, showAutoLabels, autoLabels, coupleEdge?.id
+        midX, startY, cy(c), edges, nodes, parentOffsets, S, showAutoLabels, autoLabels, coupleEdge?.id, annotations
       );
-      paths.push(
-        buildVerticalPathWithBridges(midX, startY, stepY, verticalCrossings),
-        `M ${midX} ${stepY} L ${childCenter} ${stepY} L ${childCenter} ${barY}`,
-        `M ${barLeft} ${barY} L ${barRight} ${barY}`
-      );
+      paths.push(buildVerticalPathWithBridges(midX, startY, cy(c), verticalCrossings));
     } else {
-      const verticalCrossings = computeVerticalCrossingYCoordinates(
-        midX, startY, barY, edges, nodes, parentOffsets, S, showAutoLabels, autoLabels, coupleEdge?.id
-      );
-      paths.push(
-        buildVerticalPathWithBridges(midX, startY, barY, verticalCrossings),
-        `M ${barLeft} ${barY} L ${barRight} ${barY}`
-      );
-    }
-
-    for (const [, members] of twinGroups) {
-      if (members.length < 2) continue;
-      const twinXs = members.map((m) => m.x).sort((a, b) => a - b);
-      const twinMidX = twinXs.reduce((a, b) => a + b, 0) / twinXs.length;
-      const dropY = barY + TWIN_DROP;
-      const isMono = twinMap.get(members[0]!.id)?.twinType === "m";
-      paths.push(`M ${twinMidX} ${barY} L ${twinMidX} ${dropY}`);
-      for (const m of members) {
-        paths.push(`M ${twinMidX} ${dropY} L ${m.x} ${cy(m)}`);
+      // C6 fix: bar spans non-twin children + twin drop midpoints (not twin node positions)
+      const nonTwinXs = children.filter((c) => !twinChildIds.has(c.id)).map((c) => c.x);
+      const twinDropMidXs: number[] = [];
+      for (const [, members] of twinGroups) {
+        if (members.length >= 2) {
+          const twinXs = members.map((m) => m.x);
+          twinDropMidXs.push(twinXs.reduce((a, b) => a + b, 0) / twinXs.length);
+        }
       }
-      if (isMono) {
-        const firstChild = members[0]!;
-        const lastChild = members[members.length - 1]!;
-        const twinBarY = (dropY + cy(firstChild)) / 2;
-        const barLeft = (twinMidX + firstChild.x) / 2;
-        const barRight = (twinMidX + lastChild.x) / 2;
-        paths.push(`M ${barLeft} ${twinBarY} L ${barRight} ${twinBarY}`);
+      const allBarXs = [...nonTwinXs, ...twinDropMidXs];
+      const barLeft = Math.min(...allBarXs);
+      const barRight = Math.max(...allBarXs);
+      
+      const childCenter = (barLeft + barRight) / 2;
+      const isStepped = midX < barLeft || midX > barRight;
+      
+      if (isStepped) {
+        const stepY = barY - 15;
+        const verticalCrossings = computeVerticalCrossingYCoordinates(
+          midX, startY, stepY, edges, nodes, parentOffsets, S, showAutoLabels, autoLabels, coupleEdge?.id, annotations
+        );
+        paths.push(
+          buildVerticalPathWithBridges(midX, startY, stepY, verticalCrossings),
+          `M ${midX} ${stepY} L ${childCenter} ${stepY} L ${childCenter} ${barY}`,
+          `M ${barLeft} ${barY} L ${barRight} ${barY}`
+        );
+      } else {
+        const verticalCrossings = computeVerticalCrossingYCoordinates(
+          midX, startY, barY, edges, nodes, parentOffsets, S, showAutoLabels, autoLabels, coupleEdge?.id, annotations
+        );
+        paths.push(
+          buildVerticalPathWithBridges(midX, startY, barY, verticalCrossings),
+          `M ${barLeft} ${barY} L ${barRight} ${barY}`
+        );
       }
-    }
 
-    for (const c of children) {
-      if (!twinChildIds.has(c.id)) {
-        paths.push(`M ${c.x} ${barY} L ${c.x} ${cy(c)}`);
+      for (const [, members] of twinGroups) {
+        if (members.length < 2) continue;
+        const twinXs = members.map((m) => m.x).sort((a, b) => a - b);
+        const twinMidX = twinXs.reduce((a, b) => a + b, 0) / twinXs.length;
+        const dropY = barY + TWIN_DROP;
+        const isMono = twinMap.get(members[0]!.id)?.twinType === "m";
+        paths.push(`M ${twinMidX} ${barY} L ${twinMidX} ${dropY}`);
+        for (const m of members) {
+          paths.push(`M ${twinMidX} ${dropY} L ${m.x} ${cy(m)}`);
+        }
+        if (isMono) {
+          const firstChild = members[0]!;
+          const lastChild = members[members.length - 1]!;
+          const twinBarY = (dropY + cy(firstChild)) / 2;
+          const barLeft = (twinMidX + firstChild.x) / 2;
+          const barRight = (twinMidX + lastChild.x) / 2;
+          paths.push(`M ${barLeft} ${twinBarY} L ${barRight} ${twinBarY}`);
+        }
+      }
+
+      for (const c of children) {
+        if (!twinChildIds.has(c.id)) {
+          paths.push(`M ${c.x} ${barY} L ${c.x} ${cy(c)}`);
+        }
       }
     }
   }
