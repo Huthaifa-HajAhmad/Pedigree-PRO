@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Palette, Type, Ruler, Check, RotateCcw } from "lucide-react";
+import { Palette, Type, Ruler, Check, RotateCcw, PanelTop } from "lucide-react";
 import { THEMES, useTheme, applyTheme } from "@/lib/theme";
 import { FONT_OPTIONS, useFont } from "@/lib/font";
 import { PanelSection } from "@/components/shared/panels/PanelSection";
@@ -8,6 +8,7 @@ import { useCanvasConfig, DEFAULT_CANVAS_CONFIG } from "@/features/pedigree-edit
 const TABS = [
   { id: "appearance", label: "Appearance", icon: Palette },
   { id: "canvas", label: "Canvas", icon: Ruler },
+  { id: "toolbar", label: "Toolbar", icon: PanelTop },
 ] as const;
 
 type TabId = (typeof TABS)[number]["id"];
@@ -324,6 +325,53 @@ function CanvasTab() {
   );
 }
 
+function ToolbarTab() {
+  const { config, updateConfig: ctxUpdate } = useCanvasConfig();
+
+  const updateConfig = (key: string, value: number | string | boolean) => {
+    ctxUpdate({ [key]: value } as Partial<typeof DEFAULT_CANVAS_CONFIG>);
+  };
+
+  const resetConfig = () => {
+    ctxUpdate({ toolbarHeight: 96 });
+  };
+
+  return (
+    <div className="space-y-6">
+      <PanelSection title="Toolbar Height" icon={<PanelTop className="w-3.5 h-3.5" />}>
+        <div className="space-y-4">
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <span className="text-xs text-muted-foreground uppercase tracking-widest">Height</span>
+              <span className="text-xs font-mono text-foreground tabular-nums">{config.toolbarHeight ?? 96}px</span>
+            </div>
+            <input
+              type="range"
+              min={72}
+              max={140}
+              step={4}
+              value={config.toolbarHeight ?? 96}
+              onChange={(e) => updateConfig("toolbarHeight", Number(e.target.value))}
+              className="w-full accent-primary h-1.5"
+            />
+            <div className="flex justify-between text-[10px] text-muted-foreground/50 mt-0.5">
+              <span>72px</span><span>140px</span>
+            </div>
+          </div>
+        </div>
+      </PanelSection>
+
+      <button
+        type="button"
+        onClick={resetConfig}
+        className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+      >
+        <RotateCcw className="w-3 h-3" /> Reset to defaults
+      </button>
+    </div>
+  );
+}
+
 export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState<TabId>("appearance");
 
@@ -356,6 +404,7 @@ export default function SettingsPage() {
         <div className="max-w-2xl mx-auto px-6 py-6">
           {activeTab === "appearance" && <AppearanceTab />}
           {activeTab === "canvas" && <CanvasTab />}
+          {activeTab === "toolbar" && <ToolbarTab />}
         </div>
       </div>
     </div>

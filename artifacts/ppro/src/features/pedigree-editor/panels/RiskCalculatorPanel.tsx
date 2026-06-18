@@ -19,6 +19,14 @@ export const TIER_COLORS = {
   high:     { bar: "hsl(var(--destructive))", text: "hsl(var(--destructive))" },
 };
 
+export const CARRIER_RATES = [
+  { label: "Generic Recessive (1/50)", value: 1 / 50 },
+  { label: "Cystic Fibrosis (1/25)", value: 1 / 25 },
+  { label: "Spinal Muscular Atrophy (1/40)", value: 1 / 40 },
+  { label: "Sickle Cell Disease (1/12)", value: 1 / 12 },
+  { label: "Custom Rate", value: -1 },
+];
+
 export function RiskCalculatorPanel({
   result, mode, onModeChange,
 }: {
@@ -84,6 +92,22 @@ export function RiskCalculatorPanel({
             <span>{b}</span>
           </p>
         ))}
+        
+        {result.mathSteps && result.mathSteps.length > 0 && (
+          <details className="pt-2 mt-2 border-t border-border/40">
+            <summary className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider cursor-pointer hover:text-foreground outline-none select-none">
+              Calculation Math Steps
+            </summary>
+            <div className="mt-2 pl-2 border-l border-primary/30 space-y-1.5">
+              {result.mathSteps.map((step, i) => (
+                <p key={i} className="text-[11px] font-mono text-foreground/80 leading-normal bg-card/65 px-1.5 py-1 rounded border border-border/40">
+                  {step}
+                </p>
+              ))}
+            </div>
+          </details>
+        )}
+
         <div className="pt-2 mt-2 border-t border-border/40">
           <p className="text-xs font-medium" style={{ color: confidenceColor }}>{confidenceLabel}</p>
         </div>
@@ -102,6 +126,7 @@ export function RiskPanelSidebar({
   width?: string;
 }) {
   const [focusId, setFocusId] = useState<string | null>(null);
+  const [carrierRate, setCarrierRate] = useState<number>(1 / 50);
 
   const proband = canvas.nodes.find((n) => n.proband);
   const effectiveFocusId = focusId ?? proband?.id ?? null;
@@ -118,19 +143,19 @@ export function RiskPanelSidebar({
   }, [canvas.nodes]);
 
   const focusResult = useMemo(
-    () => effectiveFocusId ? computeRisk(canvas.nodes, canvas.edges, effectiveFocusId, mode) : null,
-    [canvas.nodes, canvas.edges, effectiveFocusId, mode],
+    () => effectiveFocusId ? computeRisk(canvas.nodes, canvas.edges, effectiveFocusId, mode, carrierRate) : null,
+    [canvas.nodes, canvas.edges, effectiveFocusId, mode, carrierRate],
   );
 
   const memberRisks = useMemo(() => (
     canvas.nodes
       .filter((n) => n.type !== "sab" && n.type !== "pregnancy")
       .map((n) => {
-        const result = computeRisk(canvas.nodes, canvas.edges, n.id, mode);
+        const result = computeRisk(canvas.nodes, canvas.edges, n.id, mode, carrierRate);
         return { node: n, topEntry: result.entries[0] ?? null };
       })
       .sort((a, b) => (b.topEntry?.value ?? 0) - (a.topEntry?.value ?? 0))
-  ), [canvas.nodes, canvas.edges, mode]);
+  ), [canvas.nodes, canvas.edges, mode, carrierRate]);
 
   const validNodes = canvas.nodes.filter((n) => n.type !== "sab" && n.type !== "pregnancy");
 
@@ -171,6 +196,53 @@ export function RiskPanelSidebar({
           ))}
         </div>
       </PanelSection>
+
+      {mode === "AR" && (
+        <PanelSection title="Carrier Settings">
+          <div className="space-y-1.5">
+            <label htmlFor="carrier-rate-select" className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+              Population Carrier Rate
+            </label>
+            <select
+              id="carrier-rate-select"
+              value={CARRIER_RATES.some(r => Math.abs(r.value - carrierRate) < 0.0001) ? carrierRate : -1}
+              onChange={(e) => {
+                const val = parseFloat(e.target.value);
+                if (val !== -1) {
+                  setCarrierRate(val);
+                } else {
+                  setCarrierRate(1 / 100);
+                }
+              }}
+              className="w-full text-xs bg-background border border-border/80 rounded-lg px-2.5 py-1.5 text-foreground outline-none hover:bg-accent/20 focus:border-muted-foreground/45 transition-all duration-200"
+            >
+              {CARRIER_RATES.map((r) => (
+                <option key={r.label} value={r.value}>
+                  {r.label}
+                </option>
+              ))}
+            </select>
+
+            {!CARRIER_RATES.slice(0, 4).some(r => Math.abs(r.value - carrierRate) < 0.0001) && (
+              <div className="flex gap-2 items-center mt-1.5">
+                <span className="text-xs text-muted-foreground flex-shrink-0">1 /</span>
+                <input
+                  id="custom-carrier-rate-input"
+                  type="number"
+                  min="2"
+                  max="10000"
+                  value={Math.round(1 / carrierRate)}
+                  onChange={(e) => {
+                    const denom = parseInt(e.target.value);
+                    if (denom > 1) setCarrierRate(1 / denom);
+                  }}
+                  className="w-full text-xs bg-background border border-border/80 rounded-lg px-2.5 py-1 text-foreground outline-none focus:border-muted-foreground/45 transition-all duration-200"
+                />
+              </div>
+            )}
+          </div>
+        </PanelSection>
+      )}
 
       <PanelSection title="Individual Risk">
         {validNodes.length === 0 ? (

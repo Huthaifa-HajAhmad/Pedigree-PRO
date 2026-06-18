@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { useListPedigrees, useDeletePedigree, useCreatePedigree, useListPatients, queryKeys, getBackendInitError } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Link, useLocation } from "wouter";
-import { Plus, Trash2, ArrowUpRight, Dna, Upload, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
+import { Plus, Trash2, Dna, Upload, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ImportDialog } from "@/components/ImportDialog";
 import { useForm } from "react-hook-form";
@@ -226,7 +226,7 @@ export default function Pedigrees() {
           <button type="button" onClick={() => toggleSort("title")} className="col-span-2 flex items-center gap-1 hover:text-foreground transition-colors">Title<SortIcon field="title" /></button>
           <button type="button" onClick={() => toggleSort("patient")} className="flex items-center gap-1 hover:text-foreground transition-colors">Patient<SortIcon field="patient" /></button>
           <button type="button" onClick={() => toggleSort("versions")} className="flex items-center gap-1 hover:text-foreground transition-colors">Versions<SortIcon field="versions" /></button>
-          <div>Actions</div>
+          <div className="text-center">Actions</div>
         </div>
         <div className="divide-y divide-border">
           {isLoading ? (
@@ -236,28 +236,19 @@ export default function Pedigrees() {
           ) : (
             sortedPedigrees.map((p) => (
               <div key={p.id} data-testid={`row-pedigree-${p.id}`} className="grid grid-cols-2 md:grid-cols-5 gap-4 px-4 py-3 text-sm hover:bg-accent transition-colors items-center">
-                <div className="col-span-2 flex items-center gap-2">
-                  <Dna className="w-3.5 h-3.5 text-primary flex-shrink-0" />
-                  <span className="font-medium truncate">{p.title}</span>
-                </div>
-                <div className="text-muted-foreground text-xs truncate">{p.patient_id ? `#${p.patient_id}` : "—"}</div>
-                <div className="text-muted-foreground text-xs truncate">
-                  <span className="font-mono">{p.version_count} ver{p.version_count !== 1 ? "s" : ""}</span>
-                  <span className="mx-1.5 text-muted-foreground/40">·</span>
-                  <span>{(() => { try { return new Date(p.updated_at).toLocaleDateString(); } catch { return "—"; } })()}</span>
-                </div>
-                <div className="flex items-center gap-1">
-                  <Link href={`/pedigrees/${p.id}`}>
-                    <button
-                      type="button"
-                      data-testid={`button-open-${p.id}`}
-                      className="text-muted-foreground hover:text-primary transition-colors p-1 rounded hover:bg-primary/10"
-                      title="Open pedigree editor"
-                      aria-label={`Open pedigree ${p.title}`}
-                    >
-                      <ArrowUpRight className="w-4 h-4" />
-                    </button>
-                  </Link>
+                <Link href={`/pedigrees/${p.id}`} className="col-span-2 md:col-span-4 grid grid-cols-2 md:grid-cols-4 gap-4 items-center text-foreground hover:text-foreground hover:no-underline cursor-pointer">
+                  <div className="col-span-2 flex items-center gap-2">
+                    <Dna className="w-3.5 h-3.5 text-primary flex-shrink-0" />
+                    <span className="font-medium truncate">{p.title}</span>
+                  </div>
+                  <div className="text-muted-foreground text-xs truncate">{p.patient_id ? `#${p.patient_id}` : "—"}</div>
+                  <div className="text-muted-foreground text-xs truncate">
+                    <span className="font-mono">{p.version_count} ver{p.version_count !== 1 ? "s" : ""}</span>
+                    <span className="mx-1.5 text-muted-foreground/40">·</span>
+                    <span>{(() => { try { return new Date(p.updated_at).toLocaleDateString(); } catch { return "—"; } })()}</span>
+                  </div>
+                </Link>
+                <div className="flex items-center justify-center gap-1">
                   <button
                     type="button"
                     data-testid={`button-delete-${p.id}`}

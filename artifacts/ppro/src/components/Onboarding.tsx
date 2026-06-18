@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
 import { useCreateProfile } from "@workspace/api-client-react";
-import { Dna, Shield, Lock, User, KeyRound, Sparkles, ArrowRight, ArrowLeft, Check, Loader2, ChevronsUpDown } from "lucide-react";
+import { Shield, Lock, User, KeyRound, Sparkles, ArrowRight, ArrowLeft, Check, Loader2, ChevronsUpDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { AppLogo } from "@/components/AppLogo";
 
 export default function Onboarding() {
   const [step, setStep] = useState<1 | 2 | 3>(1);
@@ -60,8 +61,8 @@ export default function Onboarding() {
         {/* Step 1: Welcome Screen */}
         {step === 1 && (
           <div className="w-full flex-1 flex flex-col items-center text-center animate-in fade-in slide-in-from-bottom-4 duration-300">
-            <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center mb-6 shadow-inner">
-              <Dna className="w-8 h-8 text-primary animate-pulse" />
+            <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center mb-6 shadow-inner p-3">
+              <AppLogo className="w-full h-full text-primary animate-pulse" />
             </div>
             <h1 className="text-2xl font-bold tracking-tight text-foreground">
               Welcome to Pedigree PRO

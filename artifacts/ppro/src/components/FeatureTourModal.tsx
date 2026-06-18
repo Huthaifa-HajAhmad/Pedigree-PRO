@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { X, ArrowRight, ArrowLeft, Dna, Keyboard, HelpCircle, ShieldAlert, Sparkles, Check } from "lucide-react";
+import { X, ArrowRight, ArrowLeft, ShieldAlert, Sparkles, Check, Plus, Activity, Grid } from "lucide-react";
 
 interface FeatureTourModalProps {
   open: boolean;
@@ -37,63 +37,63 @@ export function FeatureTourModal({ open, onClose }: FeatureTourModalProps) {
 
   const slides: Slide[] = [
     {
-      title: "Welcome to Pedigree PRO",
-      desc: "An advanced, zero-server clinical pedigree editor designed for genomics researchers and healthcare professionals.",
+      title: "Welcome to the Canvas Editor",
+      desc: "Learn how to use the editor toolbar and canvas interaction tools to build family trees quickly.",
       icon: <Sparkles className="w-8 h-8 text-primary animate-pulse" />,
       color: "text-primary",
       bgColor: "bg-primary/10",
       features: [
-        { title: "100% Offline Privacy", desc: "No databases, servers, or cloud storage. Your patient data is saved completely on your local device." },
-        { title: "Cryptographic Security", desc: "Local profiles are locked on-device using AES-256 and PBKDF2 encryption keys." },
-        { title: "Responsive Canvas", desc: "Fluid, high-performance canvas that supports keyboard panning, trackpad zoom, and smart auto-layouts." }
+        { title: "Dynamic Canvas", desc: "Zoom with trackpad pinch or Ctrl + mouse wheel, drag the canvas while holding Space, or toggle snap guides." },
+        { title: "Version Timeline", desc: "Save historical drafts with the save button or auto-saving, and restore them using the Version Timeline." },
+        { title: "Canvas Settings", desc: "Customize node border colors, default spacing gaps, and toggle generation labels in the Canvas Settings sidebar." }
       ]
     },
     {
-      title: "Interactive Drawing & Shortcuts",
-      desc: "Speed up your clinical workflow using rapid keyboard shortcuts and mouse gestures.",
-      icon: <Keyboard className="w-8 h-8 text-indigo-500" />,
+      title: "Tool: Adding Symbols",
+      desc: "Use the left-most group of tools on the toolbar to add nodes or customize patient phenotypes.",
+      icon: <Plus className="w-8 h-8 text-indigo-500" />,
       color: "text-indigo-500",
       bgColor: "bg-indigo-500/10",
       features: [
-        { title: "Keyboard Quick-Add", desc: "Select a node, then press: M (add mother), F (add father), U (add partner), S (add sibling)." },
-        { title: "Relation Lines", desc: "Hold Ctrl and drag from a node to extend relationship links or connect couples instantly." },
-        { title: "Auto-Arrange layout", desc: "Press 'L' or toggle 'Live Layout' in settings to auto-arrange coordinates in real-time." }
+        { title: "Symbol Quick-Add", desc: "Click Male, Female, or Unknown to place a node, or use keybinds: M (Mother), F (Father), U (Partner), S (Sibling)." },
+        { title: "Clinical Status", desc: "Select a node to toggle Affected, Carrier, Deceased, or Proband status from the Properties sidepanel." },
+        { title: "Quick Annotations", desc: "Double-click any empty canvas space to create a text annotation, or drag to position them relative to nodes." }
       ]
     },
     {
-      title: "Smart Segregation & Genotypes",
-      desc: "Track familial disease variants and genotype carrier details directly under pedigree nodes.",
-      icon: <Dna className="w-8 h-8 text-teal-500" />,
+      title: "Tool: Linking Relationships",
+      desc: "Toggle relationship linking modes on the toolbar to create couple or parent-child lines.",
+      icon: <Activity className="w-8 h-8 text-teal-500" />,
       color: "text-teal-500",
       bgColor: "bg-teal-500/10",
       features: [
-        { title: "Custom Sizing & Offsets", desc: "Configure genotype text size (8px-24px) and symbol offset directly in the Canvas Settings." },
-        { title: "Harmonized Colors", desc: "Set individual hex colors for mutant (+), wild-type (-), and separator (/) symbols." },
-        { title: "Quick Genotype Presets", desc: "Select common genotype combinations (+/-, +/+, -/-) in the Properties or Quick Edit Popover." }
+        { title: "Connection Tool", desc: "Select a link type (Couple, Parent-Child, Consanguinity) and click the source and destination symbols." },
+        { title: "Twin Tool", desc: "Click the Twin button, select two siblings, and designate them as Identical or Fraternal twins." },
+        { title: "Keyboard Linking", desc: "Hold Ctrl and drag from one symbol to another to quickly draw relationship lines." }
       ]
     },
     {
-      title: "Clinical Risk & Validation",
-      desc: "Employ built-in clinical intelligence checks to ensure pedigree logic correctness.",
-      icon: <ShieldAlert className="w-8 h-8 text-amber-500" />,
+      title: "Tool: Layout & Spacing",
+      desc: "Use smart layout tools on the toolbar to align coordinates and resolve node overlaps automatically.",
+      icon: <Grid className="w-8 h-8 text-amber-500" />,
       color: "text-amber-500",
       bgColor: "bg-amber-500/10",
       features: [
-        { title: "Risk Calculator", desc: "Compute genetic inheritance risks (Autosomal Dominant, Recessive, X-linked) relative to any selected node." },
-        { title: "Validation Engine", desc: "Spot clinical contradictions (e.g. generations overlaps, invalid parent ages, cycles) in real-time." },
-        { title: "Interactive Focus", desc: "Click any issue item inside the validation sidebar to jump directly to the target node." }
+        { title: "Auto-Layout", desc: "Click the 'Auto-Layout' button (or press `L`) to re-arrange nodes cleanly according to clinical standards." },
+        { title: "Live Layout", desc: "Enable 'Live Layout' from settings to automatically re-route and position symbols as you draw." },
+        { title: "Generation Rail", desc: "Drag the vertical Roman numeral rail on the left to adjust horizontal positioning offset." }
       ]
     },
     {
-      title: "Secure Sharing & WebRTC LAN",
-      desc: "Collaborate privately without leaving your local local-area network (LAN).",
-      icon: <HelpCircle className="w-8 h-8 text-emerald-500" />,
+      title: "Tool: Diagnostics & Sharing",
+      desc: "Analyze pedigree health and collaborate securely using clinical panel options.",
+      icon: <ShieldAlert className="w-8 h-8 text-emerald-500" />,
       color: "text-emerald-500",
       bgColor: "bg-emerald-500/10",
       features: [
-        { title: "Encrypted Sharing", desc: "Export credentials as secure hybrid-encrypted envelopes, locked for specific recipients." },
-        { title: "WebRTC Peer Sharing", desc: "Direct browser-to-browser WebRTC transfers over your local network — no internet required." },
-        { title: "Timeline History", desc: "Access the Version Timeline to view historical drafts, perform visual diffs, and restore old saves." }
+        { title: "Validation Panel", desc: "Check real-time clinical errors (e.g. gender conflicts, generational cycles) and focus directly on problem nodes." },
+        { title: "Risk Calculator", desc: "Select any node as an index patient to compute Autosomal Dominant or Recessive inheritance risk probabilities." },
+        { title: "Secure Sharing", desc: "Hybrid-encrypt pedigrees for direct peer WebRTC sharing or export reports in PDF, PPTX, PNG, and JSON." }
       ]
     }
   ];

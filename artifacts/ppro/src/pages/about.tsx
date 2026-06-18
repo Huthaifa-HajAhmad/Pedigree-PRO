@@ -1,6 +1,7 @@
-import { ShieldCheck, Server, Radio, Lock, Database, Fingerprint, Wifi, Hash, Code, Heart, Globe, GitBranch, CloudOff, Sparkles } from "lucide-react";
+import { Server, Radio, Lock, Database, Fingerprint, Wifi, Hash, Code, Heart, Globe, GitBranch, CloudOff, Sparkles } from "lucide-react";
 import { PanelSection } from "@/components/shared/panels/PanelSection";
 import { getAppVersion } from "@/lib/version";
+import { AppLogo } from "@/components/AppLogo";
 
 export default function AboutPage() {
   return (
@@ -8,8 +9,8 @@ export default function AboutPage() {
       <div className="flex-1 overflow-y-auto">
         <div className="max-w-2xl mx-auto px-6 py-6 space-y-6">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
-              <ShieldCheck className="w-5 h-5 text-primary" />
+            <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center p-2">
+              <AppLogo className="w-full h-full text-primary" />
             </div>
             <div>
               <h1 className="text-lg font-semibold">Pedigree PRO</h1>
@@ -102,7 +103,7 @@ export default function AboutPage() {
             </div>
           </PanelSection>
 
-          <PanelSection title="What's New" icon={<Sparkles className="w-3.5 h-3.5" />}>
+          <PanelSection title="What's New" icon={<Sparkles className="w-3.5 h-3.5" />} defaultOpen={false}>
             <div className="relative border-l border-border pl-6 ml-3 space-y-6 my-2">
               <div className="relative">
                 <div className="absolute -left-[31px] top-1 w-3.5 h-3.5 rounded-full border border-primary bg-background flex items-center justify-center">

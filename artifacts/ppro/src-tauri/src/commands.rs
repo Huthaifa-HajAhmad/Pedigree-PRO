@@ -436,21 +436,53 @@ pub fn create_patient(
     input: PatientInput,
 ) -> Result<Patient, String> {
     let db = state.db.lock().map_err(|e| e.to_string())?;
-    db.execute(
-        "INSERT INTO patients (first_name, last_name, date_of_birth, sex, ethnicity,
-         referral_reason, clinician_key, created_at, updated_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, datetime('now'), datetime('now'))",
-        params![
-            input.first_name,
-            input.last_name,
-            input.date_of_birth,
-            input.sex,
-            input.ethnicity,
-            input.referral_reason,
-            input.clinician_key,
-        ],
-    )
-    .map_err(|e| format!("Failed to create patient: {}", e))?;
+
+    let has_mrn = {
+        let mut stmt = db
+            .prepare("PRAGMA table_info(patients)")
+            .map_err(|e| format!("Failed to inspect schema: {}", e))?;
+        let res = stmt.query_map([], |row| row.get::<_, String>(1))
+            .map_err(|e| format!("Failed to map columns: {}", e))?
+            .filter_map(|r| r.ok())
+            .any(|col_name| col_name == "mrn");
+        res
+    };
+
+    if has_mrn {
+        let generated_mrn = format!("MRN-{}", uuid::Uuid::new_v4());
+        db.execute(
+            "INSERT INTO patients (mrn, first_name, last_name, date_of_birth, sex, ethnicity,
+             referral_reason, clinician_key, created_at, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, datetime('now'), datetime('now'))",
+            params![
+                generated_mrn,
+                input.first_name,
+                input.last_name,
+                input.date_of_birth,
+                input.sex,
+                input.ethnicity,
+                input.referral_reason,
+                input.clinician_key,
+            ],
+        )
+        .map_err(|e| format!("Failed to create patient: {}", e))?;
+    } else {
+        db.execute(
+            "INSERT INTO patients (first_name, last_name, date_of_birth, sex, ethnicity,
+             referral_reason, clinician_key, created_at, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, datetime('now'), datetime('now'))",
+            params![
+                input.first_name,
+                input.last_name,
+                input.date_of_birth,
+                input.sex,
+                input.ethnicity,
+                input.referral_reason,
+                input.clinician_key,
+            ],
+        )
+        .map_err(|e| format!("Failed to create patient: {}", e))?;
+    }
 
     let id = db.last_insert_rowid();
     drop(db);

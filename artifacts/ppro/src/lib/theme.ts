@@ -61,7 +61,7 @@ export function getStoredTheme(): ThemeId {
   return "clinical";
 }
 
-export function applyTheme(id: ThemeId) {
+export function applyThemeDom(id: ThemeId) {
   document.documentElement.setAttribute("data-theme", id);
   const t = THEMES.find((x) => x.id === id);
   if (t?.isDark) {
@@ -69,6 +69,10 @@ export function applyTheme(id: ThemeId) {
   } else {
     document.documentElement.classList.remove("dark");
   }
+}
+
+export function applyTheme(id: ThemeId) {
+  applyThemeDom(id);
   try { localStorage.setItem(STORAGE_KEY, id); } catch {}
 }
 

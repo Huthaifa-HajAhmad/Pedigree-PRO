@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, createElement, useRef } from "react";
+import { createContext, useContext, useEffect, useState, createElement, useRef, useMemo } from "react";
 import { NODE_SIZE as DEFAULT_NODE_SIZE, NODE_GAP as DEFAULT_NODE_GAP, GEN_GRID as DEFAULT_GEN_GRID } from "@/features/pedigree-editor/canvas/types";
 
 export interface CanvasConfig {
@@ -23,6 +23,9 @@ export interface CanvasConfig {
   showGenotypes: boolean;
   genotypeFontSize: number;
   genotypeOffset: number;
+  toolbarHeight?: number;
+  paperTexture?: boolean;
+  gridStyle?: "lines" | "dots" | "crosses";
 }
 
 export const DEFAULT_CANVAS_CONFIG: CanvasConfig = {
@@ -47,6 +50,9 @@ export const DEFAULT_CANVAS_CONFIG: CanvasConfig = {
   showGenotypes: true,
   genotypeFontSize: 12,
   genotypeOffset: 3,
+  toolbarHeight: 96,
+  paperTexture: true,
+  gridStyle: "lines",
 };
 
 const STORAGE_KEY = "ppro_canvas_config";
@@ -120,4 +126,38 @@ export function CanvasConfigProvider({ children }: { children: React.ReactNode }
 
 export function useCanvasConfig() {
   return useContext(CanvasConfigContext);
+}
+
+export function CanvasConfigOverrideProvider({
+  localConfig,
+  onUpdateConfig,
+  children,
+}: {
+  localConfig: Partial<CanvasConfig>;
+  onUpdateConfig: (patch: Partial<CanvasConfig>) => void;
+  children: React.ReactNode;
+}) {
+  const parentCtx = useContext(CanvasConfigContext);
+
+  const mergedConfig = useMemo(() => {
+    return { ...parentCtx.config, ...localConfig };
+  }, [parentCtx.config, localConfig]);
+
+  useEffect(() => {
+    _moduleConfig = mergedConfig;
+    return () => {
+      _moduleConfig = parentCtx.config;
+    };
+  }, [mergedConfig, parentCtx.config]);
+
+  const value = useMemo(() => ({
+    config: mergedConfig,
+    updateConfig: onUpdateConfig,
+  }), [mergedConfig, onUpdateConfig]);
+
+  return createElement(
+    CanvasConfigContext.Provider,
+    { value },
+    children,
+  );
 }

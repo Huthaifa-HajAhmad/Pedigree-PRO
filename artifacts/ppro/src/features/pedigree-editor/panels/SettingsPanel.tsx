@@ -1,9 +1,9 @@
-import { Palette, Ruler, Hash, Check, RotateCcw, Settings, Type, Grid, Eye, Dna } from "lucide-react";
+import { Palette, Ruler, Hash, Check, RotateCcw, Settings, Type, Grid, Eye, Dna, PanelTop } from "lucide-react";
 import { PanelShell } from "@/components/shared/panels/PanelShell";
 import { PanelSection } from "@/components/shared/panels/PanelSection";
 import { usePedigreeEditor } from "@/features/pedigree-editor/context";
 import { THEMES, useTheme } from "@/lib/theme";
-import { useCanvasConfig, DEFAULT_CANVAS_CONFIG } from "@/features/pedigree-editor/context/CanvasConfigContext";
+import { useCanvasConfig, DEFAULT_CANVAS_CONFIG, CanvasConfig } from "@/features/pedigree-editor/context/CanvasConfigContext";
 
 interface SettingsPanelProps {
   onClose: () => void;
@@ -52,7 +52,12 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
   const { config, updateConfig } = useCanvasConfig();
 
   const handleResetToDefaults = () => {
-    updateConfig({ ...DEFAULT_CANVAS_CONFIG });
+    setTheme(undefined as any);
+    const cleared: Partial<CanvasConfig> = {};
+    Object.keys(DEFAULT_CANVAS_CONFIG).forEach((key) => {
+      cleared[key as keyof CanvasConfig] = undefined;
+    });
+    updateConfig(cleared);
   };
 
   return (
@@ -125,6 +130,71 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
                 step={0.05}
                 value={config.gridOpacity ?? 0.10}
                 onChange={(e) => updateConfig({ gridOpacity: Number(e.target.value) })}
+                className="w-full cursor-pointer border-none outline-none focus-visible:ring-1 focus-visible:ring-primary"
+              />
+            </div>
+
+            {/* Grid Style selector */}
+            <div className="space-y-1.5">
+              <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">Grid Style</span>
+              <div className="grid grid-cols-3 gap-1">
+                {(["lines", "dots", "crosses"] as const).map((style) => (
+                  <button
+                    type="button"
+                    key={style}
+                    onClick={() => updateConfig({ gridStyle: style })}
+                    className={`px-2 py-1 text-[10px] font-semibold rounded border capitalize transition-all ${
+                      (config.gridStyle ?? "lines") === style
+                        ? "border-primary bg-primary/10 text-primary"
+                        : "border-border bg-card hover:bg-accent/40 text-muted-foreground"
+                    }`}
+                  >
+                    {style}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Paper Texture Toggle */}
+            <div className="pt-2 border-t border-border/30">
+              <ToggleRow
+                label="Paper Texture"
+                description="Show physical paper texture and shadow effects"
+                checked={config.paperTexture ?? true}
+                onChange={() => updateConfig({ paperTexture: !(config.paperTexture ?? true) })}
+                icon={<Palette className="w-3.5 h-3.5" />}
+              />
+            </div>
+          </div>
+        </PanelSection>
+
+        {/* Section: Toolbar */}
+        <PanelSection title="Toolbar" icon={<PanelTop className="w-3.5 h-3.5" />} defaultOpen={true}>
+          <div className="space-y-4">
+            <div className="space-y-1">
+              <div className="flex items-center justify-between text-xs">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">Toolbar Height</span>
+                  {(config.toolbarHeight !== undefined && config.toolbarHeight !== 96) && (
+                    <button
+                      type="button"
+                      onClick={() => updateConfig({ toolbarHeight: undefined })}
+                      className="text-[9px] text-primary hover:text-primary-foreground hover:bg-primary/20 px-1 rounded transition-colors"
+                      title="Reset to default"
+                    >
+                      Reset
+                    </button>
+                  )}
+                </div>
+                <span className="font-mono text-foreground tabular-nums">{config.toolbarHeight ?? 96}px</span>
+              </div>
+              <input
+                type="range"
+                min={72}
+                max={140}
+                step={4}
+                value={config.toolbarHeight ?? 96}
+                onChange={(e) => updateConfig({ toolbarHeight: Number(e.target.value) })}
                 className="w-full cursor-pointer border-none outline-none focus-visible:ring-1 focus-visible:ring-primary"
               />
             </div>

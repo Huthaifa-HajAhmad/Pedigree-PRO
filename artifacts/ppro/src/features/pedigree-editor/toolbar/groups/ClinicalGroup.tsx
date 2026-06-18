@@ -664,7 +664,7 @@ export function ClinicalGroup({
         {/* Template Gallery Dialog */}
         <Dialog open={showTemplates} onOpenChange={handleCloseDialog}>
           <DialogContent 
-            className="border border-slate-200 dark:border-slate-800 max-w-5xl p-0 overflow-hidden bg-background/95 backdrop-blur-lg shadow-2xl flex flex-col md:flex-row h-[80vh] md:h-[580px] max-h-[90vh]"
+            className="border border-slate-200 dark:border-slate-800 max-w-5xl p-0 gap-0 overflow-hidden bg-background/95 backdrop-blur-lg shadow-2xl flex flex-col md:flex-row h-[80vh] md:h-[580px] max-h-[90vh]"
             style={{ 
               left: `calc(50% + ${position.x}px)`, 
               top: `calc(50% + ${position.y}px)` 

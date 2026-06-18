@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { Link } from "wouter";
 import { ArrowLeft, Settings } from "lucide-react";
 import type { CanvasData } from "@/features/pedigree-editor/canvas/types";
+import { useCanvasConfig } from "@/features/pedigree-editor/context/CanvasConfigContext";
 
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
 import { NodeGroup } from "@/features/pedigree-editor/toolbar/groups/NodeGroup";
@@ -117,6 +118,8 @@ export function RibbonToolbar(props: RibbonToolbarProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [showLeftFade, setShowLeftFade] = useState(false);
   const [showRightFade, setShowRightFade] = useState(false);
+  const { config } = useCanvasConfig();
+  const height = config.toolbarHeight ?? 96;
 
   useEffect(() => {
     const el = scrollRef.current;
@@ -152,7 +155,8 @@ export function RibbonToolbar(props: RibbonToolbarProps) {
         role="toolbar"
         aria-orientation="horizontal"
         aria-label="Pedigree editor toolbar"
-        className="ribbon-scroll flex items-center flex-nowrap border-b border-border bg-card h-[88px] overflow-x-auto"
+        className="ribbon-scroll flex items-center flex-nowrap border-b border-border bg-card overflow-x-auto"
+        style={{ height: `${height}px` }}
         onClick={(e) => {
           if ((e.target as HTMLElement).closest("button, [role='button']")) {
             props.clearSelection?.();

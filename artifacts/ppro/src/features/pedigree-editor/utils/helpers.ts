@@ -16,6 +16,7 @@ export function parseCanvas(raw: string | null | undefined): CanvasData {
         pinned: (n as any).pinned ?? false,
       })),
       annotations: parsed.annotations || [],
+      settings: parsed.settings || undefined,
     };
   } catch {
     return DEFAULT_CANVAS;

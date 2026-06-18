@@ -263,7 +263,13 @@ export function ReadOnlyCanvas({ canvas, showGrid = false, showAutoLabels = fals
         <svg className="w-full h-full" viewBox={`${x} ${y} ${w} ${h}`}>
         <defs>
           <pattern id="grid-pattern-readonly" width="40" height="40" patternUnits="userSpaceOnUse">
-            <path d="M 40 0 L 0 0 0 40" fill="none" stroke="currentColor" strokeWidth={1} vectorEffect="non-scaling-stroke" opacity={config.gridOpacity ?? 0.10} />
+            {config.gridStyle === "dots" ? (
+              <circle cx="0" cy="0" r="1.5" fill="currentColor" opacity={config.gridOpacity ?? 0.10} />
+            ) : config.gridStyle === "crosses" ? (
+              <path d="M -4 0 L 4 0 M 0 -4 L 0 4" fill="none" stroke="currentColor" strokeWidth={1} vectorEffect="non-scaling-stroke" opacity={config.gridOpacity ?? 0.10} />
+            ) : (
+              <path d="M 40 0 L 0 0 0 40" fill="none" stroke="currentColor" strokeWidth={1} vectorEffect="non-scaling-stroke" opacity={config.gridOpacity ?? 0.10} />
+            )}
           </pattern>
         </defs>
         <rect x={x} y={y} width={w} height={h} fill="white" />

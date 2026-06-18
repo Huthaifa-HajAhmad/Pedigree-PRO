@@ -1,4 +1,4 @@
-import { useMemo, useEffect, useState } from "react";
+import { useMemo, useEffect, useState, useContext, useCallback } from "react";
 import { useParams } from "wouter";
 import { useGetPedigree } from "@workspace/api-client-react";
 import { exportPPRO, exportPDF, exportPPTX, exportClinicalReport, exportPNG, exportSVG, exportJSON } from "@/lib/export-pedigree";
@@ -11,6 +11,10 @@ import { DraftBanner } from "@/features/pedigree-editor/overlay/DraftBanner";
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
 import { buildTemplate, getTemplateOptions } from "@/features/pedigree-editor/utils/templates";
 import { FeatureTourModal } from "@/components/FeatureTourModal";
+import { ThemeContext, THEMES, applyThemeDom } from "@/lib/theme";
+import type { ThemeId } from "@/lib/theme";
+import { CanvasConfigOverrideProvider } from "@/features/pedigree-editor/context/CanvasConfigContext";
+import type { CanvasConfig } from "@/features/pedigree-editor/context/CanvasConfigContext";
 
 const PEDIGREE_TEMPLATES = getTemplateOptions();
 
@@ -121,9 +125,63 @@ function PedigreeCanvasInner() {
     }
   }, [state.showVersions, state.isPreviewMode, ctx.dispatch]);
 
+  const parentThemeCtx = useContext(ThemeContext);
+  const localThemeId = state.canvas.settings?.themeId;
+  const activeThemeId = useMemo(() => localThemeId || parentThemeCtx.themeId, [localThemeId, parentThemeCtx.themeId]);
+  const activeTheme = useMemo(() => THEMES.find((t) => t.id === activeThemeId) || THEMES[0]!, [activeThemeId]);
+
+  useEffect(() => {
+    applyThemeDom(activeThemeId);
+    return () => {
+      applyThemeDom(parentThemeCtx.themeId);
+    };
+  }, [activeThemeId, parentThemeCtx.themeId]);
+
+  const localThemeValue = useMemo(() => ({
+    themeId: activeThemeId,
+    theme: activeTheme,
+    setTheme: (id: ThemeId) => {
+      ops.updateCanvas((prev) => {
+        const settings = prev.settings || {};
+        return {
+          ...prev,
+          settings: { ...settings, themeId: id },
+        };
+      });
+    },
+    synced: true,
+  }), [activeThemeId, activeTheme, ops.updateCanvas]);
+
+  const handleUpdateLocalConfig = useCallback((patch: Partial<CanvasConfig>) => {
+    ops.updateCanvas((prev) => {
+      const settings = prev.settings || {};
+      const configOverrides = { ...(settings.config || {}) };
+      Object.keys(patch).forEach((key) => {
+        const val = patch[key as keyof CanvasConfig];
+        if (val === undefined) {
+          delete configOverrides[key as keyof CanvasConfig];
+        } else {
+          configOverrides[key as keyof CanvasConfig] = val as any;
+        }
+      });
+      return {
+        ...prev,
+        settings: {
+          ...settings,
+          config: configOverrides,
+        },
+      };
+    });
+  }, [ops.updateCanvas]);
+
   return (
-    <div className="flex flex-col h-dvh overflow-hidden">
-      <h1 className="sr-only">Pedigree Editor — {pedigree?.title ?? "Untitled"}</h1>
+    <CanvasConfigOverrideProvider
+      localConfig={state.canvas.settings?.config || {}}
+      onUpdateConfig={handleUpdateLocalConfig}
+    >
+      <ThemeContext.Provider value={localThemeValue}>
+        <div className="flex flex-col h-dvh overflow-hidden">
+          <h1 className="sr-only">Pedigree Editor — {pedigree?.title ?? "Untitled"}</h1>
       {showDraftBanner && (
         <DraftBanner onRestore={onRestoreDraft} onDismiss={handleDismissDraft} />
       )}
@@ -206,6 +264,8 @@ function PedigreeCanvasInner() {
         open={showTour}
         onClose={() => setShowTour(false)}
       />
-    </div>
+        </div>
+      </ThemeContext.Provider>
+    </CanvasConfigOverrideProvider>
   );
 }

@@ -177,18 +177,39 @@ export function get_patient(args: { id: number }): Patient {
 }
 
 export function create_patient(args: CreatePatientInput): Patient {
-  exec(
-    "INSERT INTO patients (first_name, last_name, date_of_birth, sex, ethnicity, referral_reason, clinician_key, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))",
-    [
-      args.first_name,
-      args.last_name,
-      args.date_of_birth ?? null,
-      args.sex ?? null,
-      args.ethnicity ?? null,
-      args.referral_reason ?? null,
-      args.clinician_key ?? null,
-    ]
-  );
+  const columns = query<{ name: string }>("PRAGMA table_info(patients)");
+  const hasMrn = columns.some((c) => c.name === "mrn");
+
+  if (hasMrn) {
+    const randomSuffix = Math.floor(1000 + Math.random() * 9000);
+    const generatedMrn = `MRN-${Date.now()}-${randomSuffix}`;
+    exec(
+      "INSERT INTO patients (mrn, first_name, last_name, date_of_birth, sex, ethnicity, referral_reason, clinician_key, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))",
+      [
+        generatedMrn,
+        args.first_name,
+        args.last_name,
+        args.date_of_birth ?? null,
+        args.sex ?? null,
+        args.ethnicity ?? null,
+        args.referral_reason ?? null,
+        args.clinician_key ?? null,
+      ]
+    );
+  } else {
+    exec(
+      "INSERT INTO patients (first_name, last_name, date_of_birth, sex, ethnicity, referral_reason, clinician_key, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))",
+      [
+        args.first_name,
+        args.last_name,
+        args.date_of_birth ?? null,
+        args.sex ?? null,
+        args.ethnicity ?? null,
+        args.referral_reason ?? null,
+        args.clinician_key ?? null,
+      ]
+    );
+  }
   const id = lastInsertRowId();
   return get_patient({ id });
 }

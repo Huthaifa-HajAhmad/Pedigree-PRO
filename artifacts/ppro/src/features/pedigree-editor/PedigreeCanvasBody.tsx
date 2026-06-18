@@ -593,7 +593,9 @@ const RAIL_MAX_X = 400;
             saveStatus={state.saveStatus}
           />
           <div
-            className="flex-1 relative skeuo-page border border-black/10 rounded-lg overflow-hidden flex flex-col"
+            className={`flex-1 relative border border-black/10 rounded-lg overflow-hidden flex flex-col ${
+              (config.paperTexture ?? true) ? "skeuo-page" : "bg-white dark:bg-slate-900"
+            }`}
           >
             <svg
               ref={svgRef}
@@ -609,7 +611,13 @@ const RAIL_MAX_X = 400;
             >
               <defs>
                 <pattern id="grid-pattern" width="40" height="40" patternUnits="userSpaceOnUse">
-                  <path d="M 40 0 L 0 0 0 40" fill="none" stroke="currentColor" strokeWidth={1} vectorEffect="non-scaling-stroke" opacity={config.gridOpacity ?? 0.10} />
+                  {config.gridStyle === "dots" ? (
+                    <circle cx="0" cy="0" r="1.5" fill="currentColor" opacity={config.gridOpacity ?? 0.10} />
+                  ) : config.gridStyle === "crosses" ? (
+                    <path d="M -4 0 L 4 0 M 0 -4 L 0 4" fill="none" stroke="currentColor" strokeWidth={1} vectorEffect="non-scaling-stroke" opacity={config.gridOpacity ?? 0.10} />
+                  ) : (
+                    <path d="M 40 0 L 0 0 0 40" fill="none" stroke="currentColor" strokeWidth={1} vectorEffect="non-scaling-stroke" opacity={config.gridOpacity ?? 0.10} />
+                  )}
                 </pattern>
               </defs>
               <rect x={viewBox.x} y={viewBox.y} width={vbW} height={vbH} fill="transparent" data-canvas-background="true" />
