@@ -7,6 +7,8 @@ interface AppLogoProps {
 }
 
 export function AppLogo({ className = "", size = "100%", color = "currentColor" }: AppLogoProps) {
+  const isTwoTone = color === "currentColor";
+
   return (
     <svg
       className={className}
@@ -17,72 +19,148 @@ export function AppLogo({ className = "", size = "100%", color = "currentColor" 
       xmlns="http://www.w3.org/2000/svg"
       style={{ display: "inline-block", verticalAlign: "middle" }}
     >
-      {/* Male Node (Square) */}
-      <rect
-        x="12"
-        y="12"
-        width="24"
-        height="24"
-        rx="3"
-        stroke={color}
-        strokeWidth="5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        fill="none"
-      />
-
-      {/* Female Node (Circle) */}
+      {/* Circle (Female Node) on the Left */}
       <circle
-        cx="76"
-        cy="24"
-        r="12"
-        stroke={color}
-        strokeWidth="5"
-        fill="none"
+        cx="25"
+        cy="22"
+        r="9"
+        fill={isTwoTone ? undefined : color}
+        className={isTwoTone ? "fill-slate-500 dark:fill-slate-400" : ""}
       />
 
-      {/* Horizontal Line (Couple Connection) */}
+      {/* Square (Male Node) on the Right */}
+      <rect
+        x="66"
+        y="13"
+        width="18"
+        height="18"
+        rx="2.5"
+        fill={isTwoTone ? undefined : color}
+        className={isTwoTone ? "fill-slate-500 dark:fill-slate-400" : ""}
+      />
+
+      {/* Horizontal couple connection line */}
       <line
-        x1="36"
-        y1="24"
-        x2="64"
-        y2="24"
-        stroke={color}
+        x1="34"
+        y1="22"
+        x2="66"
+        y2="22"
+        stroke={isTwoTone ? undefined : color}
         strokeWidth="5"
         strokeLinecap="round"
+        className={isTwoTone ? "stroke-slate-500 dark:stroke-slate-400" : ""}
       />
 
-      {/* Vertical Connection Drop */}
+      {/* Vertical connection drop that hooks into the DNA loop */}
       <path
-        d="M 50 24 V 40"
-        stroke={color}
+        d="M 50 22 V 33 C 50 37, 47 38, 43 38"
+        stroke={isTwoTone ? undefined : color}
         strokeWidth="5"
         strokeLinecap="round"
+        fill="none"
+        className={isTwoTone ? "stroke-slate-500 dark:stroke-slate-400" : ""}
       />
 
-      {/* DNA Backbone 1 */}
+      {/* DNA double helix backbone 1 (continuous through first crossing, broken at second crossing at y=80) */}
       <path
-        d="M 50 40 C 50 48, 35 48, 35 56 C 35 64, 65 64, 65 72 C 65 80, 35 80, 35 88 C 35 96, 50 96, 50 100"
-        stroke={color}
-        strokeWidth="5"
+        d="M 38 34 C 38 42, 50 42, 50 50 C 50 58, 65 58, 65 65 C 65 71, 56 71, 53 76"
+        stroke={isTwoTone ? undefined : color}
+        strokeWidth="5.5"
         strokeLinecap="round"
         strokeLinejoin="round"
+        fill="none"
+        className={isTwoTone ? "stroke-blue-600 dark:stroke-blue-400" : ""}
       />
-
-      {/* DNA Backbone 2 */}
       <path
-        d="M 50 40 C 50 48, 65 48, 65 56 C 65 64, 35 64, 35 72 C 35 80, 65 80, 65 88 C 65 96, 50 96, 50 100"
-        stroke={color}
-        strokeWidth="5"
+        d="M 47 84 C 44 89, 38 89, 38 96"
+        stroke={isTwoTone ? undefined : color}
+        strokeWidth="5.5"
         strokeLinecap="round"
         strokeLinejoin="round"
-        opacity="0.85"
+        fill="none"
+        className={isTwoTone ? "stroke-blue-600 dark:stroke-blue-400" : ""}
       />
 
-      {/* Base pair rungs */}
-      <line x1="40" y1="48" x2="60" y2="48" stroke={color} strokeWidth="4" strokeLinecap="round" opacity="0.6" />
-      <line x1="40" y1="64" x2="60" y2="64" stroke={color} strokeWidth="4" strokeLinecap="round" opacity="0.6" />
-      <line x1="40" y1="80" x2="60" y2="80" stroke={color} strokeWidth="4" strokeLinecap="round" opacity="0.6" />
+      {/* DNA double helix backbone 2 (broken at first crossing at y=50, continuous through second crossing) */}
+      <path
+        d="M 62 34 C 62 40, 56 40, 53 46"
+        stroke={isTwoTone ? undefined : color}
+        strokeWidth="5.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        fill="none"
+        className={isTwoTone ? "stroke-blue-600 dark:stroke-blue-400" : ""}
+      />
+      <path
+        d="M 47 54 C 44 59, 35 59, 35 65 C 35 72, 50 72, 50 80 C 50 88, 62 88, 62 96"
+        stroke={isTwoTone ? undefined : color}
+        strokeWidth="5.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        fill="none"
+        className={isTwoTone ? "stroke-blue-600 dark:stroke-blue-400" : ""}
+      />
+
+      {/* Base pair rungs: Top loop rungs (complementary split) */}
+      <line
+        x1="39"
+        y1="42"
+        x2="46"
+        y2="42"
+        stroke={isTwoTone ? undefined : color}
+        strokeWidth="4"
+        strokeLinecap="round"
+        className={isTwoTone ? "stroke-blue-600/70 dark:stroke-blue-400/70" : ""}
+        opacity="0.8"
+      />
+      <line
+        x1="61"
+        y1="42"
+        x2="54"
+        y2="42"
+        stroke={isTwoTone ? undefined : color}
+        strokeWidth="4"
+        strokeLinecap="round"
+        className={isTwoTone ? "stroke-blue-600/70 dark:stroke-blue-400/70" : ""}
+        opacity="0.8"
+      />
+
+      {/* Base pair rungs: Middle loop rungs (centered in loops) */}
+      <line
+        x1="37"
+        y1="59"
+        x2="63"
+        y2="59"
+        stroke={isTwoTone ? undefined : color}
+        strokeWidth="4"
+        strokeLinecap="round"
+        className={isTwoTone ? "stroke-blue-600/70 dark:stroke-blue-400/70" : ""}
+        opacity="0.8"
+      />
+      <line
+        x1="37"
+        y1="71"
+        x2="63"
+        y2="71"
+        stroke={isTwoTone ? undefined : color}
+        strokeWidth="4"
+        strokeLinecap="round"
+        className={isTwoTone ? "stroke-blue-600/70 dark:stroke-blue-400/70" : ""}
+        opacity="0.8"
+      />
+
+      {/* Base pair rungs: Bottom loop rung (centered in loop) */}
+      <line
+        x1="41"
+        y1="88"
+        x2="59"
+        y2="88"
+        stroke={isTwoTone ? undefined : color}
+        strokeWidth="4"
+        strokeLinecap="round"
+        className={isTwoTone ? "stroke-blue-600/70 dark:stroke-blue-400/70" : ""}
+        opacity="0.8"
+      />
     </svg>
   );
 }
