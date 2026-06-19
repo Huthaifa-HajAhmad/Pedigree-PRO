@@ -1,9 +1,10 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useSharePedigree, useListProfiles } from "@workspace/api-client-react";
-import { Link2, Copy, Check, ExternalLink, Shield, ShieldAlert, Key, AlertTriangle, Eye, Pencil, Mail, Loader2, Wifi, Clock, Users, QrCode, Timer, ShieldCheck } from "lucide-react";
+import { Link2, Copy, Check, ExternalLink, Shield, ShieldAlert, Key, AlertTriangle, Eye, Pencil, Mail, Loader2, Wifi, Clock, Users, QrCode, Timer, ShieldCheck, Paperclip, Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { sodiumSealBox, sodiumOpenSealedBox } from "@workspace/crypto";
+import { exportPPRO } from "@/lib/export-pedigree";
 
 function isTauriDesktop(): boolean {
   return typeof window !== "undefined" && ("__TAURI_INTERNALS__" in window || "__TAURI__" in window);
@@ -98,6 +99,11 @@ export function ShareModal({
   const [recipientKey, setRecipientKey] = useState("");
   const [accessMode, setAccessMode] = useState<"view" | "edit">("view");
   const [shareData, setShareData] = useState<{ token: string; shareUrl: string } | null>(null);
+  const [showEmailOptions, setShowEmailOptions] = useState(false);
+
+  useEffect(() => {
+    setShowEmailOptions(false);
+  }, [activeTab]);
 
   const shareMutation = useSharePedigree();
   const { data: profiles } = useListProfiles();
@@ -137,10 +143,44 @@ export function ShareModal({
   };
 
   const handleEmailRelay = () => {
+    setShowEmailOptions(true);
+  };
+
+  const handleSendEmail = async (provider: "gmail" | "outlook" | "mailto") => {
     if (!shareData) return;
     const subject = encodeURIComponent(`${senderName} shared a pedigree with you — Pedigree PRO`);
     const body = encodeURIComponent(`View the shared pedigree:\n\n${shareData.shareUrl}\n\n— Sent via Pedigree PRO`);
-    window.location.href = `mailto:?subject=${subject}&body=${body}`;
+
+    let url = "";
+    if (provider === "gmail") {
+      url = `https://mail.google.com/mail/?view=cm&fs=1&su=${subject}&body=${body}`;
+    } else if (provider === "outlook") {
+      url = `https://outlook.live.com/mail/0/deeplink/compose?subject=${subject}&body=${body}`;
+    } else {
+      window.location.href = `mailto:?subject=${subject}&body=${body}`;
+      return;
+    }
+
+    try {
+      if (isTauriDesktop()) {
+        const { open } = await import("@tauri-apps/plugin-shell");
+        await open(url);
+      } else {
+        window.open(url, "_blank", "noopener,noreferrer");
+      }
+    } catch {
+      window.open(url, "_blank", "noopener,noreferrer");
+    }
+  };
+
+  const handleDownloadPpro = async () => {
+    try {
+      const firstProfile = profiles && profiles.length > 0 ? profiles[0] : null;
+      const exporterKey = firstProfile ? firstProfile.public_key : "";
+      await exportPPRO(pedigreeId, exporterKey, pedigreeTitle);
+    } catch (err) {
+      console.error("Failed to download .ppro backup", err);
+    }
   };
 
   const handlePreviewRelay = async () => {
@@ -618,19 +658,78 @@ export function ShareModal({
                       )}
                     </Button>
                   </div>
+                ) : showEmailOptions ? (
+                  <div className="space-y-4">
+                    <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+                      Choose Email Provider
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <button
+                        type="button"
+                        onClick={() => handleSendEmail("gmail")}
+                        className="group flex flex-col items-center justify-center p-4 rounded-xl border border-border bg-card hover:bg-accent hover:border-primary/20 transition-all active:scale-[0.98]"
+                      >
+                        <div className="p-2.5 rounded-lg bg-red-500/10 group-hover:bg-red-500/25 transition-colors mb-2 flex items-center justify-center">
+                          <Mail className="w-5 h-5 text-red-500" />
+                        </div>
+                        <span className="text-xs font-bold text-foreground">Gmail</span>
+                        <span className="text-[9px] text-muted-foreground text-center mt-1">Compose in Gmail Web</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleSendEmail("outlook")}
+                        className="group flex flex-col items-center justify-center p-4 rounded-xl border border-border bg-card hover:bg-accent hover:border-primary/20 transition-all active:scale-[0.98]"
+                      >
+                        <div className="p-2.5 rounded-lg bg-blue-500/10 group-hover:bg-blue-500/25 transition-colors mb-2 flex items-center justify-center">
+                          <Mail className="w-5 h-5 text-blue-500" />
+                        </div>
+                        <span className="text-xs font-bold text-foreground">Outlook</span>
+                        <span className="text-[9px] text-muted-foreground text-center mt-1">Compose in Outlook Web</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleSendEmail("mailto")}
+                        className="group flex flex-col items-center justify-center p-4 rounded-xl border border-border bg-card hover:bg-accent hover:border-primary/20 transition-all active:scale-[0.98]"
+                      >
+                        <div className="p-2.5 rounded-lg bg-teal-500/10 group-hover:bg-teal-500/25 transition-colors mb-2 flex items-center justify-center">
+                          <Mail className="w-5 h-5 text-teal-500" />
+                        </div>
+                        <span className="text-xs font-bold text-foreground">Default Mail</span>
+                        <span className="text-[9px] text-muted-foreground text-center mt-1">Use native system mail app</span>
+                      </button>
+                    </div>
+
+                    <div className="border-t border-border/40 pt-4 mt-2">
+                      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-3 rounded-lg border border-border/60 bg-muted/30">
+                        <div className="space-y-1">
+                          <h4 className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                            <Paperclip className="w-3.5 h-3.5 text-teal-500" />
+                            <span>Attach Pedigree File (.ppro)</span>
+                          </h4>
+                          <p className="text-[10px] text-muted-foreground max-w-[320px] leading-normal">
+                            To share the raw file as an attachment: download the encrypted `.ppro` database file below, then drag and drop it into your email composer.
+                          </p>
+                        </div>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={handleDownloadPpro}
+                          className="text-[10px] font-bold shrink-0 self-start sm:self-center"
+                        >
+                          <Paperclip className="w-3 h-3 mr-1" />
+                          Download .ppro
+                        </Button>
+                      </div>
+                    </div>
+
+                  </div>
                 ) : (
                   <div className="space-y-4">
                     <div className="flex items-center gap-2 p-3 bg-muted border border-border rounded-lg font-mono text-xs">
                       <Link2 className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
                       <span className="flex-1 truncate text-primary" title={shareData.shareUrl}>{shareData.shareUrl}</span>
-                      <button
-                        type="button"
-                        onClick={handleCopyRelay}
-                        className="flex-shrink-0 text-muted-foreground hover:text-primary transition-colors flex items-center justify-center"
-                        title="Copy link"
-                      >
-                        {relayCopied ? <Check className="w-4 h-4 text-emerald-500" /> : <Copy className="w-4 h-4" />}
-                      </button>
                     </div>
 
                     <div className="flex gap-2">
@@ -646,9 +745,28 @@ export function ShareModal({
                         <ExternalLink className="w-3.5 h-3.5 mr-1" />
                         Preview
                       </Button>
-                      <Button variant="outline" size="sm" onClick={() => { setShareData(null); setRecipientKey(""); }} className="font-bold">
+                      <Button variant="outline" size="sm" onClick={() => { setShareData(null); setRecipientKey(""); setShowEmailOptions(false); }} className="font-bold">
                         New
                       </Button>
+                    </div>
+
+                    {/* Share Actions Guide Banner */}
+                    <div className="p-3 rounded-lg border border-teal-500/20 bg-teal-500/5 text-slate-600 dark:text-slate-300 text-[10px] leading-relaxed font-sans">
+                      <div className="font-semibold text-teal-600 dark:text-teal-400 mb-1.5 flex items-center gap-1.5">
+                        <Info className="w-3.5 h-3.5 shrink-0" />
+                        <span>Share Actions Guide</span>
+                      </div>
+                      <ul className="space-y-1.5 list-disc pl-3">
+                        <li>
+                          <strong>Email:</strong> Select Gmail, Outlook, or your default mail client to automatically compose drafts. You can also download the encrypted <code>.ppro</code> backup file on the next screen to manually attach it.
+                        </li>
+                        <li>
+                          <strong>Preview:</strong> Open the share URL in a new window/tab to verify exactly what the recipient will see.
+                        </li>
+                        <li>
+                          <strong>New:</strong> Clear the active link and recipient encryption keys to start generating a fresh share session.
+                        </li>
+                      </ul>
                     </div>
                   </div>
                 )}
@@ -833,21 +951,31 @@ export function ShareModal({
 
           <div className="mt-6 flex items-center justify-between border-t border-border/40 pt-4 flex-shrink-0">
             {activeTab !== "menu" ? (
-              <button
-                type="button"
-                onClick={() => {
-                  cleanupLan();
-                  setLanMode(null);
-                  setLanOffer("");
-                  setLanAnswer("");
-                  setLanStatus("idle");
-                  setLanError("");
-                  setActiveTab("menu");
-                }}
-                className="text-xs font-bold text-slate-500 hover:text-primary transition-colors flex items-center gap-1"
-              >
-                ← Back to Share Options
-              </button>
+              showEmailOptions ? (
+                <button
+                  type="button"
+                  onClick={() => setShowEmailOptions(false)}
+                  className="text-xs font-bold text-slate-500 hover:text-primary transition-colors flex items-center gap-1"
+                >
+                  ← Back to Link Options
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => {
+                    cleanupLan();
+                    setLanMode(null);
+                    setLanOffer("");
+                    setLanAnswer("");
+                    setLanStatus("idle");
+                    setLanError("");
+                    setActiveTab("menu");
+                  }}
+                  className="text-xs font-bold text-slate-500 hover:text-primary transition-colors flex items-center gap-1"
+                >
+                  ← Back to Share Options
+                </button>
+              )
             ) : (
               <div />
             )}

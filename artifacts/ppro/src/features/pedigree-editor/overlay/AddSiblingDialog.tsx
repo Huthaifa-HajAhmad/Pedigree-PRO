@@ -7,7 +7,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import type { PedigreeNode } from "@/features/pedigree-editor/canvas/types";
-import { Users, Square, Circle, Diamond, Info, Trash2, Check, GripVertical } from "lucide-react";
+import { Users, Square, Circle, Diamond, Info, Trash2, Check, GripVertical, Baby, Triangle } from "lucide-react";
 import { DatePicker } from "@/components/ui/date-picker";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
@@ -118,6 +118,8 @@ function SexSelect({ value, onChange }: SexSelectProps) {
     { value: "male" as const, label: "Male", icon: <Square className="w-3.5 h-3.5 text-sky-500 stroke-[2.5px]" /> },
     { value: "female" as const, label: "Female", icon: <Circle className="w-3.5 h-3.5 text-pink-500 stroke-[2.5px]" /> },
     { value: "unknown" as const, label: "Unknown", icon: <Diamond className="w-3.5 h-3.5 text-slate-500 stroke-[2.5px]" /> },
+    { value: "pregnancy" as const, label: "Pregnancy", icon: <Baby className="w-3.5 h-3.5 text-emerald-500 stroke-[2px]" /> },
+    { value: "sab" as const, label: "SAB / Stillbirth", icon: <Triangle className="w-3.5 h-3.5 text-amber-500 stroke-[2px]" /> },
   ];
 
   const selected = options.find((opt) => opt.value === value) || options[2]!;
@@ -153,14 +155,19 @@ function SexSelect({ value, onChange }: SexSelectProps) {
               onChange(opt.value);
               setIsOpen(false);
             }}
-            className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-left transition-colors ${
+            className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-md text-left transition-all duration-150 text-[11px] font-medium focus-visible:outline-none ${
               value === opt.value
-                ? "bg-primary/10 text-primary font-semibold"
-                : "text-foreground hover:bg-accent"
+                ? "bg-primary/10 text-primary font-semibold hover:bg-primary/15"
+                : "text-foreground/80 hover:bg-accent hover:text-accent-foreground"
             }`}
           >
-            {opt.icon}
-            <span>{opt.label}</span>
+            <div className="flex items-center gap-2">
+              {opt.icon}
+              <span>{opt.label}</span>
+            </div>
+            {value === opt.value && (
+              <Check className="w-3.5 h-3.5 text-primary shrink-0" />
+            )}
           </button>
         ))}
       </PopoverContent>
@@ -184,6 +191,7 @@ function TraitsSelect({ sibling, onChange }: TraitsSelectProps) {
   ];
 
   const activeTraits = traits.filter((t) => sibling[t.key]);
+  const firstActive = activeTraits[0];
 
   return (
     <Popover open={isOpen} onOpenChange={setIsOpen}>
@@ -193,18 +201,23 @@ function TraitsSelect({ sibling, onChange }: TraitsSelectProps) {
           className="w-full h-8 flex items-center justify-between gap-1.5 px-2.5 rounded-lg border border-border bg-background hover:bg-accent/50 text-[11px] font-medium transition-colors focus:outline-none focus:border-muted-foreground/45 focus-visible:outline-none focus-visible:ring-0"
         >
           <div className="flex items-center gap-1 truncate max-w-[calc(100%-14px)]">
-            {activeTraits.length > 0 ? (
-              <div className="flex items-center gap-1.5 truncate">
-                {activeTraits.map((t) => (
-                  <span
-                    key={t.key}
-                    className="inline-flex items-center gap-1 bg-primary/10 text-primary border border-primary/20 px-1 py-0.5 rounded text-[9px] font-bold"
-                  >
-                    {renderMiniTraitIcon(sibling.type, t.key)}
-                    <span>{t.label}</span>
+            {firstActive ? (
+              activeTraits.length === 1 ? (
+                <span className="inline-flex items-center gap-1 bg-primary/10 text-primary border border-primary/20 px-1 py-0.5 rounded text-[9px] font-bold">
+                  {renderMiniTraitIcon(sibling.type, firstActive.key)}
+                  <span>{firstActive.label}</span>
+                </span>
+              ) : (
+                <div className="flex items-center gap-1">
+                  <span className="inline-flex items-center gap-1 bg-primary/10 text-primary border border-primary/20 px-1 py-0.5 rounded text-[9px] font-bold">
+                    {renderMiniTraitIcon(sibling.type, firstActive.key)}
+                    <span>{firstActive.label}</span>
                   </span>
-                ))}
-              </div>
+                  <span className="inline-flex items-center bg-muted text-muted-foreground border border-border px-1 py-0.5 rounded text-[9px] font-bold">
+                    +{activeTraits.length - 1}
+                  </span>
+                </div>
+              )
             ) : (
               <span className="text-muted-foreground/60 italic text-[11px]">Normal</span>
             )}
@@ -230,14 +243,14 @@ function TraitsSelect({ sibling, onChange }: TraitsSelectProps) {
               onClick={() => {
                 onChange({ [t.key]: !sibling[t.key] });
               }}
-              className={`w-full flex items-center justify-between px-2 py-1.5 rounded-md text-left transition-colors ${
+              className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-md text-left transition-all duration-150 text-[11px] font-medium focus-visible:outline-none ${
                 isActive
-                  ? "bg-primary/10 text-primary font-semibold"
-                  : "text-foreground hover:bg-accent"
+                  ? "bg-primary/10 text-primary font-semibold hover:bg-primary/15"
+                  : "text-foreground/80 hover:bg-accent hover:text-accent-foreground"
               }`}
             >
               <div className="flex items-center gap-2">
-                <span className="text-foreground shrink-0 flex items-center justify-center w-4 h-4">
+                <span className="shrink-0 flex items-center justify-center w-4 h-4">
                   {renderMiniTraitIcon(sibling.type, t.key, 14)}
                 </span>
                 <span>{t.label}</span>
