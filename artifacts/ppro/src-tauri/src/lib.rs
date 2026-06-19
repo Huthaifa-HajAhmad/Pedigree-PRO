@@ -113,7 +113,7 @@ pub fn run() {
             commands::save_preferences,
             // ─── WebView ───────────────────────────────────────
             commands::disable_zoom,
-            commands::reset_zoom,
+
         ])
         .run(tauri::generate_context!())
         .expect("error while running Pedigree PRO");
