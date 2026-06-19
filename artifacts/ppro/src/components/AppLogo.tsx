@@ -61,9 +61,13 @@ export function AppLogo({ className = "", size = "100%", color = "currentColor" 
         className={isTwoTone ? "stroke-slate-500 dark:stroke-slate-400" : ""}
       />
 
-      {/* DNA double helix backbone 1 (continuous through first crossing, broken at second crossing at y=80) */}
+      {/* 
+        DNA Helix Backbone 1 (Starts Left, Ends Right)
+        Alternating overlaps: Broken at Crossing 1 (y=44) and Crossing 3 (y=80), Continuous at Crossing 2 (y=62)
+      */}
+      {/* Segment A1: Top left to before Crossing 1 */}
       <path
-        d="M 38 34 C 38 42, 50 42, 50 50 C 50 58, 65 58, 65 65 C 65 71, 56 71, 53 76"
+        d="M 38 34 C 38 38, 44 40, 46 41"
         stroke={isTwoTone ? undefined : color}
         strokeWidth="5.5"
         strokeLinecap="round"
@@ -71,8 +75,19 @@ export function AppLogo({ className = "", size = "100%", color = "currentColor" 
         fill="none"
         className={isTwoTone ? "stroke-blue-600 dark:stroke-blue-400" : ""}
       />
+      {/* Segment A2: Between Crossing 1 and Crossing 3 */}
       <path
-        d="M 47 84 C 44 89, 38 89, 38 96"
+        d="M 53 47 C 56 49, 65 49, 65 53 C 65 58, 50 58, 50 62 C 50 66, 35 66, 35 71 C 35 74, 44 76, 46 77"
+        stroke={isTwoTone ? undefined : color}
+        strokeWidth="5.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        fill="none"
+        className={isTwoTone ? "stroke-blue-600 dark:stroke-blue-400" : ""}
+      />
+      {/* Segment A3: After Crossing 3 to Bottom Right */}
+      <path
+        d="M 53 83 C 56 85, 65 85, 65 89 C 65 93, 60 93, 60 95"
         stroke={isTwoTone ? undefined : color}
         strokeWidth="5.5"
         strokeLinecap="round"
@@ -81,9 +96,13 @@ export function AppLogo({ className = "", size = "100%", color = "currentColor" 
         className={isTwoTone ? "stroke-blue-600 dark:stroke-blue-400" : ""}
       />
 
-      {/* DNA double helix backbone 2 (broken at first crossing at y=50, continuous through second crossing) */}
+      {/* 
+        DNA Helix Backbone 2 (Starts Right, Ends Left)
+        Alternating overlaps: Continuous at Crossing 1 (y=44) and Crossing 3 (y=80), Broken at Crossing 2 (y=62)
+      */}
+      {/* Segment B1: Top right to before Crossing 2 */}
       <path
-        d="M 62 34 C 62 40, 56 40, 53 46"
+        d="M 60 35 C 60 40, 50 40, 50 44 C 50 48, 35 48, 35 53 C 35 56, 44 58, 46 59"
         stroke={isTwoTone ? undefined : color}
         strokeWidth="5.5"
         strokeLinecap="round"
@@ -91,8 +110,9 @@ export function AppLogo({ className = "", size = "100%", color = "currentColor" 
         fill="none"
         className={isTwoTone ? "stroke-blue-600 dark:stroke-blue-400" : ""}
       />
+      {/* Segment B2: After Crossing 2 to Bottom Left */}
       <path
-        d="M 47 54 C 44 59, 35 59, 35 65 C 35 72, 50 72, 50 80 C 50 88, 62 88, 62 96"
+        d="M 54 65 C 56 66, 65 66, 65 71 C 65 76, 50 76, 50 80 C 50 84, 40 84, 40 95"
         stroke={isTwoTone ? undefined : color}
         strokeWidth="5.5"
         strokeLinecap="round"
