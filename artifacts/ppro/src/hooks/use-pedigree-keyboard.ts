@@ -114,6 +114,11 @@ export function usePedigreeKeyboard(params: UsePedigreeKeyboardParams) {
         k.navigateArrow(e.key as "ArrowUp" | "ArrowDown" | "ArrowLeft" | "ArrowRight");
         return;
       }
+      if (/^[0-9]$/.test(e.key) && !e.code.startsWith("Numpad") && k.selectedNode) {
+        e.preventDefault();
+        k.updateSelectedNode({ insideText: e.key });
+        return;
+      }
       // Numpad gestures
       if (e.code === "NumpadAdd" || (e.code === "Equal" && !e.shiftKey)) { e.preventDefault(); k.setViewBox((v) => ({ ...v, zoom: Math.max(0.25, v.zoom * 0.85) })); return; }
       if (e.code === "NumpadSubtract" || e.code === "Minus") { e.preventDefault(); k.setViewBox((v) => ({ ...v, zoom: Math.min(4, v.zoom * 1.18) })); return; }

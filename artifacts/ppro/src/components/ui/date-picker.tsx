@@ -145,7 +145,7 @@ function DatePicker({
             month_caption: "",
             caption_label: "sr-only",
             dropdowns: "flex items-center gap-1 text-xs",
-            dropdown: "bg-popover border border-border rounded-sm px-1 py-0.5 text-xs min-w-0 max-w-[80px] focus:outline-none focus:ring-1 focus:ring-ring",
+            dropdown: "bg-popover border border-border rounded-sm px-1 py-0.5 text-xs min-w-0 max-w-[95px] focus:outline-none focus:ring-1 focus:ring-ring",
             dropdown_root: "relative inline-flex",
             month_grid: "mt-3 border-collapse table-fixed self-center",
             weekdays: "flex mt-1",

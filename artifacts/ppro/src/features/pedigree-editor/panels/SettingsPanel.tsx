@@ -211,6 +211,65 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
               onChange={() => dispatch({ type: "SET_STATE", patch: { showAutoLabels: !state.showAutoLabels } })}
               icon={<Hash className="w-3.5 h-3.5" />}
             />
+            {state.showAutoLabels && (
+              <div className="pl-6 pt-1.5 pb-2 border-l-2 border-primary/20 space-y-4 mt-1 ml-1.5 animate-in slide-in-from-left-2 duration-200">
+                {/* Size Slider */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between text-[11px]">
+                    <span className="text-muted-foreground font-semibold uppercase tracking-wider">Label Size</span>
+                    <span className="font-mono text-primary font-bold">{config.autoLabelFontSize ?? 12}px</span>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <span className="text-[10px] text-muted-foreground">6px</span>
+                    <input
+                      type="range"
+                      min={6}
+                      max={18}
+                      step={1}
+                      value={config.autoLabelFontSize ?? 12}
+                      onChange={(e) => updateConfig({ autoLabelFontSize: parseInt(e.target.value) })}
+                      className="flex-1 cursor-pointer border-none outline-none focus-visible:ring-1 focus-visible:ring-primary"
+                    />
+                    <span className="text-[10px] text-muted-foreground">18px</span>
+                  </div>
+                </div>
+
+                {/* Separator / Divider */}
+                <div className="border-t border-border/40 my-2" />
+
+                {/* Colorpicker */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold block">Label Color</span>
+                    {config.autoLabelColor && (
+                      <button
+                        type="button"
+                        onClick={() => updateConfig({ autoLabelColor: "" })}
+                        className="text-[9px] text-primary hover:text-primary-foreground hover:bg-primary/20 px-1 rounded transition-colors"
+                      >
+                        Reset Default
+                      </button>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <label
+                      className="relative w-5 h-5 rounded overflow-hidden flex-shrink-0 border border-border/85 cursor-pointer shadow-xs transition-transform hover:scale-110"
+                      style={{ background: config.autoLabelColor || "#6B7280" }}
+                    >
+                      <input
+                        type="color"
+                        value={config.autoLabelColor || "#6B7280"}
+                        onChange={(e) => updateConfig({ autoLabelColor: e.target.value })}
+                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                      />
+                    </label>
+                    <span className="text-[8px] font-mono text-muted-foreground/80 truncate uppercase">
+                      {config.autoLabelColor ? config.autoLabelColor.toUpperCase() : "DEFAULT (GRAY)"}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )}
             <ToggleRow
               label="Generation Rail"
               description="Show vertical Roman numeral rail on the left"

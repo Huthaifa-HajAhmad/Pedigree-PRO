@@ -262,6 +262,33 @@ describe("canvasUtils loop tracking", () => {
     expect(hNoGenotype).toBe(14);
   });
 
+  it("computes label below height correctly with age and dynamic font size", () => {
+    const node: PedigreeNode = {
+      id: "n1",
+      x: 100,
+      y: 150,
+      type: "male",
+      ...baseNode,
+      age: "45",
+    };
+    
+    // No label, age only: ageH + 3 where ageH = autoLabelFontSize + 3. 
+    // With autoLabelFontSize = 12 (default): ageH = 15. Total = 18px.
+    const h12 = computeLabelBelowHeight(node, undefined, { showGenotypes: false, genotypeFontSize: 12, genotypeOffset: 3, autoLabelFontSize: 12 });
+    expect(h12).toBe(18);
+
+    // With autoLabelFontSize = 8: ageH = 11. Total = 14px.
+    const h8 = computeLabelBelowHeight(node, undefined, { showGenotypes: false, genotypeFontSize: 12, genotypeOffset: 3, autoLabelFontSize: 8 });
+    expect(h8).toBe(14);
+
+    // With autoLabel and age: h starts as autoLabelH = autoLabelFontSize + 5.
+    // Then adding ageH = autoLabelFontSize + 3.
+    // Total = autoLabelFontSize + 5 + autoLabelFontSize + 3.
+    // With autoLabelFontSize = 12: 12 + 5 + 12 + 3 = 32px.
+    const hWithAuto = computeLabelBelowHeight(node, "A-1", { showGenotypes: false, genotypeFontSize: 12, genotypeOffset: 3, autoLabelFontSize: 12 });
+    expect(hWithAuto).toBe(32);
+  });
+
   it("detects vertical crossings over sibling bars", () => {
     // We construct Couple 1: n1 (male) at x=100, y=100 & n2 (female) at x=200, y=100
     // Children n3 at x=100, n3_2 at x=200, y=220 (forms a sibling bar at ~y=168, span [100, 200])

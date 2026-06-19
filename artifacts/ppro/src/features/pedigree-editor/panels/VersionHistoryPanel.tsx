@@ -2,23 +2,10 @@ import { Save, RotateCcw, Trash2, Clock, Calendar } from "lucide-react";
 import { PanelShell } from "@/components/shared/panels/PanelShell";
 import { usePedigreeEditor } from "@/features/pedigree-editor/context";
 import { Button } from "@/components/ui/button";
-import { computeCanvasDiff, diffSummary } from "@/features/collaboration/VisualDiffEngine";
 import { parseCanvas } from "@/features/pedigree-editor/utils/helpers";
 
 export function VersionHistoryPanel({ onClose }: { onClose: () => void }) {
-  const { state, dispatch, ops, versions, versionsLoading } = usePedigreeEditor();
-
-  const getDiffText = (versionCanvasData: string) => {
-    try {
-      const parsedHistorical = JSON.parse(versionCanvasData);
-      const liveCanvas = state.liveCanvasCache || state.canvas;
-      const diff = computeCanvasDiff(parsedHistorical, liveCanvas);
-      const summary = diffSummary(diff);
-      return summary === "No changes" ? null : summary;
-    } catch {
-      return null;
-    }
-  };
+  const { state, dispatch, ops, versions, versionsLoading, profiles } = usePedigreeEditor();
 
   return (
     <PanelShell
@@ -56,7 +43,17 @@ export function VersionHistoryPanel({ onClose }: { onClose: () => void }) {
           ) : (
             versions?.map((v) => {
               const isSelected = state.isPreviewMode && state.previewVersionId === v.id;
-              const diffText = getDiffText(v.canvas_data);
+              
+              let nodesCount = 0;
+              let coupleCount = 0;
+              try {
+                const parsed = JSON.parse(v.canvas_data);
+                nodesCount = parsed.nodes?.length ?? 0;
+                coupleCount = (parsed.edges || []).filter((e: any) =>
+                  e.type === "couple" || e.type === "consanguinity" || e.type === "divorced" || e.type === "separated"
+                ).length;
+              } catch {}
+
               const dateText = (() => {
                 try {
                   return new Date(v.created_at).toLocaleDateString("en-US", {
@@ -115,7 +112,7 @@ export function VersionHistoryPanel({ onClose }: { onClose: () => void }) {
                   {/* Info */}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-start justify-between gap-1">
-                      <div className="text-xs font-semibold text-foreground truncate leading-tight">
+                      <div className="text-xs font-semibold text-foreground leading-tight break-words pr-4">
                         {v.label ?? `Session v${v.version_number}`}
                       </div>
                       <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-all flex-shrink-0">
@@ -157,19 +154,20 @@ export function VersionHistoryPanel({ onClose }: { onClose: () => void }) {
                       </span>
                     </div>
 
-                    {v.saver_key && (
-                      <div className="text-[9px] text-primary/75 truncate font-mono mt-0.5">
-                        by {v.saver_key.slice(0, 8)}
-                      </div>
-                    )}
+                    {v.saver_key && (() => {
+                      const matched = profiles?.find((p) => p.public_key === v.saver_key);
+                      return (
+                        <div className="text-[9px] text-primary/75 truncate font-mono mt-0.5" title={v.saver_key}>
+                          by {matched ? matched.display_name : v.saver_key.slice(0, 8)}
+                        </div>
+                      );
+                    })()}
 
-                    {diffText && (
-                      <div className="mt-1.5 flex flex-wrap gap-1">
-                        <span className="px-1.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-[10px] font-semibold border border-emerald-500/20">
-                          {diffText}
-                        </span>
-                      </div>
-                    )}
+                    <div className="mt-1.5 flex flex-wrap gap-1">
+                      <span className="px-1.5 py-0.5 rounded bg-primary/5 border border-primary/10 text-primary/80 text-[10px] font-medium leading-normal">
+                        Family tree: {nodesCount} member{nodesCount !== 1 ? "s" : ""}{coupleCount > 0 ? `, ${coupleCount} nuclear famil${coupleCount !== 1 ? "ies" : "y"}` : ""}
+                      </span>
+                    </div>
                   </div>
                 </div>
               );

@@ -71,7 +71,7 @@ export function PropertiesPanel({
   return (
     <div className="absolute right-0 top-0 bottom-0 z-30 overflow-hidden rounded-l-lg h-full shadow-[-4px_0_12px_rgba(0,0,0,0.08),0_4px_12px_rgba(0,0,0,0.08)]">
       {selectedIds.size > 1 ? (
-        <PanelShell title={`${selectedIds.size} Nodes`} icon={<Users className="w-3.5 h-3.5" />} width="w-full md:w-80">
+        <PanelShell key={`bulk-${Array.from(selectedIds).sort().join(",")}`} title={`${selectedIds.size} Nodes`} icon={<Users className="w-3.5 h-3.5" />} width="w-full md:w-80">
           {/* Bulk Status */}
           <PanelSection title="Bulk Status" icon={<Dna className="w-3 h-3" />}>
             <div>
@@ -187,7 +187,7 @@ export function PropertiesPanel({
             const femaleId = a.type === "female" ? a.id : b.type === "female" ? b.id : b.id;
 
             return (
-              <PanelSection title="Add Relationship" icon={<Link2 className="w-3 h-3" />}>
+              <PanelSection title="Add Relationship" icon={<Link2 className="w-3 h-3" />} defaultOpen={true}>
                 {isGeneticRelative ? (
                   <div className="p-2.5 rounded-lg border border-amber-500/20 bg-amber-500/5 text-amber-600 dark:text-amber-500 text-xs leading-relaxed mb-2">
                     Genetic relationship detected. Consanguineous link recommended.
@@ -340,7 +340,7 @@ export function PropertiesPanel({
           </button>
         </PanelShell>
       ) : singleSelected ? (
-        <PanelShell title={`${singleSelected.type}`} icon={<User className="w-3.5 h-3.5" />} width="w-full md:w-80">
+        <PanelShell key={`single-${singleSelected.id}`} title={`${singleSelected.type}`} icon={<User className="w-3.5 h-3.5" />} width="w-full md:w-80">
           {/* Basic Info */}
           <PanelSection title="Basic Info" icon={<User className="w-3 h-3" />}>
             <div>

@@ -1,6 +1,6 @@
 import { useRef, useCallback } from "react";
 import type { CanvasData, DragState } from "@/features/pedigree-editor/canvas/types";
-import { NODE_SIZE } from "@/features/pedigree-editor/canvas/types";
+import { NODE_SIZE, NODE_GAP } from "@/features/pedigree-editor/canvas/types";
 import { computeSnapRows, snapToNearestRow } from "@/features/pedigree-editor/utils/helpers";
 import type { PedigreeEditorState, PedigreeEditorAction } from "@/features/pedigree-editor/context/types";
 
@@ -28,6 +28,7 @@ export function usePedigreeCanvas(params: UsePedigreeCanvasParams) {
 
   const draggingRef = useRef<DragState | null>(null);
   const isDraggingRef = useRef(false);
+  const dragStartTimeRef = useRef<number>(0);
   const snapTargetsRef = useRef<Record<string, { x: number; y: number }>>({});
   const initialSnapPositionsRef = useRef<Record<string, { x: number; y: number }>>({});
   const lassoCTMInverseRef = useRef<DOMMatrix | null>(null);
@@ -113,12 +114,17 @@ export function usePedigreeCanvas(params: UsePedigreeCanvasParams) {
     const d: DragState = { primaryNodeId: nodeId, startSVG: coords, initialPositions };
     draggingRef.current = d;
     isDraggingRef.current = false;
+    dragStartTimeRef.current = Date.now();
     dispatch({ type: "SET_STATE", patch: { dragging: d, isDragging: false, snapRows: rows } });
   }, [getSVGCoords, dispatch, stateRef, preDragCanvasRef]);
 
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
     const s = stateRef.current;
     if (s.annDragging) {
+      if (e.buttons !== undefined && e.buttons !== 1) {
+        dispatch({ type: "SET_STATE", patch: { annDragging: null } });
+        return;
+      }
       const coords = getSVGCoords(e);
       if (!coords) return;
       const dx = coords.x - s.annDragging.startSVG.x;
@@ -190,6 +196,10 @@ export function usePedigreeCanvas(params: UsePedigreeCanvasParams) {
     }
     const pending = pendingAnnDragRef.current;
     if (pending) {
+      if (e.buttons !== undefined && e.buttons !== 1) {
+        pendingAnnDragRef.current = null;
+        return;
+      }
       const coords = getSVGCoords(e);
       if (!coords) return;
       const dx = coords.x - pending.startSVG.x;
@@ -201,6 +211,12 @@ export function usePedigreeCanvas(params: UsePedigreeCanvasParams) {
     }
     const d = draggingRef.current;
     if (d) {
+      if ((e.buttons !== undefined && e.buttons !== 1) || (!isDraggingRef.current && Date.now() - dragStartTimeRef.current > 1000)) {
+        draggingRef.current = null;
+        isDraggingRef.current = false;
+        dispatch({ type: "SET_STATE", patch: { dragging: null, isDragging: false } });
+        return;
+      }
       const coords = getSVGCoords(e);
       if (!coords) return;
       const dx = coords.x - d.startSVG.x;
@@ -223,39 +239,110 @@ export function usePedigreeCanvas(params: UsePedigreeCanvasParams) {
 
         dispatch({
           type: "UPDATE_CANVAS",
-          updater: (prev: CanvasData) => ({
-            ...prev,
-            nodes: prev.nodes.map((n) => {
-              const init = d.initialPositions[n.id];
-              if (!init) return n;
-              const originalRawX = init.x + dx;
-              const originalRawY = init.y + dy;
-              let rawX = originalRawX;
-              const rawY = originalRawY;
-              let newY = curState.snapEnabled ? snapToNearestRow(rawY, curState.snapRows) : rawY;
+          updater: (prev: CanvasData) => {
+            const primaryId = d.primaryNodeId;
+            const initPn = d.initialPositions[primaryId];
+            if (!initPn) return prev;
 
-              const initSnap = initialSnapPositionsRef.current[n.id];
-              let initSnapActiveX = false;
-              let initSnapActiveY = false;
+            const rawPnX = initPn.x + dx;
+            const rawPnY = initPn.y + dy;
 
-              // InitSnap Y check (unchanged)
-              if (initSnap) {
-                if (Math.abs(originalRawY - initSnap.y) < SNAP_THRESHOLD) {
-                  alignGuides.push({ axis: "y", pos: initSnap.y, strength: "snap" });
-                  newY = initSnap.y;
-                  initSnapActiveY = true;
-                } else if (Math.abs(originalRawY - initSnap.y) < NEAR_THRESHOLD) {
-                  alignGuides.push({ axis: "y", pos: initSnap.y, strength: "near" });
+            // Calculate moving group center on the primary node's row
+            const rowMovingNodes = Object.entries(d.initialPositions)
+              .filter(([, pos]) => Math.abs(pos.y - initPn.y) < 1)
+              .map(([id, pos]) => ({ id, x: pos.x, y: pos.y }));
+            
+            const rowMovingInitCenterX = rowMovingNodes.reduce((sum, n) => sum + n.x, 0) / rowMovingNodes.length;
+            const rowMovingRawCenterX = rowMovingInitCenterX + dx;
+
+            // Targets on the same row as primary node
+            const rowTargets = Object.values(targets)
+              .filter(tpos => Math.abs(tpos.y - initPn.y) < 1)
+              .sort((a, b) => a.x - b.x);
+
+            // Midpoints between adjacent non-moving nodes on this row
+            const adjacentMidpoints: number[] = [];
+            if (rowTargets.length >= 2) {
+              for (let i = 0; i < rowTargets.length - 1; i++) {
+                const t1 = rowTargets[i];
+                const t2 = rowTargets[i+1];
+                if (t1 && t2) {
+                  adjacentMidpoints.push((t1.x + t2.x) / 2);
+                }
+              }
+            }
+
+            const xCandidates: Array<{
+              type: string;
+              targetX: number;
+              offset: number;
+              dist: number;
+              strength: "snap" | "near";
+            }> = [];
+
+            // Populate X candidates
+            if (curState.snapEnabled) {
+              // 1. Group Center Target Snaps
+              for (const tpos of rowTargets) {
+                const dist = Math.abs(rowMovingRawCenterX - tpos.x);
+                const offset = tpos.x - rowMovingInitCenterX;
+                if (dist < SNAP_THRESHOLD) {
+                  xCandidates.push({ type: "group_center_target", targetX: tpos.x, offset, dist, strength: "snap" });
+                } else if (dist < NEAR_THRESHOLD) {
+                  xCandidates.push({ type: "group_center_target", targetX: tpos.x, offset, dist, strength: "near" });
                 }
               }
 
-              // Unified distance-priority snap: parent midpoint vs initSnap (X-axis only)
-              // Picks whichever target is closer; ties go to midpoint
-              // C5 fix: skip parent snap when parents are also moving (they're in movingIds)
-              // to avoid tug-of-war between moving midpoint and fixed initSnap.
-              // When parents move, the child should follow via initSnap only.
+              // 2. Group Center Midpoint Snaps
+              for (const midX of adjacentMidpoints) {
+                const dist = Math.abs(rowMovingRawCenterX - midX);
+                const offset = midX - rowMovingInitCenterX;
+                if (dist < SNAP_THRESHOLD) {
+                  xCandidates.push({ type: "group_center_midpoint", targetX: midX, offset, dist, strength: "snap" });
+                } else if (dist < NEAR_THRESHOLD) {
+                  xCandidates.push({ type: "group_center_midpoint", targetX: midX, offset, dist, strength: "near" });
+                }
+              }
+
+              // 3. Primary Node Target Snaps
+              for (const tpos of rowTargets) {
+                const dist = Math.abs(rawPnX - tpos.x);
+                const offset = tpos.x - initPn.x;
+                if (dist < SNAP_THRESHOLD) {
+                  xCandidates.push({ type: "primary_target", targetX: tpos.x, offset, dist, strength: "snap" });
+                } else if (dist < NEAR_THRESHOLD) {
+                  xCandidates.push({ type: "primary_target", targetX: tpos.x, offset, dist, strength: "near" });
+                }
+              }
+
+              // 4. Primary Node Spacing Snaps
+              for (const tpos of rowTargets) {
+                for (const k of [-3, -2, -1, 1, 2, 3]) {
+                  const targetX = tpos.x + k * NODE_GAP;
+                  const dist = Math.abs(rawPnX - targetX);
+                  const offset = targetX - initPn.x;
+                  if (dist < SNAP_THRESHOLD) {
+                    xCandidates.push({ type: "primary_spacing", targetX, offset, dist, strength: "snap" });
+                  } else if (dist < NEAR_THRESHOLD) {
+                    xCandidates.push({ type: "primary_spacing", targetX, offset, dist, strength: "near" });
+                  }
+                }
+              }
+
+              // 5. Primary Node Midpoint Snaps
+              for (const midX of adjacentMidpoints) {
+                const dist = Math.abs(rawPnX - midX);
+                const offset = midX - initPn.x;
+                if (dist < SNAP_THRESHOLD) {
+                  xCandidates.push({ type: "primary_midpoint", targetX: midX, offset, dist, strength: "snap" });
+                } else if (dist < NEAR_THRESHOLD) {
+                  xCandidates.push({ type: "primary_midpoint", targetX: midX, offset, dist, strength: "near" });
+                }
+              }
+
+              // 6. Parent Midpoint Snap (X-axis only)
               const parentIds = prev.edges
-                .filter(e => e.type === "parent-child" && e.targetId === n.id)
+                .filter(e => e.type === "parent-child" && e.targetId === primaryId)
                 .map(e => e.sourceId);
               const parentsAreMoving = parentIds.some(pid => movingIds.has(pid));
               const parentXs = parentsAreMoving
@@ -263,137 +350,150 @@ export function usePedigreeCanvas(params: UsePedigreeCanvasParams) {
                 : parentIds.length > 0
                   ? parentIds.map(pid => prev.nodes.find(nn => nn.id === pid)?.x).filter((x): x is number => x !== undefined)
                   : [];
-
-              if (parentXs.length >= 2) {
+              if (parentXs.length >= 1) {
                 const midX = parentXs.reduce((a, b) => a + b, 0) / parentXs.length;
-                const distToMid = Math.abs(rawX - midX);
-                const distToInit = initSnap ? Math.abs(rawX - initSnap.x) : Infinity;
-
-                if (distToMid < SNAP_THRESHOLD && distToMid <= distToInit) {
-                  alignGuides.push({ axis: "x", pos: midX, strength: "snap" });
-                  rawX = midX;
-                  initSnapActiveX = true;
-                } else if (distToMid < NEAR_THRESHOLD && !alignGuides.some(g => g.axis === "x" && Math.abs(g.pos - midX) < 1)) {
-                  alignGuides.push({ axis: "x", pos: midX, strength: "near" });
-                } else if (initSnap && distToInit < SNAP_THRESHOLD && distToInit < distToMid) {
-                  alignGuides.push({ axis: "x", pos: initSnap.x, strength: "snap" });
-                  rawX = initSnap.x;
-                  initSnapActiveX = true;
-                } else if (initSnap && distToInit < NEAR_THRESHOLD && !alignGuides.some(g => g.axis === "x" && Math.abs(g.pos - initSnap.x) < 1)) {
-                  alignGuides.push({ axis: "x", pos: initSnap.x, strength: "near" });
-                }
-              } else if (parentXs.length === 1) {
-                const px = parentXs[0]!;
-                const distToParent = Math.abs(rawX - px);
-                const distToInit = initSnap ? Math.abs(rawX - initSnap.x) : Infinity;
-
-                if (distToParent < SNAP_THRESHOLD && distToParent <= distToInit) {
-                  alignGuides.push({ axis: "x", pos: px, strength: "snap" });
-                  rawX = px;
-                  initSnapActiveX = true;
-                } else if (distToParent < NEAR_THRESHOLD && !alignGuides.some(g => g.axis === "x" && Math.abs(g.pos - px) < 1)) {
-                  alignGuides.push({ axis: "x", pos: px, strength: "near" });
-                } else if (initSnap && distToInit < SNAP_THRESHOLD && distToInit < distToParent) {
-                  alignGuides.push({ axis: "x", pos: initSnap.x, strength: "snap" });
-                  rawX = initSnap.x;
-                  initSnapActiveX = true;
-                } else if (initSnap && distToInit < NEAR_THRESHOLD && !alignGuides.some(g => g.axis === "x" && Math.abs(g.pos - initSnap.x) < 1)) {
-                  alignGuides.push({ axis: "x", pos: initSnap.x, strength: "near" });
-                }
-              } else if (initSnap) {
-                const distToInit = Math.abs(rawX - initSnap.x);
-                if (distToInit < SNAP_THRESHOLD) {
-                  alignGuides.push({ axis: "x", pos: initSnap.x, strength: "snap" });
-                  rawX = initSnap.x;
-                  initSnapActiveX = true;
-                } else if (distToInit < NEAR_THRESHOLD && !alignGuides.some(g => g.axis === "x" && Math.abs(g.pos - initSnap.x) < 1)) {
-                  alignGuides.push({ axis: "x", pos: initSnap.x, strength: "near" });
+                const dist = Math.abs(rawPnX - midX);
+                const offset = midX - initPn.x;
+                if (dist < SNAP_THRESHOLD) {
+                  xCandidates.push({ type: "parent_midpoint", targetX: midX, offset, dist, strength: "snap" });
+                } else if (dist < NEAR_THRESHOLD) {
+                  xCandidates.push({ type: "parent_midpoint", targetX: midX, offset, dist, strength: "near" });
                 }
               }
 
-              if (!initSnapActiveX) {
-                const childIds = prev.edges
-                  .filter(e => e.type === "parent-child" && e.sourceId === n.id)
-                  .map(e => e.targetId);
-                const childrenAreMoving = childIds.some(cid => movingIds.has(cid));
-                const childXs = childrenAreMoving
-                  ? []
-                  : childIds.map(cid => prev.nodes.find(nn => nn.id === cid)?.x).filter((x): x is number => x !== undefined);
+              // 7. Child Midpoint Snap (X-axis only)
+              const childIds = prev.edges
+                .filter(e => e.type === "parent-child" && e.sourceId === primaryId)
+                .map(e => e.targetId);
+              const childrenAreMoving = childIds.some(cid => movingIds.has(cid));
+              const childXs = childrenAreMoving
+                ? []
+                : childIds.map(cid => prev.nodes.find(nn => nn.id === cid)?.x).filter((x): x is number => x !== undefined);
+              if (childXs.length >= 1) {
+                const midX = childXs.reduce((a, b) => a + b, 0) / childXs.length;
+                const dist = Math.abs(rawPnX - midX);
+                const offset = midX - initPn.x;
+                if (dist < SNAP_THRESHOLD) {
+                  xCandidates.push({ type: "child_midpoint", targetX: midX, offset, dist, strength: "snap" });
+                } else if (dist < NEAR_THRESHOLD) {
+                  xCandidates.push({ type: "child_midpoint", targetX: midX, offset, dist, strength: "near" });
+                }
+              }
+            }
 
-                if (childXs.length >= 2) {
-                  const childMidX = childXs.reduce((a, b) => a + b, 0) / childXs.length;
-                  const distToChildMid = Math.abs(rawX - childMidX);
-                  const distToInit = initSnap ? Math.abs(rawX - initSnap.x) : Infinity;
+            // 8. Initial snap X
+            const initSnap = initialSnapPositionsRef.current[primaryId];
+            if (initSnap) {
+              const dist = Math.abs(rawPnX - initSnap.x);
+              const offset = initSnap.x - initPn.x;
+              if (dist < SNAP_THRESHOLD) {
+                xCandidates.push({ type: "init_snap_x", targetX: initSnap.x, offset, dist, strength: "snap" });
+              } else if (dist < NEAR_THRESHOLD) {
+                xCandidates.push({ type: "init_snap_x", targetX: initSnap.x, offset, dist, strength: "near" });
+              }
+            }
 
-                  if (distToChildMid < SNAP_THRESHOLD && distToChildMid <= distToInit) {
-                    alignGuides.push({ axis: "x", pos: childMidX, strength: "snap" });
-                    rawX = childMidX;
-                    initSnapActiveX = true;
-                  } else if (distToChildMid < NEAR_THRESHOLD && !alignGuides.some(g => g.axis === "x" && Math.abs(g.pos - childMidX) < 1)) {
-                    alignGuides.push({ axis: "x", pos: childMidX, strength: "near" });
+            // Evaluate Y candidates
+            const yCandidates: Array<{
+              type: string;
+              targetY: number;
+              offset: number;
+              dist: number;
+              strength: "snap" | "near";
+            }> = [];
+
+            // Spouse Y-alignment
+            for (const edge of coupleEdges) {
+              if (edge.sourceId === primaryId || edge.targetId === primaryId) {
+                const partnerId = edge.sourceId === primaryId ? edge.targetId : edge.sourceId;
+                const tp = targets[partnerId];
+                const movingP = d.initialPositions[partnerId];
+                const py = tp ? tp.y : (movingP ? movingP.y + dy : undefined);
+                if (py !== undefined) {
+                  const dist = Math.abs(rawPnY - py);
+                  const offset = py - initPn.y;
+                  if (dist < SNAP_THRESHOLD) {
+                    yCandidates.push({ type: "spouse_y", targetY: py, offset, dist, strength: "snap" });
+                  } else if (dist < NEAR_THRESHOLD) {
+                    yCandidates.push({ type: "spouse_y", targetY: py, offset, dist, strength: "near" });
                   }
                 }
               }
+            }
 
-              if (!initSnapActiveY) {
-              for (const edge of coupleEdges) {
-                if (edge.sourceId === n.id) {
-                  const tp = targets[edge.targetId];
-                  const movingP = d.initialPositions[edge.targetId];
-                  const py = tp ? tp.y : (movingP ? movingP.y + dy : undefined);
-                  if (py !== undefined) {
-                    const dist = Math.abs(newY - py);
-                    if (dist < SNAP_THRESHOLD) {
-                      alignGuides.push({ axis: "y", pos: py, strength: "snap" });
-                      newY = py;
-                    } else if (dist < NEAR_THRESHOLD) {
-                      alignGuides.push({ axis: "y", pos: py, strength: "near" });
-                    }
-                  }
-                }
-                if (edge.targetId === n.id) {
-                  const tp = targets[edge.sourceId];
-                  const movingP = d.initialPositions[edge.sourceId];
-                  const py = tp ? tp.y : (movingP ? movingP.y + dy : undefined);
-                  if (py !== undefined) {
-                    const dist = Math.abs(newY - py);
-                    if (dist < SNAP_THRESHOLD) {
-                      alignGuides.push({ axis: "y", pos: py, strength: "snap" });
-                      newY = py;
-                    } else if (dist < NEAR_THRESHOLD) {
-                      alignGuides.push({ axis: "y", pos: py, strength: "near" });
-                    }
-                  }
+            // Target Y-alignment
+            for (const [, tpos] of Object.entries(targets)) {
+              if (Math.abs(rawPnX - tpos.x) < SNAP_THRESHOLD) {
+                const dist = Math.abs(rawPnY - tpos.y);
+                const offset = tpos.y - initPn.y;
+                if (dist < SNAP_THRESHOLD) {
+                  yCandidates.push({ type: "target_y", targetY: tpos.y, offset, dist, strength: "snap" });
+                } else if (dist < NEAR_THRESHOLD) {
+                  yCandidates.push({ type: "target_y", targetY: tpos.y, offset, dist, strength: "near" });
                 }
               }
-              }
+            }
 
-              if (!initSnapActiveX || !initSnapActiveY) {
-              for (const [, tpos] of Object.entries(targets)) {
-                if (!initSnapActiveY && Math.abs(newY - tpos.y) < SNAP_THRESHOLD) {
-                  const dist = Math.abs(rawX - tpos.x);
-                  if (!initSnapActiveX && dist < SNAP_THRESHOLD && !alignGuides.some(g => g.axis === "x" && Math.abs(g.pos - tpos.x) < 1 && g.strength === "snap")) {
-                    alignGuides.push({ axis: "x", pos: tpos.x, strength: "snap" });
-                    rawX = tpos.x;
-                  } else if (!initSnapActiveX && dist < NEAR_THRESHOLD && !alignGuides.some(g => g.axis === "x" && Math.abs(g.pos - tpos.x) < 1)) {
-                    alignGuides.push({ axis: "x", pos: tpos.x, strength: "near" });
-                  }
-                }
-                if (!initSnapActiveX && Math.abs(rawX - tpos.x) < SNAP_THRESHOLD) {
-                  const dist = Math.abs(newY - tpos.y);
-                  if (!initSnapActiveY && dist < SNAP_THRESHOLD && !alignGuides.some(g => g.axis === "y" && Math.abs(g.pos - tpos.y) < 1 && g.strength === "snap")) {
-                    alignGuides.push({ axis: "y", pos: tpos.y, strength: "snap" });
-                    newY = tpos.y;
-                  } else if (!initSnapActiveY && dist < NEAR_THRESHOLD && !alignGuides.some(g => g.axis === "y" && Math.abs(g.pos - tpos.y) < 1)) {
-                    alignGuides.push({ axis: "y", pos: tpos.y, strength: "near" });
-                  }
-                }
+            // Initial snap Y
+            if (initSnap) {
+              const dist = Math.abs(rawPnY - initSnap.y);
+              const offset = initSnap.y - initPn.y;
+              if (dist < SNAP_THRESHOLD) {
+                yCandidates.push({ type: "init_snap_y", targetY: initSnap.y, offset, dist, strength: "snap" });
+              } else if (dist < NEAR_THRESHOLD) {
+                yCandidates.push({ type: "init_snap_y", targetY: initSnap.y, offset, dist, strength: "near" });
               }
-              }
+            }
 
-              return { ...n, x: rawX, y: newY };
-            }),
-          }),
+            // Determine effective offsets
+            let effectiveDx = dx;
+            const snapXCandidates = xCandidates.filter(c => c.strength === "snap");
+            if (snapXCandidates.length > 0) {
+              snapXCandidates.sort((a, b) => a.dist - b.dist);
+              const bestX = snapXCandidates[0]!;
+              effectiveDx = bestX.offset;
+              alignGuides.push({ axis: "x", pos: bestX.targetX, strength: "snap" });
+            } else {
+              const nearXCandidates = xCandidates.filter(c => c.strength === "near");
+              for (const c of nearXCandidates) {
+                if (!alignGuides.some(g => g.axis === "x" && Math.abs(g.pos - c.targetX) < 1)) {
+                  alignGuides.push({ axis: "x", pos: c.targetX, strength: "near" });
+                }
+              }
+            }
+
+            let effectiveDy = dy;
+            const basePnY = curState.snapEnabled ? snapToNearestRow(rawPnY, curState.snapRows) : rawPnY;
+            effectiveDy = basePnY - initPn.y;
+
+            const snapYCandidates = yCandidates.filter(c => c.strength === "snap");
+            if (snapYCandidates.length > 0) {
+              snapYCandidates.sort((a, b) => a.dist - b.dist);
+              const bestY = snapYCandidates[0]!;
+              effectiveDy = bestY.offset;
+              alignGuides.push({ axis: "y", pos: bestY.targetY, strength: "snap" });
+            } else {
+              const nearYCandidates = yCandidates.filter(c => c.strength === "near");
+              for (const c of nearYCandidates) {
+                if (!alignGuides.some(g => g.axis === "y" && Math.abs(g.pos - c.targetY) < 1)) {
+                  alignGuides.push({ axis: "y", pos: c.targetY, strength: "near" });
+                }
+              }
+            }
+
+            return {
+              ...prev,
+              nodes: prev.nodes.map((n) => {
+                const init = d.initialPositions[n.id];
+                if (!init) return n;
+                return {
+                  ...n,
+                  x: init.x + effectiveDx,
+                  y: init.y + effectiveDy,
+                };
+              }),
+            };
+          },
           pushHistory: false,
         });
         const deduped = alignGuides.filter((g, i, arr) =>

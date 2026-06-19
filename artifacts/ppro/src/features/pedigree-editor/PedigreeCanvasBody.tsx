@@ -27,12 +27,21 @@ import { parseCanvas } from "@/features/pedigree-editor/utils/helpers";
 import type { PedigreeNode, CanvasData } from "@/features/pedigree-editor/canvas/types";
 import { NODE_SIZE } from "@/features/pedigree-editor/canvas/types";
 
-function computeLabelBelowHeight(node: PedigreeNode, autoLabel?: string): number {
+function computeLabelBelowHeight(node: PedigreeNode, autoLabel?: string, autoLabelFontSize: number = 12): number {
+  const ageFontSize = autoLabelFontSize;
+  const ageH = ageFontSize + 3;
   let h = 0;
-  if (autoLabel) h = 13;
-  if (node.label) h = autoLabel ? 24 : 14;
-  if (node.age || node.dob) h += 11;
-  if (node.condition) h += 11;
+  if (autoLabel) {
+    h = autoLabelFontSize + 5;
+  } else if (node.label) {
+    h = 14;
+  }
+  if (node.age || node.dob) {
+    h = h > 0 ? h + ageH : ageH + 3;
+  }
+  if (node.condition) {
+    h = h > 0 ? h + 11 : 14;
+  }
   return h;
 }
 
@@ -51,6 +60,7 @@ function AnnotationLayer({
   showAutoLabels: boolean;
   familyYOffsetMap: Map<string, number>;
 }) {
+  const { config } = useCanvasConfig();
   const nodeById = useMemo(() => {
     const map = new Map<string, PedigreeNode>();
     for (const n of nodes) map.set(n.id, n);
@@ -80,7 +90,7 @@ function AnnotationLayer({
          if (!isFree && !node) return null;
          const stackIndex = isFree ? 0 : (stackIndexById.get(ann.id) ?? 0);
          const autoLabel = (node && showAutoLabels) ? autoLabels.get(node.id) : undefined;
-         const labelBelowHeight = node ? computeLabelBelowHeight(node, autoLabel) : 0;
+         const labelBelowHeight = node ? computeLabelBelowHeight(node, autoLabel, config.autoLabelFontSize) : 0;
          const offsetY = node ? (familyYOffsetMap.get(ann.nodeId) ?? 0) : 0;
          const nodeX = node ? node.x : (ann.x ?? 0);
          const nodeY = node ? node.y + offsetY : (ann.y ?? 0);
@@ -275,7 +285,7 @@ export function PedigreeCanvasBody() {
   const railDragStartRailXRef = useRef(44);
 
 const RAIL_HIT_W = 30;
-const RAIL_MIN_X = 0;
+const RAIL_MIN_X = -400;
 const RAIL_MAX_X = 400;
 
   const handleRailPointerDown = useCallback((e: React.PointerEvent) => {
@@ -366,7 +376,7 @@ const RAIL_MAX_X = 400;
     const isFree = !ann.nodeId;
     const node = isFree ? null : canvas.nodes.find((n) => n.id === ann.nodeId);
     const autoLabel = node && showAutoLabels ? autoLabels.get(ann.nodeId) : undefined;
-    const labelBelowHeight = node ? computeLabelBelowHeight(node, autoLabel) : 0;
+    const labelBelowHeight = node ? computeLabelBelowHeight(node, autoLabel, config.autoLabelFontSize) : 0;
     const stackIndex = isFree ? 0 : (() => {
       const grouped = new Map<string, string[]>();
       for (const a of canvas.annotations) {
@@ -524,7 +534,15 @@ const RAIL_MAX_X = 400;
 
   return (
     <div className="flex flex-col flex-1 overflow-hidden relative" data-print-area>
-      <div className="flex-1 overflow-hidden relative canvas-spared flex items-center justify-center pt-2 pb-4 px-4" style={{ touchAction: "none", overscrollBehavior: "none" }}>
+      <div
+        className="flex-1 overflow-hidden relative canvas-spared flex items-center justify-center pt-2 pb-4 transition-[padding] duration-300 ease-in-out"
+        style={{
+          touchAction: "none",
+          overscrollBehavior: "none",
+          paddingLeft: "16px",
+          paddingRight: isSidePanelOpen ? "336px" : "16px"
+        }}
+      >
         {twinSelectMode && (
           <div className="absolute top-3 left-1/2 -translate-x-1/2 z-20 px-3 py-1.5 rounded-full bg-amber-500 text-white text-xs font-medium shadow-md pointer-events-none">
             Twin select: {twinCandidateIds.size} node{twinCandidateIds.size !== 1 ? "s" : ""}
@@ -963,9 +981,11 @@ const RAIL_MAX_X = 400;
         )}
 
       {showVersions && (
-        <VersionHistoryPanel
-          onClose={() => dispatch({ type: "SET_STATE", patch: { showVersions: false } })}
-        />
+        <div className="absolute right-0 top-0 bottom-0 z-30 overflow-hidden shadow-[-4px_0_12px_rgba(0,0,0,0.08),0_4px_12px_rgba(0,0,0,0.08)]">
+          <VersionHistoryPanel
+            onClose={() => dispatch({ type: "SET_STATE", patch: { showVersions: false } })}
+          />
+        </div>
       )}
 
       {showShareModal && pedigree && (

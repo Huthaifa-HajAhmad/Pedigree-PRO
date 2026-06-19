@@ -37,14 +37,24 @@ export function getIntermediateNodes(
 export function computeLabelBelowHeight(
   node: PedigreeNode,
   autoLabel?: string,
-  config?: { showGenotypes: boolean; genotypeFontSize: number; genotypeOffset: number }
+  config?: { showGenotypes: boolean; genotypeFontSize: number; genotypeOffset: number; autoLabelFontSize?: number }
 ): number {
   const cfg = config || getModuleCanvasConfig();
+  const autoLabelFontSize = cfg.autoLabelFontSize ?? 12;
+  const ageFontSize = autoLabelFontSize;
+  const ageH = ageFontSize + 3;
   let h = 0;
-  if (autoLabel) h = 13;
-  if (node.label) h = autoLabel ? 24 : 14;
-  if (node.age || node.dob) h += 11;
-  if (node.condition) h += 11;
+  if (autoLabel) {
+    h = autoLabelFontSize + 5;
+  } else if (node.label) {
+    h = 14;
+  }
+  if (node.age || node.dob) {
+    h = h > 0 ? h + ageH : ageH + 3;
+  }
+  if (node.condition) {
+    h = h > 0 ? h + 11 : 14;
+  }
   if (cfg.showGenotypes && node.genotype) {
     h += (cfg.genotypeFontSize ?? 12) + (cfg.genotypeOffset ?? 3);
   }

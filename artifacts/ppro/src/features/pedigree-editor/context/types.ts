@@ -228,7 +228,7 @@ export interface PedigreeEditorContextValue {
   versions: PedigreeVersion[] | undefined;
   versionsLoading: boolean;
   saveVersionPending: boolean;
-  profiles: Array<{ public_key: string }> | undefined;
+  profiles: Array<{ public_key: string; display_name: string; role_label?: string }> | undefined;
   showDraftBanner: boolean;
   onRestoreDraft: () => void;
   handleDismissDraft: () => void;
