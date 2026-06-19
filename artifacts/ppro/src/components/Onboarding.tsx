@@ -60,9 +60,8 @@ export default function Onboarding() {
         {/* Step 1: Welcome Screen */}
         {step === 1 && (
           <div className="w-full flex-1 flex flex-col items-center text-center animate-in fade-in slide-in-from-bottom-4 duration-300">
-            <div className="w-16 h-16 rounded-2xl border border-primary/30 flex items-center justify-center mb-6 shadow-md relative overflow-hidden">
+            <div className="w-16 h-16 rounded-2xl border border-primary/30 flex items-center justify-center mb-6 shadow-md">
               <img src="/icon-512.png" alt="Pedigree PRO App Icon" className="w-full h-full object-cover rounded-2xl animate-pulse" />
-              <div className="absolute inset-0 rounded-2xl pointer-events-none shadow-[inset_0_2px_6px_rgba(0,0,0,0.15)]" />
             </div>
             <h1 className="text-2xl font-bold tracking-tight text-foreground">
               Welcome to Pedigree PRO

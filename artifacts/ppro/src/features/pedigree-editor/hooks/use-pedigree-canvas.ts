@@ -690,7 +690,7 @@ export function usePedigreeCanvas(params: UsePedigreeCanvasParams) {
       dispatch({ type: "SET_STATE", patch: { viewBox: { x: cx - (px / svgW) * newVbW, y: cy - (py / svgH) * newVbH, zoom: newZoom } } });
     };
 
-    if (e.ctrlKey || e.metaKey) { zoomAt(Math.pow(0.95, e.deltaY)); return; }
+    if (e.ctrlKey || e.metaKey) { zoomAt(Math.pow(0.98, e.deltaY)); return; }
     if (e.shiftKey) {
       const s = stateRef.current;
       dispatch({ type: "SET_STATE", patch: { viewBox: { ...s.viewBox, x: s.viewBox.x + e.deltaY * s.viewBox.zoom * 0.6 } } });

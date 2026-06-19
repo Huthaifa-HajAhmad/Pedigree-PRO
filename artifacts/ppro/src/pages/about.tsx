@@ -8,9 +8,8 @@ export default function AboutPage() {
       <div className="flex-1 overflow-y-auto">
         <div className="max-w-2xl mx-auto px-6 py-6 space-y-6">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl border border-primary/25 flex items-center justify-center shadow-sm relative overflow-hidden">
+            <div className="w-10 h-10 rounded-xl border border-primary/25 flex items-center justify-center shadow-sm">
               <img src="/icon-512.png" alt="Pedigree PRO App Icon" className="w-full h-full object-cover rounded-xl" />
-              <div className="absolute inset-0 rounded-xl pointer-events-none shadow-[inset_0_1.5px_4px_rgba(0,0,0,0.12)]" />
             </div>
             <div>
               <h1 className="text-lg font-semibold">Pedigree PRO</h1>
