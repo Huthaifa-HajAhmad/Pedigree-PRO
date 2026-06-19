@@ -4,10 +4,11 @@ interface AppLogoProps {
   className?: string;
   size?: number | string;
   color?: string;
+  accentMode?: boolean;
 }
 
-export function AppLogo({ className = "", size = "100%", color = "currentColor" }: AppLogoProps) {
-  const isTwoTone = color === "currentColor";
+export function AppLogo({ className = "", size = "100%", color = "currentColor", accentMode = false }: AppLogoProps) {
+  const isTwoTone = color === "currentColor" && !accentMode;
 
   return (
     <svg
