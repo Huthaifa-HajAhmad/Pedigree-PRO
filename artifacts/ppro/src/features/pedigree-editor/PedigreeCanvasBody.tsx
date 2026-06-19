@@ -337,32 +337,6 @@ const RAIL_MAX_X = 400;
     return () => document.removeEventListener("wheel", handler);
   }, [handleWheel]);
 
-  useEffect(() => {
-    if (typeof window === "undefined" || !("__TAURI__" in window)) return;
-    const vv = window.visualViewport;
-    if (!vv) return;
-    let lastScale = vv.scale;
-    const handler = () => {
-      const currentScale = vv.scale;
-      const delta = currentScale - lastScale;
-      lastScale = currentScale;
-      if (Math.abs(delta) > 0.005) {
-        const factor = 1 + delta * 3;
-        handleWheel({
-          ctrlKey: true,
-          deltaY: -Math.log(factor) / Math.log(0.95),
-          clientX: window.innerWidth / 2,
-          clientY: window.innerHeight / 2,
-        } as unknown as React.WheelEvent);
-        import("@tauri-apps/api/core").then(({ invoke }) => {
-          invoke("reset_zoom").catch(() => {});
-        });
-      }
-    };
-    vv.addEventListener("resize", handler);
-    return () => vv.removeEventListener("resize", handler);
-  }, [handleWheel]);
-
   const handleAnnotationClick = useCallback((annId: string, nodeId: string) => {
     dispatch({ type: "SET_STATE", patch: { selectedAnnotationId: selectedAnnotationId === annId ? null : annId, selectedIds: nodeId ? new Set([nodeId]) : new Set(), showSettings: false } });
   }, [selectedAnnotationId]);
