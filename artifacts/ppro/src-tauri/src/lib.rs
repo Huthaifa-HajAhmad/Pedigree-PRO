@@ -32,7 +32,7 @@ fn disable_webview_zoom(win: &tauri::WebviewWindow) {
         let controller = webview.controller();
         if let Ok(core) = unsafe { controller.CoreWebView2() } {
             if let Ok(settings) = unsafe { core.Settings() } {
-                let _ = unsafe { settings.SetIsZoomControlEnabled(false) };
+                let _ = unsafe { settings.SetIsZoomControlEnabled(true) };
             }
         }
     });

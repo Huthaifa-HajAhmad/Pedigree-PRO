@@ -1,4 +1,4 @@
-import { Suspense, lazy } from "react";
+import { Suspense, lazy, useEffect } from "react";
 import { Switch, Route, Router as WouterRouter } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -87,6 +87,18 @@ function Router() {
 }
 
 function App() {
+  useEffect(() => {
+    const preventZoom = (e: WheelEvent) => {
+      if (e.ctrlKey) {
+        e.preventDefault();
+      }
+    };
+    document.addEventListener("wheel", preventZoom, { passive: false });
+    return () => {
+      document.removeEventListener("wheel", preventZoom);
+    };
+  }, []);
+
   return (
     <ErrorBoundary>
       <ThemeProvider>

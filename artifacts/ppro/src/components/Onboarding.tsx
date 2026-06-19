@@ -61,7 +61,7 @@ export default function Onboarding() {
         {/* Step 1: Welcome Screen */}
         {step === 1 && (
           <div className="w-full flex-1 flex flex-col items-center text-center animate-in fade-in slide-in-from-bottom-4 duration-300">
-            <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center mb-6 shadow-inner p-3">
+            <div className="w-16 h-16 rounded-2xl bg-primary/[0.06] border border-primary/30 flex items-center justify-center mb-6 shadow-[inset_0_2px_6px_rgba(0,0,0,0.06)] p-3.5">
               <AppLogo className="w-full h-full text-primary animate-pulse" />
             </div>
             <h1 className="text-2xl font-bold tracking-tight text-foreground">
