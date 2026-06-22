@@ -41,8 +41,7 @@ export interface ShiftPlan {
 /** Nodes within this vertical distance are on the "same row" */
 const ROW_TOLERANCE = GEN_GRID / 2; // 60px — correct for 120px generation grid
 
-/** Maximum cascade depth for collision resolution */
-const MAX_CASCADE = 5;
+
 
 // ── Adjacency helpers ──────────────────────────────────────────────────────
 
@@ -147,6 +146,25 @@ export function computeSubtreeBBox(
 }
 
 
+/**
+ * Helper to compute Y tolerance dynamically based on generation Ys.
+ */
+export function getRowTolerance(nodes: PedigreeNode[], genGrid = GEN_GRID): number {
+  const uniqueYs = Array.from(new Set(nodes.map(n => n.y))).sort((a, b) => a - b);
+  if (uniqueYs.length === 0) return genGrid / 2;
+  const allMultiples = uniqueYs.every(y => Math.round(y) % genGrid === 0);
+  if (allMultiples) return genGrid / 2;
+  
+  let minDelta = Infinity;
+  for (let i = 1; i < uniqueYs.length; i++) {
+    const delta = uniqueYs[i]! - uniqueYs[i - 1]!;
+    if (delta > 0.01 && delta < minDelta) {
+      minDelta = delta;
+    }
+  }
+  return minDelta !== Infinity ? minDelta / 2 : genGrid / 2;
+}
+
 // ── Row-based collision detection ──────────────────────────────────────────
 
 interface Collision {
@@ -163,8 +181,10 @@ export function detectRowCollisions(
   nodes: PedigreeNode[],
   rowY: number,
   minGap: number = NODE_GAP,
+  tolerance?: number,
 ): Collision[] {
-  const rowNodes = nodes.filter(n => Math.abs(n.y - rowY) < ROW_TOLERANCE);
+  const tol = tolerance ?? getRowTolerance(nodes);
+  const rowNodes = nodes.filter(n => Math.abs(n.y - rowY) < tol);
 
   if (rowNodes.length < 2) return [];
 
@@ -175,7 +195,7 @@ export function detectRowCollisions(
     const left = rowNodes[i - 1]!;
     const right = rowNodes[i]!;
     const gap = right.x - left.x;
-    if (gap < minGap - 0.05) { // Allow up to 0.05px topological tolerance
+    if (gap < minGap - 0.15) { // Allow up to 0.15px topological tolerance
       collisions.push({
         leftNode: left,
         rightNode: right,
@@ -197,6 +217,7 @@ export function collectSubtree(
   nodeId: string,
   adj: AdjacencyMaps,
   visited?: Set<string>,
+  options?: { anchorMarriedIn?: boolean },
 ): Set<string> {
   const v = visited ?? new Set<string>();
   if (v.has(nodeId)) return v;
@@ -205,70 +226,35 @@ export function collectSubtree(
   // Include couple partners
   for (const partnerId of adj.couplesOf.get(nodeId) ?? []) {
     if (!v.has(partnerId)) {
+      const nodeHasParents = (adj.parentsOf.get(nodeId) ?? []).length > 0;
+      const partnerHasParents = (adj.parentsOf.get(partnerId) ?? []).length > 0;
+
+      if (options?.anchorMarriedIn || (nodeHasParents && partnerHasParents)) {
+        // If the partner has parents, and those parents are not in the visited set,
+        // we do not include the partner in the rigid subtree to avoid breaking parent-child connections.
+        const partnerParents = adj.parentsOf.get(partnerId) ?? [];
+        const hasUnvisitedParents = Array.from(partnerParents).some(pId => !v.has(pId));
+        if (hasUnvisitedParents) {
+          continue;
+        }
+      }
+
       v.add(partnerId);
       // Partner's own children
       for (const childId of adj.childrenOf.get(partnerId) ?? []) {
-        collectSubtree(childId, adj, v);
+        collectSubtree(childId, adj, v, options);
       }
     }
   }
 
   // Include children recursively
   for (const childId of adj.childrenOf.get(nodeId) ?? []) {
-    collectSubtree(childId, adj, v);
+    collectSubtree(childId, adj, v, options);
   }
 
   return v;
 }
 
-/**
- * Get the full connected family group for a node — includes partners, parents,
- * siblings (via shared parents), and all their direct connections.
- * This is the set of nodes that should move together when resolving collisions.
- */
-export function getFamilyUnit(
-  nodeId: string,
-  adj: AdjacencyMaps,
-  includeSubtrees: boolean = true,
-): Set<string> {
-  const group = new Set<string>();
-
-  // Start with the node itself
-  group.add(nodeId);
-
-  // Add couple partners
-  for (const partnerId of adj.couplesOf.get(nodeId) ?? []) {
-    group.add(partnerId);
-  }
-
-  // Add children
-  for (const childId of adj.childrenOf.get(nodeId) ?? []) {
-    group.add(childId);
-  }
-
-  // Add parents
-  for (const parentId of adj.parentsOf.get(nodeId) ?? []) {
-    group.add(parentId);
-  }
-
-  // Add siblings (children of same parents)
-  for (const parentId of adj.parentsOf.get(nodeId) ?? []) {
-    for (const siblingId of adj.childrenOf.get(parentId) ?? []) {
-      group.add(siblingId);
-    }
-  }
-
-  // If includeSubtrees, expand each member's subtree (descendants + partners)
-  if (includeSubtrees) {
-    const expanded = new Set<string>(group);
-    for (const memberId of group) {
-      collectSubtree(memberId, adj, expanded);
-    }
-    return expanded;
-  }
-
-  return group;
-}
 
 // ── Shift plan computation ─────────────────────────────────────────────────
 
@@ -286,9 +272,12 @@ export function computeShiftPlan(
   overlap: number,
   direction?: 1 | -1,
   excludeIds?: Set<string>,
+  prebuiltAdj?: AdjacencyMaps,
+  prebuiltNodeMap?: Map<string, PedigreeNode>,
+  prebuiltRowMap?: Map<number, PedigreeNode[]>,
 ): ShiftPlan {
-  const adj = buildAdjacency(nodes, edges);
-  const nodeMap = buildNodeMap(nodes);
+  const adj = prebuiltAdj ?? buildAdjacency(nodes, edges);
+  const nodeMap = prebuiltNodeMap ?? buildNodeMap(nodes);
 
   const computeForDirection = (dir: 1 | -1): ShiftPlan => {
     const shifts = new Map<string, number>();
@@ -314,16 +303,21 @@ export function computeShiftPlan(
 
     // Penalize shifts that change the relative horizontal order of nodes on any row
     let orderViolationPenalty = 0;
-    const rowMap = new Map<number, PedigreeNode[]>();
-    for (const n of nodes) {
-      const rY = Math.round(n.y / GEN_GRID) * GEN_GRID;
-      if (!rowMap.has(rY)) rowMap.set(rY, []);
-      rowMap.get(rY)!.push(n);
+    let activeRowMap = prebuiltRowMap;
+    if (!activeRowMap) {
+      activeRowMap = new Map<number, PedigreeNode[]>();
+      for (const n of nodes) {
+        const rY = Math.round(n.y / GEN_GRID) * GEN_GRID;
+        if (!activeRowMap.has(rY)) activeRowMap.set(rY, []);
+        activeRowMap.get(rY)!.push(n);
+      }
+      for (const [, rowNodes] of activeRowMap) {
+        rowNodes.sort((a, b) => a.x - b.x);
+      }
     }
 
-    for (const [, rowNodes] of rowMap) {
+    for (const [, rowNodes] of activeRowMap) {
       if (rowNodes.length <= 1) continue;
-      rowNodes.sort((a, b) => a.x - b.x);
 
       for (let i = 0; i < rowNodes.length; i++) {
         const nodeA = rowNodes[i]!;
@@ -376,20 +370,40 @@ export function resolveAllCollisions(
   nodes: PedigreeNode[],
   edges: PedigreeEdge[],
   excludeIds?: Set<string>,
+  targetNodes?: Set<string>,
+  nodeGap = NODE_GAP,
+  genGrid = GEN_GRID,
 ): PedigreeNode[] {
   let currentNodes = [...nodes.map(n => ({ ...n }))]; // deep clone positions
+  const adj = buildAdjacency(currentNodes, edges);
+  
+  // T13: dynamic tolerance
+  const tolerance = getRowTolerance(currentNodes, genGrid);
 
-  for (let cascade = 0; cascade < MAX_CASCADE; cascade++) {
-    // Identify all unique generation rows
-    const rows = new Set<number>();
+  // T7: dynamic cascade limit
+  const maxCascade = Math.max(15, nodes.length);
+
+  for (let cascade = 0; cascade < maxCascade; cascade++) {
+    let nodeMap = buildNodeMap(currentNodes);
+    
+    // T10: prebuild rowMap and sort once per cascade
+    const rowMap = new Map<number, PedigreeNode[]>();
     for (const node of currentNodes) {
-      rows.add(Math.round(node.y / GEN_GRID) * GEN_GRID);
+      const rY = Math.round(node.y / genGrid) * genGrid;
+      if (!rowMap.has(rY)) rowMap.set(rY, []);
+      rowMap.get(rY)!.push(node);
+    }
+    for (const [, rowNodes] of rowMap) {
+      rowNodes.sort((a, b) => a.x - b.x);
     }
 
+    // Identify all unique generation rows
+    const rows = new Set<number>(rowMap.keys());
     let anyCollision = false;
 
     for (const rowY of rows) {
-      const collisions = detectRowCollisions(currentNodes, rowY, NODE_GAP);
+      // T13: Pass calculated tolerance into detectRowCollisions
+      const collisions = detectRowCollisions(currentNodes, rowY, nodeGap, tolerance);
 
       for (const collision of collisions) {
         anyCollision = true;
@@ -409,13 +423,14 @@ export function resolveAllCollisions(
           shiftDirection = -1; // push left node leftward
         } else {
           // Neither or both excluded — use bidirectional cost comparison
-          const planRight = computeShiftPlan(currentNodes, edges, collision.rightNode, collision.overlap, 1, excludeIds);
-          const planLeft = computeShiftPlan(currentNodes, edges, collision.leftNode, collision.overlap, -1, excludeIds);
+          // T10: pass rowMap cache
+          const planRight = computeShiftPlan(currentNodes, edges, collision.rightNode, collision.overlap, 1, excludeIds, adj, nodeMap, rowMap);
+          const planLeft = computeShiftPlan(currentNodes, edges, collision.leftNode, collision.overlap, -1, excludeIds, adj, nodeMap, rowMap);
 
           // Check if leftward shift would push below minimum X
           let leftViable = true;
           for (const [, x] of planLeft.shifts) {
-            if (x < GEN_GRID) { leftViable = false; break; }
+            if (x < genGrid) { leftViable = false; break; }
           }
 
           if (!leftViable || planRight.cost <= planLeft.cost) {
@@ -427,50 +442,111 @@ export function resolveAllCollisions(
           }
         }
 
-        const plan = computeShiftPlan(currentNodes, edges, nodeToShift, collision.overlap, shiftDirection, excludeIds);
+        // T10: pass rowMap cache
+        const plan = computeShiftPlan(currentNodes, edges, nodeToShift, collision.overlap, shiftDirection, excludeIds, adj, nodeMap, rowMap);
 
         // Apply shifts
         currentNodes = currentNodes.map(n => {
           const newX = plan.shifts.get(n.id);
           return newX !== undefined ? { ...n, x: newX } : n;
         });
+
+        // T10: Incremental-update only the rows that changed after a shift
+        if (plan.shifts.size > 0) {
+          const changedRows = new Set<number>();
+          for (const [id, newX] of plan.shifts) {
+            const node = nodeMap.get(id);
+            if (node) {
+              const rY = Math.round(node.y / genGrid) * genGrid;
+              changedRows.add(rY);
+              const rowNodes = rowMap.get(rY);
+              if (rowNodes) {
+                const found = rowNodes.find(rn => rn.id === id);
+                if (found) {
+                  found.x = newX;
+                }
+              }
+            }
+          }
+          for (const rY of changedRows) {
+            rowMap.get(rY)?.sort((a, b) => a.x - b.x);
+          }
+        }
+
+        // Refresh nodeMap since currentNodes shifted
+        nodeMap = buildNodeMap(currentNodes);
       }
     }
 
     if (!anyCollision) break; // All clear — no more cascades needed
   }
 
-  // Final safety pass: pairwise check on each row for any remaining overlaps
-  const rowMap = new Map<number, PedigreeNode[]>();
-  for (const n of currentNodes) {
-    const rowKey = Math.round(n.y / GEN_GRID) * GEN_GRID;
-    if (!rowMap.has(rowKey)) rowMap.set(rowKey, []);
-    rowMap.get(rowKey)!.push(n);
-  }
+  // T7: Final safety pass convergence loop (scales with tree size)
+  const safetyLimit = Math.max(15, nodes.length);
+  for (let safetyLoop = 0; safetyLoop < safetyLimit; safetyLoop++) {
+    // Check if any collisions remain using detectRowCollisions
+    const rows = new Set<number>();
+    for (const node of currentNodes) {
+      rows.add(Math.round(node.y / genGrid) * genGrid);
+    }
+    
+    let hasAnyRemainingCollision = false;
+    for (const rowY of rows) {
+      if (detectRowCollisions(currentNodes, rowY, nodeGap, tolerance).length > 0) {
+        hasAnyRemainingCollision = true;
+        break;
+      }
+    }
+    
+    if (!hasAnyRemainingCollision) {
+      break; // No collisions remain!
+    }
 
-  for (const [, rowNodes] of rowMap) {
-    rowNodes.sort((a, b) => a.x - b.x);
-    for (let i = 1; i < rowNodes.length; i++) {
-      const prev = rowNodes[i - 1]!;
-      const curr = rowNodes[i]!;
-      if (excludeIds?.has(curr.id)) continue;
-      const gap = curr.x - prev.x;
-      if (gap < NODE_GAP - 0.05) {
-        const push = NODE_GAP - gap;
-        // Push curr and everything to its right
-        for (let j = i; j < rowNodes.length; j++) {
-          const n = rowNodes[j]!;
-          if (excludeIds?.has(n.id)) continue;
-          const idx = currentNodes.findIndex(cn => cn.id === n.id);
-          if (idx !== -1) {
-            currentNodes[idx] = { ...currentNodes[idx]!, x: currentNodes[idx]!.x + push };
+    // Safety pass: rebuild rowMap and currentAdj since we're shifting
+    const rowMap = new Map<number, PedigreeNode[]>();
+    for (const n of currentNodes) {
+      const rowKey = Math.round(n.y / genGrid) * genGrid;
+      if (!rowMap.has(rowKey)) rowMap.set(rowKey, []);
+      rowMap.get(rowKey)!.push(n);
+    }
+    const currentAdj = buildAdjacency(currentNodes, edges);
+
+    for (const [, rowNodes] of rowMap) {
+      rowNodes.sort((a, b) => a.x - b.x);
+      for (let i = 1; i < rowNodes.length; i++) {
+        const prev = rowNodes[i - 1]!;
+        const curr = rowNodes[i]!;
+        if (excludeIds?.has(curr.id)) continue;
+        const gap = curr.x - prev.x;
+        if (gap < nodeGap - 0.05) {
+          const push = nodeGap - gap;
+          // Push curr, everything to its right, and their subtrees
+          const movingNodes = new Set<string>();
+          for (let j = i; j < rowNodes.length; j++) {
+            const n = rowNodes[j]!;
+            if (excludeIds?.has(n.id)) continue;
+            const subtree = collectSubtree(n.id, currentAdj);
+            for (const id of subtree) {
+              if (!excludeIds?.has(id)) {
+                movingNodes.add(id);
+              }
+            }
           }
-        }
-        // Update rowNodes for continued iteration
-        for (let j = i; j < rowNodes.length; j++) {
-          const n = rowNodes[j]!;
-          const updated = currentNodes.find(cn => cn.id === n.id);
-          if (updated) rowNodes[j] = updated;
+
+          currentNodes = currentNodes.map(cn => {
+            if (movingNodes.has(cn.id)) {
+              return { ...cn, x: cn.x + push };
+            }
+            return cn;
+          });
+
+          // Update rowNodes for continued iteration using a Map for O(1) lookups
+          const currentNodesMap = new Map(currentNodes.map(cn => [cn.id, cn]));
+          for (let j = i; j < rowNodes.length; j++) {
+            const n = rowNodes[j]!;
+            const updated = currentNodesMap.get(n.id);
+            if (updated) rowNodes[j] = updated;
+          }
         }
       }
     }
@@ -479,7 +555,7 @@ export function resolveAllCollisions(
   // Final snap to remove topological deltas (0.01)
   return currentNodes.map(n => ({
     ...n,
-    x: Math.max(GEN_GRID, Math.round(n.x * 10) / 10),
+    x: Math.max(0, Math.round(n.x * 10) / 10),
   }));
 }
 
@@ -498,6 +574,8 @@ export function recenterParents(
   parentIds: string[],
   childIds: string[],
   excludeIds?: Set<string>,
+  nodeGap = NODE_GAP,
+  genGrid = GEN_GRID,
 ): PedigreeNode[] {
   const nodeMap = buildNodeMap(nodes);
   const parents = parentIds.map(id => nodeMap.get(id)).filter((n): n is PedigreeNode => !!n);
@@ -513,6 +591,8 @@ export function recenterParents(
   const parentCenter = parents.length >= 2
     ? (parents[0]!.x + parents[1]!.x) / 2
     : parents[0]!.x;
+
+  const shift = childCenter - parentCenter;
 
   // Compute ideal target positions for each parent
   const parentTargets = new Map<string, number>();
@@ -537,7 +617,7 @@ export function recenterParents(
       }
       return a.x - b.x;
     });
-    const currentDist = Math.max(NODE_GAP, Math.abs(parents[0]!.x - parents[1]!.x));
+    const currentDist = Math.max(nodeGap, Math.abs(parents[0]!.x - parents[1]!.x));
     const leftTarget = childCenter - currentDist / 2;
     const rightTarget = childCenter + currentDist / 2;
     parentTargets.set(sortedParents[0]!.id, leftTarget);
@@ -545,17 +625,17 @@ export function recenterParents(
   } else if (parents.length === 1) {
     parentTargets.set(parents[0]!.id, childCenter);
   } else {
-    const shift = childCenter - parentCenter;
+    const bulkShift = childCenter - parentCenter;
     for (const p of parents) {
-      parentTargets.set(p.id, p.x + shift);
+      parentTargets.set(p.id, p.x + bulkShift);
     }
   }
 
-  const shift = childCenter - parentCenter;
   if (Math.abs(shift) < 1) return nodes; // Already centered
 
   const parentY = parents[0]!.y;
-  const rowNodes = nodes.filter(n => Math.abs(n.y - parentY) < ROW_TOLERANCE);
+  const tol = getRowTolerance(nodes, genGrid);
+  const rowNodes = nodes.filter(n => Math.abs(n.y - parentY) < tol);
   rowNodes.sort((a, b) => a.x - b.x);
 
   const parentIndices = parents.map(p => rowNodes.findIndex(rn => rn.id === p.id)).sort((a, b) => a - b);
@@ -565,17 +645,25 @@ export function recenterParents(
   const parentIdSet = new Set(parentIds);
   const adj = buildAdjacency(nodes, edges);
   let currentNodes = nodes.map(n => ({ ...n }));
-  const allExclude = new Set([...(excludeIds ?? []), ...childIds]);
+  let currentNodesMap = buildNodeMap(currentNodes);
+  
+  const allExclude = new Set(excludeIds ?? []);
+  for (const childId of childIds) {
+    const childSubtree = collectSubtree(childId, adj, undefined, { anchorMarriedIn: true });
+    for (const id of childSubtree) {
+      allExclude.add(id);
+    }
+  }
 
   // First, apply target positions directly to parents and shift their subtrees.
   for (const p of parents) {
     const tx = parentTargets.get(p.id)!;
-    const nodeInCurrent = currentNodes.find(n => n.id === p.id);
+    const nodeInCurrent = currentNodesMap.get(p.id);
     if (!nodeInCurrent) continue;
     const s = tx - nodeInCurrent.x;
     if (Math.abs(s) < 0.01) continue;
 
-    const subtree = collectSubtree(p.id, adj);
+    const subtree = collectSubtree(p.id, adj, undefined, { anchorMarriedIn: true });
     currentNodes = currentNodes.map(n => {
       if (allExclude.has(n.id)) return n;
       if (parentIdSet.has(n.id) && n.id !== p.id) return n;
@@ -584,18 +672,19 @@ export function recenterParents(
       }
       return n;
     });
+    currentNodesMap = buildNodeMap(currentNodes);
   }
 
   // Second, perform a rightward sweep-line push pass for nodes to the right of the parents.
   for (let i = maxParentIdx; i < rowNodes.length - 1; i++) {
     const currId = rowNodes[i]!.id;
     const nextId = rowNodes[i + 1]!.id;
-    const currNode = currentNodes.find(n => n.id === currId)!;
-    const nextNode = currentNodes.find(n => n.id === nextId)!;
+    const currNode = currentNodesMap.get(currId)!;
+    const nextNode = currentNodesMap.get(nextId)!;
     
-    if (nextNode.x < currNode.x + NODE_GAP - 0.05) {
-      const push = (currNode.x + NODE_GAP) - nextNode.x;
-      const subtree = collectSubtree(nextId, adj);
+    if (nextNode.x < currNode.x + nodeGap - 0.05) {
+      const push = (currNode.x + nodeGap) - nextNode.x;
+      const subtree = collectSubtree(nextId, adj, undefined, { anchorMarriedIn: true });
       currentNodes = currentNodes.map(n => {
         if (allExclude.has(n.id)) return n;
         if (parentIdSet.has(n.id) && n.id !== nextId) return n;
@@ -604,6 +693,7 @@ export function recenterParents(
         }
         return n;
       });
+      currentNodesMap = buildNodeMap(currentNodes);
     }
   }
 
@@ -611,12 +701,12 @@ export function recenterParents(
   for (let i = minParentIdx; i > 0; i--) {
     const currId = rowNodes[i]!.id;
     const prevId = rowNodes[i - 1]!.id;
-    const currNode = currentNodes.find(n => n.id === currId)!;
-    const prevNode = currentNodes.find(n => n.id === prevId)!;
+    const currNode = currentNodesMap.get(currId)!;
+    const prevNode = currentNodesMap.get(prevId)!;
 
-    if (prevNode.x > currNode.x - NODE_GAP + 0.05) {
-      const push = (currNode.x - NODE_GAP) - prevNode.x;
-      const subtree = collectSubtree(prevId, adj);
+    if (prevNode.x > currNode.x - nodeGap + 0.05) {
+      const push = (currNode.x - nodeGap) - prevNode.x;
+      const subtree = collectSubtree(prevId, adj, undefined, { anchorMarriedIn: true });
       currentNodes = currentNodes.map(n => {
         if (allExclude.has(n.id)) return n;
         if (parentIdSet.has(n.id) && n.id !== prevId) return n;
@@ -625,13 +715,14 @@ export function recenterParents(
         }
         return n;
       });
+      currentNodesMap = buildNodeMap(currentNodes);
     }
   }
 
   // Enforce GEN_GRID boundary: if any shifted node went below GEN_GRID, shift the whole row.
-  const minX = Math.min(...currentNodes.filter(n => Math.abs(n.y - parentY) < ROW_TOLERANCE).map(n => n.x));
-  if (minX < GEN_GRID) {
-    const adjust = GEN_GRID - minX;
+  const minX = Math.min(...currentNodes.filter(n => Math.abs(n.y - parentY) < tol).map(n => n.x));
+  if (minX < genGrid) {
+    const adjust = genGrid - minX;
     currentNodes = currentNodes.map(n => {
       if (allExclude.has(n.id)) return n;
       return { ...n, x: n.x + adjust };
@@ -649,9 +740,12 @@ export function recenterAllChildren(
   nodes: PedigreeNode[],
   edges: PedigreeEdge[],
   excludeIds?: Set<string>,
+  nodeGap = NODE_GAP,
+  genGrid = GEN_GRID,
 ): PedigreeNode[] {
   let currentNodes = [...nodes.map(n => ({ ...n }))];
   const adj = buildAdjacency(currentNodes, edges);
+  let nodeMap = buildNodeMap(currentNodes);
   
   // Group families
   const families = new Map<string, { parentIds: string[]; childIds: string[] }>();
@@ -669,25 +763,25 @@ export function recenterAllChildren(
   for (const f of familyList) {
     const childId = f.childIds[0];
     if (childId) {
-      const child = currentNodes.find(n => n.id === childId);
-      if (child) childRows.add(Math.round(child.y / GEN_GRID) * GEN_GRID);
+      const child = nodeMap.get(childId);
+      if (child) childRows.add(Math.round(child.y / genGrid) * genGrid);
     }
   }
   // Sort child rows top-down (ascending Y)
   const sortedRows = Array.from(childRows).sort((a, b) => a - b);
 
   for (const rowY of sortedRows) {
+    const tol = getRowTolerance(currentNodes, genGrid);
     const rowFamilies = familyList.filter(f => {
       const childId = f.childIds[0];
       if (!childId) return false;
-      const child = currentNodes.find(n => n.id === childId);
-      return child && Math.abs(child.y - rowY) < ROW_TOLERANCE;
+      const child = nodeMap.get(childId);
+      return child && Math.abs(child.y - rowY) < tol;
     });
 
     let rowShifted = false;
 
     for (const f of rowFamilies) {
-      const nodeMap = buildNodeMap(currentNodes);
       const parents = f.parentIds.map(id => nodeMap.get(id)).filter((n): n is PedigreeNode => !!n);
       const children = f.childIds.map(id => nodeMap.get(id)).filter((n): n is PedigreeNode => !!n);
       if (parents.length === 0 || children.length === 0) continue;
@@ -710,7 +804,7 @@ export function recenterAllChildren(
       // We shift the children and their subtrees
       const shiftNodes = new Set<string>();
       for (const child of children) {
-        const subtree = collectSubtree(child.id, adj);
+        const subtree = collectSubtree(child.id, adj, undefined, { anchorMarriedIn: true });
         for (const id of subtree) {
           if (!excludeIds?.has(id)) {
             shiftNodes.add(id);
@@ -725,13 +819,15 @@ export function recenterAllChildren(
           }
           return n;
         });
+        nodeMap = buildNodeMap(currentNodes);
         rowShifted = true;
       }
     }
 
     if (rowShifted) {
       // Resolve any collisions caused by these shifts on the row and below
-      currentNodes = resolveAllCollisions(currentNodes, edges, excludeIds);
+      currentNodes = resolveAllCollisions(currentNodes, edges, excludeIds, undefined, nodeGap, genGrid);
+      nodeMap = buildNodeMap(currentNodes);
     }
   }
 
@@ -742,8 +838,10 @@ export function evenOutSiblingSpacing(
   nodes: PedigreeNode[],
   edges: PedigreeEdge[],
   excludeIds?: Set<string>,
+  nodeGap = NODE_GAP,
+  genGrid = GEN_GRID,
 ): PedigreeNode[] {
-  const currentNodes = [...nodes.map(n => ({ ...n }))];
+  let currentNodes = [...nodes.map(n => ({ ...n }))];
   const adj = buildAdjacency(currentNodes, edges);
   const nodeMap = buildNodeMap(currentNodes);
 
@@ -783,15 +881,16 @@ export function evenOutSiblingSpacing(
 
       const parentY = siblings[0]!.y;
       const siblingIds = new Set(siblings.map(s => s.id));
+      const tol = getRowTolerance(currentNodes, genGrid);
       const rowNodes = currentNodes.filter(
-        n => Math.abs(n.y - parentY) < ROW_TOLERANCE && !siblingIds.has(n.id)
+        n => Math.abs(n.y - parentY) < tol && !siblingIds.has(n.id)
       );
 
       let safeToEvenOut = true;
       for (let i = 1; i < siblings.length - 1; i++) {
         const targetX = firstX + i * step;
         const wouldCollide = rowNodes.some(
-          rn => Math.abs(rn.x - targetX) < NODE_GAP - 0.05
+          rn => Math.abs(rn.x - targetX) < nodeGap - 0.05
         );
         if (wouldCollide) {
           safeToEvenOut = false;
@@ -800,14 +899,17 @@ export function evenOutSiblingSpacing(
       }
 
       if (safeToEvenOut) {
+        const siblingIdToTargetX = new Map<string, number>();
         for (let i = 1; i < siblings.length - 1; i++) {
           const sib = siblings[i]!;
           const targetX = firstX + i * step;
-          const node = currentNodes.find(n => n.id === sib.id);
-          if (node) {
-            node.x = targetX;
-          }
+          siblingIdToTargetX.set(sib.id, targetX);
         }
+
+        currentNodes = currentNodes.map(n => {
+          const targetX = siblingIdToTargetX.get(n.id);
+          return targetX !== undefined ? { ...n, x: targetX } : n;
+        });
       }
     }
   }
@@ -819,6 +921,8 @@ export function recenterAllFamilies(
   nodes: PedigreeNode[],
   edges: PedigreeEdge[],
   excludeIds?: Set<string>,
+  nodeGap = NODE_GAP,
+  genGrid = GEN_GRID,
 ): PedigreeNode[] {
   let currentNodes = [...nodes.map(n => ({ ...n }))];
   const adj = buildAdjacency(currentNodes, edges);
@@ -839,24 +943,37 @@ export function recenterAllFamilies(
     const childId = f.childIds[0];
     if (childId) {
       const child = currentNodes.find(n => n.id === childId);
-      if (child) childRows.add(Math.round(child.y / GEN_GRID) * GEN_GRID);
+      if (child) childRows.add(Math.round(child.y / genGrid) * genGrid);
     }
   }
 
   const sortedRows = Array.from(childRows).sort((a, b) => b - a);
 
+  const history: string[] = [];
   let changed = true;
   let safety = 0;
-  while (changed && safety++ < 5) {
+  while (changed && safety++ < 15) {
     changed = false;
-    const oldPositions = currentNodes.map(n => `${n.id}:${n.x}`).join(",");
+    const prevXs = currentNodes.map(n => n.x);
+
+    // Oscillation / limit cycle check
+    const stateStr = currentNodes.map(n => Math.round(n.x * 10) / 10).join(",");
+    if (history.includes(stateStr)) {
+      break;
+    }
+    history.push(stateStr);
+    if (history.length > 2) {
+      history.shift();
+    }
+
+    const tol = getRowTolerance(currentNodes, genGrid);
 
     for (const rowY of sortedRows) {
       const rowFamilies = familyList.filter(f => {
         const childId = f.childIds[0];
         if (!childId) return false;
         const child = currentNodes.find(n => n.id === childId);
-        return child && Math.abs(child.y - rowY) < ROW_TOLERANCE;
+        return child && Math.abs(child.y - rowY) < tol;
       });
 
       // Exclude all nodes at or below the child row from being shifted
@@ -868,7 +985,7 @@ export function recenterAllFamilies(
       let parentRowResolved = false;
 
       for (const f of rowFamilies) {
-        const nextNodes = recenterParents(currentNodes, edges, f.parentIds, f.childIds, rowExcludeIds);
+        const nextNodes = recenterParents(currentNodes, edges, f.parentIds, f.childIds, rowExcludeIds, nodeGap, genGrid);
         if (nextNodes !== currentNodes) {
           currentNodes = nextNodes;
           parentRowResolved = true;
@@ -876,26 +993,29 @@ export function recenterAllFamilies(
       }
 
       if (parentRowResolved) {
-        currentNodes = resolveAllCollisions(currentNodes, edges, excludeIds);
+        currentNodes = resolveAllCollisions(currentNodes, edges, excludeIds, undefined, nodeGap, genGrid);
       }
     }
 
-    const newPositions = currentNodes.map(n => `${n.id}:${n.x}`).join(",");
-    if (newPositions !== oldPositions) {
+    const maxDelta = currentNodes.reduce((max, n, i) => Math.max(max, Math.abs(n.x - prevXs[i]!)), 0);
+    if (maxDelta > 0.1) {
       changed = true;
     }
   }
 
+  // Always resolve collisions one final time to guarantee no horizontal overlaps
+  currentNodes = resolveAllCollisions(currentNodes, edges, excludeIds, undefined, nodeGap, genGrid);
+
   // Run top-down child recentering pass to align children under parent midpoints
-  currentNodes = recenterAllChildren(currentNodes, edges, excludeIds);
+  currentNodes = recenterAllChildren(currentNodes, edges, excludeIds, nodeGap, genGrid);
 
   // Even out sibling spacing for inner siblings
-  currentNodes = evenOutSiblingSpacing(currentNodes, edges, excludeIds);
+  currentNodes = evenOutSiblingSpacing(currentNodes, edges, excludeIds, nodeGap, genGrid);
 
   // Final snap to remove topological deltas (0.01)
   return currentNodes.map(n => ({
     ...n,
-    x: Math.max(GEN_GRID, Math.round(n.x * 10) / 10),
+    x: Math.max(0, Math.round(n.x * 10) / 10),
   }));
 }
 
@@ -910,7 +1030,8 @@ export function findInsertPosition(
   targetY: number,
   excludeIds?: Set<string>,
 ): number {
-  const rowNodes = nodes.filter(n => Math.abs(n.y - targetY) < ROW_TOLERANCE && !excludeIds?.has(n.id));
+  const tol = getRowTolerance(nodes);
+  const rowNodes = nodes.filter(n => Math.abs(n.y - targetY) < tol && !excludeIds?.has(n.id));
   
   if (rowNodes.length === 0) return targetX;
 

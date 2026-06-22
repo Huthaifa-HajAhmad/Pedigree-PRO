@@ -1,10 +1,13 @@
 import { describe, it, expect } from "vitest";
+import fs from "fs";
+import path from "path";
 import {
   computeSubtreeBBox,
   detectRowCollisions,
   resolveAllCollisions,
   recenterParents,
   recenterAllFamilies,
+  recenterAllChildren,
   evenOutSiblingSpacing,
   buildAdjacency,
   buildNodeMap,
@@ -12,6 +15,8 @@ import {
 } from "../lib/layout-engine";
 import { computeAutoLayout } from "../lib/auto-layout";
 import { PedigreeNode, PedigreeEdge } from "@/features/pedigree-editor/canvas/types";
+import { computeSibshipGroupTrack } from "@/features/pedigree-editor/canvas/canvasUtils";
+import { computeFamilyChildYOffset } from "@/features/pedigree-editor/canvas/SibshipGroup";
 
 // Base node default
 const baseNode = {
@@ -692,6 +697,484 @@ describe("layout-engine", () => {
       expect(yI3).toEqual(yI4);
       expect(yI4).toBeLessThan(yII6);
       expect(yII5).toEqual(yII6);
+
+      // Verify that the cross-branch couple is positioned correctly (since both have parents, they center under them)
+      const xII5 = result.find(n => n.id === "II:5")!.x;
+      const xII6 = result.find(n => n.id === "II:6")!.x;
+      expect(Math.abs(xII5 - xII6)).toBeCloseTo(193.6, 1);
+    });
+
+    it("verifies sibling track separation for interleaved sibling groups", () => {
+      const nodes: PedigreeNode[] = [
+        { id: "II:3", x: 200, y: 120, type: "female", ...baseNode },
+        { id: "II:4", x: 296.8, y: 120, type: "male", ...baseNode },
+        { id: "II:5", x: 420, y: 120, type: "male", ...baseNode },
+        { id: "II:6", x: 516.8, y: 120, type: "female", ...baseNode },
+
+        { id: "III:1", x: 60, y: 240, type: "female", ...baseNode },
+        { id: "III:2", x: 130, y: 240, type: "male", ...baseNode },
+        { id: "III:3", x: 300, y: 240, type: "female", ...baseNode },
+        { id: "III:4", x: 350, y: 240, type: "male", ...baseNode },
+        { id: "III:5", x: 400, y: 240, type: "male", ...baseNode },
+      ];
+
+      const edges: PedigreeEdge[] = [
+        { id: "e_c_1", sourceId: "II:3", targetId: "II:4", type: "couple" },
+        { id: "e_pc_1_f", sourceId: "II:3", targetId: "III:1", type: "parent-child" },
+        { id: "e_pc_1_m", sourceId: "II:4", targetId: "III:1", type: "parent-child" },
+        { id: "e_pc_2_f", sourceId: "II:3", targetId: "III:2", type: "parent-child" },
+        { id: "e_pc_2_m", sourceId: "II:4", targetId: "III:2", type: "parent-child" },
+        { id: "e_pc_3_f", sourceId: "II:3", targetId: "III:4", type: "parent-child" },
+        { id: "e_pc_3_m", sourceId: "II:4", targetId: "III:4", type: "parent-child" },
+
+        { id: "e_c_2", sourceId: "II:5", targetId: "II:6", type: "couple" },
+        { id: "e_pc_4_f", sourceId: "II:5", targetId: "III:3", type: "parent-child" },
+        { id: "e_pc_4_m", sourceId: "II:6", targetId: "III:3", type: "parent-child" },
+        { id: "e_pc_5_f", sourceId: "II:5", targetId: "III:5", type: "parent-child" },
+        { id: "e_pc_5_m", sourceId: "II:6", targetId: "III:5", type: "parent-child" },
+      ];
+
+      const trackA = computeSibshipGroupTrack(["II:3", "II:4"], ["III:1", "III:2", "III:4"], edges, nodes);
+      const trackB = computeSibshipGroupTrack(["II:5", "II:6"], ["III:3", "III:5"], edges, nodes);
+
+      expect(trackA).not.toEqual(trackB);
+    });
+
+    it("verifies subtree-aware founder group spacing is compact for simple trees", () => {
+      const nodes: PedigreeNode[] = [
+        { id: "I:1", x: 200, y: 120, type: "male", ...baseNode },
+        { id: "I:2", x: 296.8, y: 120, type: "female", ...baseNode },
+        { id: "I:3", x: 420, y: 120, type: "male", ...baseNode },
+        { id: "I:4", x: 516.8, y: 120, type: "female", ...baseNode },
+      ];
+
+      const edges: PedigreeEdge[] = [
+        { id: "e_c_1", sourceId: "I:1", targetId: "I:2", type: "couple" },
+        { id: "e_c_2", sourceId: "I:3", targetId: "I:4", type: "couple" },
+      ];
+
+      const result = computeAutoLayout(nodes as any, edges as any, false);
+      const x1 = result.find(n => n.id === "I:1")!.x;
+      const x3 = result.find(n => n.id === "I:3")!.x;
+
+      const diff = Math.abs(x3 - x1);
+      expect(diff).toBeLessThan(350);
+    });
+
+    it("verifies sibling bar Y coordinate stacking under parent clamping", () => {
+      const nodes: PedigreeNode[] = [
+        // Parents Row at y=120
+        { id: "II:3", x: 200, y: 120, type: "female", ...baseNode },
+        { id: "II:4", x: 296.8, y: 120, type: "male", ...baseNode },
+        { id: "II:5", x: 420, y: 120, type: "male", ...baseNode },
+        { id: "II:6", x: 516.8, y: 120, type: "female", ...baseNode },
+
+        // Children Row at y=180 (moved closer to force clamping)
+        { id: "III:1", x: 60, y: 180, type: "female", ...baseNode },
+        { id: "III:2", x: 130, y: 180, type: "male", ...baseNode },
+        { id: "III:3", x: 300, y: 180, type: "female", ...baseNode },
+        { id: "III:4", x: 350, y: 180, type: "male", ...baseNode },
+        { id: "III:5", x: 400, y: 180, type: "male", ...baseNode },
+      ];
+
+      const edges: PedigreeEdge[] = [
+        { id: "e_c_1", sourceId: "II:3", targetId: "II:4", type: "couple" },
+        { id: "e_pc_1_f", sourceId: "II:3", targetId: "III:1", type: "parent-child" },
+        { id: "e_pc_1_m", sourceId: "II:4", targetId: "III:1", type: "parent-child" },
+        { id: "e_pc_2_f", sourceId: "II:3", targetId: "III:2", type: "parent-child" },
+        { id: "e_pc_2_m", sourceId: "II:4", targetId: "III:2", type: "parent-child" },
+        { id: "e_pc_3_f", sourceId: "II:3", targetId: "III:4", type: "parent-child" },
+        { id: "e_pc_3_m", sourceId: "II:4", targetId: "III:4", type: "parent-child" },
+
+        { id: "e_c_2", sourceId: "II:5", targetId: "II:6", type: "couple" },
+        { id: "e_pc_4_f", sourceId: "II:5", targetId: "III:3", type: "parent-child" },
+        { id: "e_pc_4_m", sourceId: "II:6", targetId: "III:3", type: "parent-child" },
+        { id: "e_pc_5_f", sourceId: "II:5", targetId: "III:5", type: "parent-child" },
+        { id: "e_pc_5_m", sourceId: "II:6", targetId: "III:5", type: "parent-child" },
+      ];
+
+      const offsetsA = computeFamilyChildYOffset(
+        ["II:3", "II:4"],
+        ["III:1", "III:2", "III:4"],
+        nodes,
+        [],
+        44,
+        false,
+        undefined,
+        undefined,
+        edges
+      );
+      const offsetsB = computeFamilyChildYOffset(
+        ["II:5", "II:6"],
+        ["III:3", "III:5"],
+        nodes,
+        [],
+        44,
+        false,
+        undefined,
+        undefined,
+        edges
+      );
+
+      // Extract the computed delta offset for children
+      const deltaA = offsetsA.get("III:1") ?? 0;
+      const deltaB = offsetsB.get("III:3") ?? 0;
+
+      // Under clamping, Family A (sibTrack = 0) and Family B (sibTrack = 1) must be separated by 12px.
+      // So deltaA (the lower sibling bar pushing children down) and deltaB must differ by exactly 12px.
+      expect(Math.abs(deltaA - deltaB)).toBeCloseTo(12, 1);
+    });
+  });
+
+  describe("remediation regression tests", () => {
+    it("T1: asserts edge-to-edge gap between adjacent founder groups is correct", () => {
+      // 4 founder couples each having 3 children
+      const nodes: any[] = [];
+      const edges: any[] = [];
+      
+      for (let g = 0; g < 4; g++) {
+        const fId = `f_${g}`;
+        const mId = `m_${g}`;
+        nodes.push(
+          { id: fId, x: 0, y: 0, type: "male", ...baseNode },
+          { id: mId, x: 0, y: 0, type: "female", ...baseNode }
+        );
+        edges.push({ id: `e_c_${g}`, sourceId: fId, targetId: mId, type: "couple" });
+        
+        for (let c = 0; c < 3; c++) {
+          const cId = `c_${g}_${c}`;
+          nodes.push({ id: cId, x: 0, y: 0, type: "male", ...baseNode });
+          edges.push(
+            { id: `e_pc_${g}_${c}_f`, sourceId: fId, targetId: cId, type: "parent-child" },
+            { id: `e_pc_${g}_${c}_m`, sourceId: mId, targetId: cId, type: "parent-child" }
+          );
+        }
+      }
+      
+      const result = computeAutoLayout(nodes, edges, false);
+      
+      // Sort top-row nodes by X
+      const topRow = result.filter(n => n.id.startsWith("f_") || n.id.startsWith("m_")).sort((a, b) => a.x - b.x);
+      
+      for (let i = 1; i < topRow.length; i++) {
+        const leftNode = topRow[i-1]!;
+        const rightNode = topRow[i]!;
+        const gap = rightNode.x - leftNode.x;
+        
+        const isCouple = edges.some(e => e.type === "couple" && ((e.sourceId === leftNode.id && e.targetId === rightNode.id) || (e.sourceId === rightNode.id && e.targetId === leftNode.id)));
+        if (!isCouple) {
+          expect(gap).toBeGreaterThanOrEqual(96.8 - 0.05);
+        }
+      }
+    });
+
+    it("T3: recenterParents grandchild rigid check", () => {
+      // 4-generation chain: A -> B -> C -> D
+      const nodes: PedigreeNode[] = [
+        { id: "A", x: 100, y: 100, type: "male", ...baseNode },
+        { id: "B", x: 200, y: 220, type: "female", ...baseNode },
+        { id: "C", x: 300, y: 340, type: "male", ...baseNode },
+        { id: "D", x: 400, y: 460, type: "female", ...baseNode },
+      ];
+      const edges: PedigreeEdge[] = [
+        { id: "e1", sourceId: "A", targetId: "B", type: "parent-child" },
+        { id: "e2", sourceId: "B", targetId: "C", type: "parent-child" },
+        { id: "e3", sourceId: "C", targetId: "D", type: "parent-child" },
+      ];
+      
+      const dxBC = nodes[2]!.x - nodes[1]!.x;
+      const dxCD = nodes[3]!.x - nodes[2]!.x;
+      
+      const result = recenterParents(nodes, edges, ["B"], ["C"]);
+      
+      const newB = result.find(n => n.id === "B")!;
+      const newC = result.find(n => n.id === "C")!;
+      const newD = result.find(n => n.id === "D")!;
+      
+      expect(newC.x - newB.x).toBeCloseTo(0, 1);
+      expect(newD.x - newC.x).toBeCloseTo(dxCD, 1);
+    });
+
+    it("T4: founder married to node at gen 3 does not get pulled to deep generations", () => {
+      const nodes: any[] = [
+        { id: "husband", x: 0, y: 0, type: "male", ...baseNode },
+        { id: "wife", x: 0, y: 0, type: "female", ...baseNode },
+        { id: "h_p1", x: 0, y: 0, type: "male", ...baseNode },
+        { id: "h_gp1", x: 0, y: 0, type: "male", ...baseNode },
+        { id: "h_ggp1", x: 0, y: 0, type: "male", ...baseNode },
+        { id: "prior_child", x: 0, y: 0, type: "male", ...baseNode },
+      ];
+      const edges: any[] = [
+        { id: "e_h_ggp_gp", sourceId: "h_ggp1", targetId: "h_gp1", type: "parent-child" },
+        { id: "e_h_gp_p", sourceId: "h_gp1", targetId: "h_p1", type: "parent-child" },
+        { id: "e_h_p_h", sourceId: "h_p1", targetId: "husband", type: "parent-child" },
+        { id: "e_couple", sourceId: "husband", targetId: "wife", type: "couple" },
+        { id: "e_wife_child", sourceId: "wife", targetId: "prior_child", type: "parent-child" },
+      ];
+      
+      const result = computeAutoLayout(nodes, edges, false);
+      
+      const newHusband = result.find(n => n.id === "husband")!;
+      const newWife = result.find(n => n.id === "wife")!;
+      const newPriorChild = result.find(n => n.id === "prior_child")!;
+      
+      expect(newHusband.y).toBeCloseTo(120 + 3 * 120, 1);
+      expect(newWife.y).toBeCloseTo(120, 1);
+      expect(newPriorChild.y).toBeCloseTo(120 + 1 * 120, 1);
+    });
+
+    it("T9: derives center from canvasWidth param", () => {
+      const nodes: any[] = [
+        { id: "n1", x: 0, y: 0, type: "male", ...baseNode }
+      ];
+      const edges: any[] = [];
+      const result = computeAutoLayout(nodes, edges, false, undefined, 1200);
+      expect(result[0]!.x).toBeCloseTo(600, 1);
+    });
+
+    it("T12: asserts compaction remap with gens {0, 2} yields 3 gens {0, 1, 2}, not 2", () => {
+      const testNodes: any[] = [
+        { id: "parent", x: 0, y: 0, type: "male", ...baseNode },
+        { id: "child", x: 0, y: 0, type: "male", ...baseNode },
+        { id: "spouse", x: 0, y: 0, type: "female", ...baseNode },
+        { id: "s_p", x: 0, y: 0, type: "male", ...baseNode },
+        { id: "s_gp", x: 0, y: 0, type: "male", ...baseNode },
+      ];
+      const testEdges: any[] = [
+        { id: "e_pc", sourceId: "parent", targetId: "child", type: "parent-child" },
+        { id: "e_c", sourceId: "child", targetId: "spouse", type: "couple" },
+        { id: "e_s_gp_p", sourceId: "s_gp", targetId: "s_p", type: "parent-child" },
+        { id: "e_s_p_s", sourceId: "s_p", targetId: "spouse", type: "parent-child" },
+      ];
+      
+      const result = computeAutoLayout(testNodes, testEdges, false);
+      const newParent = result.find(n => n.id === "parent")!;
+      const newChild = result.find(n => n.id === "child")!;
+      
+      expect(newParent.y).toBeCloseTo(240, 1);
+      expect(newChild.y).toBeCloseTo(360, 1);
+    });
+
+    it("F0a (N1): resolveAllCollisions couple cohesion for married-in spouse with parents", () => {
+      // Founder A (no parents) married to B (B has parents G1,G2), child E.
+      // Force A rightward via collision. B and E must move with A.
+      const nodes: any[] = [
+        { id: "A", x: 100, y: 120, type: "male", ...baseNode },
+        { id: "B", x: 196.8, y: 120, type: "female", ...baseNode },
+        { id: "G1", x: 100, y: 0, type: "male", ...baseNode },
+        { id: "G2", x: 196.8, y: 0, type: "female", ...baseNode },
+        { id: "E", x: 148.4, y: 240, type: "male", ...baseNode },
+        // Blocker forcing A right
+        { id: "Blocker", x: 90, y: 120, type: "male", ...baseNode },
+      ];
+      const edges: any[] = [
+        { id: "e_c_ab", sourceId: "A", targetId: "B", type: "couple" },
+        { id: "e_pc_g1b", sourceId: "G1", targetId: "B", type: "parent-child" },
+        { id: "e_pc_g2b", sourceId: "G2", targetId: "B", type: "parent-child" },
+        { id: "e_pc_ae", sourceId: "A", targetId: "E", type: "parent-child" },
+        { id: "e_pc_be", sourceId: "B", targetId: "E", type: "parent-child" },
+      ];
+
+      const resolved = resolveAllCollisions(nodes, edges);
+      const newA = resolved.find(n => n.id === "A")!;
+      const newB = resolved.find(n => n.id === "B")!;
+      const newE = resolved.find(n => n.id === "E")!;
+
+      // Couple cohesion: A and B distance should remain exactly NODE_GAP
+      expect(newB.x - newA.x).toBeCloseTo(96.8, 1);
+      // Centering: E should remain centered between A and B
+      expect(newE.x).toBeCloseTo((newA.x + newB.x) / 2, 1);
+    });
+
+    it("F0b (N1): recenterAllChildren couple cohesion for married-in founder spouse", () => {
+      // Child A married to B (B has no parents), child E.
+      // recenterAllChildren shifts child A under P1/P2, and B (founder spouse) must move with A.
+      const nodes: any[] = [
+        { id: "P1", x: 300, y: 0, type: "male", ...baseNode },
+        { id: "P2", x: 396.8, y: 0, type: "female", ...baseNode },
+        { id: "A", x: 100, y: 120, type: "male", ...baseNode }, // child of P1/P2
+        { id: "B", x: 196.8, y: 120, type: "female", ...baseNode }, // founder spouse (no parents)
+        { id: "E", x: 148.4, y: 240, type: "male", ...baseNode },
+      ];
+      const edges: any[] = [
+        { id: "e_pc_p1a", sourceId: "P1", targetId: "A", type: "parent-child" },
+        { id: "e_pc_p2a", sourceId: "P2", targetId: "A", type: "parent-child" },
+        { id: "e_c_ab", sourceId: "A", targetId: "B", type: "couple" },
+        { id: "e_pc_ae", sourceId: "A", targetId: "E", type: "parent-child" },
+        { id: "e_pc_be", sourceId: "B", targetId: "E", type: "parent-child" },
+      ];
+
+      const resolved = recenterAllChildren(nodes, edges);
+      const newA = resolved.find(n => n.id === "A")!;
+      const newB = resolved.find(n => n.id === "B")!;
+      const newE = resolved.find(n => n.id === "E")!;
+
+      // Couple cohesion: A and B distance should remain exactly NODE_GAP
+      expect(newB.x - newA.x).toBeCloseTo(96.8, 1);
+      expect(newE.x).toBeCloseTo((newA.x + newB.x) / 2, 1);
+    });
+
+    it("F0c (N3/N4): T5 left-push shifts whole group subtree and prevents cross-row collisions", () => {
+      // Sibling group 1: P1, P2 (married-in with parents).
+      // Sibling group 2: P3.
+      // Sibling group 1 is placed, then sibling group 2 left-shifts it.
+      // Verify no cross-row overlaps are introduced.
+      const nodes: any[] = [
+        // Gen 0 parents
+        { id: "GP1", x: 100, y: 0, type: "male", ...baseNode },
+        { id: "GP2", x: 196.8, y: 0, type: "female", ...baseNode },
+        // Gen 1 sib group 1
+        { id: "P1", x: 100, y: 120, type: "male", ...baseNode },
+        { id: "P2", type: "female", ...baseNode }, // married-in, has parents GP1, GP2
+        { id: "P1_child", type: "male", ...baseNode },
+        // Gen 1 sib group 2
+        { id: "P3", type: "male", ...baseNode },
+      ];
+      const edges: any[] = [
+        { id: "e_c_p1p2", sourceId: "P1", targetId: "P2", type: "couple" },
+        { id: "e_pc_gp1_p2", sourceId: "GP1", targetId: "P2", type: "parent-child" },
+        { id: "e_pc_gp2_p2", sourceId: "GP2", targetId: "P2", type: "parent-child" },
+        { id: "e_pc_p1_c", sourceId: "P1", targetId: "P1_child", type: "parent-child" },
+        { id: "e_pc_p2_c", sourceId: "P2", targetId: "P1_child", type: "parent-child" },
+      ];
+
+      const result = computeAutoLayout(nodes, edges, false);
+      const newP1 = result.find(n => n.id === "P1")!;
+      const newP2 = result.find(n => n.id === "P2")!;
+
+      // Couple cohesion should be preserved (P1 and P2 not split by shift)
+      expect(Math.abs(newP2.x - newP1.x)).toBeCloseTo(96.8, 1);
+    });
+
+    it("F0d (T7): resolveAllCollisions resolves 60-node synthetic tree overlaps with zero collisions", () => {
+      const nodes: any[] = [];
+      const edges: any[] = [];
+      
+      // Create 30 couples placed close together on Y=120, but spouses within each couple spaced by NODE_GAP
+      for (let i = 0; i < 30; i++) {
+        nodes.push(
+          { id: `f_${i}`, x: 100 + i * 150, y: 120, type: "male", ...baseNode },
+          { id: `m_${i}`, x: 100 + i * 150 + 96.8, y: 120, type: "female", ...baseNode }
+        );
+        edges.push({ id: `e_couple_${i}`, sourceId: `f_${i}`, targetId: `m_${i}`, type: "couple" });
+      }
+
+      const resolved = resolveAllCollisions(nodes, edges);
+      
+      // Check that all row collisions are resolved (no overlaps < NODE_GAP)
+      const collisions = detectRowCollisions(resolved, 120);
+      expect(collisions).toHaveLength(0);
+    });
+
+    it("F0e (T8): recenterAllFamilies terminates and converges without infinite loop on conflicting tension", () => {
+      // Construct a conflicting tension layout where parents recenter left but children recenter right.
+      // Verify recenterAllFamilies terminates within limit.
+      const nodes: any[] = [
+        { id: "f1", x: 100, y: 120, type: "male", ...baseNode },
+        { id: "m1", x: 196.8, y: 120, type: "female", ...baseNode },
+        { id: "c1", x: 120, y: 240, type: "male", ...baseNode },
+        { id: "c2", x: 300, y: 240, type: "female", ...baseNode },
+      ];
+      const edges: any[] = [
+        { id: "e_c_1", sourceId: "f1", targetId: "m1", type: "couple" },
+        { id: "e_pc_1", sourceId: "f1", targetId: "c1", type: "parent-child" },
+        { id: "e_pc_2", sourceId: "m1", targetId: "c1", type: "parent-child" },
+        { id: "e_pc_3", sourceId: "f1", targetId: "c2", type: "parent-child" },
+        { id: "e_pc_4", sourceId: "m1", targetId: "c2", type: "parent-child" },
+      ];
+
+      const start = Date.now();
+      const resolved = recenterAllFamilies(nodes, edges);
+      const duration = Date.now() - start;
+
+      expect(duration).toBeLessThan(100); // Must not hang/loop infinitely
+      const collisions = detectRowCollisions(resolved, 120);
+      expect(collisions).toHaveLength(0);
+    });
+
+    it("F0f (T13): row tolerance treats pinned nodes 40px apart as 2 distinct rows", () => {
+      // Two pinned nodes 40px apart vertically.
+      const n1 = { id: "n1", x: 100, y: 100, type: "male" as const, pinned: true, ...baseNode };
+      const n2 = { id: "n2", x: 120, y: 140, type: "female" as const, pinned: true, ...baseNode };
+
+      const collisions = detectRowCollisions([n1, n2], 100, 96.8, 20); // pass tolerance = 20
+      expect(collisions).toHaveLength(0); // Different rows, so no collision
+    });
+
+    it("F0g (T6): groups and orders multiple spouses correctly", () => {
+      // Male with 3 spouses (one inverted).
+      const nodes: any[] = [
+        { id: "husband", type: "male", ...baseNode },
+        { id: "wife1", type: "female", ...baseNode },
+        { id: "wife2", type: "female", ...baseNode },
+        { id: "wife3", type: "female", ...baseNode },
+      ];
+      const edges: any[] = [
+        { id: "e1", sourceId: "husband", targetId: "wife1", type: "couple" },
+        { id: "e2", sourceId: "husband", targetId: "wife2", type: "couple" },
+        { id: "e3", sourceId: "husband", targetId: "wife3", type: "couple", inverted: true },
+      ];
+
+      const result = computeAutoLayout(nodes, edges, false);
+      const hX = result.find(n => n.id === "husband")!.x;
+      const w1X = result.find(n => n.id === "wife1")!.x;
+      const w2X = result.find(n => n.id === "wife2")!.x;
+      const w3X = result.find(n => n.id === "wife3")!.x;
+
+      // Grouped contiguously: adjacent spacings should be coupleSpacing (96.8) or hSpacing (109)
+      const xs = [hX, w1X, w2X, w3X].sort((a, b) => a - b);
+      const gaps = [xs[1] - xs[0], xs[2] - xs[1], xs[3] - xs[2]];
+      gaps.sort((a, b) => a - b);
+      expect(gaps[0]).toBeCloseTo(96.8, 1);
+      expect(gaps[1]).toBeCloseTo(109, 1);
+      expect(gaps[2]).toBeCloseTo(109, 1);
+    });
+
+    it("F0h (T2): getSubtreeWidth Connected Component Traversal for remarriages and wide siblings", () => {
+      // 10 siblings should span at least (10-1)*hSpacing = 9 * 109 = 981px.
+      const nodes: any[] = [
+        { id: "F", type: "male", ...baseNode },
+        { id: "M", type: "female", ...baseNode },
+      ];
+      const edges: any[] = [
+        { id: "e_c", sourceId: "F", targetId: "M", type: "couple" }
+      ];
+      for (let i = 0; i < 10; i++) {
+        nodes.push({ id: `c_${i}`, type: "male", ...baseNode });
+        edges.push(
+          { id: `e_pc_f_${i}`, sourceId: "F", targetId: `c_${i}`, type: "parent-child" },
+          { id: `e_pc_m_${i}`, sourceId: "M", targetId: `c_${i}`, type: "parent-child" }
+        );
+      }
+
+      const result = computeAutoLayout(nodes, edges, false);
+      const childXs = result.filter(n => n.id.startsWith("c_")).map(n => n.x).sort((a, b) => a - b);
+      const span = childXs[childXs.length - 1] - childXs[0];
+      expect(span).toBeGreaterThanOrEqual(981); // 9 * 109 = 981
+    });
+
+    it("N6: asserts computeAutoLayout successfully processes large-pedigree.json without overlaps or out-of-bound errors", () => {
+      const fixturePath = path.resolve(__dirname, "fixtures/large-pedigree.json");
+      const { nodes, edges } = JSON.parse(fs.readFileSync(fixturePath, "utf8"));
+
+      const result = computeAutoLayout(nodes, edges, false);
+
+      // Verify node count is preserved
+      expect(result).toHaveLength(55);
+
+      // Verify no overlaps exist on any row
+      const distinctYs = Array.from(new Set(result.map(n => n.y)));
+      for (const y of distinctYs) {
+        const collisions = detectRowCollisions(result as any, y);
+        if (collisions.length > 0) {
+          console.log(`COLLISIONS N6 at y=${y}:`, collisions.map(c => ({ left: c.leftNode.id, right: c.rightNode.id, overlap: c.overlap, leftX: c.leftNode.x, rightX: c.rightNode.x })));
+        }
+        expect(collisions).toHaveLength(0);
+      }
+
+      // Verify min X coordinate is >= GEN_GRID (120)
+      const minX = Math.min(...result.map(n => n.x));
+      expect(minX).toBeGreaterThanOrEqual(120 - 0.05);
     });
   });
 });

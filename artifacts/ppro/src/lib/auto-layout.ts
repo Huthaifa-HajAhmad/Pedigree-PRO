@@ -35,20 +35,31 @@ export interface LayoutEdge {
   inverted?: boolean;
 }
 
-import { GEN_GRID, NODE_GAP } from "@/features/pedigree-editor/canvas/types";
-import { resolveAllCollisions, recenterAllFamilies } from "./layout-engine";
-const GEN_Y_START = GEN_GRID;
-const GEN_SPACING = GEN_GRID;
-const H_SPACING = 110;
-const COUPLE_SPACING = 90;
+import { GEN_GRID, NODE_GAP, NODE_SIZE } from "@/features/pedigree-editor/canvas/types";
+import { resolveAllCollisions, recenterAllFamilies, swapCouplePartners, collectSubtree, detectRowCollisions } from "./layout-engine";
 const CANVAS_CENTER_X = 700;
 
 export function computeAutoLayout(
   nodes: LayoutNode[],
   edges: LayoutEdge[],
-  respectPinned: boolean
+  respectPinned: boolean,
+  spacing?: { nodeGap: number; genGrid: number },
+  canvasWidth?: number
 ): LayoutNode[] {
+  const nodeGap = spacing?.nodeGap ?? NODE_GAP;
+  const genGrid = spacing?.genGrid ?? GEN_GRID;
+  const genSpacing = genGrid;
+  const hSpacing = Math.round(nodeGap * 1.13); // maintain default proportion 110/96.8
+  const coupleSpacing = nodeGap;
   if (nodes.length === 0) return nodes;
+
+  const pinnedNodes = respectPinned ? nodes.filter(n => n.pinned) : [];
+  let effectiveCenterX = CANVAS_CENTER_X;
+  if (pinnedNodes.length > 0) {
+    effectiveCenterX = pinnedNodes.reduce((sum, n) => sum + n.x, 0) / pinnedNodes.length;
+  } else if (canvasWidth !== undefined) {
+    effectiveCenterX = canvasWidth / 2;
+  }
 
   const nodeMap = new Map(nodes.map((n) => [n.id, n]));
 
@@ -75,6 +86,8 @@ export function computeAutoLayout(
     }
   }
 
+  const adj = { childrenOf, parentsOf, couplesOf };
+
   // ── BFS generation assignment ───────────────────────────────────────────
   // Couple partners are forced to the same generation (max of theirs).
   const genOf = new Map<string, number>();
@@ -95,9 +108,14 @@ export function computeAutoLayout(
 
     // Propagate same generation to couple partners
     for (const partnerId of couplesOf.get(entry.id) ?? []) {
-      const partnerGen = genOf.get(partnerId);
-      if (partnerGen === undefined || partnerGen < entry.gen) {
-        queue.push({ id: partnerId, gen: entry.gen });
+      const hasParentsSelf = (parentsOf.get(entry.id) ?? []).length > 0;
+      const hasParentsPartner = (parentsOf.get(partnerId) ?? []).length > 0;
+      const bothOrNeither = (hasParentsSelf && hasParentsPartner) || (!hasParentsSelf && !hasParentsPartner);
+      if (bothOrNeither) {
+        const partnerGen = genOf.get(partnerId);
+        if (partnerGen === undefined || partnerGen < entry.gen) {
+          queue.push({ id: partnerId, gen: entry.gen });
+        }
       }
     }
     // Propagate to children
@@ -125,10 +143,28 @@ export function computeAutoLayout(
       for (const partnerId of couplesOf.get(n.id) ?? []) {
         const partnerGen = genOf.get(partnerId) ?? 0;
         if (partnerGen !== myGen) {
-          const max = Math.max(myGen, partnerGen);
-          genOf.set(n.id, max);
-          genOf.set(partnerId, max);
-          stable = false;
+          const hasParentsSelf = (parentsOf.get(n.id) ?? []).length > 0;
+          const hasParentsPartner = (parentsOf.get(partnerId) ?? []).length > 0;
+          
+          if ((hasParentsSelf && hasParentsPartner) || (!hasParentsSelf && !hasParentsPartner)) {
+            const max = Math.max(myGen, partnerGen);
+            genOf.set(n.id, max);
+            genOf.set(partnerId, max);
+            stable = false;
+          } else {
+            // One has parents, one does not.
+            // Keep the founder at min(founderGen, spouseGen) and let the spouse's gen stay.
+            const selfIsFounder = !hasParentsSelf;
+            const founderId = selfIsFounder ? n.id : partnerId;
+            const spouseId = selfIsFounder ? partnerId : n.id;
+            const founderGen = genOf.get(founderId) ?? 0;
+            const spouseGen = genOf.get(spouseId) ?? 0;
+            const newFounderGen = Math.min(founderGen, spouseGen);
+            if (founderGen !== newFounderGen) {
+              genOf.set(founderId, newFounderGen);
+              stable = false;
+            }
+          }
         }
       }
 
@@ -147,9 +183,38 @@ export function computeAutoLayout(
         if (parentGen < myGen - 1) {
           genOf.set(parentId, myGen - 1);
           stable = false;
+        } else if (parentGen > myGen) {
+          const parentHasParents = (parentsOf.get(parentId) ?? []).length > 0;
+          if (parentHasParents) {
+            genOf.set(parentId, myGen);
+            stable = false;
+          }
         }
       }
     }
+  }
+
+  // Compact and normalize generations to consecutive integers starting at 0
+  const allGens = new Set(genOf.values());
+  for (const n of nodes) {
+    const parentIds = parentsOf.get(n.id) ?? [];
+    const myGen = genOf.get(n.id);
+    if (myGen === undefined) continue;
+    for (const pId of parentIds) {
+      const pGen = genOf.get(pId);
+      if (pGen === undefined) continue;
+      if (myGen > pGen + 1) {
+        for (let g = pGen + 1; g < myGen; g++) {
+          allGens.add(g);
+        }
+      }
+    }
+  }
+
+  const sortedGensList = [...allGens].sort((a, b) => a - b);
+  const remap = new Map(sortedGensList.map((g, i) => [g, i]));
+  for (const [id, gen] of genOf) {
+    genOf.set(id, remap.get(gen)!);
   }
 
   // ── Group by generation ─────────────────────────────────────────────────
@@ -182,9 +247,9 @@ export function computeAutoLayout(
 
   for (const gen of sortedGens) {
     if (anchorGen !== null) {
-      genYOf.set(gen, anchorY + (gen - anchorGen) * GEN_SPACING);
+      genYOf.set(gen, anchorY + (gen - anchorGen) * genSpacing);
     } else {
-      genYOf.set(gen, GEN_Y_START + gen * GEN_SPACING);
+      genYOf.set(gen, genGrid + gen * genSpacing);
     }
   }
 
@@ -229,7 +294,7 @@ export function computeAutoLayout(
       if (!groupsMap.has(parentKey)) {
         groupsMap.set(parentKey, []);
         const pxs = getEffectiveParentXs(id, parentsOf, couplesOf, knownPos, nodeMap);
-        const cx = pxs.length > 0 ? pxs.reduce((a, b) => a + b, 0) / pxs.length : CANVAS_CENTER_X;
+        const cx = pxs.length > 0 ? pxs.reduce((a, b) => a + b, 0) / pxs.length : effectiveCenterX;
         groupCenterX.set(parentKey, cx);
       }
       groupsMap.get(parentKey)!.push(id);
@@ -238,8 +303,9 @@ export function computeAutoLayout(
 
     // 2. Attach married-in founders to their spouse's group
     const remainingFounders: string[] = [];
+    const unpinnedSet = new Set(unpinnedIds);
     for (const id of founders) {
-      const partners = (couplesOf.get(id) ?? []).filter((p) => unpinnedIds.includes(p));
+      const partners = (couplesOf.get(id) ?? []).filter((p) => unpinnedSet.has(p));
       const nonFounderPartner = partners.find((p) => nodeToGroupKey.has(p));
       if (nonFounderPartner) {
         const parentKey = nodeToGroupKey.get(nonFounderPartner)!;
@@ -250,10 +316,79 @@ export function computeAutoLayout(
       }
     }
 
+    // 2.5 Union-Find: Merge sibling groups connected by marriage
+    const groupKeys = Array.from(groupsMap.keys());
+    const parentGroup = new Map<string, string>();
+    for (const key of groupKeys) {
+      parentGroup.set(key, key);
+    }
+
+    const findGroup = (key: string): string => {
+      let root = key;
+      while (parentGroup.get(root) !== root) {
+        root = parentGroup.get(root)!;
+      }
+      let curr = key;
+      while (curr !== root) {
+        const next = parentGroup.get(curr)!;
+        parentGroup.set(curr, root);
+        curr = next;
+      }
+      return root;
+    };
+
+    const unionGroups = (key1: string, key2: string) => {
+      const r1 = findGroup(key1);
+      const r2 = findGroup(key2);
+      if (r1 !== r2) {
+        parentGroup.set(r1, r2);
+      }
+    };
+
+    for (const id of unpinnedIds) {
+      const key1 = nodeToGroupKey.get(id);
+      if (!key1) continue;
+      for (const partnerId of couplesOf.get(id) ?? []) {
+        const key2 = nodeToGroupKey.get(partnerId);
+        if (key2 && key1 !== key2) {
+          unionGroups(key1, key2);
+        }
+      }
+    }
+
+    const mergedGroupsMap = new Map<string, string[]>();
+    const mergedGroupCenters = new Map<string, number[]>();
+
+    for (const key of groupKeys) {
+      const root = findGroup(key);
+      if (!mergedGroupsMap.has(root)) {
+        mergedGroupsMap.set(root, []);
+        mergedGroupCenters.set(root, []);
+      }
+      mergedGroupsMap.get(root)!.push(...groupsMap.get(key)!);
+      mergedGroupCenters.get(root)!.push(groupCenterX.get(key) ?? effectiveCenterX);
+    }
+
+    groupsMap.clear();
+    groupCenterX.clear();
+    nodeToGroupKey.clear();
+
+    for (const [root, ids] of mergedGroupsMap) {
+      groupsMap.set(root, ids);
+      const centers = mergedGroupCenters.get(root) || [CANVAS_CENTER_X];
+      const avgCenter = centers.reduce((a, b) => a + b, 0) / centers.length;
+      groupCenterX.set(root, avgCenter);
+      for (const id of ids) {
+        nodeToGroupKey.set(id, root);
+      }
+    }
+
+
     // 3. Group remaining founders (founder couples and single founders)
     const assignedFounders = new Set<string>();
     let founderGroupIndex = 0;
     const founderGroups: { key: string; ids: string[] }[] = [];
+    const remainingFoundersSet = new Set(remainingFounders);
     for (const id of remainingFounders) {
       if (assignedFounders.has(id)) continue;
       const key = `founder_gp_${founderGroupIndex++}`;
@@ -261,11 +396,11 @@ export function computeAutoLayout(
       assignedFounders.add(id);
       nodeToGroupKey.set(id, key);
 
-      const partners = (couplesOf.get(id) ?? []).filter((p) => remainingFounders.includes(p) && !assignedFounders.has(p));
-      if (partners.length > 0 && partners[0]) {
-        groupIds.push(partners[0]);
-        assignedFounders.add(partners[0]);
-        nodeToGroupKey.set(partners[0], key);
+      const partners = (couplesOf.get(id) ?? []).filter((p) => remainingFoundersSet.has(p) && !assignedFounders.has(p));
+      for (const partner of partners) {
+        groupIds.push(partner);
+        assignedFounders.add(partner);
+        nodeToGroupKey.set(partner, key);
       }
       founderGroups.push({ key, ids: groupIds });
     }
@@ -338,23 +473,95 @@ export function computeAutoLayout(
       orderedFgKeys.push(...component);
     }
 
-    // 6. Set ordered founder groups X center coordinates
+    // 6. Set ordered founder groups X center coordinates with subtree-aware widths
     const founderGroupByKey = new Map(founderGroups.map(fg => [fg.key, fg]));
-    let fIdx = 0;
-    const spacing = 200;
+    
+    // Estimate the horizontal width required by a founder group's subtree
+    const getSubtreeWidth = (fgIds: string[]): number => {
+      const visited = new Set<string>();
+      
+      const traverse = (nodeId: string) => {
+        if (visited.has(nodeId)) return;
+        
+        // Find all transitively connected partners
+        const partnersQueue = [nodeId];
+        const component = new Set<string>([nodeId]);
+        let headIdx = 0;
+        while (headIdx < partnersQueue.length) {
+          const curr = partnersQueue[headIdx]!;
+          headIdx++;
+          for (const partnerId of couplesOf.get(curr) ?? []) {
+            if (!component.has(partnerId)) {
+              component.add(partnerId);
+              partnersQueue.push(partnerId);
+            }
+          }
+        }
+
+        for (const pId of component) {
+          visited.add(pId);
+        }
+
+        // Recurse to children of all nodes in this partner component
+        for (const pId of component) {
+          for (const childId of childrenOf.get(pId) ?? []) {
+            traverse(childId);
+          }
+        }
+      };
+
+      for (const id of fgIds) {
+        traverse(id);
+      }
+
+      // Group visited nodes by generation
+      const genCounts = new Map<number, number>();
+      for (const id of visited) {
+        const g = genOf.get(id) ?? 0;
+        genCounts.set(g, (genCounts.get(g) ?? 0) + 1);
+      }
+
+      const maxCount = Math.max(0, ...genCounts.values());
+      // Minimum width is 2 nodes (couple)
+      const calculatedWidth = maxCount > 0 ? (maxCount - 1) * hSpacing + NODE_SIZE : 0;
+      return Math.max(nodeGap * 2.06, calculatedWidth);
+    };
+
+    const relativeX = new Map<string, number>();
+    let currentX = 0;
+    const groupWidths = new Map<string, number>();
+
+    for (const key of orderedFgKeys) {
+      const fg = founderGroupByKey.get(key)!;
+      groupWidths.set(key, getSubtreeWidth(fg.ids));
+    }
+
+    for (let i = 0; i < orderedFgKeys.length; i++) {
+      const key = orderedFgKeys[i]!;
+      const w = groupWidths.get(key) ?? (nodeGap * 2.06);
+      if (i > 0) {
+        const prevKey = orderedFgKeys[i - 1]!;
+        const prevW = groupWidths.get(prevKey) ?? (nodeGap * 2.06);
+        currentX += (prevW + w) / 2 + nodeGap;
+      }
+      relativeX.set(key, currentX);
+    }
+
+    const totalSpan = currentX;
+    const startX = effectiveCenterX - totalSpan / 2;
+
     for (const key of orderedFgKeys) {
       const fg = founderGroupByKey.get(key)!;
       groupsMap.set(fg.key, fg.ids);
-      const cx = CANVAS_CENTER_X + (fIdx - (orderedFgKeys.length - 1) / 2) * spacing;
+      const cx = startX + (relativeX.get(key) ?? 0);
       groupCenterX.set(fg.key, cx);
-      fIdx++;
     }
 
 
     // Convert to the array shape sibGroups expects
     const sibGroups: { ids: string[]; centerX: number }[] = [];
     for (const [key, ids] of groupsMap) {
-      sibGroups.push({ ids, centerX: groupCenterX.get(key) ?? CANVAS_CENTER_X });
+      sibGroups.push({ ids, centerX: groupCenterX.get(key) ?? effectiveCenterX });
     }
 
     // Sort groups by centerX for left-to-right placement
@@ -363,6 +570,7 @@ export function computeAutoLayout(
     // For each group, order nodes (couples together), compute width, and place
     // centered around the group's centerX
     let nextAvailableX = -Infinity;
+    let prevGroupNodeIds: string[] | undefined = undefined;
     for (const group of sibGroups) {
       const ordered = orderNodesForGen(
         group.ids,
@@ -371,7 +579,8 @@ export function computeAutoLayout(
         parentsOf,
         knownPos,
         nodeMap,
-        edges
+        edges,
+        effectiveCenterX
       );
 
       let totalWidth = 0;
@@ -380,10 +589,101 @@ export function computeAutoLayout(
         const prev = ordered[i - 1];
         if (!curr || !prev) continue;
         const isCouple = (couplesOf.get(curr) ?? []).includes(prev);
-        totalWidth += isCouple ? COUPLE_SPACING : H_SPACING;
+        totalWidth += isCouple ? coupleSpacing : hSpacing;
       }
 
       const idealStartX = group.centerX - totalWidth / 2;
+      
+      let shortfall = nextAvailableX - idealStartX;
+      if (shortfall > 0 && prevGroupNodeIds && prevGroupNodeIds.length > 0) {
+        const shiftSet = new Set<string>();
+        for (const id of prevGroupNodeIds) {
+          const subtree = collectSubtree(id, adj, undefined, { anchorMarriedIn: true });
+          for (const sId of subtree) {
+            shiftSet.add(sId);
+          }
+        }
+        let maxPossibleLeftShift = shortfall;
+        
+        for (const id of shiftSet) {
+          const pos = knownPos.get(id);
+          if (!pos) continue;
+          
+          const limitX = pos.x - maxPossibleLeftShift;
+          if (limitX < genGrid) {
+            maxPossibleLeftShift = pos.x - genGrid;
+          }
+          
+          for (const [otherId, otherPos] of knownPos) {
+            if (shiftSet.has(otherId)) continue;
+            if (Math.abs(otherPos.y - pos.y) > 1) continue;
+            
+            if (otherPos.x < pos.x) {
+              const minAllowedX = otherPos.x + nodeGap;
+              if (pos.x - maxPossibleLeftShift < minAllowedX) {
+                maxPossibleLeftShift = pos.x - minAllowedX;
+              }
+            }
+          }
+        }
+        
+        if (maxPossibleLeftShift < 0) maxPossibleLeftShift = 0;
+        
+        if (maxPossibleLeftShift > 0) {
+          // Temporarily apply the shift
+          const originalPositions = new Map<string, { x: number; y: number }>();
+          for (const id of shiftSet) {
+            const pos = knownPos.get(id);
+            if (pos) {
+              originalPositions.set(id, pos);
+              knownPos.set(id, { ...pos, x: pos.x - maxPossibleLeftShift });
+            }
+          }
+
+          // Build touched Y list
+          const touchedYs = new Set<number>();
+          for (const id of shiftSet) {
+            const pos = knownPos.get(id);
+            if (pos) {
+              touchedYs.add(pos.y);
+            }
+          }
+
+          // Validate with detectRowCollisions on all touched rows
+          let hasCollision = false;
+          const allNodesList = Array.from(knownPos.entries()).map(([id, pos]) => ({
+            id,
+            x: pos.x,
+            y: pos.y,
+            type: nodeMap.get(id)?.type ?? "male",
+            affected: false,
+            carrier: false,
+            deceased: false,
+            proband: false,
+            label: "",
+            age: "",
+          } as any));
+
+          for (const touchedY of touchedYs) {
+            const collisions = detectRowCollisions(allNodesList, touchedY, nodeGap);
+            if (collisions.length > 0) {
+              hasCollision = true;
+              break;
+            }
+          }
+
+          if (hasCollision) {
+            // Revert shift
+            for (const [id, originalPos] of originalPositions) {
+              knownPos.set(id, originalPos);
+            }
+            maxPossibleLeftShift = 0;
+          } else {
+            nextAvailableX -= maxPossibleLeftShift;
+          }
+        }
+      }
+
       const startX = Math.max(idealStartX, nextAvailableX);
 
       let x = startX;
@@ -394,21 +694,30 @@ export function computeAutoLayout(
           const prev = ordered[i - 1];
           if (prev) {
             const isCouple = (couplesOf.get(curr) ?? []).includes(prev);
-            x += isCouple ? COUPLE_SPACING : H_SPACING;
+            x += isCouple ? coupleSpacing : hSpacing;
           }
         }
         knownPos.set(curr, { x, y });
       }
-      nextAvailableX = x + Math.round(NODE_GAP * 1.3);
+      nextAvailableX = x + Math.round(nodeGap * 1.3);
+      prevGroupNodeIds = ordered;
     }
   }
 
   // ── Apply initial positions ──
+  const minX = Math.min(...nodes.map(n => (respectPinned && n.pinned) ? n.x : (knownPos.get(n.id)?.x ?? n.x)));
+  if (minX < genGrid) {
+    const shift = genGrid - minX;
+    for (const [id, pos] of knownPos) {
+      knownPos.set(id, { ...pos, x: pos.x + shift });
+    }
+  }
+
   const initialNodes = nodes.map((n) => {
     if (respectPinned && n.pinned) return n;
     const pos = knownPos.get(n.id);
     if (!pos) return n;
-    return { ...n, x: Math.max(GEN_GRID, pos.x), y: pos.y };
+    return { ...n, x: pos.x, y: pos.y };
   });
 
   // ── Overlap resolution: use shared collision resolver for horizontal overlaps ──
@@ -419,51 +728,18 @@ export function computeAutoLayout(
   const resolvedNodes = resolveAllCollisions(
     initialNodes as any,
     edges as any,
-    pinnedIds
+    pinnedIds,
+    undefined,
+    nodeGap,
+    genGrid
   );
 
   const swappedNodes = swapCouplePartners(resolvedNodes, edges);
 
-  return recenterAllFamilies(swappedNodes as any, edges as any, pinnedIds) as any;
+  return recenterAllFamilies(swappedNodes as any, edges as any, pinnedIds, nodeGap, genGrid) as any;
 }
 
-function swapCouplePartners(nodes: LayoutNode[], edges: LayoutEdge[]): LayoutNode[] {
-  const nodeMap = new Map(nodes.map(n => [n.id, n]));
-  const result = [...nodes.map(n => ({ ...n }))];
 
-  for (const e of edges) {
-    if (e.type === "couple" || e.type === "consanguinity" || e.type === "divorced" || e.type === "separated") {
-      const n1 = nodeMap.get(e.sourceId);
-      const n2 = nodeMap.get(e.targetId);
-      if (!n1 || !n2) continue;
-
-      // Identify male and female
-      const male = n1.type === "male" ? n1 : n2.type === "male" ? n2 : null;
-      const female = n1.type === "female" ? n1 : n2.type === "female" ? n2 : null;
-
-      if (male && female && male.id !== female.id) {
-        const maleIdx = result.findIndex(rn => rn.id === male.id);
-        const femaleIdx = result.findIndex(rn => rn.id === female.id);
-        if (maleIdx !== -1 && femaleIdx !== -1) {
-          const maleNode = result[maleIdx]!;
-          const femaleNode = result[femaleIdx]!;
-          
-          const expectedLeft = e.inverted ? femaleNode : maleNode;
-          const expectedRight = e.inverted ? maleNode : femaleNode;
-
-          // If expectedLeft is to the right of expectedRight, swap their X coordinates
-          if (expectedLeft.x > expectedRight.x) {
-            const tempX = expectedLeft.x;
-            expectedLeft.x = expectedRight.x;
-            expectedRight.x = tempX;
-          }
-        }
-      }
-    }
-  }
-
-  return result;
-}
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -501,63 +777,70 @@ function orderNodesForGen(
   parentsOf: Map<string, string[]>,
   knownPos: Map<string, { x: number; y: number }>,
   nodeMap: Map<string, LayoutNode>,
-  edges: LayoutEdge[]
+  edges: LayoutEdge[],
+  effectiveCenterX: number
 ): string[] {
   const seen = new Set<string>();
   const groups: string[][] = [];
+  const nodeIdsSet = new Set(nodeIds);
 
   for (const id of nodeIds) {
     if (seen.has(id)) continue;
     seen.add(id);
     const partners = (couplesOf.get(id) ?? []).filter(
-      (p) => nodeIds.includes(p) && !seen.has(p)
+      (p) => nodeIdsSet.has(p) && !seen.has(p)
     );
-    if (partners.length > 0 && partners[0]) {
-      seen.add(partners[0]);
-      // Enforce male on the left, female on the right (unless inverted)
-      const p1 = nodeMap.get(id);
-      const p2 = nodeMap.get(partners[0]);
-      
-      const coupleEdge = edges.find(
-        (e) =>
-          (e.type === "couple" || e.type === "consanguinity" || e.type === "divorced" || e.type === "separated") &&
-          ((e.sourceId === id && e.targetId === partners[0]) || (e.sourceId === partners[0] && e.targetId === id))
-      );
-      const isInverted = coupleEdge?.inverted ?? false;
-
-      if (p1 && p2) {
-        const shouldSwap = isInverted
-          ? (p1.type === "male" || p2.type === "female") // Inverted: female left, male right
-          : (p1.type === "female" || p2.type === "male"); // Normal: male left, female right
-        if (shouldSwap) {
-          groups.push([partners[0], id]);
-        } else {
-          groups.push([id, partners[0]]);
-        }
-      } else {
-        groups.push([id, partners[0]]);
-      }
-    } else {
-      groups.push([id]);
+    
+    const partnerGroup = [id];
+    for (const p of partners) {
+      seen.add(p);
+      partnerGroup.push(p);
     }
+    
+    if (partnerGroup.length > 1) {
+      partnerGroup.sort((a, b) => {
+        const p1 = nodeMap.get(a);
+        const p2 = nodeMap.get(b);
+        if (!p1 || !p2) return 0;
+        
+        const edge = edges.find(
+          (e) =>
+            (e.type === "couple" || e.type === "consanguinity" || e.type === "divorced" || e.type === "separated") &&
+            ((e.sourceId === a && e.targetId === b) || (e.sourceId === b && e.targetId === a))
+        );
+        const isInverted = edge?.inverted ?? false;
+        
+        if (p1.type !== p2.type) {
+          if (isInverted) {
+            return p1.type === "female" ? -1 : 1;
+          } else {
+            return p1.type === "male" ? -1 : 1;
+          }
+        }
+        return 0;
+      });
+    }
+    groups.push(partnerGroup);
   }
 
   // Optimize placement order within sibling groups to place spouses closest to their partners
-  const ownParentX = avgParentX(nodeIds, parentsOf, couplesOf, knownPos, nodeMap);
+  const ownParentX = avgParentX(nodeIds, parentsOf, couplesOf, knownPos, nodeMap, effectiveCenterX);
 
   const getSpouseOffset = (groupIds: string[]): number => {
     let offset = 0;
     for (const id of groupIds) {
       const partners = couplesOf.get(id) ?? [];
       for (const p of partners) {
-        if (!nodeIds.includes(p)) {
-          const spouseParentX = avgParentX([p], parentsOf, couplesOf, knownPos, nodeMap);
+        if (!nodeIdsSet.has(p)) {
+          const spouseParentX = avgParentX([p], parentsOf, couplesOf, knownPos, nodeMap, effectiveCenterX);
           offset += (spouseParentX - ownParentX);
         }
       }
     }
     return offset;
   };
+
+  const indexMap = new Map<string, number>(nodeIds.map((id, i) => [id, i]));
 
   groups.sort((a, b) => {
     const aOffset = getSpouseOffset(a);
@@ -566,8 +849,8 @@ function orderNodesForGen(
       return aOffset - bOffset;
     }
 
-    const aX = avgParentX(a, parentsOf, couplesOf, knownPos, nodeMap);
-    const bX = avgParentX(b, parentsOf, couplesOf, knownPos, nodeMap);
+    const aX = avgParentX(a, parentsOf, couplesOf, knownPos, nodeMap, effectiveCenterX);
+    const bX = avgParentX(b, parentsOf, couplesOf, knownPos, nodeMap, effectiveCenterX);
     if (Math.abs(aX - bX) > 1) {
       return aX - bX;
     }
@@ -584,7 +867,7 @@ function orderNodesForGen(
       });
       const minIdx = Math.min(...indices);
       if (minIdx === 999) {
-        return Math.min(...groupIds.map((id) => nodeIds.indexOf(id)));
+        return Math.min(...groupIds.map((id) => indexMap.get(id) ?? 999));
       }
       return minIdx;
     };
@@ -593,8 +876,8 @@ function orderNodesForGen(
     const idxB = getGroupSiblingIndex(b);
     
     if (idxA === idxB) {
-      const originalIdxA = Math.min(...a.map((id) => nodeIds.indexOf(id)));
-      const originalIdxB = Math.min(...b.map((id) => nodeIds.indexOf(id)));
+      const originalIdxA = Math.min(...a.map((id) => indexMap.get(id) ?? 999));
+      const originalIdxB = Math.min(...b.map((id) => indexMap.get(id) ?? 999));
       return originalIdxA - originalIdxB;
     }
     return idxA - idxB;
@@ -608,11 +891,12 @@ function avgParentX(
   parentsOf: Map<string, string[]>,
   couplesOf: Map<string, string[]>,
   knownPos: Map<string, { x: number; y: number }>,
-  nodeMap: Map<string, LayoutNode>
+  nodeMap: Map<string, LayoutNode>,
+  effectiveCenterX: number
 ): number {
   const xs: number[] = [];
   for (const id of ids) {
     xs.push(...getEffectiveParentXs(id, parentsOf, couplesOf, knownPos, nodeMap));
   }
-  return xs.length > 0 ? xs.reduce((a, b) => a + b, 0) / xs.length : CANVAS_CENTER_X;
+  return xs.length > 0 ? xs.reduce((a, b) => a + b, 0) / xs.length : effectiveCenterX;
 }

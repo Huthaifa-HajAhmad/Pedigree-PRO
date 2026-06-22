@@ -1,0 +1,1230 @@
+{
+  "nodes": [
+    {
+      "id": "F1",
+      "type": "male",
+      "x": 0,
+      "y": 0,
+      "affected": false,
+      "carrier": false,
+      "deceased": false,
+      "proband": false,
+      "label": "",
+      "age": ""
+    },
+    {
+      "id": "M1",
+      "type": "female",
+      "x": 0,
+      "y": 0,
+      "affected": false,
+      "carrier": false,
+      "deceased": false,
+      "proband": false,
+      "label": "",
+      "age": ""
+    },
+    {
+      "id": "F2",
+      "type": "male",
+      "x": 0,
+      "y": 0,
+      "affected": false,
+      "carrier": false,
+      "deceased": false,
+      "proband": false,
+      "label": "",
+      "age": ""
+    },
+    {
+      "id": "M2",
+      "type": "female",
+      "x": 0,
+      "y": 0,
+      "affected": false,
+      "carrier": false,
+      "deceased": false,
+      "proband": false,
+      "label": "",
+      "age": ""
+    },
+    {
+      "id": "C1_1",
+      "type": "male",
+      "x": 0,
+      "y": 0,
+      "affected": false,
+      "carrier": false,
+      "deceased": false,
+      "proband": false,
+      "label": "",
+      "age": ""
+    },
+    {
+      "id": "C1_2",
+      "type": "female",
+      "x": 0,
+      "y": 0,
+      "affected": false,
+      "carrier": false,
+      "deceased": false,
+      "proband": false,
+      "label": "",
+      "age": ""
+    },
+    {
+      "id": "C1_3",
+      "type": "male",
+      "x": 0,
+      "y": 0,
+      "affected": false,
+      "carrier": false,
+      "deceased": false,
+      "proband": false,
+      "label": "",
+      "age": ""
+    },
+    {
+      "id": "C2_1",
+      "type": "male",
+      "x": 0,
+      "y": 0,
+      "affected": false,
+      "carrier": false,
+      "deceased": false,
+      "proband": false,
+      "label": "",
+      "age": ""
+    },
+    {
+      "id": "C2_2",
+      "type": "female",
+      "x": 0,
+      "y": 0,
+      "affected": false,
+      "carrier": false,
+      "deceased": false,
+      "proband": false,
+      "label": "",
+      "age": ""
+    },
+    {
+      "id": "C2_3",
+      "type": "female",
+      "x": 0,
+      "y": 0,
+      "affected": false,
+      "carrier": false,
+      "deceased": false,
+      "proband": false,
+      "label": "",
+      "age": ""
+    },
+    {
+      "id": "S1_1",
+      "type": "female",
+      "x": 0,
+      "y": 0,
+      "affected": false,
+      "carrier": false,
+      "deceased": false,
+      "proband": false,
+      "label": "",
+      "age": ""
+    },
+    {
+      "id": "S2_2",
+      "type": "male",
+      "x": 0,
+      "y": 0,
+      "affected": false,
+      "carrier": false,
+      "deceased": false,
+      "proband": false,
+      "label": "",
+      "age": ""
+    },
+    {
+      "id": "S1_3",
+      "type": "female",
+      "x": 0,
+      "y": 0,
+      "affected": false,
+      "carrier": false,
+      "deceased": false,
+      "proband": false,
+      "label": "",
+      "age": ""
+    },
+    {
+      "id": "GC1_1",
+      "type": "male",
+      "x": 0,
+      "y": 0,
+      "affected": false,
+      "carrier": false,
+      "deceased": false,
+      "proband": false,
+      "label": "",
+      "age": ""
+    },
+    {
+      "id": "GC1_2",
+      "type": "female",
+      "x": 0,
+      "y": 0,
+      "affected": false,
+      "carrier": false,
+      "deceased": false,
+      "proband": false,
+      "label": "",
+      "age": ""
+    },
+    {
+      "id": "GC1_3",
+      "type": "male",
+      "x": 0,
+      "y": 0,
+      "affected": false,
+      "carrier": false,
+      "deceased": false,
+      "proband": false,
+      "label": "",
+      "age": ""
+    },
+    {
+      "id": "GC2_1",
+      "type": "female",
+      "x": 0,
+      "y": 0,
+      "affected": false,
+      "carrier": false,
+      "deceased": false,
+      "proband": false,
+      "label": "",
+      "age": ""
+    },
+    {
+      "id": "GC2_2",
+      "type": "male",
+      "x": 0,
+      "y": 0,
+      "affected": false,
+      "carrier": false,
+      "deceased": false,
+      "proband": false,
+      "label": "",
+      "age": ""
+    },
+    {
+      "id": "GC2_3",
+      "type": "female",
+      "x": 0,
+      "y": 0,
+      "affected": false,
+      "carrier": false,
+      "deceased": false,
+      "proband": false,
+      "label": "",
+      "age": ""
+    },
+    {
+      "id": "GC3_1",
+      "type": "male",
+      "x": 0,
+      "y": 0,
+      "affected": false,
+      "carrier": false,
+      "deceased": false,
+      "proband": false,
+      "label": "",
+      "age": ""
+    },
+    {
+      "id": "GC3_2",
+      "type": "female",
+      "x": 0,
+      "y": 0,
+      "affected": false,
+      "carrier": false,
+      "deceased": false,
+      "proband": false,
+      "label": "",
+      "age": ""
+    },
+    {
+      "id": "GC3_3",
+      "type": "male",
+      "x": 0,
+      "y": 0,
+      "affected": false,
+      "carrier": false,
+      "deceased": false,
+      "proband": false,
+      "label": "",
+      "age": ""
+    },
+    {
+      "id": "GC4_1",
+      "type": "male",
+      "x": 0,
+      "y": 0,
+      "affected": false,
+      "carrier": false,
+      "deceased": false,
+      "proband": false,
+      "label": "",
+      "age": ""
+    },
+    {
+      "id": "GC4_2",
+      "type": "female",
+      "x": 0,
+      "y": 0,
+      "affected": false,
+      "carrier": false,
+      "deceased": false,
+      "proband": false,
+      "label": "",
+      "age": ""
+    },
+    {
+      "id": "SGC1",
+      "type": "female",
+      "x": 0,
+      "y": 0,
+      "affected": false,
+      "carrier": false,
+      "deceased": false,
+      "proband": false,
+      "label": "",
+      "age": ""
+    },
+    {
+      "id": "SGC2",
+      "type": "male",
+      "x": 0,
+      "y": 0,
+      "affected": false,
+      "carrier": false,
+      "deceased": false,
+      "proband": false,
+      "label": "",
+      "age": ""
+    },
+    {
+      "id": "SGC3",
+      "type": "female",
+      "x": 0,
+      "y": 0,
+      "affected": false,
+      "carrier": false,
+      "deceased": false,
+      "proband": false,
+      "label": "",
+      "age": ""
+    },
+    {
+      "id": "GGC1_1",
+      "type": "male",
+      "x": 0,
+      "y": 0,
+      "affected": false,
+      "carrier": false,
+      "deceased": false,
+      "proband": false,
+      "label": "",
+      "age": ""
+    },
+    {
+      "id": "GGC1_2",
+      "type": "female",
+      "x": 0,
+      "y": 0,
+      "affected": false,
+      "carrier": false,
+      "deceased": false,
+      "proband": false,
+      "label": "",
+      "age": ""
+    },
+    {
+      "id": "GGC1_3",
+      "type": "male",
+      "x": 0,
+      "y": 0,
+      "affected": false,
+      "carrier": false,
+      "deceased": false,
+      "proband": false,
+      "label": "",
+      "age": ""
+    },
+    {
+      "id": "GGC2_1",
+      "type": "female",
+      "x": 0,
+      "y": 0,
+      "affected": false,
+      "carrier": false,
+      "deceased": false,
+      "proband": false,
+      "label": "",
+      "age": ""
+    },
+    {
+      "id": "GGC2_2",
+      "type": "male",
+      "x": 0,
+      "y": 0,
+      "affected": false,
+      "carrier": false,
+      "deceased": false,
+      "proband": false,
+      "label": "",
+      "age": ""
+    },
+    {
+      "id": "GGC2_3",
+      "type": "female",
+      "x": 0,
+      "y": 0,
+      "affected": false,
+      "carrier": false,
+      "deceased": false,
+      "proband": false,
+      "label": "",
+      "age": ""
+    },
+    {
+      "id": "GGC3_1",
+      "type": "male",
+      "x": 0,
+      "y": 0,
+      "affected": false,
+      "carrier": false,
+      "deceased": false,
+      "proband": false,
+      "label": "",
+      "age": ""
+    },
+    {
+      "id": "GGC3_2",
+      "type": "female",
+      "x": 0,
+      "y": 0,
+      "affected": false,
+      "carrier": false,
+      "deceased": false,
+      "proband": false,
+      "label": "",
+      "age": ""
+    },
+    {
+      "id": "GGC3_3",
+      "type": "male",
+      "x": 0,
+      "y": 0,
+      "affected": false,
+      "carrier": false,
+      "deceased": false,
+      "proband": false,
+      "label": "",
+      "age": ""
+    },
+    {
+      "id": "SGGC1",
+      "type": "female",
+      "x": 0,
+      "y": 0,
+      "affected": false,
+      "carrier": false,
+      "deceased": false,
+      "proband": false,
+      "label": "",
+      "age": ""
+    },
+    {
+      "id": "SGGC2",
+      "type": "male",
+      "x": 0,
+      "y": 0,
+      "affected": false,
+      "carrier": false,
+      "deceased": false,
+      "proband": false,
+      "label": "",
+      "age": ""
+    },
+    {
+      "id": "SGGC3",
+      "type": "female",
+      "x": 0,
+      "y": 0,
+      "affected": false,
+      "carrier": false,
+      "deceased": false,
+      "proband": false,
+      "label": "",
+      "age": ""
+    },
+    {
+      "id": "GGGC1_1",
+      "type": "male",
+      "x": 0,
+      "y": 0,
+      "affected": false,
+      "carrier": false,
+      "deceased": false,
+      "proband": false,
+      "label": "",
+      "age": ""
+    },
+    {
+      "id": "GGGC1_2",
+      "type": "female",
+      "x": 0,
+      "y": 0,
+      "affected": false,
+      "carrier": false,
+      "deceased": false,
+      "proband": false,
+      "label": "",
+      "age": ""
+    },
+    {
+      "id": "GGGC1_3",
+      "type": "male",
+      "x": 0,
+      "y": 0,
+      "affected": false,
+      "carrier": false,
+      "deceased": false,
+      "proband": false,
+      "label": "",
+      "age": ""
+    },
+    {
+      "id": "GGGC2_1",
+      "type": "female",
+      "x": 0,
+      "y": 0,
+      "affected": false,
+      "carrier": false,
+      "deceased": false,
+      "proband": false,
+      "label": "",
+      "age": ""
+    },
+    {
+      "id": "GGGC2_2",
+      "type": "male",
+      "x": 0,
+      "y": 0,
+      "affected": false,
+      "carrier": false,
+      "deceased": false,
+      "proband": false,
+      "label": "",
+      "age": ""
+    },
+    {
+      "id": "GGGC2_3",
+      "type": "female",
+      "x": 0,
+      "y": 0,
+      "affected": false,
+      "carrier": false,
+      "deceased": false,
+      "proband": false,
+      "label": "",
+      "age": ""
+    },
+    {
+      "id": "GGGC3_1",
+      "type": "male",
+      "x": 0,
+      "y": 0,
+      "affected": false,
+      "carrier": false,
+      "deceased": false,
+      "proband": false,
+      "label": "",
+      "age": ""
+    },
+    {
+      "id": "GGGC3_2",
+      "type": "female",
+      "x": 0,
+      "y": 0,
+      "affected": false,
+      "carrier": false,
+      "deceased": false,
+      "proband": false,
+      "label": "",
+      "age": ""
+    },
+    {
+      "id": "SGGGC1",
+      "type": "female",
+      "x": 0,
+      "y": 0,
+      "affected": false,
+      "carrier": false,
+      "deceased": false,
+      "proband": false,
+      "label": "",
+      "age": ""
+    },
+    {
+      "id": "SGGGC2",
+      "type": "male",
+      "x": 0,
+      "y": 0,
+      "affected": false,
+      "carrier": false,
+      "deceased": false,
+      "proband": false,
+      "label": "",
+      "age": ""
+    },
+    {
+      "id": "GGGGC1_1",
+      "type": "male",
+      "x": 0,
+      "y": 0,
+      "affected": false,
+      "carrier": false,
+      "deceased": false,
+      "proband": false,
+      "label": "",
+      "age": ""
+    },
+    {
+      "id": "GGGGC1_2",
+      "type": "female",
+      "x": 0,
+      "y": 0,
+      "affected": false,
+      "carrier": false,
+      "deceased": false,
+      "proband": false,
+      "label": "",
+      "age": ""
+    },
+    {
+      "id": "GGGGC1_3",
+      "type": "male",
+      "x": 0,
+      "y": 0,
+      "affected": false,
+      "carrier": false,
+      "deceased": false,
+      "proband": false,
+      "label": "",
+      "age": ""
+    },
+    {
+      "id": "GGGGC2_1",
+      "type": "female",
+      "x": 0,
+      "y": 0,
+      "affected": false,
+      "carrier": false,
+      "deceased": false,
+      "proband": false,
+      "label": "",
+      "age": ""
+    },
+    {
+      "id": "GGGGC2_2",
+      "type": "male",
+      "x": 0,
+      "y": 0,
+      "affected": false,
+      "carrier": false,
+      "deceased": false,
+      "proband": false,
+      "label": "",
+      "age": ""
+    },
+    {
+      "id": "GGGGC2_3",
+      "type": "female",
+      "x": 0,
+      "y": 0,
+      "affected": false,
+      "carrier": false,
+      "deceased": false,
+      "proband": false,
+      "label": "",
+      "age": ""
+    }
+  ],
+  "edges": [
+    {
+      "id": "e_c_0_1",
+      "type": "couple",
+      "sourceId": "F1",
+      "targetId": "M1"
+    },
+    {
+      "id": "e_c_0_2",
+      "type": "couple",
+      "sourceId": "F2",
+      "targetId": "M2"
+    },
+    {
+      "id": "e_pc_F1_C1_1",
+      "type": "parent-child",
+      "sourceId": "F1",
+      "targetId": "C1_1"
+    },
+    {
+      "id": "e_pc_M1_C1_1",
+      "type": "parent-child",
+      "sourceId": "M1",
+      "targetId": "C1_1"
+    },
+    {
+      "id": "e_pc_F1_C1_2",
+      "type": "parent-child",
+      "sourceId": "F1",
+      "targetId": "C1_2"
+    },
+    {
+      "id": "e_pc_M1_C1_2",
+      "type": "parent-child",
+      "sourceId": "M1",
+      "targetId": "C1_2"
+    },
+    {
+      "id": "e_pc_F1_C1_3",
+      "type": "parent-child",
+      "sourceId": "F1",
+      "targetId": "C1_3"
+    },
+    {
+      "id": "e_pc_M1_C1_3",
+      "type": "parent-child",
+      "sourceId": "M1",
+      "targetId": "C1_3"
+    },
+    {
+      "id": "e_pc_F2_C2_1",
+      "type": "parent-child",
+      "sourceId": "F2",
+      "targetId": "C2_1"
+    },
+    {
+      "id": "e_pc_M2_C2_1",
+      "type": "parent-child",
+      "sourceId": "M2",
+      "targetId": "C2_1"
+    },
+    {
+      "id": "e_pc_F2_C2_2",
+      "type": "parent-child",
+      "sourceId": "F2",
+      "targetId": "C2_2"
+    },
+    {
+      "id": "e_pc_M2_C2_2",
+      "type": "parent-child",
+      "sourceId": "M2",
+      "targetId": "C2_2"
+    },
+    {
+      "id": "e_pc_F2_C2_3",
+      "type": "parent-child",
+      "sourceId": "F2",
+      "targetId": "C2_3"
+    },
+    {
+      "id": "e_pc_M2_C2_3",
+      "type": "parent-child",
+      "sourceId": "M2",
+      "targetId": "C2_3"
+    },
+    {
+      "id": "e_c_1_1",
+      "type": "couple",
+      "sourceId": "C1_1",
+      "targetId": "S1_1"
+    },
+    {
+      "id": "e_c_1_2",
+      "type": "couple",
+      "sourceId": "C2_1",
+      "targetId": "C1_2"
+    },
+    {
+      "id": "e_c_1_3",
+      "type": "couple",
+      "sourceId": "S2_2",
+      "targetId": "C2_2"
+    },
+    {
+      "id": "e_c_1_4",
+      "type": "couple",
+      "sourceId": "C1_3",
+      "targetId": "S1_3"
+    },
+    {
+      "id": "e_pc_C1_1_GC1_1",
+      "type": "parent-child",
+      "sourceId": "C1_1",
+      "targetId": "GC1_1"
+    },
+    {
+      "id": "e_pc_S1_1_GC1_1",
+      "type": "parent-child",
+      "sourceId": "S1_1",
+      "targetId": "GC1_1"
+    },
+    {
+      "id": "e_pc_C1_1_GC1_2",
+      "type": "parent-child",
+      "sourceId": "C1_1",
+      "targetId": "GC1_2"
+    },
+    {
+      "id": "e_pc_S1_1_GC1_2",
+      "type": "parent-child",
+      "sourceId": "S1_1",
+      "targetId": "GC1_2"
+    },
+    {
+      "id": "e_pc_C1_1_GC1_3",
+      "type": "parent-child",
+      "sourceId": "C1_1",
+      "targetId": "GC1_3"
+    },
+    {
+      "id": "e_pc_S1_1_GC1_3",
+      "type": "parent-child",
+      "sourceId": "S1_1",
+      "targetId": "GC1_3"
+    },
+    {
+      "id": "e_pc_C2_1_GC2_1",
+      "type": "parent-child",
+      "sourceId": "C2_1",
+      "targetId": "GC2_1"
+    },
+    {
+      "id": "e_pc_C1_2_GC2_1",
+      "type": "parent-child",
+      "sourceId": "C1_2",
+      "targetId": "GC2_1"
+    },
+    {
+      "id": "e_pc_C2_1_GC2_2",
+      "type": "parent-child",
+      "sourceId": "C2_1",
+      "targetId": "GC2_2"
+    },
+    {
+      "id": "e_pc_C1_2_GC2_2",
+      "type": "parent-child",
+      "sourceId": "C1_2",
+      "targetId": "GC2_2"
+    },
+    {
+      "id": "e_pc_C2_1_GC2_3",
+      "type": "parent-child",
+      "sourceId": "C2_1",
+      "targetId": "GC2_3"
+    },
+    {
+      "id": "e_pc_C1_2_GC2_3",
+      "type": "parent-child",
+      "sourceId": "C1_2",
+      "targetId": "GC2_3"
+    },
+    {
+      "id": "e_pc_S2_2_GC3_1",
+      "type": "parent-child",
+      "sourceId": "S2_2",
+      "targetId": "GC3_1"
+    },
+    {
+      "id": "e_pc_C2_2_GC3_1",
+      "type": "parent-child",
+      "sourceId": "C2_2",
+      "targetId": "GC3_1"
+    },
+    {
+      "id": "e_pc_S2_2_GC3_2",
+      "type": "parent-child",
+      "sourceId": "S2_2",
+      "targetId": "GC3_2"
+    },
+    {
+      "id": "e_pc_C2_2_GC3_2",
+      "type": "parent-child",
+      "sourceId": "C2_2",
+      "targetId": "GC3_2"
+    },
+    {
+      "id": "e_pc_S2_2_GC3_3",
+      "type": "parent-child",
+      "sourceId": "S2_2",
+      "targetId": "GC3_3"
+    },
+    {
+      "id": "e_pc_C2_2_GC3_3",
+      "type": "parent-child",
+      "sourceId": "C2_2",
+      "targetId": "GC3_3"
+    },
+    {
+      "id": "e_pc_C1_3_GC4_1",
+      "type": "parent-child",
+      "sourceId": "C1_3",
+      "targetId": "GC4_1"
+    },
+    {
+      "id": "e_pc_S1_3_GC4_1",
+      "type": "parent-child",
+      "sourceId": "S1_3",
+      "targetId": "GC4_1"
+    },
+    {
+      "id": "e_pc_C1_3_GC4_2",
+      "type": "parent-child",
+      "sourceId": "C1_3",
+      "targetId": "GC4_2"
+    },
+    {
+      "id": "e_pc_S1_3_GC4_2",
+      "type": "parent-child",
+      "sourceId": "S1_3",
+      "targetId": "GC4_2"
+    },
+    {
+      "id": "e_c_2_1",
+      "type": "couple",
+      "sourceId": "GC1_1",
+      "targetId": "SGC1"
+    },
+    {
+      "id": "e_c_2_2",
+      "type": "couple",
+      "sourceId": "SGC2",
+      "targetId": "GC2_1"
+    },
+    {
+      "id": "e_c_2_3",
+      "type": "couple",
+      "sourceId": "GC3_1",
+      "targetId": "SGC3"
+    },
+    {
+      "id": "e_pc_GC1_1_GGC1_1",
+      "type": "parent-child",
+      "sourceId": "GC1_1",
+      "targetId": "GGC1_1"
+    },
+    {
+      "id": "e_pc_SGC1_GGC1_1",
+      "type": "parent-child",
+      "sourceId": "SGC1",
+      "targetId": "GGC1_1"
+    },
+    {
+      "id": "e_pc_GC1_1_GGC1_2",
+      "type": "parent-child",
+      "sourceId": "GC1_1",
+      "targetId": "GGC1_2"
+    },
+    {
+      "id": "e_pc_SGC1_GGC1_2",
+      "type": "parent-child",
+      "sourceId": "SGC1",
+      "targetId": "GGC1_2"
+    },
+    {
+      "id": "e_pc_GC1_1_GGC1_3",
+      "type": "parent-child",
+      "sourceId": "GC1_1",
+      "targetId": "GGC1_3"
+    },
+    {
+      "id": "e_pc_SGC1_GGC1_3",
+      "type": "parent-child",
+      "sourceId": "SGC1",
+      "targetId": "GGC1_3"
+    },
+    {
+      "id": "e_pc_SGC2_GGC2_1",
+      "type": "parent-child",
+      "sourceId": "SGC2",
+      "targetId": "GGC2_1"
+    },
+    {
+      "id": "e_pc_GC2_1_GGC2_1",
+      "type": "parent-child",
+      "sourceId": "GC2_1",
+      "targetId": "GGC2_1"
+    },
+    {
+      "id": "e_pc_SGC2_GGC2_2",
+      "type": "parent-child",
+      "sourceId": "SGC2",
+      "targetId": "GGC2_2"
+    },
+    {
+      "id": "e_pc_GC2_1_GGC2_2",
+      "type": "parent-child",
+      "sourceId": "GC2_1",
+      "targetId": "GGC2_2"
+    },
+    {
+      "id": "e_pc_SGC2_GGC2_3",
+      "type": "parent-child",
+      "sourceId": "SGC2",
+      "targetId": "GGC2_3"
+    },
+    {
+      "id": "e_pc_GC2_1_GGC2_3",
+      "type": "parent-child",
+      "sourceId": "GC2_1",
+      "targetId": "GGC2_3"
+    },
+    {
+      "id": "e_pc_GC3_1_GGC3_1",
+      "type": "parent-child",
+      "sourceId": "GC3_1",
+      "targetId": "GGC3_1"
+    },
+    {
+      "id": "e_pc_SGC3_GGC3_1",
+      "type": "parent-child",
+      "sourceId": "SGC3",
+      "targetId": "GGC3_1"
+    },
+    {
+      "id": "e_pc_GC3_1_GGC3_2",
+      "type": "parent-child",
+      "sourceId": "GC3_1",
+      "targetId": "GGC3_2"
+    },
+    {
+      "id": "e_pc_SGC3_GGC3_2",
+      "type": "parent-child",
+      "sourceId": "SGC3",
+      "targetId": "GGC3_2"
+    },
+    {
+      "id": "e_pc_GC3_1_GGC3_3",
+      "type": "parent-child",
+      "sourceId": "GC3_1",
+      "targetId": "GGC3_3"
+    },
+    {
+      "id": "e_pc_SGC3_GGC3_3",
+      "type": "parent-child",
+      "sourceId": "SGC3",
+      "targetId": "GGC3_3"
+    },
+    {
+      "id": "e_c_3_1",
+      "type": "couple",
+      "sourceId": "GGC1_1",
+      "targetId": "SGGC1"
+    },
+    {
+      "id": "e_c_3_2",
+      "type": "couple",
+      "sourceId": "SGGC2",
+      "targetId": "GGC2_1"
+    },
+    {
+      "id": "e_c_3_3",
+      "type": "couple",
+      "sourceId": "GGC3_1",
+      "targetId": "SGGC3"
+    },
+    {
+      "id": "e_pc_GGC1_1_GGGC1_1",
+      "type": "parent-child",
+      "sourceId": "GGC1_1",
+      "targetId": "GGGC1_1"
+    },
+    {
+      "id": "e_pc_SGGC1_GGGC1_1",
+      "type": "parent-child",
+      "sourceId": "SGGC1",
+      "targetId": "GGGC1_1"
+    },
+    {
+      "id": "e_pc_GGC1_1_GGGC1_2",
+      "type": "parent-child",
+      "sourceId": "GGC1_1",
+      "targetId": "GGGC1_2"
+    },
+    {
+      "id": "e_pc_SGGC1_GGGC1_2",
+      "type": "parent-child",
+      "sourceId": "SGGC1",
+      "targetId": "GGGC1_2"
+    },
+    {
+      "id": "e_pc_GGC1_1_GGGC1_3",
+      "type": "parent-child",
+      "sourceId": "GGC1_1",
+      "targetId": "GGGC1_3"
+    },
+    {
+      "id": "e_pc_SGGC1_GGGC1_3",
+      "type": "parent-child",
+      "sourceId": "SGGC1",
+      "targetId": "GGGC1_3"
+    },
+    {
+      "id": "e_pc_SGGC2_GGGC2_1",
+      "type": "parent-child",
+      "sourceId": "SGGC2",
+      "targetId": "GGGC2_1"
+    },
+    {
+      "id": "e_pc_GGC2_1_GGGC2_1",
+      "type": "parent-child",
+      "sourceId": "GGC2_1",
+      "targetId": "GGGC2_1"
+    },
+    {
+      "id": "e_pc_SGGC2_GGGC2_2",
+      "type": "parent-child",
+      "sourceId": "SGGC2",
+      "targetId": "GGGC2_2"
+    },
+    {
+      "id": "e_pc_GGC2_1_GGGC2_2",
+      "type": "parent-child",
+      "sourceId": "GGC2_1",
+      "targetId": "GGGC2_2"
+    },
+    {
+      "id": "e_pc_SGGC2_GGGC2_3",
+      "type": "parent-child",
+      "sourceId": "SGGC2",
+      "targetId": "GGGC2_3"
+    },
+    {
+      "id": "e_pc_GGC2_1_GGGC2_3",
+      "type": "parent-child",
+      "sourceId": "GGC2_1",
+      "targetId": "GGGC2_3"
+    },
+    {
+      "id": "e_pc_GGC3_1_GGGC3_1",
+      "type": "parent-child",
+      "sourceId": "GGC3_1",
+      "targetId": "GGGC3_1"
+    },
+    {
+      "id": "e_pc_SGGC3_GGGC3_1",
+      "type": "parent-child",
+      "sourceId": "SGGC3",
+      "targetId": "GGGC3_1"
+    },
+    {
+      "id": "e_pc_GGC3_1_GGGC3_2",
+      "type": "parent-child",
+      "sourceId": "GGC3_1",
+      "targetId": "GGGC3_2"
+    },
+    {
+      "id": "e_pc_SGGC3_GGGC3_2",
+      "type": "parent-child",
+      "sourceId": "SGGC3",
+      "targetId": "GGGC3_2"
+    },
+    {
+      "id": "e_c_4_1",
+      "type": "couple",
+      "sourceId": "GGGC1_1",
+      "targetId": "SGGGC1"
+    },
+    {
+      "id": "e_c_4_2",
+      "type": "couple",
+      "sourceId": "SGGGC2",
+      "targetId": "GGGC2_1"
+    },
+    {
+      "id": "e_pc_GGGC1_1_GGGGC1_1",
+      "type": "parent-child",
+      "sourceId": "GGGC1_1",
+      "targetId": "GGGGC1_1"
+    },
+    {
+      "id": "e_pc_SGGGC1_GGGGC1_1",
+      "type": "parent-child",
+      "sourceId": "SGGGC1",
+      "targetId": "GGGGC1_1"
+    },
+    {
+      "id": "e_pc_GGGC1_1_GGGGC1_2",
+      "type": "parent-child",
+      "sourceId": "GGGC1_1",
+      "targetId": "GGGGC1_2"
+    },
+    {
+      "id": "e_pc_SGGGC1_GGGGC1_2",
+      "type": "parent-child",
+      "sourceId": "SGGGC1",
+      "targetId": "GGGGC1_2"
+    },
+    {
+      "id": "e_pc_GGGC1_1_GGGGC1_3",
+      "type": "parent-child",
+      "sourceId": "GGGC1_1",
+      "targetId": "GGGGC1_3"
+    },
+    {
+      "id": "e_pc_SGGGC1_GGGGC1_3",
+      "type": "parent-child",
+      "sourceId": "SGGGC1",
+      "targetId": "GGGGC1_3"
+    },
+    {
+      "id": "e_pc_SGGGC2_GGGGC2_1",
+      "type": "parent-child",
+      "sourceId": "SGGGC2",
+      "targetId": "GGGGC2_1"
+    },
+    {
+      "id": "e_pc_GGGC2_1_GGGGC2_1",
+      "type": "parent-child",
+      "sourceId": "GGGC2_1",
+      "targetId": "GGGGC2_1"
+    },
+    {
+      "id": "e_pc_SGGGC2_GGGGC2_2",
+      "type": "parent-child",
+      "sourceId": "SGGGC2",
+      "targetId": "GGGGC2_2"
+    },
+    {
+      "id": "e_pc_GGGC2_1_GGGGC2_2",
+      "type": "parent-child",
+      "sourceId": "GGGC2_1",
+      "targetId": "GGGGC2_2"
+    },
+    {
+      "id": "e_pc_SGGGC2_GGGGC2_3",
+      "type": "parent-child",
+      "sourceId": "SGGGC2",
+      "targetId": "GGGGC2_3"
+    },
+    {
+      "id": "e_pc_GGGC2_1_GGGGC2_3",
+      "type": "parent-child",
+      "sourceId": "GGGC2_1",
+      "targetId": "GGGGC2_3"
+    }
+  ]
+}
