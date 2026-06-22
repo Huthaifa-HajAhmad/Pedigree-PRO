@@ -158,7 +158,7 @@ export function getRowTolerance(nodes: PedigreeNode[], genGrid = GEN_GRID): numb
   let minDelta = Infinity;
   for (let i = 1; i < uniqueYs.length; i++) {
     const delta = uniqueYs[i]! - uniqueYs[i - 1]!;
-    if (delta > 0.01 && delta < minDelta) {
+    if (delta >= 20 && delta < minDelta) {
       minDelta = delta;
     }
   }
@@ -226,10 +226,7 @@ export function collectSubtree(
   // Include couple partners
   for (const partnerId of adj.couplesOf.get(nodeId) ?? []) {
     if (!v.has(partnerId)) {
-      const nodeHasParents = (adj.parentsOf.get(nodeId) ?? []).length > 0;
-      const partnerHasParents = (adj.parentsOf.get(partnerId) ?? []).length > 0;
-
-      if (options?.anchorMarriedIn || (nodeHasParents && partnerHasParents)) {
+      if (options?.anchorMarriedIn) {
         // If the partner has parents, and those parents are not in the visited set,
         // we do not include the partner in the rigid subtree to avoid breaking parent-child connections.
         const partnerParents = adj.parentsOf.get(partnerId) ?? [];
@@ -962,9 +959,6 @@ export function recenterAllFamilies(
       break;
     }
     history.push(stateStr);
-    if (history.length > 2) {
-      history.shift();
-    }
 
     const tol = getRowTolerance(currentNodes, genGrid);
 
@@ -1037,8 +1031,10 @@ export function findInsertPosition(
 
   let testX = targetX;
   let collision = true;
+  let guard = 0;
+  const maxIterations = rowNodes.length * 2;
 
-  while (collision) {
+  while (collision && guard++ < maxIterations) {
     collision = false;
     for (const n of rowNodes) {
       if (Math.abs(n.x - testX) < NODE_GAP - 0.05) {
@@ -1062,11 +1058,24 @@ export function swapCouplePartners(nodes: PedigreeNode[], edges: PedigreeEdge[])
   const nodeMap = new Map(nodes.map(n => [n.id, n]));
   const result = [...nodes.map(n => ({ ...n }))];
 
+  const coupleCount = new Map<string, number>();
+  for (const e of edges) {
+    if (e.type === "couple" || e.type === "consanguinity" || e.type === "divorced" || e.type === "separated") {
+      coupleCount.set(e.sourceId, (coupleCount.get(e.sourceId) ?? 0) + 1);
+      coupleCount.set(e.targetId, (coupleCount.get(e.targetId) ?? 0) + 1);
+    }
+  }
+
   for (const e of edges) {
     if (e.type === "couple" || e.type === "consanguinity" || e.type === "divorced" || e.type === "separated") {
       const n1 = nodeMap.get(e.sourceId);
       const n2 = nodeMap.get(e.targetId);
       if (!n1 || !n2) continue;
+
+      // Skip swapping if either partner is involved in multiple couple relationships
+      if ((coupleCount.get(n1.id) ?? 0) > 1 || (coupleCount.get(n2.id) ?? 0) > 1) {
+        continue;
+      }
 
       // Identify male and female
       const male = n1.type === "male" ? n1 : n2.type === "male" ? n2 : null;

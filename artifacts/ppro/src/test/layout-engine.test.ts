@@ -12,9 +12,12 @@ import {
   buildAdjacency,
   buildNodeMap,
   ROW_TOLERANCE,
+  findInsertPosition,
+  getRowTolerance,
+  swapCouplePartners,
 } from "../lib/layout-engine";
 import { computeAutoLayout } from "../lib/auto-layout";
-import { PedigreeNode, PedigreeEdge } from "@/features/pedigree-editor/canvas/types";
+import { PedigreeNode, PedigreeEdge, NODE_GAP } from "@/features/pedigree-editor/canvas/types";
 import { computeSibshipGroupTrack } from "@/features/pedigree-editor/canvas/canvasUtils";
 import { computeFamilyChildYOffset } from "@/features/pedigree-editor/canvas/SibshipGroup";
 
@@ -1175,6 +1178,155 @@ describe("layout-engine", () => {
       // Verify min X coordinate is >= GEN_GRID (120)
       const minX = Math.min(...result.map(n => n.x));
       expect(minX).toBeGreaterThanOrEqual(120 - 0.05);
+    });
+
+    it("B1: findInsertPosition terminates safely without infinite loop on unresolvable collisions", () => {
+      const nodes: any[] = [
+        { id: "n1", x: 100, y: 120, type: "male", ...baseNode },
+        { id: "n2", x: 196.8, y: 120, type: "female", ...baseNode },
+        { id: "n3", x: 293.6, y: 120, type: "male", ...baseNode },
+      ];
+      const edges: any[] = [];
+      const resultX = findInsertPosition(nodes, edges, 150, 120);
+      expect(resultX).toBeDefined();
+      expect(typeof resultX).toBe("number");
+    });
+
+    it("B2: initial minX shift in computeAutoLayout excludes pinned nodes from threshold and does not shift them", () => {
+      const nodes: any[] = [
+        { id: "p1", x: 50, y: 0, type: "male", pinned: true, ...baseNode },
+        { id: "c1", x: 60, y: 120, type: "female", ...baseNode },
+        { id: "c2", x: 156.8, y: 120, type: "male", ...baseNode },
+      ];
+      const edges: any[] = [
+        { id: "e_c", sourceId: "c1", targetId: "c2", type: "couple" }
+      ];
+      const result = computeAutoLayout(nodes, edges, true);
+      const newP1 = result.find(n => n.id === "p1")!;
+      const newC1 = result.find(n => n.id === "c1")!;
+      const newC2 = result.find(n => n.id === "c2")!;
+
+      // Pinned node remains exactly at x=50
+      expect(newP1.x).toBe(50);
+      // Unpinned nodes are shifted to at least genGrid (120)
+      expect(newC1.x).toBeGreaterThanOrEqual(120);
+      expect(newC2.x).toBeGreaterThanOrEqual(120);
+    });
+
+    it("B3: founder group placement reserves subtree width to prevent descendant overlaps", () => {
+      const nodes: any[] = [
+        { id: "F1", type: "male", ...baseNode },
+        { id: "M1", type: "female", ...baseNode },
+        { id: "C1_1", type: "male", ...baseNode },
+        { id: "C1_2", type: "male", ...baseNode },
+        { id: "C1_3", type: "male", ...baseNode },
+        { id: "F2", type: "male", ...baseNode },
+        { id: "M2", type: "female", ...baseNode },
+        { id: "C2_1", type: "male", ...baseNode },
+      ];
+      const edges: any[] = [
+        { id: "e_c1", sourceId: "F1", targetId: "M1", type: "couple" },
+        { id: "e_pc1_1", sourceId: "F1", targetId: "C1_1", type: "parent-child" },
+        { id: "e_pc1_2", sourceId: "F1", targetId: "C1_2", type: "parent-child" },
+        { id: "e_pc1_3", sourceId: "F1", targetId: "C1_3", type: "parent-child" },
+        { id: "e_c2", sourceId: "F2", targetId: "M2", type: "couple" },
+        { id: "e_pc2_1", sourceId: "F2", targetId: "C2_1", type: "parent-child" },
+      ];
+      const result = computeAutoLayout(nodes, edges, false);
+      
+      const f1 = result.find(n => n.id === "F1")!;
+      const m1 = result.find(n => n.id === "M1")!;
+      const f2 = result.find(n => n.id === "F2")!;
+      const m2 = result.find(n => n.id === "M2")!;
+      
+      const center1 = (f1.x + m1.x) / 2;
+      const center2 = (f2.x + m2.x) / 2;
+      expect(Math.abs(center2 - center1)).toBeGreaterThanOrEqual(1.5 * NODE_GAP);
+    });
+
+    it("B4: getRowTolerance delta floor of 20px prevents jitter from collapsing row tolerance", () => {
+      const nodes: any[] = [
+        { id: "n1", x: 100, y: 100, type: "male", ...baseNode },
+        { id: "n2", x: 200, y: 100.5, type: "female", ...baseNode },
+        { id: "n3", x: 300, y: 140, type: "male", ...baseNode },
+      ];
+      const tol = getRowTolerance(nodes);
+      expect(tol).toBeGreaterThanOrEqual(15);
+      expect(tol).toBeLessThan(30);
+    });
+
+    it("B5: recenterAllFamilies terminates and converges cleanly on period-3 limit cycle conflict", () => {
+      const nodes: any[] = [
+        { id: "n0", x: 200, y: 0, type: "male", ...baseNode },
+        { id: "n1", x: 300, y: 120, type: "male", ...baseNode },
+        { id: "n2", x: 250, y: 240, type: "male", ...baseNode },
+        { id: "n3", x: 350, y: 360, type: "male", ...baseNode },
+        { id: "n4", x: 280, y: 480, type: "male", ...baseNode },
+      ];
+      const edges: any[] = [
+        { id: "e1", sourceId: "n0", targetId: "n1", type: "parent-child" },
+        { id: "e2", sourceId: "n1", targetId: "n2", type: "parent-child" },
+        { id: "e3", sourceId: "n2", targetId: "n3", type: "parent-child" },
+        { id: "e4", sourceId: "n3", targetId: "n4", type: "parent-child" },
+      ];
+      const start = Date.now();
+      const result = recenterAllFamilies(nodes, edges);
+      const duration = Date.now() - start;
+      expect(duration).toBeLessThan(100);
+      expect(result).toHaveLength(5);
+    });
+
+    it("B6: swapCouplePartners skips swapping for nodes with multiple spouses to preserve orderNodesForGen order", () => {
+      const nodes: any[] = [
+        { id: "husband", x: 100, y: 120, type: "male", ...baseNode },
+        { id: "wife1", x: 200, y: 120, type: "female", ...baseNode },
+        { id: "wife2", x: 300, y: 120, type: "female", ...baseNode },
+      ];
+      const edges: any[] = [
+        { id: "e1", sourceId: "husband", targetId: "wife1", type: "couple" },
+        { id: "e2", sourceId: "husband", targetId: "wife2", type: "couple" },
+      ];
+      const result = swapCouplePartners(nodes, edges);
+      const newH = result.find(n => n.id === "husband")!;
+      const newW1 = result.find(n => n.id === "wife1")!;
+      const newW2 = result.find(n => n.id === "wife2")!;
+
+      expect(newH.x).toBe(100);
+      expect(newW1.x).toBe(200);
+      expect(newW2.x).toBe(300);
+    });
+
+    it("B8 (F0i): collectSubtree default glues consanguineous couple (both have parents) on collision shift", () => {
+      const nodes: any[] = [
+        { id: "A", x: 100, y: 0, type: "male", ...baseNode },
+        { id: "B", x: 196.8, y: 0, type: "female", ...baseNode },
+        { id: "D", x: 500, y: 0, type: "male", ...baseNode },
+        { id: "E", x: 596.8, y: 0, type: "female", ...baseNode },
+        { id: "C1", x: 250, y: 120, type: "male", ...baseNode },
+        { id: "C2", x: 540, y: 120, type: "female", ...baseNode },
+        { id: "F", x: 395, y: 240, type: "unknown", ...baseNode },
+        { id: "Blk", x: 240, y: 120, type: "male", ...baseNode },
+      ];
+      const edges: any[] = [
+        { id: "c_ab", sourceId: "A", targetId: "B", type: "couple" },
+        { id: "pc_a_c1", sourceId: "A", targetId: "C1", type: "parent-child" },
+        { id: "pc_b_c1", sourceId: "B", targetId: "C1", type: "parent-child" },
+        { id: "c_de", sourceId: "D", targetId: "E", type: "couple" },
+        { id: "pc_d_c2", sourceId: "D", targetId: "C2", type: "parent-child" },
+        { id: "pc_e_c2", sourceId: "E", targetId: "C2", type: "parent-child" },
+        { id: "c_cons", sourceId: "C1", targetId: "C2", type: "consanguinity" },
+        { id: "pc_c1_f", sourceId: "C1", targetId: "F", type: "parent-child" },
+        { id: "pc_c2_f", sourceId: "C2", targetId: "F", type: "parent-child" },
+      ];
+      const resolved = resolveAllCollisions(nodes, edges);
+      const nC1 = resolved.find(n => n.id === "C1")!;
+      const nC2 = resolved.find(n => n.id === "C2")!;
+      const nF = resolved.find(n => n.id === "F")!;
+      
+      // Couple glue: they must shift together, so their initial gap of 290 is preserved
+      expect(nC2.x - nC1.x).toBeCloseTo(290, 1);
+      expect(nF.x).toBeGreaterThan(Math.min(nC1.x, nC2.x));
+      expect(nF.x).toBeLessThan(Math.max(nC1.x, nC2.x));
     });
   });
 });

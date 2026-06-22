@@ -39,13 +39,13 @@ import { GEN_GRID, NODE_GAP, NODE_SIZE } from "@/features/pedigree-editor/canvas
 import { resolveAllCollisions, recenterAllFamilies, swapCouplePartners, collectSubtree, detectRowCollisions } from "./layout-engine";
 const CANVAS_CENTER_X = 700;
 
-export function computeAutoLayout(
-  nodes: LayoutNode[],
+export function computeAutoLayout<T extends LayoutNode>(
+  nodes: T[],
   edges: LayoutEdge[],
   respectPinned: boolean,
   spacing?: { nodeGap: number; genGrid: number },
   canvasWidth?: number
-): LayoutNode[] {
+): T[] {
   const nodeGap = spacing?.nodeGap ?? NODE_GAP;
   const genGrid = spacing?.genGrid ?? GEN_GRID;
   const genSpacing = genGrid;
@@ -235,7 +235,7 @@ export function computeAutoLayout(
       const nodeIds = genGroups.get(gen)!;
       const pinnedYs = nodeIds
         .map((id) => nodeMap.get(id))
-        .filter((n): n is LayoutNode => !!n?.pinned)
+        .filter((n): n is T => !!n?.pinned)
         .map((n) => n.y);
       if (pinnedYs.length > 0) {
         anchorGen = gen;
@@ -559,9 +559,10 @@ export function computeAutoLayout(
 
 
     // Convert to the array shape sibGroups expects
-    const sibGroups: { ids: string[]; centerX: number }[] = [];
+    const sibGroups: { ids: string[]; centerX: number; key?: string; subtreeWidth?: number }[] = [];
     for (const [key, ids] of groupsMap) {
-      sibGroups.push({ ids, centerX: groupCenterX.get(key) ?? effectiveCenterX });
+      const subtreeWidth = groupWidths.get(key);
+      sibGroups.push({ ids, centerX: groupCenterX.get(key) ?? effectiveCenterX, key, subtreeWidth });
     }
 
     // Sort groups by centerX for left-to-right placement
@@ -699,16 +700,24 @@ export function computeAutoLayout(
         }
         knownPos.set(curr, { x, y });
       }
-      nextAvailableX = x + Math.round(nodeGap * 1.3);
+      if (gen === 0 && group.key?.startsWith("founder_gp_") && group.subtreeWidth !== undefined) {
+        const placedCenter = startX + totalWidth / 2;
+        nextAvailableX = placedCenter + group.subtreeWidth / 2 + nodeGap;
+      } else {
+        nextAvailableX = x + Math.round(nodeGap * 1.3);
+      }
       prevGroupNodeIds = ordered;
     }
   }
 
   // ── Apply initial positions ──
-  const minX = Math.min(...nodes.map(n => (respectPinned && n.pinned) ? n.x : (knownPos.get(n.id)?.x ?? n.x)));
+  const unpinnedNodes = nodes.filter(n => !(respectPinned && n.pinned));
+  const minX = unpinnedNodes.length > 0 ? Math.min(...unpinnedNodes.map(n => knownPos.get(n.id)?.x ?? n.x)) : genGrid;
   if (minX < genGrid) {
     const shift = genGrid - minX;
     for (const [id, pos] of knownPos) {
+      const node = nodeMap.get(id);
+      if (respectPinned && node?.pinned) continue;
       knownPos.set(id, { ...pos, x: pos.x + shift });
     }
   }
@@ -736,7 +745,7 @@ export function computeAutoLayout(
 
   const swappedNodes = swapCouplePartners(resolvedNodes, edges);
 
-  return recenterAllFamilies(swappedNodes as any, edges as any, pinnedIds, nodeGap, genGrid) as any;
+  return recenterAllFamilies(swappedNodes as any, edges as any, pinnedIds, nodeGap, genGrid) as unknown as T[];
 }
 
 
