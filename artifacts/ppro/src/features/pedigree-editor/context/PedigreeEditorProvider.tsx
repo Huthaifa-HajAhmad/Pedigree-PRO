@@ -19,9 +19,9 @@ import { listProfilePrivateKeys } from "@workspace/browser-backend";
 import { usePedigreeDraft } from "@/hooks/use-pedigree-draft";
 import { usePedigreeCanvas } from "@/features/pedigree-editor/hooks/use-pedigree-canvas";
 import { parseCanvas } from "@/features/pedigree-editor/utils/helpers";
-import { getModuleCanvasConfig } from "@/features/pedigree-editor/context/CanvasConfigContext";
+import { getModuleCanvasConfig, useCanvasConfig } from "@/features/pedigree-editor/context/CanvasConfigContext";
 import { pedigreeEditorReducer } from "./reducer";
-import { INITIAL_STATE, type PedigreeEditorContextValue } from "./types";
+import { INITIAL_STATE, type PedigreeEditorContextValue, type PedigreeEditorAction } from "./types";
 import type { PedigreeNode, PedigreeEdge, PedigreeAnnotation, CanvasData } from "@/features/pedigree-editor/canvas/types";
 import { NODE_SIZE, NODE_GAP, GEN_GRID } from "@/features/pedigree-editor/canvas/types";
 
@@ -41,9 +41,13 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
   const restoreVersionMutation = useRestoreVersion();
   const deleteVersionMutation = useDeleteVersion();
 
-  const [state, dispatch] = useReducer(pedigreeEditorReducer, INITIAL_STATE);
+  const [state, rawDispatch] = useReducer(pedigreeEditorReducer, INITIAL_STATE);
   const stateRef = useRef(state);
   stateRef.current = state;
+
+  const { config } = useCanvasConfig();
+  const configRef = useRef(config);
+  configRef.current = config;
 
   const svgRef = useRef<SVGSVGElement>(null);
   const canvasRef = useRef<CanvasData | null>(state.canvas);
@@ -62,15 +66,32 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
   // Reset initial sync when pedigree id changes (M8 fix)
   useEffect(() => { initialSyncDoneRef.current = false; }, [id]);
   const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastNodesLengthRef = useRef(state.canvas.nodes.length);
+  const lastEdgesLengthRef = useRef(state.canvas.edges.length);
+  const skipLiveLayoutRef = useRef(false);
+
+  const dispatch = useCallback((action: PedigreeEditorAction) => {
+    if (
+      action.type === "UNDO" ||
+      action.type === "REDO" ||
+      action.type === "SET_CANVAS" ||
+      action.type === "ENTER_PREVIEW" ||
+      action.type === "EXIT_PREVIEW"
+    ) {
+      skipLiveLayoutRef.current = true;
+    }
+    rawDispatch(action);
+  }, []);
 
   const { showDraftBanner, draftEnabledRef, handleRestoreDraft, handleDismissDraft } = usePedigreeDraft({
     id, pedigreeData: pedigree ?? null, canvasRef, draftKeyRef,
   });
 
-  const backgroundSaveVersion = useCallback(async (label: string) => {
+  const backgroundSaveVersion = useCallback(async (label: string, customCanvas?: CanvasData) => {
     try {
-      const t = generateThumbnail(stateRef.current.canvas);
-      const canvasData = JSON.stringify(stateRef.current.canvas);
+      const targetCanvas = customCanvas ?? stateRef.current.canvas;
+      const t = generateThumbnail(targetCanvas);
+      const canvasData = JSON.stringify(targetCanvas);
       const canvasHash = cryptoComputeHash(canvasData);
       const keys = await listProfilePrivateKeys();
       const activeKey = keys.length > 0 ? keys[0] : null;
@@ -95,8 +116,30 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
 
   useEffect(() => {
     if (pedigree?.canvas_data !== undefined && !initialSyncDoneRef.current) {
-      dispatch({ type: "SET_CANVAS", canvas: parseCanvas(pedigree.canvas_data) });
+      const parsed = parseCanvas(pedigree.canvas_data);
+      skipLiveLayoutRef.current = true;
+      dispatch({ type: "SET_CANVAS", canvas: parsed });
       initialSyncDoneRef.current = true;
+      if (parsed.nodes.length > 0) {
+        const pad = 40 * 0.5;
+        const xs = parsed.nodes.map((n) => n.x);
+        const ys = parsed.nodes.map((n) => n.y);
+        const minX = Math.min(...xs) - pad;
+        const maxX = Math.max(...xs) + pad + 40;
+        const minY = Math.min(...ys) - pad;
+        const maxY = Math.max(...ys) + pad + 40;
+        const spanX = maxX - minX;
+        const spanY = maxY - minY;
+        const zoom = Math.max(0.7, Math.min(4.0, Math.max(spanX / (W * 0.88), spanY / (H * 0.88))));
+        const cx = (minX + maxX) / 2;
+        const cy = (minY + maxY) / 2;
+        dispatch({
+          type: "SET_STATE",
+          patch: {
+            viewBox: { x: cx - (W * zoom) / 2, y: cy - (H * zoom) / 2, zoom }
+          }
+        });
+      }
     }
   }, [pedigree?.canvas_data]);
 
@@ -234,8 +277,14 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
   const updateCanvas = useCallback((updater: (prev: CanvasData) => CanvasData, opts?: { skipHistory?: boolean }) => {
     dispatch({ type: "UPDATE_CANVAS", updater, pushHistory: !opts?.skipHistory });
   }, []);
-  const undo = useCallback(() => dispatch({ type: "UNDO" }), []);
-  const redo = useCallback(() => dispatch({ type: "REDO" }), []);
+  const undo = useCallback(() => {
+    skipLiveLayoutRef.current = true;
+    dispatch({ type: "UNDO" });
+  }, []);
+  const redo = useCallback(() => {
+    skipLiveLayoutRef.current = true;
+    dispatch({ type: "REDO" });
+  }, []);
 
   const addNode = useCallback((type: PedigreeNode["type"]) => {
     const cn = canvasRef.current; if (!cn) return;
@@ -615,13 +664,100 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
     }
   }, []);
 
-  const runAutoLayout = useCallback((rp: boolean, isManual = false) => {
+  const runAutoLayout = useCallback((rp: boolean, isManual = false, selectedOnly = false) => {
     if (isManual) {
-      backgroundSaveVersion("Auto-saved before Layout Alignment");
+      backgroundSaveVersion("Auto-saved before Layout Alignment", stateRef.current.canvas);
     }
-    dispatch({ type: "UPDATE_CANVAS", updater: (p) => ({ ...p, nodes: computeAutoLayout(p.nodes, p.edges, rp) as PedigreeNode[] }) });
+
+    let nodesToProcess = stateRef.current.canvas.nodes;
+    if (selectedOnly) {
+      nodesToProcess = stateRef.current.canvas.nodes.map((n) => {
+        if (!stateRef.current.selectedIds.has(n.id)) {
+          return { ...n, pinned: true };
+        }
+        return n;
+      });
+    }
+
+    const arranged = computeAutoLayout(
+      nodesToProcess,
+      stateRef.current.canvas.edges,
+      rp,
+      {
+        nodeGap: configRef.current.nodeGap,
+        genGrid: configRef.current.genGrid
+      }
+    );
+
+    const finalNodes = selectedOnly
+      ? arranged.map((n) => {
+          const original = stateRef.current.canvas.nodes.find((o) => o.id === n.id);
+          return { ...n, pinned: original?.pinned ?? false };
+        })
+      : arranged;
+
+    skipLiveLayoutRef.current = true;
+    dispatch({
+      type: "UPDATE_CANVAS",
+      updater: (prev) => ({ ...prev, nodes: finalNodes as PedigreeNode[] })
+    });
+
+    if (configRef.current.autoFitLayout && finalNodes.length > 0) {
+      const pad = 40 * 0.5; // NODE_SIZE = 40
+      const xs = finalNodes.map((n) => n.x);
+      const ys = finalNodes.map((n) => n.y);
+      const minX = Math.min(...xs) - pad;
+      const maxX = Math.max(...xs) + pad + 40;
+      const minY = Math.min(...ys) - pad;
+      const maxY = Math.max(...ys) + pad + 40;
+      const spanX = maxX - minX;
+      const spanY = maxY - minY;
+      const zoom = Math.max(0.7, Math.min(4.0, Math.max(spanX / (W * 0.88), spanY / (H * 0.88))));
+      const cx = (minX + maxX) / 2;
+      const cy = (minY + maxY) / 2;
+      
+      dispatch({
+        type: "SET_STATE",
+        patch: {
+          viewBox: { x: cx - (W * zoom) / 2, y: cy - (H * zoom) / 2, zoom }
+        }
+      });
+    }
+
+    if (isManual) {
+      toast({
+        title: "Layout Rearranged",
+        description: "Press Ctrl+Z to undo layout changes.",
+        duration: 4000
+      });
+    }
   }, [backgroundSaveVersion]);
-  useEffect(() => { if (state.liveLayout && state.canvas.nodes.length > 0) runAutoLayout(true); }, [state.liveLayout, state.canvas.edges.length, state.canvas.nodes.length, runAutoLayout]);
+  useEffect(() => {
+    if (skipLiveLayoutRef.current) {
+      skipLiveLayoutRef.current = false;
+      lastNodesLengthRef.current = state.canvas.nodes.length;
+      lastEdgesLengthRef.current = state.canvas.edges.length;
+      return () => {};
+    }
+
+    if (!state.liveLayout || state.canvas.nodes.length === 0) {
+      lastNodesLengthRef.current = state.canvas.nodes.length;
+      lastEdgesLengthRef.current = state.canvas.edges.length;
+      return () => {};
+    }
+
+    const nodesChanged = state.canvas.nodes.length !== lastNodesLengthRef.current;
+    const edgesChanged = state.canvas.edges.length !== lastEdgesLengthRef.current;
+
+    lastNodesLengthRef.current = state.canvas.nodes.length;
+    lastEdgesLengthRef.current = state.canvas.edges.length;
+
+    if (nodesChanged || edgesChanged) {
+      const id = requestAnimationFrame(() => runAutoLayout(true));
+      return () => cancelAnimationFrame(id);
+    }
+    return () => {};
+  }, [state.liveLayout, state.canvas, runAutoLayout]);
 
   const bakeEmptyLabels = useCallback(() => {
     dispatch({ type: "UPDATE_CANVAS", updater: (p) => ({ ...p, nodes: p.nodes.map((n) => { if (n.label) return n; const c = computeAutoLabels(p.nodes, p.edges).get(n.id); return c ? { ...n, label: c } : n; }) }) });
@@ -1139,13 +1275,16 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
   const handleSaveVersion = () => dispatch({ type: "SET_STATE", patch: { sessionLabel: `Session \u00b7 ${state.canvas.nodes.length} node${state.canvas.nodes.length !== 1 ? "s" : ""} \u00b7 ${new Date().toLocaleDateString()}`, showSaveModal: true } });
   const commitSaveVersion = async () => { const t = generateThumbnail(state.canvas); const canvasData = JSON.stringify(state.canvas); const canvasHash = cryptoComputeHash(canvasData); const keys = await listProfilePrivateKeys(); const activeKey = keys.length > 0 ? keys[0] : null; const saverKey = activeKey ? await getPublicKeyFromPrivate(activeKey.privateKey) : ""; const saverSignature = activeKey ? await signData(canvasHash, activeKey.privateKey) : null; saveVersionMutation.mutate({ pedigreeId: id, input: { canvas_data: canvasData, canvas_hash: canvasHash, label: state.sessionLabel || null, thumbnail: t, saver_key: saverKey, saver_signature: saverSignature } }, { onSuccess: () => { queryClient.invalidateQueries({ queryKey: queryKeys.versions(id) }); dispatch({ type: "SET_STATE", patch: { showSaveModal: false, sessionLabel: "" } }); } }); };
   const handleDeleteVersion = (versionId: number) => { openConfirm("Delete Version", "Delete this saved session? This cannot be undone.", () => { deleteVersionMutation.mutate({ pedigreeId: id, versionId }, { onSuccess: () => { queryClient.invalidateQueries({ queryKey: queryKeys.versions(id) }); } }); }, "destructive"); };
-  const handleRestoreVersion = (vid: number) => { openConfirm("Restore Version", "Restore this version? Current canvas will be replaced.", () => { restoreVersionMutation.mutate({ pedigreeId: id, versionId: vid }, { onSuccess: (d) => { const cd = (d as { canvas_data?: string | null }).canvas_data; if (cd) dispatch({ type: "SET_CANVAS", canvas: parseCanvas(cd) }); initialSyncDoneRef.current = true; queryClient.setQueryData(queryKeys.pedigree(id), d); dispatch({ type: "SET_STATE", patch: { showVersions: false, isPreviewMode: false, liveCanvasCache: null, showVisualDiff: false, previewVersionId: null } }); } }); }); };
+  const handleRestoreVersion = (vid: number) => { openConfirm("Restore Version", "Restore this version? Current canvas will be replaced.", () => { restoreVersionMutation.mutate({ pedigreeId: id, versionId: vid }, { onSuccess: (d) => { const cd = (d as { canvas_data?: string | null }).canvas_data; if (cd) { skipLiveLayoutRef.current = true; dispatch({ type: "SET_CANVAS", canvas: parseCanvas(cd) }); } initialSyncDoneRef.current = true; queryClient.setQueryData(queryKeys.pedigree(id), d); dispatch({ type: "SET_STATE", patch: { showVersions: false, isPreviewMode: false, liveCanvasCache: null, showVisualDiff: false, previewVersionId: null } }); } }); }); };
 
-  const onRestoreDraft = useCallback(() => handleRestoreDraft(
-    (canvas: CanvasData) => dispatch({ type: "SET_CANVAS", canvas }),
-    (history: CanvasData[]) => dispatch({ type: "SET_STATE", patch: { history } }),
-    (future: CanvasData[]) => dispatch({ type: "SET_STATE", patch: { future } }),
-  ), [handleRestoreDraft]);
+  const onRestoreDraft = useCallback(() => {
+    skipLiveLayoutRef.current = true;
+    handleRestoreDraft(
+      (canvas: CanvasData) => dispatch({ type: "SET_CANVAS", canvas }),
+      (history: CanvasData[]) => dispatch({ type: "SET_STATE", patch: { history } }),
+      (future: CanvasData[]) => dispatch({ type: "SET_STATE", patch: { future } }),
+    );
+  }, [handleRestoreDraft]);
 
   const value = useMemo<PedigreeEditorContextValue>(() => ({
     state, dispatch,

@@ -28,7 +28,7 @@ interface ClinicalGroupProps {
   openConfirm: (title: string, message: string, onConfirm: () => void) => void;
   labelHidden?: boolean;
   onClearSelection?: () => void;
-  runAutoLayout: (respectPinned: boolean, isManual?: boolean) => void;
+  runAutoLayout: (respectPinned: boolean, isManual?: boolean, selectedOnly?: boolean) => void;
 }
 
 const getTemplateSvg = (key: string) => {

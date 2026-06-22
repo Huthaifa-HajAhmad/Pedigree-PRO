@@ -58,7 +58,7 @@ export interface RibbonToolbarProps {
   setShowLayoutMenu: React.Dispatch<React.SetStateAction<boolean>>;
   liveLayout: boolean;
   setLiveLayout: React.Dispatch<React.SetStateAction<boolean>>;
-  runAutoLayout: (respectPinned: boolean, isManual?: boolean) => void;
+  runAutoLayout: (respectPinned: boolean, isManual?: boolean, selectedOnly?: boolean) => void;
   showAutoLabels: boolean;
   setShowAutoLabels: React.Dispatch<React.SetStateAction<boolean>>;
   showLabelsMenu: boolean;

@@ -11,7 +11,7 @@ interface PedigreeWizardDialogProps {
   updateCanvas: (updater: (prev: CanvasData) => CanvasData) => void;
   canvasNodes: any[];
   openConfirm: (title: string, message: string, onConfirm: () => void) => void;
-  runAutoLayout: (respectPinned: boolean, isManual?: boolean) => void;
+  runAutoLayout: (respectPinned: boolean, isManual?: boolean, selectedOnly?: boolean) => void;
 }
 
 export function PedigreeWizardDialog({

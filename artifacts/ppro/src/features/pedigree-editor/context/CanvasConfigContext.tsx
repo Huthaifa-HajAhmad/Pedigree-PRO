@@ -28,6 +28,10 @@ export interface CanvasConfig {
   gridStyle?: "lines" | "dots" | "crosses";
   autoLabelFontSize?: number;
   autoLabelColor?: string;
+  devMode?: boolean;
+  autoFitLayout?: boolean;
+  showAge?: boolean;
+  ageFontSize?: number;
 }
 
 export const DEFAULT_CANVAS_CONFIG: CanvasConfig = {
@@ -57,6 +61,10 @@ export const DEFAULT_CANVAS_CONFIG: CanvasConfig = {
   gridStyle: "lines",
   autoLabelFontSize: 12,
   autoLabelColor: "",
+  devMode: false,
+  autoFitLayout: true,
+  showAge: true,
+  ageFontSize: 10,
 };
 
 const STORAGE_KEY = "ppro_canvas_config";
