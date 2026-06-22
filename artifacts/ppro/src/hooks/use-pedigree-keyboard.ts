@@ -12,7 +12,7 @@ export interface UsePedigreeKeyboardParams {
   navigateArrow: (dir: "ArrowUp" | "ArrowDown" | "ArrowLeft" | "ArrowRight") => void;
   showSearch: boolean;
   fitToScreen: () => void;
-  runAutoLayout: (respectPinned: boolean, isManual?: boolean) => void;
+  runAutoLayout: (respectPinned: boolean, isManual?: boolean, selectedOnly?: boolean) => void;
   setShowSearch: Dispatch<SetStateAction<boolean>>;
   setSearchQuery: Dispatch<SetStateAction<string>>;
   setSelectedIds: Dispatch<SetStateAction<Set<string>>>;

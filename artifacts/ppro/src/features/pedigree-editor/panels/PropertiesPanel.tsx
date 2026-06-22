@@ -13,6 +13,19 @@ const COUPLE_LABELS: Record<string, string> = {
   separated: "Separated",
 };
 
+function calculateAgeFromDob(dob?: string): string {
+  if (!dob) return "";
+  const birthDate = new Date(dob);
+  if (isNaN(birthDate.getTime())) return "";
+  const today = new Date();
+  let age = today.getFullYear() - birthDate.getFullYear();
+  const m = today.getMonth() - birthDate.getMonth();
+  if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
+    age--;
+  }
+  return age >= 0 ? String(age) : "";
+}
+
 export function PropertiesPanel({
   selectedIds, canvasNodes, canvasEdges, canvasAnnotations,
   selectedAnnotationId,
@@ -354,6 +367,19 @@ export function PropertiesPanel({
               <input id="prop-node-age" data-testid="input-node-age" value={singleSelected.age}
                 onChange={(e) => onUpdateSelectedNode({ age: e.target.value })}
                 placeholder="e.g. 42" className="w-full bg-background border border-border/80 rounded-lg px-2.5 py-1.5 text-xs outline-none hover:bg-accent/20 focus:border-muted-foreground/45 focus-visible:ring-0 shadow-none transition-all duration-200" />
+            </div>
+            <div>
+              <label htmlFor="prop-node-dob" className="text-xs text-muted-foreground uppercase tracking-wider block mb-1">Date of Birth</label>
+              <input id="prop-node-dob" type="date" value={singleSelected.dob ?? ""}
+                onChange={(e) => {
+                  const dobVal = e.target.value;
+                  const calculatedAge = calculateAgeFromDob(dobVal);
+                  onUpdateSelectedNode({
+                    dob: dobVal || undefined,
+                    age: calculatedAge || singleSelected.age
+                  });
+                }}
+                className="w-full bg-background border border-border/80 rounded-lg px-2.5 py-1.5 text-xs outline-none hover:bg-accent/20 focus:border-muted-foreground/45 focus-visible:ring-0 shadow-none text-muted-foreground transition-all duration-200" />
             </div>
             <div>
               <label htmlFor="prop-node-condition" className="text-xs text-muted-foreground uppercase tracking-wider block mb-1">Condition / Gene</label>

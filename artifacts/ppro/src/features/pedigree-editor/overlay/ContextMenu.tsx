@@ -188,19 +188,19 @@ export function ContextMenu({
 
       if (expandTypeRef.current && typeFlyoutItems.length > 0 && typeFlyoutRef.current?.contains(document.activeElement as Node)) {
         const idx = typeFlyoutItems.indexOf(document.activeElement as HTMLElement);
-        if (e.key === "ArrowDown" || e.key === "ArrowRight") { e.preventDefault(); typeFlyoutItems[Math.min(idx + 1, typeFlyoutItems.length - 1)]?.focus(); return; }
-        if (e.key === "ArrowUp" || e.key === "ArrowLeft") { e.preventDefault(); typeFlyoutItems[Math.max(idx - 1, 0)]?.focus(); return; }
+        if (e.key === "ArrowDown") { e.preventDefault(); typeFlyoutItems[Math.min(idx + 1, typeFlyoutItems.length - 1)]?.focus(); return; }
+        if (e.key === "ArrowUp") { e.preventDefault(); typeFlyoutItems[Math.max(idx - 1, 0)]?.focus(); return; }
         if (e.key === "Home") { e.preventDefault(); typeFlyoutItems[0]?.focus(); return; }
         if (e.key === "End") { e.preventDefault(); typeFlyoutItems[typeFlyoutItems.length - 1]?.focus(); return; }
-        if (e.key === "Escape") { e.preventDefault(); setExpandType(false); typeButtonRef.current?.focus(); return; }
+        if (e.key === "Escape" || e.key === "ArrowLeft") { e.preventDefault(); setExpandType(false); typeButtonRef.current?.focus(); return; }
       }
       if (expandAddRef.current && addFlyoutItems.length > 0 && addFlyoutRef.current?.contains(document.activeElement as Node)) {
         const idx = addFlyoutItems.indexOf(document.activeElement as HTMLElement);
-        if (e.key === "ArrowDown" || e.key === "ArrowRight") { e.preventDefault(); addFlyoutItems[Math.min(idx + 1, addFlyoutItems.length - 1)]?.focus(); return; }
-        if (e.key === "ArrowUp" || e.key === "ArrowLeft") { e.preventDefault(); addFlyoutItems[Math.max(idx - 1, 0)]?.focus(); return; }
+        if (e.key === "ArrowDown") { e.preventDefault(); addFlyoutItems[Math.min(idx + 1, addFlyoutItems.length - 1)]?.focus(); return; }
+        if (e.key === "ArrowUp") { e.preventDefault(); addFlyoutItems[Math.max(idx - 1, 0)]?.focus(); return; }
         if (e.key === "Home") { e.preventDefault(); addFlyoutItems[0]?.focus(); return; }
         if (e.key === "End") { e.preventDefault(); addFlyoutItems[addFlyoutItems.length - 1]?.focus(); return; }
-        if (e.key === "Escape") { e.preventDefault(); setExpandAdd(false); addButtonRef.current?.focus(); return; }
+        if (e.key === "Escape" || e.key === "ArrowLeft") { e.preventDefault(); setExpandAdd(false); addButtonRef.current?.focus(); return; }
       }
 
       // Main menu keyboard navigation

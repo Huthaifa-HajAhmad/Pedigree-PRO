@@ -1,4 +1,4 @@
-import { Palette, Ruler, Hash, Check, RotateCcw, Settings, Type, Grid, Eye, Dna, PanelTop } from "lucide-react";
+import { Palette, Ruler, Hash, Check, RotateCcw, Settings, Type, Grid, Eye, Dna, PanelTop, Calendar } from "lucide-react";
 import { PanelShell } from "@/components/shared/panels/PanelShell";
 import { PanelSection } from "@/components/shared/panels/PanelSection";
 import { usePedigreeEditor } from "@/features/pedigree-editor/context";
@@ -266,6 +266,37 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
                     <span className="text-[8px] font-mono text-muted-foreground/80 truncate uppercase">
                       {config.autoLabelColor ? config.autoLabelColor.toUpperCase() : "DEFAULT (GRAY)"}
                     </span>
+                  </div>
+                </div>
+              </div>
+            )}
+            <ToggleRow
+              label="Show Node Age"
+              description="Show age/DOB under node symbols"
+              checked={config.showAge ?? true}
+              onChange={() => updateConfig({ showAge: !(config.showAge ?? true) })}
+              icon={<Calendar className="w-3.5 h-3.5" />}
+            />
+            {(config.showAge ?? true) && (
+              <div className="pl-6 pt-1.5 pb-2 border-l-2 border-primary/20 space-y-4 mt-1 ml-1.5 animate-in slide-in-from-left-2 duration-200">
+                {/* Size Slider */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between text-[11px]">
+                    <span className="text-muted-foreground font-semibold uppercase tracking-wider">Age Font Size</span>
+                    <span className="font-mono text-primary font-bold">{config.ageFontSize ?? 10}px</span>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <span className="text-[10px] text-muted-foreground">6px</span>
+                    <input
+                      type="range"
+                      min={6}
+                      max={18}
+                      step={1}
+                      value={config.ageFontSize ?? 10}
+                      onChange={(e) => updateConfig({ ageFontSize: parseInt(e.target.value) })}
+                      className="flex-1 cursor-pointer border-none outline-none focus-visible:ring-1 focus-visible:ring-primary"
+                    />
+                    <span className="text-[10px] text-muted-foreground">18px</span>
                   </div>
                 </div>
               </div>
