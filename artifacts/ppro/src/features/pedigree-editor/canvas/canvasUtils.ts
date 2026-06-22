@@ -37,11 +37,12 @@ export function getIntermediateNodes(
 export function computeLabelBelowHeight(
   node: PedigreeNode,
   autoLabel?: string,
-  config?: { showGenotypes: boolean; genotypeFontSize: number; genotypeOffset: number; autoLabelFontSize?: number }
+  config?: { showGenotypes: boolean; genotypeFontSize: number; genotypeOffset: number; autoLabelFontSize?: number; showAge?: boolean; ageFontSize?: number }
 ): number {
   const cfg = config || getModuleCanvasConfig();
   const autoLabelFontSize = cfg.autoLabelFontSize ?? 12;
-  const ageFontSize = autoLabelFontSize;
+  const showAgeSetting = cfg.showAge ?? true;
+  const ageFontSize = cfg.ageFontSize ?? autoLabelFontSize;
   const ageH = ageFontSize + 3;
   let h = 0;
   if (autoLabel) {
@@ -49,7 +50,7 @@ export function computeLabelBelowHeight(
   } else if (node.label) {
     h = 14;
   }
-  if (node.age || node.dob) {
+  if (showAgeSetting && (node.age || node.dob)) {
     h = h > 0 ? h + ageH : ageH + 3;
   }
   if (node.condition) {
@@ -376,7 +377,18 @@ export function computeCrossingXCoordinates(
     }
     const maxBottom = Math.max(maxNodeBottom, maxAnnBottom);
     const maxTrackIndex = computeMaxLoopTrackOnRow(py, allEdges, nodes, renderOffsets);
-    const barY = Math.max(childTopY - 30, maxBottom + 22 + maxTrackIndex * 8);
+    const { track: sibTrack, maxTrack: maxSibTrack } = computeSibshipGroupTrackAndMax(
+      parentIds,
+      childIds,
+      allEdges,
+      nodes,
+      renderOffsets,
+      renderOffsets
+    );
+    const barY = Math.max(
+      childTopY - 30 - sibTrack * 12,
+      maxBottom + 22 + maxTrackIndex * 8 + (maxSibTrack - sibTrack) * 12
+    );
 
     let midX = 0;
     let coupleY = 0;
@@ -541,9 +553,19 @@ export function computeVerticalCrossingYCoordinates(
     const p1 = familyParents[0]!;
     const rowY = p1.y + (renderOffsets?.get(p1.id) ?? 0);
     const maxTrackIndex = computeMaxLoopTrackOnRow(rowY, allEdges, nodes, renderOffsets);
-    const sibTrack = computeSibshipGroupTrack(f.parentIds, f.childIds, allEdges, nodes, renderOffsets, renderOffsets);
+    const { track: sibTrack, maxTrack: maxSibTrack } = computeSibshipGroupTrackAndMax(
+      f.parentIds,
+      f.childIds,
+      allEdges,
+      nodes,
+      renderOffsets,
+      renderOffsets
+    );
     
-    const barY = Math.max(childTopY - 30 - sibTrack * 12, maxBottom + 22 + maxTrackIndex * 8);
+    const barY = Math.max(
+      childTopY - 30 - sibTrack * 12,
+      maxBottom + 22 + maxTrackIndex * 8 + (maxSibTrack - sibTrack) * 12
+    );
 
     // Calculate horizontal span and check crossings
     let midParentX = 0;
@@ -589,20 +611,21 @@ export function computeVerticalCrossingYCoordinates(
 }
 
 /**
- * Greedily assigns a non-conflicting Y-track index (0, 1, 2...) to horizontally
- * overlapping sibling bars on the same generation row.
+ * Greedily assigns non-conflicting Y-track indices to horizontally
+ * overlapping sibling bars on the same generation row, and returns
+ * the track index for the target family along with the maximum track index on the row.
  */
-export function computeSibshipGroupTrack(
+export function computeSibshipGroupTrackAndMax(
   parentIds: string[],
   childIds: string[],
   allEdges: PedigreeEdge[],
   nodes: PedigreeNode[],
   parentOffsets?: Map<string, number>,
   childOffsets?: Map<string, number>,
-): number {
+): { track: number; maxTrack: number } {
   const nodeMap = new Map(nodes.map((n) => [n.id, n]));
   const childNode = nodeMap.get(childIds[0] ?? "");
-  if (!childNode) return 0;
+  if (!childNode) return { track: 0, maxTrack: 0 };
 
   const childY = childNode.y + (childOffsets?.get(childNode.id) ?? 0);
   const targetKey = [...parentIds].sort().join("|");
@@ -627,7 +650,7 @@ export function computeSibshipGroupTrack(
     families.get(key)!.childIds.push(cId);
   }
 
-  if (families.size <= 1) return 0;
+  if (families.size <= 1) return { track: 0, maxTrack: 0 };
 
   // 2. Compute the horizontal span [minX, maxX] for each family's sibling bar
   const intervals: { key: string; minX: number; maxX: number }[] = [];
@@ -709,6 +732,26 @@ export function computeSibshipGroupTrack(
     }
   }
 
-  const res = trackMap.get(targetKey) ?? 0;
-  return res;
+  const track = trackMap.get(targetKey) ?? 0;
+  let maxTrack = 0;
+  for (const t of trackMap.values()) {
+    maxTrack = Math.max(maxTrack, t);
+  }
+
+  return { track, maxTrack };
+}
+
+/**
+ * Greedily assigns a non-conflicting Y-track index (0, 1, 2...) to horizontally
+ * overlapping sibling bars on the same generation row.
+ */
+export function computeSibshipGroupTrack(
+  parentIds: string[],
+  childIds: string[],
+  allEdges: PedigreeEdge[],
+  nodes: PedigreeNode[],
+  parentOffsets?: Map<string, number>,
+  childOffsets?: Map<string, number>,
+): number {
+  return computeSibshipGroupTrackAndMax(parentIds, childIds, allEdges, nodes, parentOffsets, childOffsets).track;
 }

@@ -9,7 +9,7 @@ import {
   computeMaxLoopTrackOnRow,
   computeVerticalCrossingYCoordinates,
   computeCrossingXCoordinates,
-  computeSibshipGroupTrack,
+  computeSibshipGroupTrackAndMax,
 } from "./canvasUtils";
 
 const MIN_BAR_CHILD_GAP = 30;
@@ -92,9 +92,11 @@ export function computeFamilyChildYOffset(
   const rowY = p1 ? p1.y + (parentOffsets?.get(p1.id) ?? 0) : 0;
   const maxTrackIndex = edges ? computeMaxLoopTrackOnRow(rowY, edges, nodes, parentOffsets) : 0;
 
-  const sibTrack = edges ? computeSibshipGroupTrack(parentIds, childIds, edges, nodes, parentOffsets) : 0;
+  const { track: sibTrack, maxTrack: maxSibTrack } = edges
+    ? computeSibshipGroupTrackAndMax(parentIds, childIds, edges, nodes, parentOffsets)
+    : { track: 0, maxTrack: 0 };
   const idealBarY = childTopY - MIN_BAR_CHILD_GAP - sibTrack * 12;
-  const minRequiredBarY = maxBottom + 22 + maxTrackIndex * 8;
+  const minRequiredBarY = maxBottom + 22 + maxTrackIndex * 8 + (maxSibTrack - sibTrack) * 12;
   const barY = Math.max(idealBarY, minRequiredBarY);
   const ABSOLUTE_MIN_GAP = MIN_BAR_CHILD_GAP;
   const delta = Math.max(0, barY + ABSOLUTE_MIN_GAP - childTopY);
@@ -212,8 +214,18 @@ export function SibshipGroup({ parentIds, childIds, nodes, edges = [], invalid, 
 
   const rowY = parents[0] ? parents[0].y + (parentOffsets?.get(parents[0].id) ?? 0) : 0;
   const maxTrackIndex = computeMaxLoopTrackOnRow(rowY, edges, nodes, parentOffsets);
-  const sibTrack = computeSibshipGroupTrack(parentIds, childIds, edges, nodes, parentOffsets, childOffsets);
-  const barY = Math.max(childTopY - MIN_BAR_CHILD_GAP - sibTrack * 12, maxBottom + 22 + maxTrackIndex * 8);
+  const { track: sibTrack, maxTrack: maxSibTrack } = computeSibshipGroupTrackAndMax(
+    parentIds,
+    childIds,
+    edges,
+    nodes,
+    parentOffsets,
+    childOffsets
+  );
+  const barY = Math.max(
+    childTopY - MIN_BAR_CHILD_GAP - sibTrack * 12,
+    maxBottom + 22 + maxTrackIndex * 8 + (maxSibTrack - sibTrack) * 12
+  );
 
   function cy(c: PedigreeNode) { return c.y + (childOffsets?.get(c.id) ?? 0) - S / 2; }
 

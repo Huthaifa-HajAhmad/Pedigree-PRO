@@ -152,11 +152,12 @@ export const NodeShape = memo(function NodeShape({
           labelHeight = 14;
         }
 
-        const ageFontSize = autoLabelSize;
+        const showAgeSetting = cfg.config.showAge ?? true;
+        const ageFontSize = cfg.config.ageFontSize ?? autoLabelSize;
         const ageH = ageFontSize + 3;
 
         const ageY = S / 2 + (labelHeight > 0 ? labelHeight + ageH : ageH + 3);
-        if (node.age || node.dob) {
+        if (showAgeSetting && (node.age || node.dob)) {
           labelHeight = labelHeight > 0 ? labelHeight + ageH : ageH + 3;
         }
 
@@ -195,8 +196,8 @@ export const NodeShape = memo(function NodeShape({
           <>
             {autoLabel && <text x={0} y={S / 2 + autoLabelSize + 5} textAnchor="middle" fontSize={autoLabelSize} fill={cfg.config.autoLabelColor || "hsl(var(--foreground) / 0.45)"} style={{ userSelect: "none", fontFamily: "JetBrains Mono, monospace", letterSpacing: "0.05em" }}>{autoLabel}</text>}
             {!autoLabel && node.label && <text x={0} y={S / 2 + 14} textAnchor="middle" fontSize={9} fill="hsl(var(--foreground))" style={{ userSelect: "none", fontFamily: "JetBrains Mono, monospace" }}>{node.label}</text>}
-            {node.age && <text x={0} y={ageY} textAnchor="middle" fontSize={ageFontSize} fill="hsl(var(--foreground) / 0.55)" style={{ userSelect: "none", fontFamily: "JetBrains Mono, monospace" }}>{node.age}y</text>}
-            {node.dob && !node.age && <text x={0} y={ageY} textAnchor="middle" fontSize={ageFontSize} fill="hsl(var(--foreground) / 0.5)" style={{ userSelect: "none", fontFamily: "JetBrains Mono, monospace" }}>{node.dob.length >= 4 ? `b.${node.dob.slice(0, 4)}` : node.dob}</text>}
+            {showAgeSetting && node.age && <text x={0} y={ageY} textAnchor="middle" fontSize={ageFontSize} fill="hsl(var(--foreground) / 0.55)" style={{ userSelect: "none", fontFamily: "JetBrains Mono, monospace" }}>{node.age}y</text>}
+            {showAgeSetting && node.dob && !node.age && <text x={0} y={ageY} textAnchor="middle" fontSize={ageFontSize} fill="hsl(var(--foreground) / 0.5)" style={{ userSelect: "none", fontFamily: "JetBrains Mono, monospace" }}>{node.dob.length >= 4 ? `b.${node.dob.slice(0, 4)}` : node.dob}</text>}
             {node.condition && (
               <text x={0} y={conditionY}
                 textAnchor="middle" fontSize={8} fill="hsl(var(--foreground) / 0.65)" style={{ userSelect: "none", fontFamily: "JetBrains Mono, monospace", fontStyle: "italic" }}>

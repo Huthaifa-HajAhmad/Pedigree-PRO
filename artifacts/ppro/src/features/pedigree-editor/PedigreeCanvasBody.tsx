@@ -27,8 +27,14 @@ import { parseCanvas } from "@/features/pedigree-editor/utils/helpers";
 import type { PedigreeNode, CanvasData } from "@/features/pedigree-editor/canvas/types";
 import { NODE_SIZE } from "@/features/pedigree-editor/canvas/types";
 
-function computeLabelBelowHeight(node: PedigreeNode, autoLabel?: string, autoLabelFontSize: number = 12): number {
-  const ageFontSize = autoLabelFontSize;
+function computeLabelBelowHeight(
+  node: PedigreeNode,
+  autoLabel?: string,
+  config?: { showAge?: boolean; ageFontSize?: number; autoLabelFontSize?: number }
+): number {
+  const showAgeSetting = config?.showAge ?? true;
+  const autoLabelFontSize = config?.autoLabelFontSize ?? 12;
+  const ageFontSize = config?.ageFontSize ?? autoLabelFontSize;
   const ageH = ageFontSize + 3;
   let h = 0;
   if (autoLabel) {
@@ -36,7 +42,7 @@ function computeLabelBelowHeight(node: PedigreeNode, autoLabel?: string, autoLab
   } else if (node.label) {
     h = 14;
   }
-  if (node.age || node.dob) {
+  if (showAgeSetting && (node.age || node.dob)) {
     h = h > 0 ? h + ageH : ageH + 3;
   }
   if (node.condition) {
@@ -90,7 +96,7 @@ function AnnotationLayer({
          if (!isFree && !node) return null;
          const stackIndex = isFree ? 0 : (stackIndexById.get(ann.id) ?? 0);
          const autoLabel = (node && showAutoLabels) ? autoLabels.get(node.id) : undefined;
-         const labelBelowHeight = node ? computeLabelBelowHeight(node, autoLabel, config.autoLabelFontSize) : 0;
+         const labelBelowHeight = node ? computeLabelBelowHeight(node, autoLabel, config) : 0;
          const offsetY = node ? (familyYOffsetMap.get(ann.nodeId) ?? 0) : 0;
          const nodeX = node ? node.x : (ann.x ?? 0);
          const nodeY = node ? node.y + offsetY : (ann.y ?? 0);
@@ -178,7 +184,7 @@ export function PedigreeCanvasBody() {
   const [, navigate] = useLocation();
   const {
     state, ops, memo, refs, dispatch, pedigree, versions } = ctx;
-  const { config } = useCanvasConfig();
+  const { config, updateConfig } = useCanvasConfig();
 
   const {
     canvas, selectedIds, linkSource, showAutoLabels, viewBox,
@@ -234,6 +240,18 @@ export function PedigreeCanvasBody() {
     document.addEventListener("keydown", handler);
     return () => document.removeEventListener("keydown", handler);
   }, [showRiskPanel, showValidation, showVersions, showSettings, dispatch]);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const isControlModifier = e.metaKey || e.ctrlKey;
+      if (isControlModifier && e.altKey && e.key.toLowerCase() === "d") {
+        e.preventDefault();
+        updateConfig({ devMode: !config.devMode });
+      }
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [config.devMode, updateConfig]);
 
   const handleCloseContextMenu = useCallback(() => dispatch({ type: "SET_STATE", patch: { contextMenu: null } }), [dispatch]);
 
@@ -350,7 +368,7 @@ const RAIL_MAX_X = 400;
     const isFree = !ann.nodeId;
     const node = isFree ? null : canvas.nodes.find((n) => n.id === ann.nodeId);
     const autoLabel = node && showAutoLabels ? autoLabels.get(ann.nodeId) : undefined;
-    const labelBelowHeight = node ? computeLabelBelowHeight(node, autoLabel, config.autoLabelFontSize) : 0;
+    const labelBelowHeight = node ? computeLabelBelowHeight(node, autoLabel, config) : 0;
     const stackIndex = isFree ? 0 : (() => {
       const grouped = new Map<string, string[]>();
       for (const a of canvas.annotations) {
@@ -768,6 +786,61 @@ const RAIL_MAX_X = 400;
             showAutoLabels={showAutoLabels}
             familyYOffsetMap={familyOffsets}
           />
+
+          {config.devMode && (
+            <g id="dev-mode-overlay" style={{ pointerEvents: "none" }}>
+              {/* Generation Row Y Guides */}
+              {visibleGenRows.map((rowY) => (
+                <g key={`dev-row-${rowY}`}>
+                  <line
+                    x1={viewBox.x} y1={rowY}
+                    x2={viewBox.x + vbW} y2={rowY}
+                    stroke="#EF4444" strokeWidth={1} strokeDasharray="3 3" opacity={0.65}
+                  />
+                  <rect
+                    x={viewBox.x + 10} y={rowY - 18}
+                    width={90} height={16} rx={3}
+                    fill="#EF4444" opacity={0.8}
+                  />
+                  <text
+                    x={viewBox.x + 15} y={rowY - 6}
+                    fill="#FFFFFF" fontSize={10} fontWeight="bold"
+                    fontFamily="JetBrains Mono, monospace"
+                  >
+                    Row Y: {rowY}
+                  </text>
+                </g>
+              ))}
+
+              {/* Node Bounds, Coordinates & ID overlays */}
+              {canvas.nodes.map((node) => {
+                const nodeGapRadius = (config.nodeGap ?? 96.8) / 2;
+                return (
+                  <g key={`dev-node-${node.id}`}>
+                    {/* Dashed outer collision boundary of radius NODE_GAP / 2 */}
+                    <circle
+                      cx={node.x} cy={node.y} r={nodeGapRadius}
+                      fill="none" stroke="#10B981" strokeWidth={1.5}
+                      strokeDasharray="4 4" opacity={0.7}
+                    />
+                    {/* Diagnostic text label displaying coordinates and ID */}
+                    <rect
+                      x={node.x - 70} y={node.y - 48}
+                      width={140} height={20} rx={4}
+                      fill="#1F2937" opacity={0.85}
+                    />
+                    <text
+                      x={node.x} y={node.y - 35}
+                      textAnchor="middle" fill="#10B981" fontSize={9} fontWeight="bold"
+                      fontFamily="JetBrains Mono, monospace"
+                    >
+                      {node.id} ({Math.round(node.x)}, {Math.round(node.y)})
+                    </text>
+                  </g>
+                );
+              })}
+            </g>
+          )}
 
           {canvas.nodes.length === 0 && (
             <text x={viewBox.x + vbW / 2} y={viewBox.y + vbH / 2} textAnchor="middle"
