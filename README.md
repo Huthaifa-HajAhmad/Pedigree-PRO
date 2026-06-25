@@ -2,7 +2,7 @@
 
 # Pedigree PRO
 
-**Zero-server clinical pedigree editor**
+**Local-first clinical pedigree editor**
 
 [![Release](https://img.shields.io/badge/release-v1.2.5--beta-blue)](https://github.com/Huthaifa-HajAhmad/Pedigree-PRO/releases)
 [![License](https://img.shields.io/badge/license-Proprietary-blue)](LICENSE)
