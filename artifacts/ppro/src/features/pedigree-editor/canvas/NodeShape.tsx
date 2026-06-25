@@ -61,12 +61,19 @@ export const NodeShape = memo(function NodeShape({
     : selected || isLinkSource
     ? highlight
     : (cfg.config.nodeStrokeColor || "hsl(var(--foreground) / 0.75)");
+  const fillShadingColor = node.color || "hsl(var(--foreground))";
+  const sStyle = node.shading || (node.affected ? "solid" : "none");
+
   const fill = invalid
     ? "rgba(255,64,64,0.07)"
-    : node.affected
-    ? (node.color || "hsl(var(--foreground))")
-    : node.color
-    ? node.color
+    : sStyle === "solid"
+    ? fillShadingColor
+    : sStyle === "striped"
+    ? "url(#shading-striped)"
+    : sStyle === "cross-hatched"
+    ? "url(#shading-cross-hatched)"
+    : sStyle === "dots"
+    ? "url(#shading-dots)"
     : node.carrier
     ? "hsl(var(--primary) / 0.08)"
     : "hsl(var(--card))";
@@ -82,6 +89,34 @@ export const NodeShape = memo(function NodeShape({
     : {};
 
   const strokeDash = (diffStatus === "deleted" || diffStatus === "added") ? "4 3" : undefined;
+
+  const renderShadingOverlay = () => {
+    if (sStyle === "none" || sStyle === "solid" || sStyle === "striped" || sStyle === "cross-hatched" || sStyle === "dots") {
+      return null;
+    }
+    if (node.type === "male") {
+      if (sStyle === "left-half") return <rect x={-S/2} y={-S/2} width={S/2} height={S} fill={fillShadingColor} pointerEvents="none" />;
+      if (sStyle === "right-half") return <rect x={0} y={-S/2} width={S/2} height={S} fill={fillShadingColor} pointerEvents="none" />;
+      if (sStyle === "top-half") return <rect x={-S/2} y={-S/2} width={S} height={S/2} fill={fillShadingColor} pointerEvents="none" />;
+      if (sStyle === "bottom-half") return <rect x={-S/2} y={0} width={S} height={S/2} fill={fillShadingColor} pointerEvents="none" />;
+      if (sStyle === "quadrant") return <rect x={0} y={-S/2} width={S/2} height={S/2} fill={fillShadingColor} pointerEvents="none" />;
+    }
+    if (node.type === "female") {
+      if (sStyle === "left-half") return <path d={`M 0 ${-S/2} A ${S/2} ${S/2} 0 0 0 0 ${S/2} Z`} fill={fillShadingColor} pointerEvents="none" />;
+      if (sStyle === "right-half") return <path d={`M 0 ${-S/2} A ${S/2} ${S/2} 0 0 1 0 ${S/2} Z`} fill={fillShadingColor} pointerEvents="none" />;
+      if (sStyle === "top-half") return <path d={`M ${-S/2} 0 A ${S/2} ${S/2} 0 0 1 ${S/2} 0 Z`} fill={fillShadingColor} pointerEvents="none" />;
+      if (sStyle === "bottom-half") return <path d={`M ${-S/2} 0 A ${S/2} ${S/2} 0 0 0 ${S/2} 0 Z`} fill={fillShadingColor} pointerEvents="none" />;
+      if (sStyle === "quadrant") return <path d={`M 0 0 L 0 ${-S/2} A ${S/2} ${S/2} 0 0 1 ${S/2} 0 Z`} fill={fillShadingColor} pointerEvents="none" />;
+    }
+    if (node.type === "unknown" || node.type === "pregnancy") {
+      if (sStyle === "left-half") return <polygon points={`0,${-S/2} 0,${S/2} ${-S/2},0`} fill={fillShadingColor} pointerEvents="none" />;
+      if (sStyle === "right-half") return <polygon points={`0,${-S/2} 0,${S/2} ${S/2},0`} fill={fillShadingColor} pointerEvents="none" />;
+      if (sStyle === "top-half") return <polygon points={`-S/2,0 S/2,0 0,${-S/2}`} fill={fillShadingColor} pointerEvents="none" />;
+      if (sStyle === "bottom-half") return <polygon points={`-S/2,0 S/2,0 0,${S/2}`} fill={fillShadingColor} pointerEvents="none" />;
+      if (sStyle === "quadrant") return <polygon points={`0,0 0,${-S/2} ${S/2},0`} fill={fillShadingColor} pointerEvents="none" />;
+    }
+    return null;
+  };
 
   return (
     <g
@@ -109,23 +144,40 @@ export const NodeShape = memo(function NodeShape({
       )}
       {/* Shapes by type */}
       {node.type === "male" && (
-        <rect x={-S / 2} y={-S / 2} width={S} height={S} fill={fill} stroke={stroke} strokeWidth={strokeWidth} rx={0} style={glow} strokeDasharray={strokeDash} />
+        <>
+          <rect x={-S / 2} y={-S / 2} width={S} height={S} fill={fill} rx={0} style={{ ...glow, color: fillShadingColor }} />
+          {renderShadingOverlay()}
+          <rect x={-S / 2} y={-S / 2} width={S} height={S} fill="none" stroke={stroke} strokeWidth={strokeWidth} rx={0} strokeDasharray={strokeDash} style={glow} />
+        </>
       )}
       {node.type === "female" && (
-        <circle cx={0} cy={0} r={S / 2} fill={fill} stroke={stroke} strokeWidth={strokeWidth} style={glow} strokeDasharray={strokeDash} />
+        <>
+          <circle cx={0} cy={0} r={S / 2} fill={fill} style={{ ...glow, color: fillShadingColor }} />
+          {renderShadingOverlay()}
+          <circle cx={0} cy={0} r={S / 2} fill="none" stroke={stroke} strokeWidth={strokeWidth} strokeDasharray={strokeDash} style={glow} />
+        </>
       )}
       {node.type === "unknown" && (
-        <polygon points={`0,${-S / 2} ${S / 2},0 0,${S / 2} ${-S / 2},0`} fill={fill} stroke={stroke} strokeWidth={strokeWidth} style={glow} strokeDasharray={strokeDash} />
+        <>
+          <polygon points={`0,${-S / 2} ${S / 2},0 0,${S / 2} ${-S / 2},0`} fill={fill} style={{ ...glow, color: fillShadingColor }} />
+          {renderShadingOverlay()}
+          <polygon points={`0,${-S / 2} ${S / 2},0 0,${S / 2} ${-S / 2},0`} fill="none" stroke={stroke} strokeWidth={strokeWidth} strokeDasharray={strokeDash} style={glow} />
+        </>
       )}
       {node.type === "pregnancy" && (
         <>
-          <polygon points={`0,${-S / 2} ${S / 2},0 0,${S / 2} ${-S / 2},0`} fill={fill} stroke={stroke} strokeWidth={strokeWidth} style={glow} strokeDasharray={strokeDash} />
+          <polygon points={`0,${-S / 2} ${S / 2},0 0,${S / 2} ${-S / 2},0`} fill={fill} style={{ ...glow, color: fillShadingColor }} />
+          {renderShadingOverlay()}
+          <polygon points={`0,${-S / 2} ${S / 2},0 0,${S / 2} ${-S / 2},0`} fill="none" stroke={stroke} strokeWidth={strokeWidth} strokeDasharray={strokeDash} style={glow} />
           {!node.insideText && <text x={0} y={0} textAnchor="middle" dominantBaseline="central" fontSize={9} fill={stroke} style={{ userSelect: "none", fontFamily: "JetBrains Mono, monospace" }}>P</text>}
         </>
       )}
       {node.type === "sab" && (
-        <polygon points={`0,${S * 0.36} ${-S * 0.38},${-S * 0.26} ${S * 0.38},${-S * 0.26}`}
-          fill={fill} stroke={stroke} strokeWidth={strokeWidth} style={glow} strokeDasharray={strokeDash} />
+        <>
+          <polygon points={`0,${S * 0.36} ${-S * 0.38},${-S * 0.26} ${S * 0.38},${-S * 0.26}`} fill={fill} style={{ ...glow, color: fillShadingColor }} />
+          {renderShadingOverlay()}
+          <polygon points={`0,${S * 0.36} ${-S * 0.38},${-S * 0.26} ${S * 0.38},${-S * 0.26}`} fill="none" stroke={stroke} strokeWidth={strokeWidth} strokeDasharray={strokeDash} style={glow} />
+        </>
       )}
       {node.insideText && (
         <text x={0} y={0} textAnchor="middle" dominantBaseline="central" fontSize={S * 0.38} fill={node.affected ? (node.color ? "white" : "hsl(var(--card))") : "hsl(var(--foreground))"} style={{ userSelect: "none", fontFamily: "Inter, sans-serif", fontWeight: 600 }}>
@@ -168,7 +220,11 @@ export const NodeShape = memo(function NodeShape({
 
         const genotypeOffset = cfg.config.genotypeOffset ?? 3;
         const genotypeFontSize = cfg.config.genotypeFontSize ?? 12;
-        const genotypeY = S / 2 + labelHeight + genotypeFontSize + genotypeOffset;
+        const genotypesToRender = [
+          node.genotype,
+          node.genotype2,
+          ...(node.additionalGenotypes || [])
+        ].filter((g): g is string => typeof g === "string" && g !== "");
 
         const renderGenotype = (genotype: string) => {
           const mutantColor = cfg.config.genotypeMutantColor || "#EF4444";
@@ -204,12 +260,15 @@ export const NodeShape = memo(function NodeShape({
                 {node.condition.length > 18 ? node.condition.slice(0, 17) + "…" : node.condition}
               </text>
             )}
-            {cfg.config.showGenotypes && node.genotype && (
-              <text x={0} y={genotypeY}
-                textAnchor="middle" fontSize={cfg.config.genotypeFontSize ?? 12} style={{ userSelect: "none", fontFamily: "JetBrains Mono, monospace" }}>
-                {renderGenotype(node.genotype)}
-              </text>
-            )}
+            {cfg.config.showGenotypes && genotypesToRender.map((g, idx) => {
+              const y = S / 2 + labelHeight + genotypeFontSize + genotypeOffset + idx * (genotypeFontSize + 2);
+              return (
+                <text key={idx} x={0} y={y}
+                  textAnchor="middle" fontSize={cfg.config.genotypeFontSize ?? 12} style={{ userSelect: "none", fontFamily: "JetBrains Mono, monospace" }}>
+                  {renderGenotype(g)}
+                </text>
+              );
+            })}
           </>
         );
       })()}

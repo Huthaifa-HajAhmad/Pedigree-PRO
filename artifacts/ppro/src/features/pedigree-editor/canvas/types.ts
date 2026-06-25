@@ -21,6 +21,9 @@ export interface PedigreeNode {
   pinned?: boolean;
   color?: string;
   genotype?: string;
+  shading?: "solid" | "striped" | "cross-hatched" | "dots" | "left-half" | "right-half" | "top-half" | "bottom-half" | "quadrant";
+  genotype2?: string;
+  additionalGenotypes?: string[];
 }
 
 export interface PedigreeEdge {

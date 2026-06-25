@@ -56,8 +56,20 @@ export function computeLabelBelowHeight(
   if (node.condition) {
     h = h > 0 ? h + 11 : 14;
   }
-  if (cfg.showGenotypes && node.genotype) {
-    h += (cfg.genotypeFontSize ?? 12) + (cfg.genotypeOffset ?? 3);
+  if (cfg.showGenotypes) {
+    const genotypes = [
+      node.genotype,
+      node.genotype2,
+      ...(node.additionalGenotypes || [])
+    ].filter((g): g is string => typeof g === "string" && g !== "");
+
+    genotypes.forEach((g, idx) => {
+      if (idx === 0) {
+        h += (cfg.genotypeFontSize ?? 12) + (cfg.genotypeOffset ?? 3);
+      } else {
+        h += (cfg.genotypeFontSize ?? 12) + 2;
+      }
+    });
   }
   return h;
 }
