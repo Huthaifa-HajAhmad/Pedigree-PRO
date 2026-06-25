@@ -158,7 +158,8 @@ export function RibbonToolbar(props: RibbonToolbarProps) {
         className="ribbon-scroll flex items-center flex-nowrap border-b border-border bg-card overflow-x-auto"
         style={{ height: `${height}px` }}
         onClick={(e) => {
-          if ((e.target as HTMLElement).closest("button, [role='button']")) {
+          const btn = (e.target as HTMLElement).closest("button, [role='button']");
+          if (btn && btn.closest("[data-node-group='true']")) {
             props.clearSelection?.();
           }
         }}

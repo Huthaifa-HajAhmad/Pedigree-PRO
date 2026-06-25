@@ -630,7 +630,11 @@ export function usePedigreeCanvas(params: UsePedigreeCanvasParams) {
       // Draft save is handled by PedigreeEditorProvider's debounced effect (L8 consolidation)
       dispatch({ type: "SET_STATE", patch: { annDragging: null } });
     }
-  }, [stateRef, dispatch, rafRef, preDragCanvasRef, lassoRef, isLassoingRef, lassoRectRef]);
+
+    setTimeout(() => {
+      justCtrlSelectedNodeIdRef.current = null;
+    }, 50);
+  }, [stateRef, dispatch, rafRef, preDragCanvasRef, lassoRef, isLassoingRef, lassoRectRef, justCtrlSelectedNodeIdRef]);
 
   const handleSVGMouseDown = useCallback((e: React.MouseEvent) => {
     const s = stateRef.current;
