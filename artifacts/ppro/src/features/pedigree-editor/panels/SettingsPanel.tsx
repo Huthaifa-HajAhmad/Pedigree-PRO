@@ -103,7 +103,7 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
         </PanelSection>
 
         {/* Section 2: Canvas Grid */}
-        <PanelSection title="Canvas Grid" icon={<Grid className="w-3.5 h-3.5" />} defaultOpen={true}>
+        <PanelSection title="Canvas Grid" icon={<Grid className="w-3.5 h-3.5" />} defaultOpen={false}>
           <div className="space-y-4">
             {/* Grid Line Intensity Slider */}
             <div className="space-y-1">
@@ -155,21 +155,23 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
               </div>
             </div>
 
-            {/* Paper Texture Toggle */}
+            {/* Show Grid Toggle */}
             <div className="pt-2 border-t border-border/30">
               <ToggleRow
-                label="Paper Texture"
-                description="Show physical paper texture and shadow effects"
-                checked={config.paperTexture ?? true}
-                onChange={() => updateConfig({ paperTexture: !(config.paperTexture ?? true) })}
-                icon={<Palette className="w-3.5 h-3.5" />}
+                label="Show Grid"
+                description="Display helper grid lines in canvas background"
+                checked={state.showGrid}
+                onChange={() => dispatch({ type: "SET_STATE", patch: { showGrid: !state.showGrid } })}
+                icon={<Grid className="w-3.5 h-3.5" />}
               />
             </div>
+
+
           </div>
         </PanelSection>
 
         {/* Section: Toolbar */}
-        <PanelSection title="Toolbar" icon={<PanelTop className="w-3.5 h-3.5" />} defaultOpen={true}>
+        <PanelSection title="Toolbar" icon={<PanelTop className="w-3.5 h-3.5" />} defaultOpen={false}>
           <div className="space-y-4">
             <div className="space-y-1">
               <div className="flex items-center justify-between text-xs">
@@ -366,7 +368,7 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
         </PanelSection>
 
         {/* Section: Segregation & Genotypes */}
-        <PanelSection title="Segregation & Genotypes" icon={<Dna className="w-3.5 h-3.5" />} defaultOpen={true}>
+        <PanelSection title="Segregation & Genotypes" icon={<Dna className="w-3.5 h-3.5" />} defaultOpen={false}>
           <div className="space-y-4">
             <ToggleRow
               label="Show Genotypes"

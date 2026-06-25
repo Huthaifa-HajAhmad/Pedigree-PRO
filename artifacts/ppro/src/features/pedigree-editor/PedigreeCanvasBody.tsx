@@ -1,10 +1,11 @@
-import { useMemo, useCallback, useEffect, useRef } from "react";
+import { useMemo, useCallback, useEffect, useRef, useState } from "react";
 
 const EMPTY_SET: Set<string> = new Set();
 import { NodeShape } from "@/features/pedigree-editor/canvas/NodeShape";
 import { EdgeLine } from "@/features/pedigree-editor/canvas/EdgeLine";
 import { SibshipGroup, computeFamilyChildYOffset } from "@/features/pedigree-editor/canvas/SibshipGroup";
 import { AnnotationShape } from "@/features/pedigree-editor/canvas/AnnotationShape";
+import { computeLabelBelowHeight } from "@/features/pedigree-editor/canvas/canvasUtils";
 import { CanvasOverlayManager } from "@/features/pedigree-editor/overlay/CanvasOverlayManager";
 import { FindBar } from "@/features/pedigree-editor/overlay/FindBar";
 import { useCanvasTouch } from "@/features/pedigree-editor/hooks/use-canvas-touch";
@@ -18,6 +19,7 @@ import { RiskPanelSidebar } from "@/features/pedigree-editor/panels/RiskCalculat
 import { VersionHistoryPanel } from "@/features/pedigree-editor/panels/VersionHistoryPanel";
 import { ValidationPanelWrapper } from "@/features/pedigree-editor/panels/ValidationPanelWrapper";
 import { SettingsPanel } from "@/features/pedigree-editor/panels/SettingsPanel";
+import { useToast } from "@/hooks/use-toast";
 import { TabBar } from "@/features/pedigree-editor/panels/TabBar";
 import { useLocation } from "wouter";
 import { ShareModal } from "@/components/ShareModal";
@@ -27,29 +29,7 @@ import { parseCanvas } from "@/features/pedigree-editor/utils/helpers";
 import type { PedigreeNode, CanvasData } from "@/features/pedigree-editor/canvas/types";
 import { NODE_SIZE } from "@/features/pedigree-editor/canvas/types";
 
-function computeLabelBelowHeight(
-  node: PedigreeNode,
-  autoLabel?: string,
-  config?: { showAge?: boolean; ageFontSize?: number; autoLabelFontSize?: number }
-): number {
-  const showAgeSetting = config?.showAge ?? true;
-  const autoLabelFontSize = config?.autoLabelFontSize ?? 12;
-  const ageFontSize = config?.ageFontSize ?? autoLabelFontSize;
-  const ageH = ageFontSize + 3;
-  let h = 0;
-  if (autoLabel) {
-    h = autoLabelFontSize + 5;
-  } else if (node.label) {
-    h = 14;
-  }
-  if (showAgeSetting && (node.age || node.dob)) {
-    h = h > 0 ? h + ageH : ageH + 3;
-  }
-  if (node.condition) {
-    h = h > 0 ? h + 11 : 14;
-  }
-  return h;
-}
+
 
 function AnnotationLayer({
   annotations, nodes, selectedAnnotationId, canvas,
@@ -185,6 +165,55 @@ export function PedigreeCanvasBody() {
   const {
     state, ops, memo, refs, dispatch, pedigree, versions } = ctx;
   const { config, updateConfig } = useCanvasConfig();
+
+  const { toast } = useToast();
+  const [sidePanelWidth, setSidePanelWidth] = useState(320);
+  const isResizingRef = useRef(false);
+
+  const handleResizeMouseDown = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    isResizingRef.current = true;
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+  }, []);
+
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isResizingRef.current) return;
+      const newWidth = window.innerWidth - e.clientX;
+      if (newWidth >= 240 && newWidth <= 600) {
+        setSidePanelWidth(newWidth);
+      }
+    };
+
+    const handleMouseUp = () => {
+      if (isResizingRef.current) {
+        isResizingRef.current = false;
+        document.body.style.cursor = "";
+        document.body.style.userSelect = "";
+      }
+    };
+
+    window.addEventListener("mousemove", handleMouseMove);
+    window.addEventListener("mouseup", handleMouseUp);
+    return () => {
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", handleMouseUp);
+    };
+  }, []);
+
+  const prevSelectedCountRef = useRef(0);
+  useEffect(() => {
+    const currentCount = state.selectedIds?.size ?? 0;
+    if (currentCount >= 2 && prevSelectedCountRef.current < 2) {
+      toast({
+        title: "Multi-Node Selection Active",
+        description: "Use the side panel to edit bulk properties, align, or define relationships.",
+        duration: 4000,
+      });
+    }
+    prevSelectedCountRef.current = currentCount;
+  }, [state.selectedIds?.size, toast]);
 
   const {
     canvas, selectedIds, linkSource, showAutoLabels, viewBox,
@@ -532,7 +561,7 @@ const RAIL_MAX_X = 400;
           touchAction: "none",
           overscrollBehavior: "none",
           paddingLeft: "16px",
-          paddingRight: isSidePanelOpen ? "336px" : "16px"
+          paddingRight: isSidePanelOpen ? `${sidePanelWidth + 6}px` : "16px"
         }}
       >
         {twinSelectMode && (
@@ -603,9 +632,7 @@ const RAIL_MAX_X = 400;
             saveStatus={state.saveStatus}
           />
           <div
-            className={`flex-1 relative border border-black/10 rounded-lg overflow-hidden flex flex-col ${
-              (config.paperTexture ?? true) ? "skeuo-page" : "bg-white dark:bg-slate-900"
-            }`}
+            className="flex-1 relative border border-black/10 rounded-lg overflow-hidden flex flex-col bg-white dark:bg-slate-900"
           >
             <svg
               ref={svgRef}
@@ -629,10 +656,20 @@ const RAIL_MAX_X = 400;
                     <path d="M 40 0 L 0 0 0 40" fill="none" stroke="currentColor" strokeWidth={1} vectorEffect="non-scaling-stroke" opacity={config.gridOpacity ?? 0.10} />
                   )}
                 </pattern>
+                <pattern id="shading-striped" width="8" height="8" patternTransform="rotate(45 0 0)" patternUnits="userSpaceOnUse">
+                  <line x1="0" y1="0" x2="0" y2="8" stroke="currentColor" strokeWidth="2.2" />
+                </pattern>
+                <pattern id="shading-cross-hatched" width="8" height="8" patternTransform="rotate(45 0 0)" patternUnits="userSpaceOnUse">
+                  <line x1="0" y1="0" x2="0" y2="8" stroke="currentColor" strokeWidth="1.8" />
+                  <line x1="0" y1="0" x2="8" y2="0" stroke="currentColor" strokeWidth="1.8" />
+                </pattern>
+                <pattern id="shading-dots" width="6" height="6" patternUnits="userSpaceOnUse">
+                  <circle cx="3" cy="3" r="1.6" fill="currentColor" />
+                </pattern>
               </defs>
               <rect x={viewBox.x} y={viewBox.y} width={vbW} height={vbH} fill="transparent" data-canvas-background="true" />
               {showGrid && (
-                <rect x={viewBox.x} y={viewBox.y} width={vbW} height={vbH} fill="url(#grid-pattern)" pointerEvents="none" />
+                <rect x={viewBox.x} y={viewBox.y} width={vbW} height={vbH} fill="url(#grid-pattern)" pointerEvents="none" data-grid-rect="true" />
               )}
           {visibleGenRows.map((row) => (
             <line key={row} x1={viewBox.x} y1={row} x2={viewBox.x + vbW} y2={row}
@@ -665,8 +702,9 @@ const RAIL_MAX_X = 400;
                   style={{ pointerEvents: "none" }}
                 />
                 {spacedEntries.map(({ roman, y }) => (
-                  <text key={roman} x={viewBox.x + railX - 34} y={y + 5} fontSize={14} fontWeight="700"
+                  <text key={roman} x={viewBox.x + railX - 34} y={y} fontSize={14} fontWeight="700"
                     fontFamily="JetBrains Mono, monospace" fill="hsl(var(--foreground) / 0.35)"
+                    dominantBaseline="central"
                     style={{ userSelect: "none", letterSpacing: "0.05em", pointerEvents: "none" }}
                   >{roman}</text>
                 ))}
@@ -881,6 +919,7 @@ const RAIL_MAX_X = 400;
           showLegend={showLegend}
           legendEntries={legendEntries}
           panelOpen={isSidePanelOpen}
+          sidePanelWidth={sidePanelWidth}
         />
 
         {editModalNodeId && (() => {
@@ -953,85 +992,95 @@ const RAIL_MAX_X = 400;
         })()}
       </div>
 
-      {(anySelected || selectedAnnotationId !== null) && !showRiskPanel && !showValidation && !showVersions && !showSettings && !editModalNodeId && (
-        <PropertiesPanel
-            selectedIds={selectedIds}
-            canvasNodes={canvas.nodes} canvasEdges={canvas.edges}
-            canvasAnnotations={canvas.annotations}
-            selectedAnnotationId={selectedAnnotationId}
-            onUpdateSelectedNode={updateSelectedNode} onBulkUpdate={bulkUpdate}
-            onDeleteSelected={deleteSelected}
-            onAddAnnotation={addAnnotation} onUpdateAnnotation={updateAnnotation}
-            onDeleteAnnotation={deleteAnnotation}
-            onSelectAnnotation={(annId: string | null) => {
-              dispatch({
-                type: "SET_STATE",
-                patch: {
-                  selectedAnnotationId: annId,
-                  editAnnotationId: annId,
-                },
-              });
-            }}
-            onReorderAnnotations={handleReorderAnnotations}
-            onAlignSelected={alignSelected}
-            onMarkAsTwins={markAsTwins}
-            onUnmarkTwins={unmarkTwins}
-            onRemoveEdges={ops.removeEdges}
-            onUpdateEdgeType={updateEdgeType}
-            onCreateCoupleEdge={ops.createCoupleEdge}
-            onCreateConsanguinityEdge={ops.createConsanguinityEdge}
-            onCreateCoupleAndChild={ops.createCoupleAndChild}
-            onCreateParentsForGroup={ops.createParentsForGroup}
-          />
-        )}
-
-        {showSettings && (
-          <div className="absolute right-0 top-0 bottom-0 z-30 overflow-hidden shadow-[-4px_0_12px_rgba(0,0,0,0.08),0_4px_12px_rgba(0,0,0,0.08)]">
-            <SettingsPanel
-              onClose={() => dispatch({ type: "SET_STATE", patch: { showSettings: false } })}
-            />
+      {isSidePanelOpen && (
+        <div
+          className="absolute right-0 top-0 bottom-0 z-30 flex h-full select-none"
+          style={{ width: `${sidePanelWidth}px` }}
+        >
+          {/* Resize Handler / Drag Handle */}
+          <div
+            className="w-1.5 h-full cursor-col-resize hover:bg-primary/20 active:bg-primary/40 transition-colors flex items-center justify-center flex-shrink-0 relative group"
+            onMouseDown={handleResizeMouseDown}
+          >
+            <div className="w-[2px] h-8 rounded bg-border group-hover:bg-primary/50 group-active:bg-primary" />
           </div>
-        )}
 
-        {showRiskPanel && (
-          <div className="absolute right-0 top-0 bottom-0 z-30 overflow-hidden rounded-l-lg h-full shadow-[-4px_0_12px_rgba(0,0,0,0.08),0_4px_12px_rgba(0,0,0,0.08)]">
-            <RiskPanelSidebar canvas={canvas} mode={riskMode}
-              onModeChange={(m) => dispatch({ type: "SET_STATE", patch: { riskMode: m } })}
-              onClose={() => dispatch({ type: "SET_STATE", patch: { showRiskPanel: false } })}
-              width="w-80"
-            />
-          </div>
-        )}
-
-        {showValidation && (
-          <div className="absolute right-0 top-0 bottom-0 z-30 overflow-hidden shadow-[-4px_0_12px_rgba(0,0,0,0.08),0_4px_12px_rgba(0,0,0,0.08)]">
-            <ValidationPanelWrapper
-              validation={validation} expandedIssueId={expandedIssueId}
-              onToggleIssue={(id) => dispatch({ type: "SET_STATE", patch: { expandedIssueId: expandedIssueId === id ? null : id } })}
-              onFocusIssue={(nodeIds) => {
-                if (nodeIds.length > 0) {
+          {/* Panel Container */}
+          <div className="flex-1 h-full overflow-hidden bg-background shadow-[-4px_0_12px_rgba(0,0,0,0.08),0_4px_12px_rgba(0,0,0,0.08)] rounded-l-lg select-text flex flex-col">
+            {(anySelected || selectedAnnotationId !== null) && !showRiskPanel && !showValidation && !showVersions && !showSettings && !editModalNodeId && (
+              <PropertiesPanel
+                selectedIds={selectedIds}
+                canvasNodes={canvas.nodes} canvasEdges={canvas.edges}
+                canvasAnnotations={canvas.annotations}
+                selectedAnnotationId={selectedAnnotationId}
+                onUpdateSelectedNode={updateSelectedNode} onBulkUpdate={bulkUpdate}
+                onDeleteSelected={deleteSelected}
+                onAddAnnotation={addAnnotation} onUpdateAnnotation={updateAnnotation}
+                onDeleteAnnotation={deleteAnnotation}
+                onSelectAnnotation={(annId: string | null) => {
                   dispatch({
                     type: "SET_STATE",
                     patch: {
-                      selectedIds: new Set(nodeIds),
-                      showValidation: true,
-                      showRiskPanel: false,
-                      showVersions: false,
+                      selectedAnnotationId: annId,
+                      editAnnotationId: annId,
                     },
                   });
-                }
-              }}
-              nodes={canvas.nodes}
-              onClose={() => dispatch({ type: "SET_STATE", patch: { showValidation: false } })}
-            />
-          </div>
-        )}
+                }}
+                onReorderAnnotations={handleReorderAnnotations}
+                onAlignSelected={alignSelected}
+                onMarkAsTwins={markAsTwins}
+                onUnmarkTwins={unmarkTwins}
+                onRemoveEdges={ops.removeEdges}
+                onUpdateEdgeType={updateEdgeType}
+                onCreateCoupleEdge={ops.createCoupleEdge}
+                onCreateConsanguinityEdge={ops.createConsanguinityEdge}
+                onCreateCoupleAndChild={ops.createCoupleAndChild}
+                onCreateParentsForGroup={ops.createParentsForGroup}
+              />
+            )}
 
-      {showVersions && (
-        <div className="absolute right-0 top-0 bottom-0 z-30 overflow-hidden shadow-[-4px_0_12px_rgba(0,0,0,0.08),0_4px_12px_rgba(0,0,0,0.08)]">
-          <VersionHistoryPanel
-            onClose={() => dispatch({ type: "SET_STATE", patch: { showVersions: false } })}
-          />
+            {showSettings && (
+              <SettingsPanel
+                onClose={() => dispatch({ type: "SET_STATE", patch: { showSettings: false } })}
+              />
+            )}
+
+            {showRiskPanel && (
+              <RiskPanelSidebar canvas={canvas} mode={riskMode}
+                onModeChange={(m) => dispatch({ type: "SET_STATE", patch: { riskMode: m } })}
+                onClose={() => dispatch({ type: "SET_STATE", patch: { showRiskPanel: false } })}
+                width="w-full"
+              />
+            )}
+
+            {showValidation && (
+              <ValidationPanelWrapper
+                validation={validation} expandedIssueId={expandedIssueId}
+                onToggleIssue={(id) => dispatch({ type: "SET_STATE", patch: { expandedIssueId: expandedIssueId === id ? null : id } })}
+                onFocusIssue={(nodeIds) => {
+                  if (nodeIds.length > 0) {
+                    dispatch({
+                      type: "SET_STATE",
+                      patch: {
+                        selectedIds: new Set(nodeIds),
+                        showValidation: true,
+                        showRiskPanel: false,
+                        showVersions: false,
+                      },
+                    });
+                  }
+                }}
+                nodes={canvas.nodes}
+                onClose={() => dispatch({ type: "SET_STATE", patch: { showValidation: false } })}
+              />
+            )}
+
+            {showVersions && (
+              <VersionHistoryPanel
+                onClose={() => dispatch({ type: "SET_STATE", patch: { showVersions: false } })}
+              />
+            )}
+          </div>
         </div>
       )}
 

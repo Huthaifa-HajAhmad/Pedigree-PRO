@@ -17,6 +17,7 @@ export function CanvasOverlayManager({
   showLegend,
   legendEntries,
   panelOpen,
+  sidePanelWidth,
 }: {
   showMinimap: boolean;
   minimapNodes: PedigreeNode[];
@@ -31,6 +32,7 @@ export function CanvasOverlayManager({
   showLegend: boolean;
   legendEntries: Array<{ key: string; label: string }>;
   panelOpen: boolean;
+  sidePanelWidth: number;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const minimapVisible = showMinimap && nodeCount > 0;
@@ -39,7 +41,10 @@ export function CanvasOverlayManager({
     <div ref={containerRef} className="absolute inset-0 pointer-events-none">
       {/* Stacked overlay container: legend above minimap on the right side */}
       {(minimapVisible || showLegend) && (
-        <div className={`absolute bottom-4 flex flex-col-reverse gap-2 pointer-events-auto transition-all duration-300 ${panelOpen ? "right-[336px]" : "right-4"}`}>
+        <div 
+          className="absolute bottom-4 flex flex-col-reverse gap-2 pointer-events-auto transition-all duration-300"
+          style={{ right: panelOpen ? `${sidePanelWidth + 6}px` : "16px" }}
+        >
           {minimapVisible && (
             <Minimap
               shifted={panelOpen}

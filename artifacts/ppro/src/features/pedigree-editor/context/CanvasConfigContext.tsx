@@ -24,7 +24,6 @@ export interface CanvasConfig {
   genotypeFontSize: number;
   genotypeOffset: number;
   toolbarHeight?: number;
-  paperTexture?: boolean;
   gridStyle?: "lines" | "dots" | "crosses";
   autoLabelFontSize?: number;
   autoLabelColor?: string;
@@ -57,7 +56,6 @@ export const DEFAULT_CANVAS_CONFIG: CanvasConfig = {
   genotypeFontSize: 12,
   genotypeOffset: 3,
   toolbarHeight: 96,
-  paperTexture: true,
   gridStyle: "lines",
   autoLabelFontSize: 12,
   autoLabelColor: "",
