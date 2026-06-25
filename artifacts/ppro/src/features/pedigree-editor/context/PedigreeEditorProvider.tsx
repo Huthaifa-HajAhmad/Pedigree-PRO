@@ -188,13 +188,36 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
     if (nt.has("unknown")) e.push({ key: "unknown", label: "Unknown sex" });
     if (nt.has("pregnancy")) e.push({ key: "pregnancy", label: "Pregnancy" });
     if (nt.has("sab")) e.push({ key: "sab", label: "SAB" });
-    if (state.canvas.nodes.some((n) => n.affected)) e.push({ key: "affected", label: "Affected" });
+    
+    if (state.canvas.nodes.some((n) => n.affected && (!n.shading || n.shading === "solid") && !n.condition)) {
+      e.push({ key: "affected", label: "Affected" });
+    }
     if (state.canvas.nodes.some((n) => n.carrier && !n.affected)) e.push({ key: "carrier", label: "Carrier" });
     if (state.canvas.nodes.some((n) => n.deceased)) e.push({ key: "deceased", label: "Deceased" });
     if (state.canvas.nodes.some((n) => n.proband)) e.push({ key: "proband", label: "Proband" });
+    
+    // Scan unique shading styles and their conditions
+    const shadingLabels = new Map<string, string>();
+    state.canvas.nodes.forEach((n) => {
+      if (n.shading) {
+        if (n.shading === "solid" && !n.condition) {
+          return;
+        }
+        const cond = n.condition || "";
+        if (cond) {
+          shadingLabels.set(n.shading, cond);
+        } else if (!shadingLabels.has(n.shading)) {
+          shadingLabels.set(n.shading, "...");
+        }
+      }
+    });
+
+    shadingLabels.forEach((label, shadingKey) => {
+      e.push({ key: `shading-${shadingKey}`, label });
+    });
+
     if (et.has("couple")) e.push({ key: "couple", label: "Partners" });
     if (et.has("consanguinity")) e.push({ key: "consanguinity", label: "Consanguineous" });
-    if (et.has("parent-child")) e.push({ key: "parent-child", label: "Parent-Child" });
     return e;
   }, [state.canvas]);
 

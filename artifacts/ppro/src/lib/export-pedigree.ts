@@ -17,6 +17,11 @@ export interface ExportNode {
   notes?: string;
   x: number;
   y: number;
+  shading?: "solid" | "striped" | "cross-hatched" | "dots" | "left-half" | "right-half" | "top-half" | "bottom-half" | "quadrant";
+  color?: string;
+  genotype?: string;
+  genotype2?: string;
+  additionalGenotypes?: string[];
 }
 
 export interface ExportEdge {
@@ -61,11 +66,34 @@ function computeLegendItems(canvas: ExportCanvas): LegendItem[] {
   if (nt.has("unknown"))    items.push({ shape: "diamond",    label: "Unknown sex" });
   if (nt.has("pregnancy"))  items.push({ shape: "pregnancy",  label: "Pregnancy" });
   if (nt.has("sab"))        items.push({ shape: "sab",        label: "SAB / Stillbirth" });
-  if (canvas.nodes.some((n) => n.affected))              items.push({ shape: "filled",  label: "Affected" });
+  
+  if (canvas.nodes.some((n) => n.affected && (!n.shading || n.shading === "solid") && !n.condition)) {
+    items.push({ shape: "filled",  label: "Affected" });
+  }
   if (canvas.nodes.some((n) => n.carrier && !n.affected)) items.push({ shape: "carrier", label: "Carrier" });
   if (canvas.nodes.some((n) => n.deceased))              items.push({ shape: "slash",   label: "Deceased" });
   if (canvas.nodes.some((n) => n.proband))               items.push({ shape: "arrow",   label: "Proband" });
   if (et.has("consanguinity")) items.push({ shape: "dbl-line", label: "Consanguineous union" });
+
+  // Add custom shading patterns to export legend
+  const shadingLabels = new Map<string, string>();
+  canvas.nodes.forEach((n) => {
+    if (n.shading) {
+      if (n.shading === "solid" && !n.condition) {
+        return;
+      }
+      const cond = n.condition || "";
+      if (cond) {
+        shadingLabels.set(n.shading, cond);
+      } else if (!shadingLabels.has(n.shading)) {
+        shadingLabels.set(n.shading, "...");
+      }
+    }
+  });
+
+  shadingLabels.forEach((label, shadingKey) => {
+    items.push({ shape: `shading-${shadingKey}`, label });
+  });
 
   return items;
 }
@@ -202,6 +230,11 @@ function prepareSvgForExport(
   clone.querySelectorAll('circle[r="3"][opacity]').forEach((el) => {
     if (parseFloat(el.getAttribute("opacity") ?? "0") < 1) el.remove();
   });
+
+  // Remove interactive background and grid rects so they don't bloat the bounding box calculation
+  clone.querySelectorAll('rect[data-canvas-background="true"]').forEach((el) => el.remove());
+  clone.querySelectorAll('rect[fill="url(#grid-pattern)"]').forEach((el) => el.remove());
+  clone.querySelectorAll('rect[data-grid-rect="true"]').forEach((el) => el.remove());
 
   // Remove background grid lines so they don't bloat the bounding box calculation
   clone.querySelectorAll("line").forEach((el) => {
@@ -346,6 +379,72 @@ export async function exportPPRO(pedigreeId: number, exporterKey: string, title:
   await triggerDownload(blob, `${safeFilename(title)}.ppro`);
 }
 
+function drawShadedCircleInPdf(doc: any, lx: number, LYc: number, LS: number, style: string) {
+  const r = LS / 2;
+  const cx = lx + r;
+  const cy = LYc;
+
+  // Draw outer circle outline
+  doc.setFillColor(255, 255, 255);
+  doc.setDrawColor(71, 85, 105);
+  doc.setLineWidth(0.35);
+  doc.circle(cx, cy, r, "FD");
+
+  // Draw pattern inside
+  doc.setFillColor(71, 85, 105);
+  doc.setDrawColor(71, 85, 105);
+
+  const drawWedge = (startAngle: number, endAngle: number) => {
+    const steps = 8;
+    const angleStep = (endAngle - startAngle) / steps;
+    for (let i = 0; i < steps; i++) {
+      const a1 = startAngle + i * angleStep;
+      const a2 = a1 + angleStep;
+      doc.triangle(
+        cx, cy,
+        cx + r * Math.cos(a1), cy + r * Math.sin(a1),
+        cx + r * Math.cos(a2), cy + r * Math.sin(a2),
+        "F"
+      );
+    }
+  };
+
+  if (style === "solid") {
+    doc.circle(cx, cy, r, "FD");
+  } else if (style === "striped") {
+    doc.setLineWidth(0.3);
+    const offset = r * 0.707;
+    doc.line(cx - offset, cy + offset, cx + offset, cy - offset);
+    doc.line(cx - offset * 0.5, cy, cx, cy - offset * 0.5);
+    doc.line(cx, cy + offset * 0.5, cx + offset * 0.5, cy);
+  } else if (style === "cross-hatched") {
+    doc.setLineWidth(0.3);
+    const offset = r * 0.707;
+    doc.line(cx - offset, cy + offset, cx + offset, cy - offset);
+    doc.line(cx - offset * 0.5, cy, cx, cy - offset * 0.5);
+    doc.line(cx, cy + offset * 0.5, cx + offset * 0.5, cy);
+    doc.line(cx - offset, cy - offset, cx + offset, cy + offset);
+    doc.line(cx - offset * 0.5, cy, cx, cy + offset * 0.5);
+    doc.line(cx, cy - offset * 0.5, cx + offset * 0.5, cy);
+  } else if (style === "dots") {
+    doc.circle(cx, cy, 0.35, "F");
+    doc.circle(cx - r * 0.4, cy - r * 0.4, 0.25, "F");
+    doc.circle(cx + r * 0.4, cy - r * 0.4, 0.25, "F");
+    doc.circle(cx - r * 0.4, cy + r * 0.4, 0.25, "F");
+    doc.circle(cx + r * 0.4, cy + r * 0.4, 0.25, "F");
+  } else if (style === "left-half") {
+    drawWedge(Math.PI / 2, Math.PI * 1.5);
+  } else if (style === "right-half") {
+    drawWedge(-Math.PI / 2, Math.PI / 2);
+  } else if (style === "top-half") {
+    drawWedge(Math.PI, Math.PI * 2);
+  } else if (style === "bottom-half") {
+    drawWedge(0, Math.PI);
+  } else if (style === "quadrant") {
+    drawWedge(-Math.PI / 2, 0);
+  }
+}
+
 // ---------------------------------------------------------------------------
 // PDF export — clinical-grade, captures live SVG rendering as high-DPI image
 // ---------------------------------------------------------------------------
@@ -485,6 +584,9 @@ export async function exportPDF(info: ExportInfo, canvas: ExportCanvas) {
       doc.text(item.label, lx + LS + 2, LYc + 1.2);
       lx += LS + doc.getTextWidth(item.label) + 8;
       continue;
+    } else if (item.shape.startsWith("shading-")) {
+      const style = item.shape.replace("shading-", "");
+      drawShadedCircleInPdf(doc, lx, LYc, LS, style);
     } else if (item.shape === "dbl-line") {
       doc.setDrawColor(71, 85, 105);
       doc.line(lx, LYc - 0.8, lx + LS, LYc - 0.8);
@@ -930,6 +1032,148 @@ export async function exportPPTX(info: ExportInfo, canvas: ExportCanvas) {
         rotate: -45,
         line: { color: "0F172A", width: 1.5, endArrowType: "triangle" }
       });
+    } else if (item.shape.startsWith("shading-")) {
+      const style = item.shape.replace("shading-", "");
+      // Draw outer circle
+      slide.addShape(pptx.ShapeType.ellipse, {
+        x: lx,
+        y: ly - lSize / 2,
+        w: lSize,
+        h: lSize,
+        fill: { color: "FFFFFF" },
+        line: { color: "0F172A", width: 1 }
+      });
+
+      if (style === "solid") {
+        slide.addShape(pptx.ShapeType.ellipse, {
+          x: lx,
+          y: ly - lSize / 2,
+          w: lSize,
+          h: lSize,
+          fill: { color: "64748B" },
+          line: { color: "64748B", width: 0 }
+        });
+      } else if (style === "left-half") {
+        slide.addShape(pptx.ShapeType.rect, {
+          x: lx,
+          y: ly - lSize / 2,
+          w: lSize / 2,
+          h: lSize,
+          fill: { color: "64748B" },
+          line: { color: "64748B", width: 0 }
+        });
+        slide.addShape(pptx.ShapeType.ellipse, {
+          x: lx,
+          y: ly - lSize / 2,
+          w: lSize,
+          h: lSize,
+          fill: { color: "transparent" },
+          line: { color: "0F172A", width: 1 }
+        });
+      } else if (style === "right-half") {
+        slide.addShape(pptx.ShapeType.rect, {
+          x: lx + lSize / 2,
+          y: ly - lSize / 2,
+          w: lSize / 2,
+          h: lSize,
+          fill: { color: "64748B" },
+          line: { color: "64748B", width: 0 }
+        });
+        slide.addShape(pptx.ShapeType.ellipse, {
+          x: lx,
+          y: ly - lSize / 2,
+          w: lSize,
+          h: lSize,
+          fill: { color: "transparent" },
+          line: { color: "0F172A", width: 1 }
+        });
+      } else if (style === "top-half") {
+        slide.addShape(pptx.ShapeType.rect, {
+          x: lx,
+          y: ly - lSize / 2,
+          w: lSize,
+          h: lSize / 2,
+          fill: { color: "64748B" },
+          line: { color: "64748B", width: 0 }
+        });
+        slide.addShape(pptx.ShapeType.ellipse, {
+          x: lx,
+          y: ly - lSize / 2,
+          w: lSize,
+          h: lSize,
+          fill: { color: "transparent" },
+          line: { color: "0F172A", width: 1 }
+        });
+      } else if (style === "bottom-half") {
+        slide.addShape(pptx.ShapeType.rect, {
+          x: lx,
+          y: ly,
+          w: lSize,
+          h: lSize / 2,
+          fill: { color: "64748B" },
+          line: { color: "64748B", width: 0 }
+        });
+        slide.addShape(pptx.ShapeType.ellipse, {
+          x: lx,
+          y: ly - lSize / 2,
+          w: lSize,
+          h: lSize,
+          fill: { color: "transparent" },
+          line: { color: "0F172A", width: 1 }
+        });
+      } else if (style === "quadrant") {
+        slide.addShape(pptx.ShapeType.rect, {
+          x: lx + lSize / 2,
+          y: ly - lSize / 2,
+          w: lSize / 2,
+          h: lSize / 2,
+          fill: { color: "64748B" },
+          line: { color: "64748B", width: 0 }
+        });
+        slide.addShape(pptx.ShapeType.ellipse, {
+          x: lx,
+          y: ly - lSize / 2,
+          w: lSize,
+          h: lSize,
+          fill: { color: "transparent" },
+          line: { color: "0F172A", width: 1 }
+        });
+      } else if (style === "striped") {
+        slide.addShape(pptx.ShapeType.line, {
+          x: lx + 0.05,
+          y: ly,
+          w: lSize - 0.1,
+          h: 0,
+          line: { color: "64748B", width: 1.5 },
+          rotate: 45
+        });
+      } else if (style === "cross-hatched") {
+        slide.addShape(pptx.ShapeType.line, {
+          x: lx + 0.05,
+          y: ly,
+          w: lSize - 0.1,
+          h: 0,
+          line: { color: "64748B", width: 1.2 },
+          rotate: 45
+        });
+        slide.addShape(pptx.ShapeType.line, {
+          x: lx + 0.05,
+          y: ly,
+          w: lSize - 0.1,
+          h: 0,
+          line: { color: "64748B", width: 1.2 },
+          rotate: -45
+        });
+      } else if (style === "dots") {
+        slide.addShape(pptx.ShapeType.ellipse, {
+          x: lx + lSize / 2 - 0.03,
+          y: ly - 0.03,
+          w: 0.06,
+          h: 0.06,
+          fill: { color: "64748B" },
+          line: { color: "64748B", width: 0 }
+        });
+      }
     } else if (item.shape === "dbl-line") {
       slide.addShape(pptx.ShapeType.line, {
         x: lx,
@@ -1229,6 +1473,10 @@ export async function exportClinicalReport(info: ExportInfo, canvas: ExportCanva
       doc.text(item.label, lx + LS + 2, LYc + 1.0);
       lx += LS + doc.getTextWidth(item.label) + 6;
       continue;
+    }
+    else if (item.shape.startsWith("shading-")) {
+      const style = item.shape.replace("shading-", "");
+      drawShadedCircleInPdf(doc, lx, LYc, LS, style);
     }
     else if (item.shape === "dbl-line") {
       doc.setDrawColor(71, 85, 105);
@@ -1666,7 +1914,7 @@ export async function exportPNG(
     const img = new Image();
     const blob = await new Promise<Blob>((resolve, reject) => {
       img.onload = () => {
-        const scale = 2;
+        const scale = 4;
         const cvs = document.createElement("canvas");
         cvs.width = vb.w * scale;
         cvs.height = vb.h * scale;
