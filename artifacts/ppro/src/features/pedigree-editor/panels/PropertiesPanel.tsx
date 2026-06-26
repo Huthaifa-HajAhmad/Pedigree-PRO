@@ -436,7 +436,7 @@ export function PropertiesPanel({
                               const sw = 1.8;
                               if (t === "male") return <rect x={-7} y={-7} width={14} height={14} strokeWidth={sw} rx={0.5} />;
                               if (t === "female") return <circle cx={0} cy={0} r={7} strokeWidth={sw} />;
-                              if (t === "sab") return <polygon points="0,5.04 -5.32,-3.64 5.32,-3.64" strokeWidth={sw} />;
+                              if (t === "sab") return <polygon points="0,7 -7,-7 7,-7" strokeWidth={sw} />;
                               if (t === "pregnancy") return (
                                 <>
                                   <rect x={-7} y={-7} width={14} height={14} strokeWidth={sw} rx={0.5} transform="rotate(45)" />
