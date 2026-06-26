@@ -257,7 +257,7 @@ export function ReadOnlyCanvas({ canvas, showGrid = false, showAutoLabels = fals
   return (
     <div className="flex-1 overflow-hidden relative canvas-spared flex items-center justify-center p-4">
       <div
-        className="relative bg-white shadow-md border border-border/75 rounded-lg overflow-hidden flex-shrink-0"
+        className="relative bg-white shadow-md border border-border/75 rounded-lg overflow-hidden flex-shrink-0 theme-light-canvas"
         style={{ aspectRatio: `${w} / ${h}`, width: "100%", height: "100%", maxWidth: "100%", maxHeight: "100%", margin: "auto" }}
       >
         <svg className="w-full h-full" viewBox={`${x} ${y} ${w} ${h}`}>

@@ -1,0 +1,246 @@
+/* ─── Color Palettes (Accent Overrides) ────────────────────────────────── */
+
+/* 1. Blue */
+[data-color="blue"] {
+  --accent-hex: #2563EB;
+  --glow-strong: rgba(37, 99, 235, 0.45);
+  --glow-soft:   rgba(37, 99, 235, 0.18);
+  --glass-bdr:   rgba(37, 99, 235, 0.12);
+  --button-outline: rgba(37, 99, 235, 0.12);
+  --badge-outline:  rgba(37, 99, 235, 0.07);
+  --ring: 221 83% 53%;
+  --primary: 221 83% 53%;
+  --primary-border: hsl(221 83% 45%);
+  --accent: 221 100% 95%;
+  --accent-foreground: 221 83% 45%;
+  --sidebar-primary: 221 83% 53%;
+  --sidebar-primary-border: hsl(221 83% 45%);
+  --sidebar-ring: 221 83% 53%;
+}
+.dark [data-color="blue"],
+.dark[data-color="blue"] {
+  --accent-hex: #3b82f6;
+  --glow-strong: rgba(59, 130, 246, 0.50);
+  --glow-soft:   rgba(59, 130, 246, 0.20);
+  --glass-bdr:   rgba(59, 130, 246, 0.14);
+  --button-outline: rgba(59, 130, 246, 0.14);
+  --badge-outline:  rgba(59, 130, 246, 0.08);
+  --ring: 221 83% 60%;
+  --primary: 221 83% 60%;
+  --primary-border: hsl(221 83% 52%);
+  --accent: 221 40% 16%;
+  --accent-foreground: 221 83% 75%;
+  --sidebar-primary: 221 83% 60%;
+  --sidebar-primary-border: hsl(221 83% 52%);
+  --sidebar-ring: 221 83% 60%;
+}
+
+/* 2. Sky */
+[data-color="sky"] {
+  --accent-hex: #0284C7;
+  --glow-strong: rgba(2, 132, 199, 0.45);
+  --glow-soft:   rgba(2, 132, 199, 0.18);
+  --glass-bdr:   rgba(2, 132, 199, 0.12);
+  --button-outline: rgba(2, 132, 199, 0.12);
+  --badge-outline:  rgba(2, 132, 199, 0.07);
+  --ring: 199 89% 48%;
+  --primary: 199 89% 48%;
+  --primary-border: hsl(199 89% 40%);
+  --accent: 199 100% 95%;
+  --accent-foreground: 199 89% 40%;
+  --sidebar-primary: 199 89% 48%;
+  --sidebar-primary-border: hsl(199 89% 40%);
+  --sidebar-ring: 199 89% 48%;
+}
+.dark [data-color="sky"],
+.dark[data-color="sky"] {
+  --accent-hex: #38BDF8;
+  --glow-strong: rgba(56, 189, 248, 0.50);
+  --glow-soft:   rgba(56, 189, 248, 0.20);
+  --glass-bdr:   rgba(56, 189, 248, 0.14);
+  --button-outline: rgba(56, 189, 248, 0.14);
+  --badge-outline:  rgba(56, 189, 248, 0.08);
+  --ring: 199 89% 60%;
+  --primary: 199 89% 60%;
+  --primary-border: hsl(199 89% 52%);
+  --accent: 199 40% 16%;
+  --accent-foreground: 199 89% 75%;
+  --sidebar-primary: 199 89% 60%;
+  --sidebar-primary-border: hsl(199 89% 52%);
+  --sidebar-ring: 199 89% 60%;
+}
+
+/* 3. Teal */
+[data-color="teal"] {
+  --accent-hex: #0D9488;
+  --glow-strong: rgba(13, 148, 136, 0.45);
+  --glow-soft:   rgba(13, 148, 136, 0.18);
+  --glass-bdr:   rgba(13, 148, 136, 0.12);
+  --button-outline: rgba(13, 148, 136, 0.12);
+  --badge-outline:  rgba(13, 148, 136, 0.07);
+  --ring: 173 80% 40%;
+  --primary: 173 80% 40%;
+  --primary-border: hsl(173 80% 32%);
+  --accent: 173 100% 95%;
+  --accent-foreground: 173 80% 32%;
+  --sidebar-primary: 173 80% 40%;
+  --sidebar-primary-border: hsl(173 80% 32%);
+  --sidebar-ring: 173 80% 40%;
+}
+.dark [data-color="teal"],
+.dark[data-color="teal"] {
+  --accent-hex: #2DD4BF;
+  --glow-strong: rgba(45, 212, 191, 0.50);
+  --glow-soft:   rgba(45, 212, 191, 0.20);
+  --glass-bdr:   rgba(45, 212, 191, 0.14);
+  --button-outline: rgba(45, 212, 191, 0.14);
+  --badge-outline:  rgba(45, 212, 191, 0.08);
+  --ring: 173 80% 55%;
+  --primary: 173 80% 55%;
+  --primary-border: hsl(173 80% 47%);
+  --accent: 173 40% 16%;
+  --accent-foreground: 173 80% 75%;
+  --sidebar-primary: 173 80% 55%;
+  --sidebar-primary-border: hsl(173 80% 47%);
+  --sidebar-ring: 173 80% 55%;
+}
+
+/* 4. Amber */
+[data-color="amber"] {
+  --accent-hex: #D97706;
+  --glow-strong: rgba(217, 119, 6, 0.45);
+  --glow-soft:   rgba(217, 119, 6, 0.18);
+  --glass-bdr:   rgba(217, 119, 6, 0.12);
+  --button-outline: rgba(217, 119, 6, 0.12);
+  --badge-outline:  rgba(217, 119, 6, 0.07);
+  --ring: 38 92% 50%;
+  --primary: 38 92% 50%;
+  --primary-border: hsl(38 92% 42%);
+  --accent: 38 100% 95%;
+  --accent-foreground: 38 92% 42%;
+  --sidebar-primary: 38 92% 50%;
+  --sidebar-primary-border: hsl(38 92% 42%);
+  --sidebar-ring: 38 92% 50%;
+}
+.dark [data-color="amber"],
+.dark[data-color="amber"] {
+  --accent-hex: #F59E0B;
+  --glow-strong: rgba(245, 158, 11, 0.50);
+  --glow-soft:   rgba(245, 158, 11, 0.20);
+  --glass-bdr:   rgba(245, 158, 11, 0.14);
+  --button-outline: rgba(245, 158, 11, 0.14);
+  --badge-outline:  rgba(245, 158, 11, 0.08);
+  --ring: 38 92% 60%;
+  --primary: 38 92% 60%;
+  --primary-border: hsl(38 92% 52%);
+  --accent: 38 40% 16%;
+  --accent-foreground: 38 92% 75%;
+  --sidebar-primary: 38 92% 60%;
+  --sidebar-primary-border: hsl(38 92% 52%);
+  --sidebar-ring: 38 92% 60%;
+}
+
+/* 5. Indigo */
+[data-color="indigo"] {
+  --accent-hex: #6366F1;
+  --glow-strong: rgba(99, 102, 241, 0.45);
+  --glow-soft:   rgba(99, 102, 241, 0.18);
+  --glass-bdr:   rgba(99, 102, 241, 0.12);
+  --button-outline: rgba(99, 102, 241, 0.12);
+  --badge-outline:  rgba(99, 102, 241, 0.07);
+  --ring: 239 84% 67%;
+  --primary: 239 84% 67%;
+  --primary-border: hsl(239 84% 59%);
+  --accent: 239 100% 95%;
+  --accent-foreground: 239 84% 59%;
+  --sidebar-primary: 239 84% 67%;
+  --sidebar-primary-border: hsl(239 84% 59%);
+  --sidebar-ring: 239 84% 67%;
+}
+.dark [data-color="indigo"],
+.dark[data-color="indigo"] {
+  --accent-hex: #6475F7;
+  --glow-strong: rgba(100, 117, 247, 0.55);
+  --glow-soft:   rgba(100, 117, 247, 0.22);
+  --glass-bdr:   rgba(100, 117, 247, 0.14);
+  --button-outline: rgba(100, 117, 247, 0.14);
+  --badge-outline: rgba(100, 117, 247, 0.08);
+  --ring: 235 75% 62%;
+  --primary: 235 75% 62%;
+  --primary-border: hsl(235 75% 52%);
+  --accent: 235 40% 18%;
+  --accent-foreground: 235 75% 75%;
+  --sidebar-primary: 235 75% 62%;
+  --sidebar-primary-border: hsl(235 75% 52%);
+  --sidebar-ring: 235 75% 62%;
+}
+
+/* 6. Rose */
+[data-color="rose"] {
+  --accent-hex: #E11D48;
+  --glow-strong: rgba(225, 29, 72, 0.45);
+  --glow-soft:   rgba(225, 29, 72, 0.18);
+  --glass-bdr:   rgba(225, 29, 72, 0.12);
+  --button-outline: rgba(225, 29, 72, 0.12);
+  --badge-outline:  rgba(225, 29, 72, 0.07);
+  --ring: 343 89% 59%;
+  --primary: 343 89% 59%;
+  --primary-border: hsl(343 89% 51%);
+  --accent: 343 100% 95%;
+  --accent-foreground: 343 89% 51%;
+  --sidebar-primary: 343 89% 59%;
+  --sidebar-primary-border: hsl(343 89% 51%);
+  --sidebar-ring: 343 89% 59%;
+}
+.dark [data-color="rose"],
+.dark[data-color="rose"] {
+  --accent-hex: #FB7185;
+  --glow-strong: rgba(251, 113, 133, 0.50);
+  --glow-soft:   rgba(251, 113, 133, 0.20);
+  --glass-bdr:   rgba(251, 113, 133, 0.14);
+  --button-outline: rgba(251, 113, 133, 0.14);
+  --badge-outline:  rgba(251, 113, 133, 0.08);
+  --ring: 343 89% 68%;
+  --primary: 343 89% 68%;
+  --primary-border: hsl(343 89% 60%);
+  --accent: 343 40% 16%;
+  --accent-foreground: 343 89% 80%;
+  --sidebar-primary: 343 89% 68%;
+  --sidebar-primary-border: hsl(343 89% 60%);
+  --sidebar-ring: 343 89% 68%;
+}
+
+/* 7. Purple */
+[data-color="purple"] {
+  --accent-hex: #A855F7;
+  --glow-strong: rgba(168, 85, 247, 0.45);
+  --glow-soft:   rgba(168, 85, 247, 0.18);
+  --glass-bdr:   rgba(168, 85, 247, 0.12);
+  --button-outline: rgba(168, 85, 247, 0.12);
+  --badge-outline:  rgba(168, 85, 247, 0.07);
+  --ring: 271 91% 65%;
+  --primary: 271 91% 65%;
+  --primary-border: hsl(271 91% 57%);
+  --accent: 271 100% 95%;
+  --accent-foreground: 271 91% 57%;
+  --sidebar-primary: 271 91% 65%;
+  --sidebar-primary-border: hsl(271 91% 57%);
+  --sidebar-ring: 271 91% 65%;
+}
+.dark [data-color="purple"],
+.dark[data-color="purple"] {
+  --accent-hex: #C084FC;
+  --glow-strong: rgba(192, 132, 252, 0.50);
+  --glow-soft:   rgba(192, 132, 252, 0.20);
+  --glass-bdr:   rgba(192, 132, 252, 0.14);
+  --button-outline: rgba(192, 132, 252, 0.14);
+  --badge-outline:  rgba(192, 132, 252, 0.08);
+  --ring: 271 91% 72%;
+  --primary: 271 91% 72%;
+  --primary-border: hsl(271 91% 64%);
+  --accent: 271 40% 16%;
+  --accent-foreground: 271 91% 82%;
+  --sidebar-primary: 271 91% 72%;
+  --sidebar-primary-border: hsl(271 91% 64%);
+  --sidebar-ring: 271 91% 72%;
+}

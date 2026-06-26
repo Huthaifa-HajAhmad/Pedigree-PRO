@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Palette, Type, Ruler, Check, RotateCcw, PanelTop } from "lucide-react";
-import { THEMES, useTheme, applyTheme } from "@/lib/theme";
+import { THEMES, COLOR_PALETTES, useTheme, applyTheme } from "@/lib/theme";
 import { FONT_OPTIONS, useFont } from "@/lib/font";
 import { PanelSection } from "@/components/shared/panels/PanelSection";
 import { useCanvasConfig, DEFAULT_CANVAS_CONFIG } from "@/features/pedigree-editor/context/CanvasConfigContext";
@@ -14,12 +14,12 @@ const TABS = [
 type TabId = (typeof TABS)[number]["id"];
 
 function AppearanceTab() {
-  const { themeId, setTheme } = useTheme();
+  const { themeId, setTheme, colorPalette, setColorPalette } = useTheme();
   const { fontId, setFont } = useFont();
 
   return (
     <div className="space-y-6">
-      <PanelSection title="Color Theme" icon={<Palette className="w-3.5 h-3.5" />}>
+      <PanelSection title="Color Theme Mode" icon={<Palette className="w-3.5 h-3.5" />}>
         <div className="grid grid-cols-2 gap-3">
           {THEMES.map((t) => {
             const isActive = themeId === t.id;
@@ -28,8 +28,8 @@ function AppearanceTab() {
                 type="button"
                 key={t.id}
                 onClick={() => setTheme(t.id)}
-                onMouseEnter={() => applyTheme(t.id)}
-                onMouseLeave={() => applyTheme(themeId)}
+                onMouseEnter={() => applyTheme(t.id, colorPalette)}
+                onMouseLeave={() => applyTheme(themeId, colorPalette)}
                 className={`relative flex flex-col rounded-lg border transition-all text-left overflow-hidden ${
                   isActive ? "border-primary ring-1 ring-primary/50" : "border-border hover:border-primary/40"
                 }`}
@@ -62,6 +62,31 @@ function AppearanceTab() {
               </button>
             );
           })}
+        </div>
+
+        {/* Color Palette Selector */}
+        <div className="mt-4 pt-4 border-t border-border/50">
+          <label className="text-[10px] text-muted-foreground uppercase tracking-wider block mb-2.5">Accent Color</label>
+          <div className="flex flex-wrap items-center gap-3">
+            {COLOR_PALETTES.map((palette) => {
+              const isActive = colorPalette === palette.id;
+              return (
+                <button
+                  type="button"
+                  key={palette.id}
+                  onClick={() => setColorPalette(palette.id)}
+                  title={palette.name}
+                  className="w-7 h-7 rounded-full transition-all hover:scale-110 flex items-center justify-center cursor-pointer"
+                  style={{
+                    backgroundColor: palette.hex,
+                    boxShadow: isActive ? `0 0 0 2px hsl(var(--background)), 0 0 0 4px ${palette.hex}` : `0 0 0 1px ${palette.hex}40`,
+                  }}
+                >
+                  {isActive && <Check className="w-3.5 h-3.5 text-white" />}
+                </button>
+              );
+            })}
+          </div>
         </div>
       </PanelSection>
 

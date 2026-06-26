@@ -131,11 +131,11 @@ function PedigreeCanvasInner() {
   const activeTheme = useMemo(() => THEMES.find((t) => t.id === activeThemeId) || THEMES[0]!, [activeThemeId]);
 
   useEffect(() => {
-    applyThemeDom(activeThemeId);
+    applyThemeDom(activeThemeId, parentThemeCtx.colorPalette);
     return () => {
-      applyThemeDom(parentThemeCtx.themeId);
+      applyThemeDom(parentThemeCtx.themeId, parentThemeCtx.colorPalette);
     };
-  }, [activeThemeId, parentThemeCtx.themeId]);
+  }, [activeThemeId, parentThemeCtx.themeId, parentThemeCtx.colorPalette]);
 
   const localThemeValue = useMemo(() => ({
     themeId: activeThemeId,
@@ -149,8 +149,10 @@ function PedigreeCanvasInner() {
         };
       });
     },
+    colorPalette: parentThemeCtx.colorPalette,
+    setColorPalette: parentThemeCtx.setColorPalette,
     synced: true,
-  }), [activeThemeId, activeTheme, ops.updateCanvas]);
+  }), [activeThemeId, activeTheme, parentThemeCtx.colorPalette, parentThemeCtx.setColorPalette, ops.updateCanvas]);
 
   const handleUpdateLocalConfig = useCallback((patch: Partial<CanvasConfig>) => {
     ops.updateCanvas((prev) => {

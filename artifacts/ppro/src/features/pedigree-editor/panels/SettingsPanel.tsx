@@ -2,7 +2,7 @@ import { Palette, Ruler, Hash, Check, RotateCcw, Settings, Type, Grid, Eye, Dna,
 import { PanelShell } from "@/components/shared/panels/PanelShell";
 import { PanelSection } from "@/components/shared/panels/PanelSection";
 import { usePedigreeEditor } from "@/features/pedigree-editor/context";
-import { THEMES, useTheme } from "@/lib/theme";
+import { THEMES, COLOR_PALETTES, useTheme } from "@/lib/theme";
 import { useCanvasConfig, DEFAULT_CANVAS_CONFIG, CanvasConfig } from "@/features/pedigree-editor/context/CanvasConfigContext";
 
 interface SettingsPanelProps {
@@ -47,7 +47,7 @@ function ToggleRow({ label, description, checked, onChange, icon }: ToggleRowPro
 }
 
 export function SettingsPanel({ onClose }: SettingsPanelProps) {
-  const { themeId, setTheme } = useTheme();
+  const { themeId, setTheme, colorPalette, setColorPalette } = useTheme();
   const { state, dispatch, ops } = usePedigreeEditor();
   const { config, updateConfig } = useCanvasConfig();
 
@@ -84,9 +84,9 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
                       : "border-border hover:border-primary/40 hover:bg-accent/30"
                   }`}
                 >
-                  <div className="flex items-center gap-1.5 mb-1.5">
+                  <div className="flex items-center gap-1.5 mb-1">
                     <div
-                      className="w-3.5 h-3.5 rounded-full flex-shrink-0"
+                      className="w-3 h-3 rounded-full flex-shrink-0"
                       style={{
                         background: `radial-gradient(circle at 35% 35%, ${t.accent}, ${t.bg})`,
                         boxShadow: isActive ? `0 0 0 2px ${t.accent}` : `0 0 0 1px ${t.accent}40`,
@@ -95,10 +95,37 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
                     <span className="text-[11px] font-bold truncate flex-1">{t.name}</span>
                     {isActive && <Check className="w-2.5 h-2.5 text-primary flex-shrink-0" />}
                   </div>
-                  <span className="text-[9px] text-muted-foreground leading-snug line-clamp-1">{t.desc}</span>
+                  <span className="text-[9px] text-muted-foreground leading-tight group-hover:text-foreground/80 transition-colors">
+                    {t.desc}
+                  </span>
                 </button>
               );
             })}
+          </div>
+
+          {/* Color Palette Selector */}
+          <div className="mt-3 pt-3 border-t border-border/30">
+            <label className="text-[10px] text-muted-foreground uppercase tracking-wider block mb-2">Accent Color</label>
+            <div className="flex flex-wrap items-center gap-2">
+              {COLOR_PALETTES.map((palette) => {
+                const isActive = colorPalette === palette.id;
+                return (
+                  <button
+                    type="button"
+                    key={palette.id}
+                    onClick={() => setColorPalette(palette.id)}
+                    title={palette.name}
+                    className="w-6 h-6 rounded-full transition-all hover:scale-110 flex items-center justify-center cursor-pointer"
+                    style={{
+                      backgroundColor: palette.hex,
+                      boxShadow: isActive ? `0 0 0 1.5px hsl(var(--background)), 0 0 0 3px ${palette.hex}` : `0 0 0 1px ${palette.hex}30`,
+                    }}
+                  >
+                    {isActive && <Check className="w-3 h-3 text-white" />}
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </PanelSection>
 

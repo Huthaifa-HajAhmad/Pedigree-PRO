@@ -632,7 +632,7 @@ const RAIL_MAX_X = 400;
             saveStatus={state.saveStatus}
           />
           <div
-            className="flex-1 relative border border-black/10 rounded-lg overflow-hidden flex flex-col bg-white dark:bg-slate-900"
+            className="flex-1 relative border border-black/10 rounded-lg overflow-hidden flex flex-col bg-white theme-light-canvas"
           >
             <svg
               ref={svgRef}
