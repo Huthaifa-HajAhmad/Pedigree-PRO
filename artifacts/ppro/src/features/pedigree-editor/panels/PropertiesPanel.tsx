@@ -439,11 +439,11 @@ export function PropertiesPanel({
                               if (t === "sab") return <polygon points="0,5.04 -5.32,-3.64 5.32,-3.64" strokeWidth={sw} />;
                               if (t === "pregnancy") return (
                                 <>
-                                  <polygon points="0,-7 7,0 0,7 -7,0" strokeWidth={sw} />
+                                  <rect x={-7} y={-7} width={14} height={14} strokeWidth={sw} rx={0.5} transform="rotate(45)" />
                                   <text x={0} y={0.5} textAnchor="middle" dominantBaseline="central" fontSize={7} fontWeight="bold" fill="currentColor" style={{ fontFamily: "JetBrains Mono, monospace" }}>P</text>
                                 </>
                               );
-                              return <polygon points="0,-7 7,0 0,7 -7,0" strokeWidth={sw} />;
+                              return <rect x={-7} y={-7} width={14} height={14} strokeWidth={sw} rx={0.5} transform="rotate(45)" />;
                             })()}
                           </svg>
                         </button>
@@ -700,7 +700,7 @@ export function PropertiesPanel({
                           <div className="flex items-center justify-between gap-3">
                             <div className="flex items-center gap-1.5 min-w-0">
                               <label htmlFor={`prop-node-genotype-${idx}`} className="text-xs text-muted-foreground uppercase tracking-wider truncate">
-                                Row {idx + 1}
+                                {idx === 0 ? "Genotype" : `Row ${idx + 1}`}
                               </label>
                               {idx > 0 && (
                                 <button
