@@ -83,6 +83,43 @@ On GitHub Windows runners, `choco install strawberryperl -y --no-progress` is us
 - No server. No cloud sync. All data stays on the local device (filesystem or browser IndexedDB).
 - WebRTC LAN sharing is direct peer-to-peer; no signaling server, no data leaves the local network.
 
+## Layout Engine (`artifacts/ppro/src/lib/layout-engine.ts` + `auto-layout.ts`)
+
+The pedigree auto-layout / collision engine. Touching it requires preserving the performance and correctness constraints below.
+
+### No-Performance-Regression Constraints (recalibrated)
+The engine has two distinct runtime paths with different bars:
+
+- **Per-edit hot path** (invoked on every add/move/sibling/drag action): `resolveAllCollisions`, `recenterAllFamilies`, `recenterAllChildren`, `recenterParents`, `evenOutSiblingSpacing`, `swapCouplePartners`, `insertNodeWithCollisionResolution`, `resolveAndRecenter`. → **strict** bar.
+- **Import / explicit-arrange path** (sole non-test caller is `import-pedigree.ts:164`): `computeAutoLayout`. → **generous** bar (correctness-first).
+
+Apply to changes:
+
+- **C1 — no new work per-collision:** inside `resolveAllCollisions`'s collision loop only O(1) lookups; any O(E) graph build runs once at function entry, not per cascade nor per collision.
+- **C2 — no new O(N²) per cascade:** per-cascade refreshes stay O(breadth·log breadth) (e.g. the `rowMap` rebuild) or better; pair detection uses sweep-line O(N log N).
+- **C3 — no asymptotic regression on the per-edit path; constant-factor ≤~1.5× baseline acceptable when correctness requires.** Correctness outranks constant-factor perf in this clinical editor. The import path is correctness-first (asymptotic regression undesirable but acceptable if it removes a defect).
+- **C4 — fixture-backed benchmark:** assert a 100-node synthetic row + `test/fixtures/large-pedigree.json` + a wide single-generation row are all ≤~1.5× current baseline wall-clock after changes; report split by path.
+- **C5 — call-site partition:** fixes annotating per-edit functions carry the strict bar (C1–C3); fixes annotating import/arrange carry the generous bar.
+
+### Invariants the engine must keep
+- Couples are rigid units: `collectSubtree` glues couple partners so they shift together; the resolver never splits a couple's internal spacing (`NODE_GAP`).
+- Generation-indexed rows: when the caller has `genOf` (the `computeAutoLayout` path), `resolveAllCollisions` must receive it as the `genIndexOf` param so generations are grouped by index, not by Y-snapping (which broke anchor-based non-multiple-of-120 Ys).
+- Termination: iterative loops terminate on the **no-collision/no-change invariant** with collision-signature non-progress detection, not on a flat iteration count. A bounded blow-up guard (`N×4`) is the last-resort fallback only.
+- Epsilon/snap unity: collisions use a single shared `EPSILON` (`0.05`) and `snap`; the `recenterAllFamilies` oscillation hash quantizes at that grid (not coarser), so it cannot declare convergence while overlaps remain.
+- Bounds: both X edges are clamped (`GEN_GRID` min; `canvasWidth-genGrid` max) and Y is clamped (`canvasHeight ?? 50×GEN_GRID`) so unsupported/failing topologies never "extend beyond visible bounds".
+
+### Unsupported topology handling
+Biologically/socially unsupported unions (incest: uncle-niece / avuncular, grandparent-grandchild, sibling-cross, etc.) are **rejected at the data gate**, not handled by layout logic:
+
+- `validatePedigree` flags them as `incest_union` (error) via ancestor-BFS in the same pass as `sibling_marriage`. Cousin unions are supported and deliberately NOT flagged.
+- `autoDetectConsanguinity` may relabel such a union to `consanguinity`, but the validator's `incest_union` error still applies — import must drop error-flagged edges before layout.
+- The layout engine itself must still **degrade gracefully** (not crash/inflate unboundedly) if unsupported data slips in: the generation-assignment fixpoint has a divergence guard + bounded cap, so an avuncular pedigree renders as a small degraded tree rather than ~50 phantom rows. This is a defensive fallback only; the validator is the real gate.
+
+### When modifying the engine
+- Re-run `pnpm --filter @workspace/ppro run test` (the `layout-engine.test.ts` guards encode the regression net, incl. the `remediation regression guards` describe block) and `pnpm run typecheck` before considering a change done.
+- Do not reintroduce per-collision `currentNodes.map(n => ({...n}))` clones (use the owned-clone in-place pattern) — that was the 50+-node overlap root cause (A1).
+- Do not key rows by `Math.round(y/GEN_GRID)*GEN_GRID` inside `resolveAllCollisions` when `genIndexOf` is available — use the generation index.
+
 ## Testing
 
 ```bash
