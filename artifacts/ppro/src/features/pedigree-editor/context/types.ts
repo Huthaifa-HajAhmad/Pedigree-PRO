@@ -161,7 +161,7 @@ export interface PedigreeEditorOps {
   handleNodeClick: (nodeId: string, e: React.MouseEvent) => void;
   deleteSelected: () => void;
   updateSelectedNode: (updates: Partial<PedigreeNode>) => void;
-  bulkUpdate: (updates: Partial<PedigreeNode>) => void;
+  bulkUpdate: (updates: Partial<PedigreeNode> | ((node: PedigreeNode) => Partial<PedigreeNode>)) => void;
   alignSelected: (axis: "x" | "y") => void;
   addAnnotation: (nodeId: string) => void;
   addFreeAnnotation: (x: number, y: number) => void;

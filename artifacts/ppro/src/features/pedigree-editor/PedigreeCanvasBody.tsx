@@ -9,7 +9,7 @@ import { computeLabelBelowHeight } from "@/features/pedigree-editor/canvas/canva
 import { CanvasOverlayManager } from "@/features/pedigree-editor/overlay/CanvasOverlayManager";
 import { FindBar } from "@/features/pedigree-editor/overlay/FindBar";
 import { useCanvasTouch } from "@/features/pedigree-editor/hooks/use-canvas-touch";
-import { NodeQuickEditPopover } from "@/features/pedigree-editor/overlay/NodeQuickEditPopover";
+
 import { AnnotationQuickEditPopover } from "@/features/pedigree-editor/overlay/AnnotationQuickEditPopover";
 import { ContextMenu } from "@/features/pedigree-editor/overlay/ContextMenu";
 import { NodeColorPicker } from "@/features/pedigree-editor/overlay/NodeColorPicker";
@@ -922,26 +922,6 @@ const RAIL_MAX_X = 400;
           sidePanelWidth={sidePanelWidth}
         />
 
-        {editModalNodeId && (() => {
-          const editNode = canvas.nodes.find((n) => n.id === editModalNodeId);
-          if (!editNode) return null;
-          return (
-            <NodeQuickEditPopover
-              key={editModalNodeId}
-              node={editNode}
-              svgRef={svgRef}
-              onClose={() => dispatch({ type: "SET_STATE", patch: { editModalNodeId: null } })}
-              onUpdateNode={(updates) => updateCanvas((prev) => ({
-                ...prev,
-                nodes: prev.nodes.map((n) => n.id === editModalNodeId ? { ...n, ...updates } : n),
-              }))}
-              onOpenSidebar={() => {
-                dispatch({ type: "SET_STATE", patch: { editModalNodeId: null } });
-                // Sidepanel auto-opens when a node is selected, which is already true
-              }}
-            />
-          );
-        })()}
 
         {editAnnotationId && (() => {
           const editAnn = canvas.annotations.find((a) => a.id === editAnnotationId);

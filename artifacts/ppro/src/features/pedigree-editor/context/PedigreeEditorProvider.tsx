@@ -519,34 +519,73 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
   }, []);
 
   const toggleNodeProp = useCallback((nid: string, prop: "affected" | "carrier" | "deceased" | "proband") => {
-    dispatch({ type: "UPDATE_CANVAS", updater: (p) => ({ ...p, nodes: p.nodes.map((n) => n.id === nid ? { ...n, [prop]: typeof n[prop] === "boolean" ? !n[prop] : true } : n) }) });
+    const selected = stateRef.current.selectedIds;
+    const targets = selected.has(nid) ? selected : new Set([nid]);
+    dispatch({
+      type: "UPDATE_CANVAS",
+      updater: (p) => {
+        const clicked = p.nodes.find((n) => n.id === nid);
+        if (!clicked) return p;
+        const nextVal = !clicked[prop];
+        return {
+          ...p,
+          nodes: p.nodes.map((n) => targets.has(n.id) ? { ...n, [prop]: nextVal } : n)
+        };
+      }
+    });
     dispatch({ type: "SET_STATE", patch: { contextMenu: null } });
   }, []);
 
   const setNodeType = useCallback((nid: string, type: PedigreeNode["type"]) => {
-    dispatch({ type: "UPDATE_CANVAS", updater: (p) => {
-      const node = p.nodes.find((n) => n.id === nid);
-      if (!node) return p;
-      const hasChildren = p.edges.some((e) => e.type === "parent-child" && e.sourceId === nid);
-      if ((type === "pregnancy" || type === "sab" || type === "unknown") && hasChildren) return p;
-      return { ...p, nodes: p.nodes.map((n) => n.id === nid ? { ...n, type } : n) };
-    } });
+    const selected = stateRef.current.selectedIds;
+    const targets = selected.has(nid) ? selected : new Set([nid]);
+    dispatch({
+      type: "UPDATE_CANVAS",
+      updater: (p) => {
+        return {
+          ...p,
+          nodes: p.nodes.map((n) => {
+            if (!targets.has(n.id)) return n;
+            const hasChildren = p.edges.some((e) => e.type === "parent-child" && e.sourceId === n.id);
+            if ((type === "pregnancy" || type === "sab" || type === "unknown") && hasChildren) return n;
+            return { ...n, type };
+          })
+        };
+      }
+    });
     dispatch({ type: "SET_STATE", patch: { contextMenu: null } });
   }, []);
 
   const setNodeColor = useCallback((nid: string, color: string | undefined) => {
-    dispatch({ type: "UPDATE_CANVAS", updater: (p) => ({ ...p, nodes: p.nodes.map((n) => n.id === nid ? { ...n, color } : n) }) });
+    const selected = stateRef.current.selectedIds;
+    const targets = selected.has(nid) ? selected : new Set([nid]);
+    dispatch({
+      type: "UPDATE_CANVAS",
+      updater: (p) => ({
+        ...p,
+        nodes: p.nodes.map((n) => targets.has(n.id) ? { ...n, color } : n)
+      })
+    });
   }, []);
 
   const handleNodeContextMenu = useCallback((nid: string, e: React.MouseEvent) => {
     e.preventDefault(); e.stopPropagation();
-    dispatch({ type: "SET_STATE", patch: { selectedIds: new Set([nid]), contextMenu: { nodeId: nid, x: e.clientX, y: e.clientY }, showSettings: false } });
+    const currentSelected = stateRef.current.selectedIds;
+    const newSelected = currentSelected.has(nid) ? currentSelected : new Set([nid]);
+    dispatch({
+      type: "SET_STATE",
+      patch: {
+        selectedIds: newSelected,
+        contextMenu: { nodeId: nid, x: e.clientX, y: e.clientY },
+        showSettings: false
+      }
+    });
   }, []);
 
   const handleNodeDoubleClick = useCallback((nid: string, e: React.MouseEvent) => {
     e.stopPropagation();
     if (Date.now() - lastDragEndTimeRef.current < 400) return;
-    dispatch({ type: "SET_STATE", patch: { selectedIds: new Set([nid]), editModalNodeId: nid, showSettings: false } });
+    dispatch({ type: "SET_STATE", patch: { selectedIds: new Set([nid]), showSettings: false } });
   }, []);
 
   const deleteSelected = useCallback(() => {
@@ -566,9 +605,19 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
     dispatch({ type: "UPDATE_CANVAS", updater: (p) => ({ ...p, nodes: p.nodes.map((n) => n.id === id ? { ...n, ...u } : n) }) });
   }, []);
 
-  const bulkUpdate = useCallback((u: Partial<PedigreeNode>) => {
+  const bulkUpdate = useCallback((u: Partial<PedigreeNode> | ((node: PedigreeNode) => Partial<PedigreeNode>)) => {
     const ids = stateRef.current.selectedIds; if (!ids.size) return;
-    dispatch({ type: "UPDATE_CANVAS", updater: (p) => ({ ...p, nodes: p.nodes.map((n) => ids.has(n.id) ? { ...n, ...u } : n) }) });
+    dispatch({
+      type: "UPDATE_CANVAS",
+      updater: (p) => ({
+        ...p,
+        nodes: p.nodes.map((n) => {
+          if (!ids.has(n.id)) return n;
+          const updatesObj = typeof u === "function" ? u(n) : u;
+          return { ...n, ...updatesObj };
+        })
+      })
+    });
   }, []);
 
   const alignSelected = useCallback((axis: "x" | "y") => {

@@ -44,7 +44,7 @@ export function PropertiesPanel({
   canvasAnnotations: PedigreeAnnotation[];
   selectedAnnotationId: string | null;
   onUpdateSelectedNode: (updates: Partial<PedigreeNode>) => void;
-  onBulkUpdate: (updates: Partial<PedigreeNode>) => void;
+  onBulkUpdate: (updates: Partial<PedigreeNode> | ((node: PedigreeNode) => Partial<PedigreeNode>)) => void;
   onDeleteSelected: () => void;
   onAddAnnotation: (nodeId: string) => void;
   onUpdateAnnotation: (annId: string, updates: Partial<PedigreeAnnotation>) => void;
@@ -66,6 +66,21 @@ export function PropertiesPanel({
   const [genotypeRowsCount, setGenotypeRowsCount] = useState(1);
 
   React.useEffect(() => {
+    if (selectedIds.size > 1) {
+      let maxCount = 1;
+      Array.from(selectedIds).forEach((id) => {
+        const node = canvasNodes.find((n) => n.id === id);
+        if (!node) return;
+        let count = 1;
+        if (node.genotype2 !== undefined) count = 2;
+        if (node.additionalGenotypes && node.additionalGenotypes.length > 0) {
+          count = 2 + node.additionalGenotypes.length;
+        }
+        if (count > maxCount) maxCount = count;
+      });
+      setGenotypeRowsCount(maxCount);
+      return;
+    }
     if (!singleSelected) {
       setGenotypeRowsCount(1);
       return;
@@ -78,7 +93,7 @@ export function PropertiesPanel({
       count = 2 + singleSelected.additionalGenotypes.length;
     }
     setGenotypeRowsCount(count);
-  }, [singleSelected?.id]);
+  }, [singleSelected?.id, selectedIds, canvasNodes]);
 
   const getStatus = (node: PedigreeNode) => node.affected ? "affected" : node.carrier ? "carrier" : "unaffected";
   const applyStatus = (status: string) => {
@@ -108,59 +123,244 @@ export function PropertiesPanel({
     <div className="h-full w-full overflow-hidden flex flex-col">
       {selectedIds.size > 1 ? (
         <PanelShell key={`bulk-${Array.from(selectedIds).sort().join(",")}`} title={`${selectedIds.size} Nodes`} icon={<Users className="w-3.5 h-3.5" />} width="w-full">
-          {/* Bulk Status */}
-          <PanelSection title="Bulk Status" icon={<Dna className="w-3 h-3" />}>
-            <div>
-              <label className="text-xs text-muted-foreground uppercase tracking-wider block mb-1.5">Status (all)</label>
-              <div className="grid grid-cols-3 gap-1">
-                {(["unaffected", "affected", "carrier"] as const).map((s) => (
-                  <button type="button" key={s} onClick={() => applyStatus(s)}
-                    className="py-1 rounded-lg text-xs border border-border/80 text-muted-foreground hover:bg-accent/30 hover:border-muted-foreground/30 hover:text-foreground transition-all duration-200 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">
-                    {s === "unaffected" ? "—" : s === "affected" ? "Affected" : "Carrier"}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-1">
-              <button type="button" onClick={() => onBulkUpdate({ deceased: true })}
-                className="py-1.5 text-xs border border-border/80 rounded-lg text-muted-foreground hover:bg-accent/30 hover:border-muted-foreground/30 hover:text-foreground transition-all duration-200 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">Mark Deceased</button>
-              <button type="button" onClick={() => onBulkUpdate({ deceased: false })}
-                className="py-1.5 text-xs border border-border/80 rounded-lg text-muted-foreground hover:bg-accent/30 hover:border-muted-foreground/30 hover:text-foreground transition-all duration-200 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">Clear Deceased</button>
-              <button type="button" onClick={() => onBulkUpdate({ proband: true })}
-                className="py-1.5 text-xs border border-border/80 rounded-lg text-muted-foreground hover:bg-accent/30 hover:border-muted-foreground/30 hover:text-foreground transition-all duration-200 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">Mark Proband</button>
-              <button type="button" onClick={() => onBulkUpdate({ proband: false })}
-                className="py-1.5 text-xs border border-border/80 rounded-lg text-muted-foreground hover:bg-accent/30 hover:border-muted-foreground/30 hover:text-foreground transition-all duration-200 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">Clear Proband</button>
-            </div>
-            <div className="grid grid-cols-2 gap-1">
-              <button type="button" onClick={() => onBulkUpdate({ pinned: true })}
-                className="py-1.5 text-xs border border-border/80 rounded-lg text-muted-foreground hover:bg-accent/30 hover:border-muted-foreground/30 hover:text-foreground transition-all duration-200 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">Pin All</button>
-              <button type="button" onClick={() => onBulkUpdate({ pinned: false })}
-                className="py-1.5 text-xs border border-border/80 rounded-lg text-muted-foreground hover:bg-accent/30 hover:border-muted-foreground/30 hover:text-foreground transition-all duration-200 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">Unpin All</button>
-            </div>
-          </PanelSection>
+          {/* Bulk Status & Flags */}
+          {(() => {
+            const selectedNodes = Array.from(selectedIds).map(id => canvasNodes.find(n => n.id === id)).filter(Boolean) as PedigreeNode[];
+            const allDeceased = selectedNodes.length > 0 && selectedNodes.every(n => n.deceased);
+            const allProband = selectedNodes.length > 0 && selectedNodes.every(n => n.proband);
+            const allPinned = selectedNodes.length > 0 && selectedNodes.every(n => n.pinned);
+            
+            const firstStatus = selectedNodes[0] ? getStatus(selectedNodes[0]) : "";
+            const isCommonStatus = selectedNodes.every(n => getStatus(n) === firstStatus);
+            const commonStatus = isCommonStatus ? firstStatus : "";
 
-          {/* Alignment */}
-          <PanelSection title="Align" icon={<LayoutGrid className="w-3 h-3" />}>
-            <div className="grid grid-cols-2 gap-1">
-              <button type="button" onClick={() => onAlignSelected("y")} title="Snap all to same row"
-                className="py-1.5 text-xs border border-border/80 rounded-lg text-muted-foreground hover:bg-accent/30 hover:border-muted-foreground/30 hover:text-foreground transition-all duration-200 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">Horizontal</button>
-              <button type="button" onClick={() => onAlignSelected("x")} title="Stack all in same column"
-                className="py-1.5 text-xs border border-border/80 rounded-lg text-muted-foreground hover:bg-accent/30 hover:border-muted-foreground/30 hover:text-foreground transition-all duration-200 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">Vertical</button>
-            </div>
-          </PanelSection>
+            const commonCondition = (() => {
+              const conds = selectedNodes.map(n => n.condition).filter(Boolean);
+              if (conds.length === 0) return "";
+              return conds.every(c => c === conds[0]) ? (conds[0] || "") : "";
+            })();
 
-          {/* Shared condition */}
-          <PanelSection title="Condition (all)">
-            <input id="bulk-condition" placeholder="e.g. BRCA1, Lynch" aria-label="Condition"
-              className="w-full bg-background border border-border/80 rounded-lg px-2.5 py-1.5 text-xs outline-none hover:bg-accent/20 focus:border-muted-foreground/45 focus-visible:ring-0 shadow-none transition-all duration-200"
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  onBulkUpdate({ condition: (e.target as HTMLInputElement).value });
-                  (e.target as HTMLInputElement).value = "";
-                }
-              }} />
-            <div className="text-xs text-muted-foreground mt-1 opacity-60">Press Enter to apply</div>
-          </PanelSection>
+
+
+            return (
+              <>
+                <PanelSection title="Bulk Status" icon={<Dna className="w-3 h-3" />}>
+                  <div className="space-y-3">
+                    {/* Row 1: Status */}
+                    <div>
+                      <label className="text-[10px] text-muted-foreground uppercase tracking-wider block mb-1">Status (all)</label>
+                      <div className="flex bg-muted/60 p-0.5 rounded-lg border border-border/60 items-stretch w-full">
+                        {([
+                          { value: "unaffected", label: "Unaffected" },
+                          { value: "affected", label: "Affected" },
+                          { value: "carrier", label: "Carrier" }
+                        ] as const).map((opt, idx) => {
+                          const isActive = commonStatus === opt.value;
+                          return (
+                            <React.Fragment key={opt.value}>
+                              {idx > 0 && <div className="w-[1px] h-3.5 bg-border/50 shrink-0 self-center" />}
+                              <button
+                                type="button"
+                                onClick={() => applyStatus(opt.value)}
+                                className={`flex-1 py-1 rounded-md text-[10px] font-medium transition-all border text-center ${
+                                  isActive
+                                    ? "bg-card text-primary border-border/75 shadow-xs font-semibold"
+                                    : "border-transparent text-muted-foreground hover:text-foreground hover:bg-card/25"
+                                }`}
+                              >
+                                {opt.label}
+                              </button>
+                            </React.Fragment>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Row 2: Flags */}
+                    <div>
+                      <label className="text-[10px] text-muted-foreground uppercase tracking-wider block mb-1">Flags (all)</label>
+                      <div className="flex bg-muted/60 p-0.5 rounded-lg border border-border/60 items-stretch w-full">
+                        {([
+                          { key: "deceased", label: "Deceased", active: allDeceased },
+                          { key: "proband", label: "Proband", active: allProband },
+                          { key: "pinned", label: "Pinned", active: allPinned }
+                        ] as const).map((opt, idx) => {
+                          return (
+                            <React.Fragment key={opt.key}>
+                              {idx > 0 && <div className="w-[1px] h-3.5 bg-border/50 shrink-0 self-center" />}
+                              <button
+                                type="button"
+                                onClick={() => onBulkUpdate({ [opt.key]: !opt.active })}
+                                className={`flex-1 py-1 rounded-md text-[10px] font-medium transition-all border text-center ${
+                                  opt.active
+                                    ? "bg-card text-primary border-border/75 shadow-xs font-semibold"
+                                    : "border-transparent text-muted-foreground hover:text-foreground hover:bg-card/25"
+                                }`}
+                              >
+                                {opt.label}
+                              </button>
+                            </React.Fragment>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                </PanelSection>
+
+                {/* Alignment */}
+                <PanelSection title="Align" icon={<LayoutGrid className="w-3 h-3" />}>
+                  <div className="grid grid-cols-2 gap-1">
+                    <button type="button" onClick={() => onAlignSelected("y")} title="Snap all to same row"
+                      className="py-1.5 text-xs border border-border/80 rounded-lg text-muted-foreground hover:bg-accent/30 hover:border-muted-foreground/30 hover:text-foreground transition-all duration-200 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">Horizontal</button>
+                    <button type="button" onClick={() => onAlignSelected("x")} title="Stack all in same column"
+                      className="py-1.5 text-xs border border-border/80 rounded-lg text-muted-foreground hover:bg-accent/30 hover:border-muted-foreground/30 hover:text-foreground transition-all duration-200 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">Vertical</button>
+                  </div>
+                </PanelSection>
+
+                {/* Condition & Genotype */}
+                <PanelSection title="Condition & Genotype" icon={<Stethoscope className="w-3.5 h-3.5" />}>
+                  <div className="space-y-3">
+                    <div>
+                      <label htmlFor="bulk-condition" className="text-[10px] text-muted-foreground uppercase tracking-wider block mb-1">Condition (all)</label>
+                      <input
+                        id="bulk-condition"
+                        placeholder="e.g. BRCA1, Lynch"
+                        aria-label="Condition"
+                        defaultValue={commonCondition}
+                        key={`cond-${commonCondition}`}
+                        className="w-full bg-background border border-border/80 rounded-lg px-2.5 py-1.5 text-xs outline-none hover:bg-accent/20 focus:border-muted-foreground/45 focus-visible:ring-0 shadow-none transition-all duration-200"
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            onBulkUpdate({ condition: (e.target as HTMLInputElement).value || undefined });
+                          }
+                        }}
+                      />
+                      <div className="text-[9px] text-muted-foreground mt-1 opacity-60">Press Enter to apply</div>
+                    </div>
+
+                    <div className="space-y-3.5 pt-1">
+                      <span className="text-[10px] text-muted-foreground uppercase tracking-wider block font-medium">Genotypes (all)</span>
+                      {(() => {
+                        const getCommonGenotypeForIndex = (rowIdx: number) => {
+                          const vals = selectedNodes.map(n => {
+                            if (rowIdx === 0) return n.genotype;
+                            if (rowIdx === 1) return n.genotype2;
+                            return n.additionalGenotypes?.[rowIdx - 2];
+                          }).map(v => v || "");
+                          return vals.every(v => v === vals[0]) ? (vals[0] || "") : "";
+                        };
+
+                        const handleBulkGenotypeChange = (rowIdx: number, val: string) => {
+                          onBulkUpdate((node) => {
+                            const nodeGenotypes = [
+                              node.genotype ?? "",
+                              node.genotype2 ?? "",
+                              ...(node.additionalGenotypes ?? [])
+                            ];
+                            while (nodeGenotypes.length <= rowIdx) {
+                              nodeGenotypes.push("");
+                            }
+                            nodeGenotypes[rowIdx] = val;
+                            
+                            const genotype = nodeGenotypes[0] || undefined;
+                            const genotype2 = nodeGenotypes[1] || undefined;
+                            const additionalGenotypes = nodeGenotypes.slice(2).filter(Boolean).length > 0 ? nodeGenotypes.slice(2) : undefined;
+                            return { genotype, genotype2, additionalGenotypes };
+                          });
+                        };
+
+                        const handleBulkRemoveRow = (rowIdx: number) => {
+                          onBulkUpdate((node) => {
+                            const nodeGenotypes = [
+                              node.genotype ?? "",
+                              node.genotype2 ?? "",
+                              ...(node.additionalGenotypes ?? [])
+                            ];
+                            nodeGenotypes.splice(rowIdx, 1);
+                            
+                            const genotype = nodeGenotypes[0] || undefined;
+                            const genotype2 = nodeGenotypes[1] || undefined;
+                            const additionalGenotypes = nodeGenotypes.slice(2).filter(Boolean).length > 0 ? nodeGenotypes.slice(2) : undefined;
+                            return { genotype, genotype2, additionalGenotypes };
+                          });
+                          setGenotypeRowsCount(prev => Math.max(1, prev - 1));
+                        };
+
+                        return (
+                          <>
+                            {Array.from({ length: genotypeRowsCount }).map((_, idx) => {
+                              const gVal = getCommonGenotypeForIndex(idx);
+                              return (
+                                <div key={idx} className="space-y-1.5 animate-in fade-in slide-in-from-top-1 duration-200">
+                                  <div className="flex items-center justify-between gap-3">
+                                    <div className="flex items-center gap-1.5 min-w-0">
+                                      <label htmlFor={`bulk-genotype-${idx}`} className="text-xs text-muted-foreground uppercase tracking-wider truncate">
+                                        {idx === 0 ? "Genotype" : `Row ${idx + 1}`}
+                                      </label>
+                                      {idx > 0 && (
+                                        <button
+                                          type="button"
+                                          onClick={() => handleBulkRemoveRow(idx)}
+                                          className="text-[10px] text-destructive hover:underline font-medium shrink-0"
+                                        >
+                                          Remove
+                                        </button>
+                                      )}
+                                    </div>
+                                    <input
+                                      id={`bulk-genotype-${idx}`}
+                                      placeholder="e.g. +/-"
+                                      aria-label={idx === 0 ? "Genotype" : `Genotype Row ${idx + 1}`}
+                                      defaultValue={gVal}
+                                      key={`bulk-geno-${idx}-${gVal}`}
+                                      className="w-36 bg-background border border-border/80 rounded-lg px-2.5 py-1 text-xs outline-none hover:bg-accent/20 focus:border-muted-foreground/45 focus-visible:ring-0 shadow-none transition-all duration-200 font-mono"
+                                      onKeyDown={(e) => {
+                                        if (e.key === "Enter") {
+                                          handleBulkGenotypeChange(idx, (e.target as HTMLInputElement).value || "");
+                                        }
+                                      }}
+                                    />
+                                  </div>
+                                  <div className="flex bg-muted/60 p-0.5 rounded-lg border border-border/60 items-stretch w-full">
+                                    {(["+/-", "+/+", "-/-", "+/Y", "-/Y"] as const).map((preset, pIdx) => {
+                                      const isActive = gVal === preset;
+                                      return (
+                                        <React.Fragment key={preset}>
+                                          {pIdx > 0 && <div className="w-[1px] h-3.5 bg-border/50 shrink-0 self-center" />}
+                                          <button
+                                            type="button"
+                                            onClick={() => handleBulkGenotypeChange(idx, isActive ? "" : preset)}
+                                            className={`flex-1 py-0.5 rounded-md text-[10px] font-mono transition-all border text-center ${
+                                              isActive
+                                                ? "bg-card text-primary border-border/75 shadow-xs font-semibold"
+                                                : "border-transparent text-muted-foreground hover:text-foreground hover:bg-card/25"
+                                            }`}
+                                          >
+                                            {preset}
+                                          </button>
+                                        </React.Fragment>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                            <button
+                              type="button"
+                              onClick={() => setGenotypeRowsCount(prev => prev + 1)}
+                              className="w-full py-1.5 border border-dashed border-border hover:border-primary/50 rounded-lg text-[10px] text-muted-foreground hover:text-primary transition-all flex items-center justify-center gap-1 mt-2 font-medium"
+                            >
+                              <Plus className="w-3.5 h-3.5" /> Add Genotype Row
+                            </button>
+                          </>
+                        );
+                      })()}
+                    </div>
+                  </div>
+                </PanelSection>
+              </>
+            );
+          })()}
 
           {/* Add Relationship */}
           {(() => {
