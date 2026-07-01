@@ -1473,6 +1473,9 @@ export async function backup_database(): Promise<string> {
 
 export async function restore_database(args: { backup_data: string }): Promise<void> {
   const raw = atob(args.backup_data);
+  if (raw.length < 16 || !raw.startsWith("SQLite format 3\0")) {
+    throw new Error("Invalid backup file: not a valid SQLite database");
+  }
   const bytes = new Uint8Array(raw.length);
   for (let i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i);
   const { importDb } = await import("./db");

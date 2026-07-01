@@ -263,6 +263,14 @@ pub fn restore_database(app: &tauri::AppHandle, backup_path: &str) -> Result<(),
         return Err(format!("Backup file not found: {}", backup_path));
     }
 
+    let mut file = std::fs::File::open(backup_path)
+        .map_err(|e| format!("Failed to open backup file: {}", e))?;
+    let mut header = [0u8; 16];
+    use std::io::Read;
+    if file.read_exact(&mut header).is_err() || &header != b"SQLite format 3\0" {
+        return Err("Invalid backup file: not a valid SQLite database".to_string());
+    }
+
     if db_path.exists() {
         let safety_backup = app_dir.join(format!(
             "data_pre_restore_{}.db",

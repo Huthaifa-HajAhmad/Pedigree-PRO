@@ -28,6 +28,7 @@ jobs:
       - run: pnpm --filter @workspace/browser-backend run build
       - run: pnpm --filter @workspace/api-client-react exec tsc -p tsconfig.json
       - run: pnpm run typecheck
+      - run: pnpm run lint
 
   # ── Unit Tests ───────────────────────────────────────────────
   test:
