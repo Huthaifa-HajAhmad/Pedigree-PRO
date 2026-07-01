@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Palette, Type, Ruler, Check, RotateCcw, PanelTop } from "lucide-react";
+import { Palette, Type, Ruler, Check, RotateCcw, PanelTop, ShieldCheck, Lock, Info } from "lucide-react";
 import { THEMES, COLOR_PALETTES, useTheme, applyTheme } from "@/lib/theme";
 import { FONT_OPTIONS, useFont } from "@/lib/font";
 import { PanelSection } from "@/components/shared/panels/PanelSection";
@@ -9,6 +9,7 @@ const TABS = [
   { id: "appearance", label: "Appearance", icon: Palette },
   { id: "canvas", label: "Canvas", icon: Ruler },
   { id: "toolbar", label: "Toolbar", icon: PanelTop },
+  { id: "security", label: "Security & Encryption", icon: ShieldCheck },
 ] as const;
 
 type TabId = (typeof TABS)[number]["id"];
@@ -397,6 +398,60 @@ function ToolbarTab() {
   );
 }
 
+function SecurityTab() {
+  return (
+    <div className="space-y-6">
+      <PanelSection title="Data Encryption at Rest" icon={<Lock className="w-3.5 h-3.5" />}>
+        <div className="space-y-4 text-sm text-foreground">
+          <p className="text-xs text-muted-foreground leading-relaxed">
+            Pedigree PRO is designed as a serverless clinical pedigree editor. All patient data, family trees, and annotations remain strictly on your local device.
+          </p>
+
+          <div className="grid grid-cols-2 gap-4 mt-2">
+            <div className="p-3 rounded-lg border border-border bg-card/40 flex flex-col space-y-1.5">
+              <span className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-primary" /> Browser Mode (sql.js)
+              </span>
+              <span className="text-[11px] text-muted-foreground leading-relaxed">
+                Database blob is encrypted with AES-256-GCM before writing to IndexedDB. Private profile keys are isolated in IndexedDB.
+              </span>
+            </div>
+            <div className="p-3 rounded-lg border border-border bg-card/40 flex flex-col space-y-1.5">
+              <span className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-primary" /> Desktop Mode (Tauri)
+              </span>
+              <span className="text-[11px] text-muted-foreground leading-relaxed">
+                Database file is protected via SQLCipher. Master keys are securely stored in your operating system's native credential keychain.
+              </span>
+            </div>
+          </div>
+        </div>
+      </PanelSection>
+
+      <PanelSection title="Key Protection & Access Control" icon={<ShieldCheck className="w-3.5 h-3.5" />}>
+        <div className="space-y-4">
+          <div className="flex gap-3 p-3.5 rounded-lg border border-warning/20 bg-warning/5 text-warning-foreground">
+            <Info className="w-4.5 h-4.5 text-warning flex-shrink-0 mt-0.5" />
+            <div className="space-y-1">
+              <span className="text-xs font-semibold block text-amber-500">Security Disclosure</span>
+              <p className="text-[11px] text-muted-foreground leading-relaxed">
+                By default, browser mode stores wrapping keys within the local IndexedDB partition to enable passwordless startup. While this protects against unauthorized remote extraction, anyone with physical access to your device profile and browser tools can retrieve the database.
+              </p>
+            </div>
+          </div>
+
+          <div className="p-4 rounded-lg border border-primary/20 bg-primary/5 flex flex-col space-y-2">
+            <span className="text-xs font-semibold text-primary">Multi-User & Shared Computers Recommendation</span>
+            <p className="text-[11px] text-muted-foreground leading-relaxed">
+              For shared workstations and clinical compliance, it is highly recommended to protect your profile with a strong master passphrase. This derives your database keys on-the-fly using <strong>PBKDF2-HMAC-SHA512</strong> (256k iterations), ensuring that your records cannot be decrypted without your password.
+            </p>
+          </div>
+        </div>
+      </PanelSection>
+    </div>
+  );
+}
+
 export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState<TabId>("appearance");
 
@@ -430,6 +485,7 @@ export default function SettingsPage() {
           {activeTab === "appearance" && <AppearanceTab />}
           {activeTab === "canvas" && <CanvasTab />}
           {activeTab === "toolbar" && <ToolbarTab />}
+          {activeTab === "security" && <SecurityTab />}
         </div>
       </div>
     </div>

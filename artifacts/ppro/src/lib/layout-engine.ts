@@ -448,26 +448,15 @@ export function resolveAllCollisions(
           return newX !== undefined ? { ...n, x: newX } : n;
         });
 
-        // T10: Incremental-update only the rows that changed after a shift
-        if (plan.shifts.size > 0) {
-          const changedRows = new Set<number>();
-          for (const [id, newX] of plan.shifts) {
-            const node = nodeMap.get(id);
-            if (node) {
-              const rY = Math.round(node.y / genGrid) * genGrid;
-              changedRows.add(rY);
-              const rowNodes = rowMap.get(rY);
-              if (rowNodes) {
-                const found = rowNodes.find(rn => rn.id === id);
-                if (found) {
-                  found.x = newX;
-                }
-              }
-            }
-          }
-          for (const rY of changedRows) {
-            rowMap.get(rY)?.sort((a, b) => a.x - b.x);
-          }
+        // Rebuild rowMap from scratch to prevent identity-based stale references
+        rowMap.clear();
+        for (const node of currentNodes) {
+          const rY = Math.round(node.y / genGrid) * genGrid;
+          if (!rowMap.has(rY)) rowMap.set(rY, []);
+          rowMap.get(rY)!.push(node);
+        }
+        for (const [, rowNodes] of rowMap) {
+          rowNodes.sort((a, b) => a.x - b.x);
         }
 
         // Refresh nodeMap since currentNodes shifted

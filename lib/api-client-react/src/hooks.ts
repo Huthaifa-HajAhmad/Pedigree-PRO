@@ -205,7 +205,7 @@ export function useListPedigrees(params?: { patientId?: number; search?: string 
   return useQuery({
     queryKey: [...queryKeys.pedigrees, params?.patientId, params?.search],
     queryFn: () => listPedigrees(params?.patientId, params?.search),
-    refetchOnMount: "always",
+    refetchOnMount: true,
   });
 }
 
@@ -328,7 +328,7 @@ export function useGetDashboardStats() {
   return useQuery({
     queryKey: queryKeys.dashboardStats,
     queryFn: () => getDashboardStats(),
-    refetchInterval: 30_000,
+    refetchInterval: 60_000,
     refetchIntervalInBackground: false,
   });
 }
@@ -337,7 +337,7 @@ export function useGetRecentActivity(limit?: number) {
   return useQuery({
     queryKey: [...queryKeys.recentActivity, limit],
     queryFn: () => getRecentActivity(limit),
-    refetchInterval: 15_000,
+    refetchInterval: 60_000,
     refetchIntervalInBackground: false,
   });
 }
@@ -432,6 +432,15 @@ export function useImportShared() {
       const { detectApiMode } = await import("./adapter");
       const mode = detectApiMode();
 
+      let importerKey: string | undefined;
+      try {
+        const profiles = await listProfiles();
+        const active = profiles.find((p: any) => p.active);
+        if (active?.public_key) {
+          importerKey = active.public_key;
+        }
+      } catch { /* ignore */ }
+
       if (mode === "browser") {
         const backend = await import("@workspace/browser-backend");
         await backend.initDb();
@@ -445,11 +454,15 @@ export function useImportShared() {
           }
         } catch { /* ignore */ }
 
-        return backend.import_shared({ share_token: shareToken, fallback_token: fallbackToken });
+        return backend.import_shared({
+          share_token: shareToken,
+          fallback_token: fallbackToken,
+          importer_key: importerKey
+        });
       }
 
       // Tauri mode: fetch payload from relay, decompress, try decryption, then import
-      const payload = await importShared(shareToken);
+      const payload = await importShared(shareToken, importerKey);
       const stdBase64 = payload.ciphertext.replace(/-/g, "+").replace(/_/g, "/");
       const padded = stdBase64 + "=".repeat((4 - stdBase64.length % 4) % 4);
       const rawBytes = Uint8Array.from(atob(padded), (c) => c.charCodeAt(0));
@@ -471,7 +484,7 @@ export function useImportShared() {
       for (const { privateKey } of await listProfilePrivateKeys()) {
         try {
           const decrypted = await sodiumOpenSealedBox(raw, privateKey);
-          return importPedigreeFromJson(decrypted, "imported");
+          return importPedigreeFromJson(decrypted, importerKey ?? "imported");
         } catch (e) {
           lastError = e instanceof Error ? e : new Error(String(e));
         }
@@ -479,7 +492,7 @@ export function useImportShared() {
 
       // Fallback: try to parse as unencrypted .ppro JSON
       try {
-        return importPedigreeFromJson(raw, "imported");
+        return importPedigreeFromJson(raw, importerKey ?? "imported");
       } catch { /* not parseable */ }
 
       throw lastError ?? new Error("No matching private key found");

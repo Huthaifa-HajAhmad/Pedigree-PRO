@@ -9,7 +9,7 @@ import { PreviewStep } from "@/components/steps/PreviewStep";
 import { ImportingStep } from "@/components/steps/ImportingStep";
 import { parseFile, type ParseResult } from "@/lib/import-pedigree";
 import { signData, computeHash, getPublicKeyFromPrivate } from "@workspace/crypto";
-import { listProfilePrivateKeys } from "@workspace/browser-backend";
+import { listProfilePrivateKeys, validatePproExport } from "@workspace/browser-backend";
 
 interface Props {
   children: React.ReactNode;
@@ -70,13 +70,14 @@ export function ImportDialog({ children }: Props) {
         const content = e.target?.result as string;
         try {
           const parsed = JSON.parse(content);
+          const validated = validatePproExport(parsed);
           setResult({
-            canvasData: parsed.pedigree?.canvas_data || { nodes: [], edges: [] },
+            canvasData: (validated.pedigree?.canvas_data as any) || { nodes: [], edges: [], annotations: [] },
             familyIds: [], warnings: [],
-            suggestedTitle: parsed.pedigree?.title || file.name.replace(".ppro", ""),
+            suggestedTitle: validated.pedigree?.title || file.name.replace(".ppro", ""),
           });
           setFilename(file.name);
-          setTitle(parsed.pedigree?.title || file.name.replace(".ppro", ""));
+          setTitle(validated.pedigree?.title || file.name.replace(".ppro", ""));
           setStep("preview");
         } catch (err) { setError(`Invalid .ppro file: ${err instanceof Error ? err.message : String(err)}`); }
       };

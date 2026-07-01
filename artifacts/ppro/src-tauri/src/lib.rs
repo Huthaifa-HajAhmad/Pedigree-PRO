@@ -27,19 +27,19 @@ pub struct AppState {
 }
 
 #[cfg(target_os = "windows")]
-fn disable_webview_zoom(win: &tauri::WebviewWindow) {
+pub fn configure_webview_zoom(win: &tauri::WebviewWindow) {
     let _ = win.with_webview(|webview| {
         let controller = webview.controller();
         if let Ok(core) = unsafe { controller.CoreWebView2() } {
             if let Ok(settings) = unsafe { core.Settings() } {
-                let _ = unsafe { settings.SetIsZoomControlEnabled(true) };
+                let _ = unsafe { settings.SetIsZoomControlEnabled(false) };
             }
         }
     });
 }
 
 #[cfg(not(target_os = "windows"))]
-fn disable_webview_zoom(_win: &tauri::WebviewWindow) {}
+pub fn configure_webview_zoom(_win: &tauri::WebviewWindow) {}
 
 /// Runs the Tauri application.
 /// Called from main.rs.
@@ -57,7 +57,7 @@ pub fn run() {
 
             // Try immediately (may fail if WebView2 not ready yet)
             if let Some(win) = app.get_webview_window("main") {
-                disable_webview_zoom(&win);
+                configure_webview_zoom(&win);
             }
 
             Ok(())

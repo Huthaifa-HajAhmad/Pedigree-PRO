@@ -7,7 +7,7 @@
     "build": "pnpm run typecheck && pnpm -r --if-present run build",
     "typecheck:libs": "tsc --build",
     "typecheck": "pnpm run typecheck:libs && pnpm -r --filter \"./artifacts/**\" --filter \"./scripts\" --if-present run typecheck",
-    "lint": "eslint . --ext .ts,.tsx",
+    "lint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test": "pnpm --filter @workspace/ppro run test"
@@ -28,8 +28,5 @@
     "typescript-eslint": "^8.24.0",
     "vitest": "^4.1.5",
     "wrangler": "^4.0.0"
-  },
-  "dependencies": {
-    "sql.js": "^1.14.1"
   }
 }

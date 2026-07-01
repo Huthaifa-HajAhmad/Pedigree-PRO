@@ -21,6 +21,11 @@ let autoSaveInterval: ReturnType<typeof setInterval> | null = null;
 let dirty = false;
 let saveChain: Promise<void> = Promise.resolve();
 let initPromise: Promise<void> | null = null;
+let deviceIdCache: string | null = null;
+
+export function getCachedDeviceId(): string {
+  return deviceIdCache ?? "browser-device";
+}
 
 /**
  * Initializes the sql.js database.
@@ -42,6 +47,13 @@ export async function initDb(): Promise<void> {
       });
 
       dbKey = await getOrCreateDbKey();
+
+      let storedDeviceId = await get<string>("device_id", DB_STORE);
+      if (!storedDeviceId) {
+        storedDeviceId = crypto.randomUUID();
+        await set("device_id", storedDeviceId, DB_STORE);
+      }
+      deviceIdCache = storedDeviceId;
 
       // Try to load existing encrypted database from IndexedDB
       const stored = await get<{ ciphertext: Uint8Array; iv: Uint8Array } | null>(

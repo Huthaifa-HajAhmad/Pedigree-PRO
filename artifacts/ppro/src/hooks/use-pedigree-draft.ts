@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import type { CanvasData } from "@/features/pedigree-editor/canvas/types";
+import { encryptDraft, decryptDraft } from "@workspace/browser-backend";
 
 export interface UsePedigreeDraftParams {
   id: number;
@@ -15,6 +16,9 @@ export function usePedigreeDraft({ id, pedigreeData, canvasRef, draftKeyRef }: U
   const [showDraftBanner, setShowDraftBanner] = useState(false);
   const [draftData, setDraftData] = useState<CanvasData | null>(null);
 
+  const lastSerializedRef = useRef<string>("");
+  const encryptedDraftRef = useRef<string>("");
+
   // Keep draftKeyRef in sync
   useEffect(() => { draftKeyRef.current = `ppro_draft_${id}`; }, [id]);
 
@@ -24,42 +28,67 @@ export function usePedigreeDraft({ id, pedigreeData, canvasRef, draftKeyRef }: U
     draftEnabledRef.current = false;
     setShowDraftBanner(false);
     setDraftData(null);
+    lastSerializedRef.current = "";
+    encryptedDraftRef.current = "";
   }, [id]);
 
   // Check for a newer local draft on initial pedigree load
   useEffect(() => {
     if (!pedigreeData || draftCheckedRef.current) return;
     draftCheckedRef.current = true;
-    try {
-      const raw = localStorage.getItem(draftKey);
-      if (raw) {
-        const parsed = JSON.parse(raw) as { canvas: CanvasData; at: number };
-        const serverAt = new Date((pedigreeData as unknown as { updatedAt: string }).updatedAt).getTime();
-        if (parsed.at > serverAt + 3000 && parsed.canvas?.nodes?.length > 0) {
-          setDraftData(parsed.canvas);
-          setShowDraftBanner(true);
-          return;
+    
+    const checkDraft = async () => {
+      try {
+        const raw = localStorage.getItem(draftKey);
+        if (raw) {
+          const decrypted = await decryptDraft(raw);
+          const parsed = JSON.parse(decrypted) as { canvas: CanvasData; at: number };
+          const serverAt = new Date((pedigreeData as unknown as { updatedAt: string }).updatedAt).getTime();
+          if (parsed.at > serverAt + 3000 && parsed.canvas?.nodes?.length > 0) {
+            setDraftData(parsed.canvas);
+            setShowDraftBanner(true);
+            return;
+          }
         }
-      }
-    } catch {}
-    draftEnabledRef.current = true;
+      } catch {}
+      draftEnabledRef.current = true;
+    };
+    
+    checkDraft();
   }, [pedigreeData, draftKey]);
 
-  // Save draft to localStorage on page/tab close
+  // Background draft pre-encryption helper
+  useEffect(() => {
+    const interval = setInterval(async () => {
+      if (!draftEnabledRef.current || !canvasRef.current) return;
+      try {
+        const payload = JSON.stringify({ canvas: canvasRef.current, at: Date.now() });
+        if (payload !== lastSerializedRef.current) {
+          lastSerializedRef.current = payload;
+          const enc = await encryptDraft(payload);
+          encryptedDraftRef.current = enc;
+        }
+      } catch {}
+    }, 2000);
+
+    return () => clearInterval(interval);
+  }, []);
+
+  // Save encrypted draft to localStorage on page/tab close or unmount
   useEffect(() => {
     const handleUnload = () => {
-      if (!draftEnabledRef.current) return;
+      if (!draftEnabledRef.current || !encryptedDraftRef.current) return;
       try {
-        localStorage.setItem(draftKeyRef.current, JSON.stringify({ canvas: canvasRef.current, at: Date.now() }));
+        localStorage.setItem(draftKeyRef.current, encryptedDraftRef.current);
       } catch {}
     };
     window.addEventListener("beforeunload", handleUnload);
     return () => {
       window.removeEventListener("beforeunload", handleUnload);
       // Attempt final save on unmount
-      if (draftEnabledRef.current && canvasRef.current) {
+      if (draftEnabledRef.current && encryptedDraftRef.current) {
         try {
-          localStorage.setItem(draftKeyRef.current, JSON.stringify({ canvas: canvasRef.current, at: Date.now() }));
+          localStorage.setItem(draftKeyRef.current, encryptedDraftRef.current);
         } catch {}
       }
     };

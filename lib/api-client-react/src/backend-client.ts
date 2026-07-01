@@ -281,7 +281,7 @@ export function sharePedigree(pedigreeId: number, recipientKey: string): Promise
 }
 
 export function importShared(shareToken: string, importerKey?: string): Promise<RelayPayload> {
-  return apiCall<RelayPayload>("import_shared", { share_token: shareToken });
+  return apiCall<RelayPayload>("import_shared", { share_token: shareToken, importer_key: importerKey });
 }
 
 export function importPedigreeFromJson(jsonContent: string, importerKey: string): Promise<Pedigree> {

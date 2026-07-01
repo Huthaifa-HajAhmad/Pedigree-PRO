@@ -8,9 +8,21 @@
  * matching the Rust backend behavior.
  */
 
-import { exec, query, queryOne, lastInsertRowId } from "./db";
+import { exec, query, queryOne, lastInsertRowId, getCachedDeviceId } from "./db";
 import { computeHash } from "@workspace/crypto";
 import { listProfilePrivateKeys } from "./crypto-store";
+
+function withTransaction<T>(fn: () => T): T {
+  exec("BEGIN TRANSACTION");
+  try {
+    const res = fn();
+    exec("COMMIT");
+    return res;
+  } catch (e) {
+    exec("ROLLBACK");
+    throw e;
+  }
+}
 
 // =============================================================================
 // Profile Types & Operations
@@ -177,39 +189,18 @@ export function get_patient(args: { id: number }): Patient {
 }
 
 export function create_patient(args: CreatePatientInput): Patient {
-  const columns = query<{ name: string }>("PRAGMA table_info(patients)");
-  const hasMrn = columns.some((c) => c.name === "mrn");
-
-  if (hasMrn) {
-    const randomSuffix = Math.floor(1000 + Math.random() * 9000);
-    const generatedMrn = `MRN-${Date.now()}-${randomSuffix}`;
-    exec(
-      "INSERT INTO patients (mrn, first_name, last_name, date_of_birth, sex, ethnicity, referral_reason, clinician_key, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))",
-      [
-        generatedMrn,
-        args.first_name,
-        args.last_name,
-        args.date_of_birth ?? null,
-        args.sex ?? null,
-        args.ethnicity ?? null,
-        args.referral_reason ?? null,
-        args.clinician_key ?? null,
-      ]
-    );
-  } else {
-    exec(
-      "INSERT INTO patients (first_name, last_name, date_of_birth, sex, ethnicity, referral_reason, clinician_key, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))",
-      [
-        args.first_name,
-        args.last_name,
-        args.date_of_birth ?? null,
-        args.sex ?? null,
-        args.ethnicity ?? null,
-        args.referral_reason ?? null,
-        args.clinician_key ?? null,
-      ]
-    );
-  }
+  exec(
+    "INSERT INTO patients (first_name, last_name, date_of_birth, sex, ethnicity, referral_reason, clinician_key, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))",
+    [
+      args.first_name,
+      args.last_name,
+      args.date_of_birth ?? null,
+      args.sex ?? null,
+      args.ethnicity ?? null,
+      args.referral_reason ?? null,
+      args.clinician_key ?? null,
+    ]
+  );
   const id = lastInsertRowId();
   return get_patient({ id });
 }
@@ -219,7 +210,10 @@ export function update_patient(args: {
   input: Partial<CreatePatientInput>;
 }): Patient {
   const existing = get_patient({ id: args.id });
-  const merged = { ...existing, ...args.input };
+  const cleanInput = Object.fromEntries(
+    Object.entries(args.input).filter(([_, v]) => v !== undefined)
+  );
+  const merged = { ...existing, ...cleanInput };
   exec(
     "UPDATE patients SET first_name = ?, last_name = ?, date_of_birth = ?, sex = ?, ethnicity = ?, referral_reason = ?, clinician_key = ?, updated_at = datetime('now') WHERE id = ?",
     [
@@ -237,12 +231,15 @@ export function update_patient(args: {
 }
 
 export function delete_patient(args: { id: number }): void {
-  const patient = queryOne<{ id: number }>(
-    "SELECT id FROM patients WHERE id = ?",
-    [args.id]
-  );
-  if (!patient) throw new Error("Patient not found");
-  exec("DELETE FROM patients WHERE id = ?", [args.id]);
+  withTransaction(() => {
+    const patient = queryOne<{ id: number }>(
+      "SELECT id FROM patients WHERE id = ?",
+      [args.id]
+    );
+    if (!patient) throw new Error("Patient not found");
+    exec("UPDATE pedigrees SET patient_id = NULL WHERE patient_id = ?", [args.id]);
+    exec("DELETE FROM patients WHERE id = ?", [args.id]);
+  });
 }
 
 // =============================================================================
@@ -282,22 +279,17 @@ export interface CreatePedigreeInput {
   creator_signature?: string | null;
 }
 
-function countNodesInCanvas(canvasData: string | null): number {
-  if (!canvasData) return 0;
-  try {
-    const json = JSON.parse(canvasData);
-    return json.nodes?.length ?? 0;
-  } catch {
-    return 0;
-  }
-}
 
 export function list_pedigrees(args?: {
   patient_id?: number;
   search?: string;
 }): PedigreeSummary[] {
   let sql = `
-    SELECT p.id, p.title, p.patient_id, p.canvas_data,
+    SELECT p.id, p.title, p.patient_id,
+           CASE
+             WHEN p.canvas_data IS NULL THEN 0
+             ELSE COALESCE(json_array_length(json_extract(p.canvas_data, '$.nodes')), 0)
+           END as node_count,
            (SELECT COUNT(*) FROM pedigree_versions pv WHERE pv.pedigree_id = p.id) as version_count,
            p.creator_key, p.created_at, p.updated_at
     FROM pedigrees p
@@ -314,21 +306,7 @@ export function list_pedigrees(args?: {
   }
   sql += " ORDER BY p.updated_at DESC";
 
-  const rows = query<{
-    id: number;
-    title: string;
-    patient_id: number | null;
-    canvas_data: string | null;
-    version_count: number;
-    creator_key: string | null;
-    created_at: string;
-    updated_at: string;
-  }>(sql, params);
-
-  return rows.map((r) => ({
-    ...r,
-    node_count: countNodesInCanvas(r.canvas_data),
-  }));
+  return query<PedigreeSummary>(sql, params);
 }
 
 export function get_pedigree(args: { id: number }): Pedigree {
@@ -341,72 +319,86 @@ export function get_pedigree(args: { id: number }): Pedigree {
 }
 
 export function create_pedigree(args: CreatePedigreeInput): Pedigree {
-  const canvas_hash = args.canvas_data
-    ? computeHash(args.canvas_data)
-    : null;
-  exec(
-    "INSERT INTO pedigrees (title, patient_id, canvas_data, canvas_hash, notes, creator_key, creator_signature, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))",
-    [
-      args.title,
-      args.patient_id ?? null,
-      args.canvas_data ?? null,
-      canvas_hash,
-      args.notes ?? null,
-      args.creator_key,
-      args.creator_signature ?? null,
-    ]
-  );
+  return withTransaction(() => {
+    const canvas_hash = args.canvas_data
+      ? computeHash(args.canvas_data)
+      : null;
+    exec(
+      "INSERT INTO pedigrees (title, patient_id, canvas_data, canvas_hash, notes, creator_key, creator_signature, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))",
+      [
+        args.title,
+        args.patient_id ?? null,
+        args.canvas_data ?? null,
+        canvas_hash,
+        args.notes ?? null,
+        args.creator_key,
+        args.creator_signature ?? null,
+      ]
+    );
 
-  const id = lastInsertRowId();
+    const id = lastInsertRowId();
 
-  exec(
-    "INSERT INTO activity_log (action, subject, actor_key, timestamp) VALUES ('created', ?, ?, datetime('now'))",
-    [args.title, args.creator_key]
-  );
+    exec(
+      "INSERT INTO activity_log (action, subject, actor_key, timestamp) VALUES ('created', ?, ?, datetime('now'))",
+      [args.title, args.creator_key]
+    );
 
-  return get_pedigree({ id });
+    return get_pedigree({ id });
+  });
 }
 
 export function update_pedigree(args: {
   id: number;
   input: Partial<CreatePedigreeInput>;
 }): Pedigree {
-  const existing = get_pedigree({ id: args.id });
-  const merged = { ...existing, ...args.input };
-  const canvas_hash = merged.canvas_data ? computeHash(merged.canvas_data) : null;
-  exec(
-    "UPDATE pedigrees SET title = ?, patient_id = ?, canvas_data = ?, canvas_hash = ?, notes = ?, updated_at = datetime('now') WHERE id = ?",
-    [
-      merged.title,
-      merged.patient_id ?? null,
-      merged.canvas_data ?? null,
-      canvas_hash,
-      merged.notes ?? null,
-      args.id,
-    ]
-  );
+  return withTransaction(() => {
+    const existing = get_pedigree({ id: args.id });
+    const cleanInput = Object.fromEntries(
+      Object.entries(args.input).filter(([_, v]) => v !== undefined)
+    );
+    const merged = { ...existing, ...cleanInput };
+    const canvas_hash = merged.canvas_data ? computeHash(merged.canvas_data) : null;
+    exec(
+      "UPDATE pedigrees SET title = ?, patient_id = ?, canvas_data = ?, canvas_hash = ?, notes = ?, updated_at = datetime('now') WHERE id = ?",
+      [
+        merged.title,
+        merged.patient_id ?? null,
+        merged.canvas_data ?? null,
+        canvas_hash,
+        merged.notes ?? null,
+        args.id,
+      ]
+    );
 
-  exec(
-    "INSERT INTO activity_log (action, subject, actor_key, timestamp) VALUES ('updated', ?, ?, datetime('now'))",
-    [merged.title, merged.creator_key ?? ""]
-  );
+    exec(
+      "INSERT INTO activity_log (action, subject, actor_key, timestamp) VALUES ('updated', ?, ?, datetime('now'))",
+      [merged.title, merged.creator_key ?? ""]
+    );
 
-  return get_pedigree({ id: args.id });
+    return get_pedigree({ id: args.id });
+  });
 }
 
 export function delete_pedigree(args: { id: number }): void {
-  const pedigree = queryOne<{ title: string }>(
-    "SELECT title FROM pedigrees WHERE id = ?",
-    [args.id]
-  );
-  if (!pedigree) throw new Error("Pedigree not found");
+  withTransaction(() => {
+    const pedigree = queryOne<{ title: string }>(
+      "SELECT title FROM pedigrees WHERE id = ?",
+      [args.id]
+    );
+    if (!pedigree) throw new Error("Pedigree not found");
 
-  exec("DELETE FROM pedigrees WHERE id = ?", [args.id]);
+    // CASCADE DELETES programmatically
+    exec("DELETE FROM pedigree_versions WHERE pedigree_id = ?", [args.id]);
+    exec("DELETE FROM pedigree_node_annotations WHERE pedigree_id = ?", [args.id]);
+    exec("DELETE FROM pedigree_phenotypes WHERE pedigree_id = ?", [args.id]);
 
-  exec(
-    "INSERT INTO activity_log (action, subject, timestamp) VALUES ('deleted', ?, datetime('now'))",
-    [pedigree.title]
-  );
+    exec("DELETE FROM pedigrees WHERE id = ?", [args.id]);
+
+    exec(
+      "INSERT INTO activity_log (action, subject, timestamp) VALUES ('deleted', ?, datetime('now'))",
+      [pedigree.title]
+    );
+  });
 }
 
 // =============================================================================
@@ -578,7 +570,7 @@ export interface Preferences {
 }
 
 export function get_preferences(): Preferences {
-  const device_id = "browser-device"; // browser has no persistent device UUID
+  const device_id = getCachedDeviceId();
   const pref = queryOne<Preferences>(
     "SELECT device_id, theme, updated_at FROM app_preferences WHERE device_id = ?",
     [device_id]
@@ -597,7 +589,7 @@ export function get_preferences(): Preferences {
 }
 
 export function save_preferences(args: { theme: string }): Preferences {
-  const device_id = "browser-device";
+  const device_id = getCachedDeviceId();
   exec(
     "INSERT INTO app_preferences (device_id, theme, updated_at) VALUES (?, ?, datetime('now')) ON CONFLICT(device_id) DO UPDATE SET theme = ?, updated_at = datetime('now')",
     [device_id, args.theme, args.theme]
@@ -707,11 +699,15 @@ function looksLikeRelayToken(token: string): boolean {
 
 const SHORT_CODE_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
 function generateShortCode(length = 8): string {
-  const bytes = new Uint8Array(length);
-  crypto.getRandomValues(bytes);
   let result = "";
-  for (let i = 0; i < length; i++) {
-    result += SHORT_CODE_CHARS[bytes[i]! % SHORT_CODE_CHARS.length];
+  const maxValidVal = 256 - (256 % SHORT_CODE_CHARS.length); // 248
+  const byte = new Uint8Array(1);
+  while (result.length < length) {
+    crypto.getRandomValues(byte);
+    const val = byte[0]!;
+    if (val < maxValidVal) {
+      result += SHORT_CODE_CHARS[val % SHORT_CODE_CHARS.length];
+    }
   }
   return result;
 }
@@ -1167,26 +1163,215 @@ export function export_pedigree_ppro(args: {
   return JSON.stringify(exportDoc, null, 2);
 }
 
+function sanitizeCanvasData(canvas: any): any {
+  if (!canvas || typeof canvas !== "object") {
+    return { nodes: [], edges: [], annotations: [] };
+  }
+  const nodes = Array.isArray(canvas.nodes) ? canvas.nodes.map((n: any) => {
+    if (!n || typeof n !== "object") return null;
+    return {
+      id: String(n.id ?? ""),
+      type: String(n.type ?? "unknown"),
+      affected: Boolean(n.affected ?? false),
+      affectedLevel: typeof n.affectedLevel === "number" ? n.affectedLevel : undefined,
+      carrier: Boolean(n.carrier ?? false),
+      deceased: Boolean(n.deceased ?? false),
+      proband: Boolean(n.proband ?? false),
+      adopted: n.adopted !== undefined ? Boolean(n.adopted) : undefined,
+      label: String(n.label ?? ""),
+      age: String(n.age ?? ""),
+      dob: n.dob !== undefined ? String(n.dob) : undefined,
+      condition: n.condition !== undefined ? String(n.condition) : undefined,
+      notes: n.notes !== undefined ? String(n.notes) : undefined,
+      insideText: n.insideText !== undefined ? String(n.insideText) : undefined,
+      x: Number(n.x ?? 0),
+      y: Number(n.y ?? 0),
+      pinned: Boolean(n.pinned ?? false),
+      color: n.color !== undefined ? String(n.color) : undefined,
+      genotype: n.genotype !== undefined ? String(n.genotype) : undefined,
+      shading: n.shading !== undefined ? String(n.shading) : undefined,
+      genotype2: n.genotype2 !== undefined ? String(n.genotype2) : undefined,
+      additionalGenotypes: Array.isArray(n.additionalGenotypes) ? n.additionalGenotypes.map(String) : undefined,
+    };
+  }).filter(Boolean) : [];
+
+  const edges = Array.isArray(canvas.edges) ? canvas.edges.map((e: any) => {
+    if (!e || typeof e !== "object") return null;
+    return {
+      id: String(e.id ?? ""),
+      type: String(e.type ?? "couple"),
+      sourceId: String(e.sourceId ?? ""),
+      targetId: String(e.targetId ?? ""),
+      twinGroup: e.twinGroup !== undefined ? String(e.twinGroup) : undefined,
+      twinType: e.twinType !== undefined ? String(e.twinType) : undefined,
+      inverted: e.inverted !== undefined ? Boolean(e.inverted) : undefined,
+    };
+  }).filter(Boolean) : [];
+
+  const annotations = Array.isArray(canvas.annotations) ? canvas.annotations.map((a: any) => {
+    if (!a || typeof a !== "object") return null;
+    return {
+      id: String(a.id ?? ""),
+      nodeId: String(a.nodeId ?? ""),
+      text: String(a.text ?? ""),
+      color: String(a.color ?? ""),
+      fontSize: Number(a.fontSize ?? 12),
+      position: String(a.position ?? "below"),
+      offsetX: typeof a.offsetX === "number" ? a.offsetX : undefined,
+      offsetY: typeof a.offsetY === "number" ? a.offsetY : undefined,
+      hidden: a.hidden !== undefined ? Boolean(a.hidden) : undefined,
+      bold: a.bold !== undefined ? Boolean(a.bold) : undefined,
+      italic: a.italic !== undefined ? Boolean(a.italic) : undefined,
+      uppercase: a.uppercase !== undefined ? Boolean(a.uppercase) : undefined,
+      x: typeof a.x === "number" ? a.x : undefined,
+      y: typeof a.y === "number" ? a.y : undefined,
+    };
+  }).filter(Boolean) : [];
+
+  const settings = canvas.settings && typeof canvas.settings === "object" ? {
+    themeId: canvas.settings.themeId !== undefined ? String(canvas.settings.themeId) : undefined,
+    config: canvas.settings.config && typeof canvas.settings.config === "object" ? {
+      nodeSize: typeof canvas.settings.config.nodeSize === "number" ? canvas.settings.config.nodeSize : undefined,
+      nodeStrokeColor: typeof canvas.settings.config.nodeStrokeColor === "string" ? canvas.settings.config.nodeStrokeColor : undefined,
+      edgeColor: typeof canvas.settings.config.edgeColor === "string" ? canvas.settings.config.edgeColor : undefined,
+      edgeWidthNormal: typeof canvas.settings.config.edgeWidthNormal === "number" ? canvas.settings.config.edgeWidthNormal : undefined,
+      annFontSize: typeof canvas.settings.config.annFontSize === "number" ? canvas.settings.config.annFontSize : undefined,
+      annFontFamily: typeof canvas.settings.config.annFontFamily === "string" ? canvas.settings.config.annFontFamily : undefined,
+      annBold: typeof canvas.settings.config.annBold === "boolean" ? canvas.settings.config.annBold : undefined,
+      annUppercase: typeof canvas.settings.config.annUppercase === "boolean" ? canvas.settings.config.annUppercase : undefined,
+      annDefaultPos: typeof canvas.settings.config.annDefaultPos === "string" ? canvas.settings.config.annDefaultPos : undefined,
+      toolbarHeight: typeof canvas.settings.config.toolbarHeight === "number" ? canvas.settings.config.toolbarHeight : undefined,
+    } : undefined,
+  } : undefined;
+
+  return { nodes, edges, annotations, settings };
+}
+
+export function validatePproExport(raw: unknown): PproExport {
+  if (!raw || typeof raw !== "object") {
+    throw new Error("Invalid import data: not an object");
+  }
+  const data = raw as any;
+
+  if (typeof data.format_version !== "string" || data.format_version !== "1.0") {
+    throw new Error(`Unsupported format version: ${data.format_version}`);
+  }
+  if (data.export_type !== "pedigree") {
+    throw new Error(`Invalid export type: ${data.export_type}`);
+  }
+  if (!data.pedigree || typeof data.pedigree !== "object") {
+    throw new Error("Invalid import data: missing pedigree details");
+  }
+
+  const ped = data.pedigree as any;
+
+  // Sanitize canvas
+  const canvasData = sanitizeCanvasData(ped.canvas_data);
+  if (canvasData.nodes.length > 10000 || canvasData.edges.length > 10000) {
+    throw new Error("Import rejected: node or edge count exceeds limit (10,000)");
+  }
+
+  const nodeAnnotations = Array.isArray(ped.node_annotations)
+    ? ped.node_annotations.map((ann: any) => {
+        if (!ann || typeof ann !== "object") return null;
+        return {
+          node_id: String(ann.node_id ?? ""),
+          hpo_terms: ann.hpo_terms !== undefined ? String(ann.hpo_terms) : null,
+          omim_ids: ann.omim_ids !== undefined ? String(ann.omim_ids) : null,
+          variant_hgvs: ann.variant_hgvs !== undefined ? String(ann.variant_hgvs) : null,
+          test_results: ann.test_results !== undefined ? String(ann.test_results) : null,
+          clinical_notes: ann.clinical_notes !== undefined ? String(ann.clinical_notes) : null,
+          affected_status: String(ann.affected_status ?? "unknown"),
+          carrier_status: String(ann.carrier_status ?? "unknown"),
+        };
+      }).filter(Boolean) as any[]
+    : [];
+
+  const phenotypes = Array.isArray(ped.phenotypes)
+    ? ped.phenotypes.map((ph: any) => {
+        if (!ph || typeof ph !== "object") return null;
+        return {
+          condition_name: String(ph.condition_name ?? ""),
+          omim_id: ph.omim_id !== undefined ? String(ph.omim_id) : null,
+          hpo_terms: ph.hpo_terms !== undefined ? String(ph.hpo_terms) : null,
+          inheritance_mode: ph.inheritance_mode !== undefined ? String(ph.inheritance_mode) : null,
+          notes: ph.notes !== undefined ? String(ph.notes) : null,
+        };
+      }).filter(Boolean) as any[]
+    : [];
+
+  const versionHistory = Array.isArray(ped.version_history)
+    ? ped.version_history.map((v: any) => {
+        if (!v || typeof v !== "object") return null;
+        // Parse and sanitize the inlined version canvas too
+        let sanitizedVerCanvas = "";
+        try {
+          if (v.canvas_data) {
+            const parsedVer = JSON.parse(v.canvas_data);
+            const sanitized = sanitizeCanvasData(parsedVer);
+            if (sanitized.nodes.length > 10000) {
+              throw new Error("Import rejected: version node count exceeds limit");
+            }
+            sanitizedVerCanvas = JSON.stringify(sanitized);
+          }
+        } catch (e) {
+          throw new Error(`Invalid version history canvas data: ${e instanceof Error ? e.message : String(e)}`);
+        }
+
+        return {
+          version_number: Number(v.version_number ?? 1),
+          label: v.label !== undefined ? String(v.label) : null,
+          canvas_data: sanitizedVerCanvas,
+          canvas_hash: v.canvas_hash !== undefined ? String(v.canvas_hash) : null,
+          saver_key: v.saver_key !== undefined ? String(v.saver_key) : null,
+          saver_signature: v.saver_signature !== undefined ? String(v.saver_signature) : null,
+          created_at: String(v.created_at ?? new Date().toISOString()),
+        };
+      }).filter(Boolean) as any[]
+    : [];
+
+  if (versionHistory.length > 100) {
+    throw new Error("Import rejected: version history count exceeds limit (100)");
+  }
+
+  const prov = data.provenance || {};
+  const provenance = {
+    creator_key: String(prov.creator_key ?? ""),
+    creator_signature: prov.creator_signature !== undefined ? String(prov.creator_signature) : null,
+    exported_at: String(prov.exported_at ?? new Date().toISOString()),
+    exported_by_key: String(prov.exported_by_key ?? ""),
+    export_signature: prov.export_signature !== undefined ? String(prov.export_signature) : null,
+  };
+
+  return {
+    format_version: String(data.format_version),
+    export_type: String(data.export_type),
+    pedigree: {
+      title: String(ped.title ?? ""),
+      canvas_data: canvasData,
+      canvas_hash: ped.canvas_hash !== undefined ? String(ped.canvas_hash) : null,
+      notes: ped.notes !== undefined ? String(ped.notes) : null,
+      node_annotations: nodeAnnotations,
+      phenotypes,
+      version_history: versionHistory,
+    },
+    provenance,
+  };
+}
+
 export function import_pedigree_native(args: {
   path: string;
   importer_key: string;
 }): Pedigree {
-  let data: PproExport;
+  let parsedJson: unknown;
   try {
-    data = JSON.parse(args.path);
+    parsedJson = JSON.parse(args.path);
   } catch {
     throw new Error("Invalid .ppro import data: not valid JSON");
   }
 
-  if (data.format_version !== "1.0") {
-    throw new Error(`Unsupported .ppro format version: ${data.format_version}`);
-  }
-
-  if (data.export_type !== "pedigree" || !data.pedigree) {
-    throw new Error("Invalid .ppro file: expected export_type 'pedigree'");
-  }
-
-  const ped = data.pedigree;
+  const data = validatePproExport(parsedJson);
+  const ped = data.pedigree!;
   const canvasStr = ped.canvas_data ? JSON.stringify(ped.canvas_data) : null;
 
   // Deduplication: if a pedigree with the same canvas hash already exists, return it
@@ -1334,7 +1519,10 @@ export async function relay_share(args: {
     throw new Error(`Relay error: ${errorData.error ?? errorData.message ?? response.statusText}`);
   }
 
-  const result = await response.json() as { share_token: string; expires_at: string };
+  const result = await response.json();
+  if (!result || typeof result !== "object" || typeof result.share_token !== "string") {
+    throw new Error("Invalid response received from relay: missing required fields");
+  }
   return {
     share_token: result.share_token,
     share_url: `${RELAY_BASE_URL}/s/${result.share_token}`,
@@ -1380,7 +1568,19 @@ export async function relay_receive(args: { share_token: string }): Promise<{
       throw new Error(`Relay error: ${message}`);
     }
 
-    return response.json() as Promise<{ ciphertext: string; encrypted_key: string }>;
+    const data = await response.json();
+    if (
+      !data ||
+      typeof data !== "object" ||
+      typeof data.ciphertext !== "string" ||
+      typeof data.encrypted_key !== "string"
+    ) {
+      throw new Error("Invalid response received from relay: missing required fields");
+    }
+    return {
+      ciphertext: data.ciphertext,
+      encrypted_key: data.encrypted_key,
+    };
   } catch (err) {
     clearTimeout(timeoutId);
     if (err instanceof Error && err.name === "AbortError") {
@@ -1394,11 +1594,32 @@ export async function relay_receive(args: { share_token: string }): Promise<{
  * Revokes a share token on the relay (browser mode).
  */
 export async function relay_revoke(args: { share_token: string }): Promise<void> {
-  const response = await fetch(`${RELAY_BASE_URL}/api/relay/receive/${args.share_token}`, {
-    method: "DELETE",
-  });
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 15000);
 
-  if (!response.ok && response.status !== 204) {
-    throw new Error(`Failed to revoke share token: HTTP ${response.status}`);
+  try {
+    const response = await fetch(`${RELAY_BASE_URL}/api/relay/revoke`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ share_token: args.share_token }),
+      signal: controller.signal,
+    });
+
+    clearTimeout(timeoutId);
+
+    if (!response.ok && response.status !== 204) {
+      throw new Error(`Failed to revoke share token: HTTP ${response.status}`);
+    }
+  } catch (err) {
+    clearTimeout(timeoutId);
+    if (err instanceof Error && err.name === "AbortError") {
+      throw new Error("Relay request timed out — please check your connection and try again");
+    }
+    if (err instanceof TypeError && err.message === "Failed to fetch") {
+      throw new Error("Unable to connect to the sharing relay service. Please check your network connection.");
+    }
+    throw err;
   }
 }

@@ -15,6 +15,8 @@ export {
   listProfilePrivateKeys,
   encryptDbBlob,
   decryptDbBlob,
+  encryptDraft,
+  decryptDraft,
 } from "./crypto-store";
 
 // Re-export all command functions so the adapter can route to them
@@ -46,6 +48,7 @@ export {
   import_shared,
   decode_shared_pedigree,
   import_pedigree_native,
+  validatePproExport,
   import_pedigree_legacy,
   export_pedigree_ppro,
   backup_database,

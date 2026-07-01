@@ -80,7 +80,7 @@ struct SummaryRow {
     id: i64,
     title: String,
     patient_id: Option<i64>,
-    canvas_data: Option<String>,
+    node_count: i64,
     version_count: i64,
     creator_key: Option<String>,
     created_at: String,
@@ -437,52 +437,21 @@ pub fn create_patient(
 ) -> Result<Patient, String> {
     let db = state.db.lock().map_err(|e| e.to_string())?;
 
-    let has_mrn = {
-        let mut stmt = db
-            .prepare("PRAGMA table_info(patients)")
-            .map_err(|e| format!("Failed to inspect schema: {}", e))?;
-        let res = stmt.query_map([], |row| row.get::<_, String>(1))
-            .map_err(|e| format!("Failed to map columns: {}", e))?
-            .filter_map(|r| r.ok())
-            .any(|col_name| col_name == "mrn");
-        res
-    };
-
-    if has_mrn {
-        let generated_mrn = format!("MRN-{}", uuid::Uuid::new_v4());
-        db.execute(
-            "INSERT INTO patients (mrn, first_name, last_name, date_of_birth, sex, ethnicity,
-             referral_reason, clinician_key, created_at, updated_at)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, datetime('now'), datetime('now'))",
-            params![
-                generated_mrn,
-                input.first_name,
-                input.last_name,
-                input.date_of_birth,
-                input.sex,
-                input.ethnicity,
-                input.referral_reason,
-                input.clinician_key,
-            ],
-        )
-        .map_err(|e| format!("Failed to create patient: {}", e))?;
-    } else {
-        db.execute(
-            "INSERT INTO patients (first_name, last_name, date_of_birth, sex, ethnicity,
-             referral_reason, clinician_key, created_at, updated_at)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, datetime('now'), datetime('now'))",
-            params![
-                input.first_name,
-                input.last_name,
-                input.date_of_birth,
-                input.sex,
-                input.ethnicity,
-                input.referral_reason,
-                input.clinician_key,
-            ],
-        )
-        .map_err(|e| format!("Failed to create patient: {}", e))?;
-    }
+    db.execute(
+        "INSERT INTO patients (first_name, last_name, date_of_birth, sex, ethnicity,
+         referral_reason, clinician_key, created_at, updated_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, datetime('now'), datetime('now'))",
+        params![
+            input.first_name,
+            input.last_name,
+            input.date_of_birth,
+            input.sex,
+            input.ethnicity,
+            input.referral_reason,
+            input.clinician_key,
+        ],
+    )
+    .map_err(|e| format!("Failed to create patient: {}", e))?;
 
     let id = db.last_insert_rowid();
     drop(db);
@@ -520,13 +489,21 @@ pub fn update_patient(
 
 #[tauri::command]
 pub fn delete_patient(state: State<AppState>, id: i64) -> Result<(), String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
-    let affected = db
+    let mut db = state.db.lock().map_err(|e| e.to_string())?;
+    let tx = db.transaction().map_err(|e| e.to_string())?;
+
+    // CASCADE UNLINK
+    let _ = tx.execute("UPDATE pedigrees SET patient_id = NULL WHERE patient_id = ?1", params![id]);
+
+    let affected = tx
         .execute("DELETE FROM patients WHERE id = ?1", params![id])
         .map_err(|e| format!("Failed to delete patient: {}", e))?;
+
     if affected == 0 {
         return Err("Patient not found".to_string());
     }
+
+    tx.commit().map_err(|e| format!("Failed to commit transaction: {}", e))?;
     Ok(())
 }
 
@@ -544,7 +521,7 @@ pub fn list_pedigrees(
 
     let mut sql = String::from(
         "SELECT p.id, p.title, p.patient_id,
-                p.canvas_data,
+                CAST(COALESCE(json_array_length(json_extract(p.canvas_data, '$.nodes')), 0) AS INTEGER) AS node_count,
                 CAST(COUNT(DISTINCT pv.id) AS INTEGER) AS version_count,
                 p.creator_key, p.created_at, p.updated_at
          FROM pedigrees p
@@ -562,7 +539,7 @@ pub fn list_pedigrees(
 
     let mut stmt = db.prepare(&sql).map_err(|e| format!("Query error: {}", e))?;
 
-    let mut rows: Vec<SummaryRow> = if let Some(pid) = patient_id {
+    let rows: Vec<SummaryRow> = if let Some(pid) = patient_id {
         let pattern = search.map(|s| format!("%{}%", s)).unwrap_or_default();
         stmt.query_map(params![pid, pattern], map_summary_row)
             .map_err(|e| format!("Query error: {}", e))?
@@ -581,21 +558,17 @@ pub fn list_pedigrees(
             .collect()
     };
 
-    // Post-process: compute node_count from canvas_data JSON
     let summaries: Vec<PedigreeSummary> = rows
-        .drain(..)
-        .map(|r| {
-            let node_count = count_nodes_in_canvas(&r.canvas_data);
-            PedigreeSummary {
-                id: r.id,
-                title: r.title,
-                patient_id: r.patient_id,
-                node_count,
-                version_count: r.version_count,
-                creator_key: r.creator_key,
-                created_at: r.created_at,
-                updated_at: r.updated_at,
-            }
+        .into_iter()
+        .map(|r| PedigreeSummary {
+            id: r.id,
+            title: r.title,
+            patient_id: r.patient_id,
+            node_count: r.node_count,
+            version_count: r.version_count,
+            creator_key: r.creator_key,
+            created_at: r.created_at,
+            updated_at: r.updated_at,
         })
         .collect();
 
@@ -620,14 +593,15 @@ pub fn create_pedigree(
     state: State<AppState>,
     input: PedigreeInput,
 ) -> Result<Pedigree, String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let mut db = state.db.lock().map_err(|e| e.to_string())?;
+    let tx = db.transaction().map_err(|e| e.to_string())?;
 
     let canvas_hash = input
         .canvas_data
         .as_ref()
         .map(|d| signatures::hash_sha256(d.as_bytes()));
 
-    db.execute(
+    tx.execute(
         "INSERT INTO pedigrees (title, patient_id, canvas_data, canvas_hash, notes,
          creator_key, creator_signature, created_at, updated_at)
          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, datetime('now'), datetime('now'))",
@@ -643,13 +617,15 @@ pub fn create_pedigree(
     )
     .map_err(|e| format!("Failed to create pedigree: {}", e))?;
 
-    let id = db.last_insert_rowid();
+    let id = tx.last_insert_rowid();
 
-    let _ = db.execute(
+    let _ = tx.execute(
         "INSERT INTO activity_log (action, subject, actor_key, timestamp)
          VALUES ('created', ?1, ?2, datetime('now'))",
         params![input.title, input.creator_key],
     );
+
+    tx.commit().map_err(|e| format!("Failed to commit transaction: {}", e))?;
     drop(db);
     get_pedigree(state, id)
 }
@@ -660,14 +636,15 @@ pub fn update_pedigree(
     id: i64,
     input: PedigreeInput,
 ) -> Result<Pedigree, String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let mut db = state.db.lock().map_err(|e| e.to_string())?;
+    let tx = db.transaction().map_err(|e| e.to_string())?;
 
     let canvas_hash = input
         .canvas_data
         .as_ref()
         .map(|d| signatures::hash_sha256(d.as_bytes()));
 
-    db.execute(
+    tx.execute(
         "UPDATE pedigrees SET title = ?1, patient_id = ?2, canvas_data = ?3, canvas_hash = ?4,
          notes = ?5, updated_at = datetime('now')
          WHERE id = ?6",
@@ -682,21 +659,23 @@ pub fn update_pedigree(
     )
     .map_err(|e| format!("Failed to update pedigree: {}", e))?;
 
-    let _ = db.execute(
+    let _ = tx.execute(
         "INSERT INTO activity_log (action, subject, actor_key, timestamp)
          VALUES ('updated', ?1, ?2, datetime('now'))",
         params![input.title, input.creator_key],
     );
 
+    tx.commit().map_err(|e| format!("Failed to commit transaction: {}", e))?;
     drop(db);
     get_pedigree(state, id)
 }
 
 #[tauri::command]
 pub fn delete_pedigree(state: State<AppState>, id: i64) -> Result<(), String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let mut db = state.db.lock().map_err(|e| e.to_string())?;
+    let tx = db.transaction().map_err(|e| e.to_string())?;
 
-    let title: String = db
+    let title: String = tx
         .query_row(
             "SELECT title FROM pedigrees WHERE id = ?1",
             params![id],
@@ -704,7 +683,12 @@ pub fn delete_pedigree(state: State<AppState>, id: i64) -> Result<(), String> {
         )
         .map_err(|e| format!("Pedigree not found: {}", e))?;
 
-    let affected = db
+    // CASCADE DELETES
+    let _ = tx.execute("DELETE FROM pedigree_versions WHERE pedigree_id = ?1", params![id]);
+    let _ = tx.execute("DELETE FROM pedigree_node_annotations WHERE pedigree_id = ?1", params![id]);
+    let _ = tx.execute("DELETE FROM pedigree_phenotypes WHERE pedigree_id = ?1", params![id]);
+
+    let affected = tx
         .execute("DELETE FROM pedigrees WHERE id = ?1", params![id])
         .map_err(|e| format!("Failed to delete pedigree: {}", e))?;
 
@@ -712,12 +696,13 @@ pub fn delete_pedigree(state: State<AppState>, id: i64) -> Result<(), String> {
         return Err("Pedigree not found".to_string());
     }
 
-    let _ = db.execute(
+    let _ = tx.execute(
         "INSERT INTO activity_log (action, subject, timestamp)
          VALUES ('deleted', ?1, datetime('now'))",
         params![title],
     );
 
+    tx.commit().map_err(|e| format!("Failed to commit transaction: {}", e))?;
     Ok(())
 }
 
@@ -1045,6 +1030,7 @@ pub async fn relay_receive(
 #[tauri::command]
 pub async fn import_shared(
     share_token: String,
+    _importer_key: Option<String>,
 ) -> Result<RelayPayload, String> {
     let (ciphertext, encrypted_key) =
         crate::relay::fetch_shared_payload(&share_token).await?;
@@ -1163,8 +1149,11 @@ fn validate_import_path(app: &tauri::AppHandle, path: &str) -> Result<(), String
         home_dir,
     ];
     let is_allowed = allowed_dirs.iter().any(|dir| {
-        let dir_canonical = dir.canonicalize().unwrap_or_else(|_| dir.clone());
-        canonical.starts_with(&dir_canonical)
+        if let Ok(dir_canonical) = dir.canonicalize() {
+            canonical.starts_with(&dir_canonical)
+        } else {
+            false
+        }
     });
     if !is_allowed {
         return Err(format!("Access denied: path '{}' is outside allowed directories", path));
@@ -1211,7 +1200,7 @@ fn map_summary_row(row: &rusqlite::Row) -> rusqlite::Result<SummaryRow> {
         id: row.get(0)?,
         title: row.get(1)?,
         patient_id: row.get(2)?,
-        canvas_data: row.get(3)?,
+        node_count: row.get(3)?,
         version_count: row.get(4)?,
         creator_key: row.get(5)?,
         created_at: row.get(6)?,
@@ -1219,36 +1208,9 @@ fn map_summary_row(row: &rusqlite::Row) -> rusqlite::Result<SummaryRow> {
     })
 }
 
-/// Parses the canvas_data JSON to count the number of nodes in the pedigree.
-/// canvas_data is a JSON object with a "nodes" array.
-fn count_nodes_in_canvas(canvas_data: &Option<String>) -> i64 {
-    match canvas_data {
-        None => 0,
-        Some(data) => {
-            // Quick heuristic: count occurrences of `"type": "node"` or `"id":`
-            // For proper count, parse JSON and count the "nodes" array length.
-            // Using serde_json is preferred but adds allocation overhead per row.
-            // For dashboard summary purposes, a string-based count is faster.
-            match serde_json::from_str::<serde_json::Value>(data) {
-                Ok(json) => {
-                    json.get("nodes")
-                        .and_then(|n| n.as_array())
-                        .map(|arr| arr.len() as i64)
-                        .unwrap_or(0)
-                }
-                Err(_) => {
-                    // Fallback: count lines starting with `"id"` if JSON parse fails
-                    // (canvas_data may be a string form from legacy data)
-                    data.lines().filter(|l| l.trim().starts_with("\"id\"")).count() as i64
-                }
-            }
-        }
-    }
-}
-
 #[tauri::command]
 pub fn disable_zoom(window: tauri::WebviewWindow) -> Result<(), String> {
-    crate::disable_webview_zoom(&window);
+    crate::configure_webview_zoom(&window);
     Ok(())
 }
 

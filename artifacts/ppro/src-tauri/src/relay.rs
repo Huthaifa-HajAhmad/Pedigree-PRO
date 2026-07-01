@@ -75,7 +75,10 @@ pub async fn relay_share(
         ttl_hours,
     };
 
-    let client = reqwest::Client::new();
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(15))
+        .build()
+        .map_err(|e| format!("Failed to build reqwest client: {}", e))?;
     let response = client
         .post(&url)
         .json(&request_body)
@@ -117,7 +120,10 @@ pub async fn relay_receive(
         share_token: share_token.to_string(),
     };
 
-    let client = reqwest::Client::new();
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(15))
+        .build()
+        .map_err(|e| format!("Failed to build reqwest client: {}", e))?;
     let response = client
         .post(&url)
         .json(&request_body)

@@ -7,16 +7,72 @@ export function parseCanvas(raw: string | null | undefined): CanvasData {
   if (!raw) return DEFAULT_CANVAS;
   try {
     const parsed = JSON.parse(raw);
-    if (!parsed || !Array.isArray(parsed.nodes)) return DEFAULT_CANVAS;
+    if (!parsed || !parsed.nodes) return DEFAULT_CANVAS;
     return {
-      ...parsed,
-      nodes: parsed.nodes.map((n: PedigreeNode) => ({
-        ...n,
-        carrier: (n as any).carrier ?? false,
-        pinned: (n as any).pinned ?? false,
+      nodes: (parsed.nodes ?? []).map((n: any) => ({
+        id: String(n.id ?? ""),
+        type: n.type || "unknown",
+        affected: Boolean(n.affected ?? false),
+        affectedLevel: typeof n.affectedLevel === "number" ? n.affectedLevel : undefined,
+        carrier: Boolean(n.carrier ?? false),
+        deceased: Boolean(n.deceased ?? false),
+        proband: Boolean(n.proband ?? false),
+        adopted: n.adopted !== undefined ? Boolean(n.adopted) : undefined,
+        label: String(n.label ?? ""),
+        age: String(n.age ?? ""),
+        dob: n.dob !== undefined ? String(n.dob) : undefined,
+        condition: n.condition !== undefined ? String(n.condition) : undefined,
+        notes: n.notes !== undefined ? String(n.notes) : undefined,
+        insideText: n.insideText !== undefined ? String(n.insideText) : undefined,
+        x: Number(n.x ?? 0),
+        y: Number(n.y ?? 0),
+        pinned: Boolean(n.pinned ?? false),
+        color: n.color !== undefined ? String(n.color) : undefined,
+        genotype: n.genotype !== undefined ? String(n.genotype) : undefined,
+        shading: n.shading !== undefined ? String(n.shading) : undefined,
+        genotype2: n.genotype2 !== undefined ? String(n.genotype2) : undefined,
+        additionalGenotypes: Array.isArray(n.additionalGenotypes) ? n.additionalGenotypes.map(String) : undefined,
       })),
-      annotations: parsed.annotations || [],
-      settings: parsed.settings || undefined,
+      edges: (parsed.edges ?? []).map((e: any) => ({
+        id: String(e.id ?? ""),
+        type: e.type || "couple",
+        sourceId: String(e.sourceId ?? ""),
+        targetId: String(e.targetId ?? ""),
+        twinGroup: e.twinGroup !== undefined ? String(e.twinGroup) : undefined,
+        twinType: e.twinType !== undefined ? String(e.twinType) : undefined,
+        inverted: e.inverted !== undefined ? Boolean(e.inverted) : undefined,
+      })),
+      annotations: (parsed.annotations ?? []).map((a: any) => ({
+        id: String(a.id ?? ""),
+        nodeId: String(a.nodeId ?? ""),
+        text: String(a.text ?? ""),
+        color: String(a.color ?? ""),
+        fontSize: Number(a.fontSize ?? 12),
+        position: a.position || "below",
+        offsetX: typeof a.offsetX === "number" ? a.offsetX : undefined,
+        offsetY: typeof a.offsetY === "number" ? a.offsetY : undefined,
+        hidden: a.hidden !== undefined ? Boolean(a.hidden) : undefined,
+        bold: a.bold !== undefined ? Boolean(a.bold) : undefined,
+        italic: a.italic !== undefined ? Boolean(a.italic) : undefined,
+        uppercase: a.uppercase !== undefined ? Boolean(a.uppercase) : undefined,
+        x: typeof a.x === "number" ? a.x : undefined,
+        y: typeof a.y === "number" ? a.y : undefined,
+      })),
+      settings: parsed.settings ? {
+        themeId: parsed.settings.themeId !== undefined ? String(parsed.settings.themeId) as any : undefined,
+        config: parsed.settings.config ? {
+          nodeSize: typeof parsed.settings.config.nodeSize === "number" ? parsed.settings.config.nodeSize : undefined,
+          nodeStrokeColor: typeof parsed.settings.config.nodeStrokeColor === "string" ? parsed.settings.config.nodeStrokeColor : undefined,
+          edgeColor: typeof parsed.settings.config.edgeColor === "string" ? parsed.settings.config.edgeColor : undefined,
+          edgeWidthNormal: typeof parsed.settings.config.edgeWidthNormal === "number" ? parsed.settings.config.edgeWidthNormal : undefined,
+          annFontSize: typeof parsed.settings.config.annFontSize === "number" ? parsed.settings.config.annFontSize : undefined,
+          annFontFamily: typeof parsed.settings.config.annFontFamily === "string" ? parsed.settings.config.annFontFamily : undefined,
+          annBold: typeof parsed.settings.config.annBold === "boolean" ? parsed.settings.config.annBold : undefined,
+          annUppercase: typeof parsed.settings.config.annUppercase === "boolean" ? parsed.settings.config.annUppercase : undefined,
+          annDefaultPos: typeof parsed.settings.config.annDefaultPos === "string" ? parsed.settings.config.annDefaultPos as any : undefined,
+          toolbarHeight: typeof parsed.settings.config.toolbarHeight === "number" ? parsed.settings.config.toolbarHeight : undefined,
+        } : undefined,
+      } : undefined,
     };
   } catch {
     return DEFAULT_CANVAS;

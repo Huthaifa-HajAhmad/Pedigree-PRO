@@ -7,6 +7,7 @@
  */
 
 import { get, set, del, createStore } from "idb-keyval";
+import { encryptAesGcm, decryptAesGcm } from "@workspace/crypto";
 
 const KEY_STORE = createStore("pedigree-pro-keys", "keys");
 const DB_KEY_NAME = "db-encryption-key";
@@ -171,7 +172,11 @@ export async function storeProfilePrivateKey(
   profileId: string,
   privateKey: string
 ): Promise<void> {
-  await set(`ppro:profile_private_key:${profileId}`, privateKey, KEY_STORE);
+  const key = await getOrCreateDbKey();
+  const enc = new TextEncoder();
+  const encoded = enc.encode(privateKey);
+  const { ciphertext, iv } = await encryptDbBlob(encoded, key);
+  await set(`ppro:profile_private_key:${profileId}`, { ciphertext, iv }, KEY_STORE);
 }
 
 /**
@@ -180,7 +185,18 @@ export async function storeProfilePrivateKey(
 export async function getProfilePrivateKey(
   profileId: string
 ): Promise<string | undefined> {
-  return get<string>(`ppro:profile_private_key:${profileId}`, KEY_STORE);
+  const stored = await get<any>(`ppro:profile_private_key:${profileId}`, KEY_STORE);
+  if (!stored) return undefined;
+  if (typeof stored === "string") {
+    return stored;
+  }
+  if (stored.ciphertext && stored.iv) {
+    const key = await getOrCreateDbKey();
+    const decrypted = await decryptDbBlob(stored.ciphertext, stored.iv, key);
+    const dec = new TextDecoder();
+    return dec.decode(decrypted);
+  }
+  return undefined;
 }
 
 /**
@@ -192,15 +208,22 @@ export async function listProfilePrivateKeys(): Promise<
   const { keys } = await import("idb-keyval");
   const allKeys = await keys(KEY_STORE);
   const entries: Array<{ profileId: string; privateKey: string }> = [];
-  for (const key of allKeys) {
+  const key = await getOrCreateDbKey();
+  for (const k of allKeys) {
     if (
-      typeof key === "string" &&
-      key.startsWith("ppro:profile_private_key:")
+      typeof k === "string" &&
+      k.startsWith("ppro:profile_private_key:")
     ) {
-      const profileId = key.slice("ppro:profile_private_key:".length);
-      const privateKey = await get<string>(key, KEY_STORE);
-      if (privateKey) {
-        entries.push({ profileId, privateKey });
+      const profileId = k.slice("ppro:profile_private_key:".length);
+      const stored = await get<any>(k, KEY_STORE);
+      if (stored) {
+        if (typeof stored === "string") {
+          entries.push({ profileId, privateKey: stored });
+        } else if (stored.ciphertext && stored.iv) {
+          const decrypted = await decryptDbBlob(stored.ciphertext, stored.iv, key);
+          const dec = new TextDecoder();
+          entries.push({ profileId, privateKey: dec.decode(decrypted) });
+        }
       }
     }
   }
@@ -237,4 +260,39 @@ export async function decryptDbBlob(
     toArrayBuffer(ciphertext)
   );
   return new Uint8Array(decrypted);
+}
+
+const DRAFT_KEY_NAME = "ppro:draft_encryption_key";
+
+async function getOrCreateDraftKey(): Promise<Uint8Array> {
+  const stored = await get<any>(DRAFT_KEY_NAME, KEY_STORE);
+  if (stored instanceof Uint8Array && stored.length === 32) {
+    return stored;
+  }
+  const newKey = new Uint8Array(32);
+  crypto.getRandomValues(newKey);
+  await set(DRAFT_KEY_NAME, newKey, KEY_STORE);
+  return newKey;
+}
+
+export async function encryptDraft(payload: string): Promise<string> {
+  try {
+    const key = await getOrCreateDraftKey();
+    const { ciphertext, nonce } = await encryptAesGcm(payload, key);
+    return JSON.stringify({ ciphertext, nonce });
+  } catch (e) {
+    console.error("Failed to encrypt draft:", e);
+    return payload;
+  }
+}
+
+export async function decryptDraft(encrypted: string): Promise<string> {
+  try {
+    const parsed = JSON.parse(encrypted);
+    if (parsed && typeof parsed === "object" && parsed.ciphertext && parsed.nonce) {
+      const key = await getOrCreateDraftKey();
+      return await decryptAesGcm(parsed.ciphertext, parsed.nonce, key);
+    }
+  } catch {}
+  return encrypted;
 }

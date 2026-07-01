@@ -1,10 +1,68 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import {
   computeHash, generateEd25519Keypair, signData, verifySignature,
   encryptAesGcm, decryptAesGcm, deriveKeyFromPassphrase,
   getPublicKeyFromPrivate, generateSymmetricKey,
   sodiumSealBox, sodiumOpenSealedBox,
 } from "@workspace/crypto";
+import { storeProfilePrivateKey, getProfilePrivateKey, listProfilePrivateKeys } from "@workspace/browser-backend";
+
+const mockStore = new Map<string, any>();
+
+// Polyfill global indexedDB for vitest environment
+const dbMock: any = {
+  transaction: () => {
+    const tx: any = {
+      objectStore: () => {
+        const store: any = {
+          get: (key: string) => {
+            const req: any = {};
+            setTimeout(() => {
+              req.result = mockStore.get(key);
+              if (req.onsuccess) req.onsuccess();
+              if (tx.oncomplete) tx.oncomplete();
+            }, 0);
+            return req;
+          },
+          put: (val: any, key: string) => {
+            const req: any = {};
+            setTimeout(() => {
+              mockStore.set(key, val);
+              if (req.onsuccess) req.onsuccess();
+              if (tx.oncomplete) tx.oncomplete();
+            }, 0);
+            return req;
+          },
+          getAllKeys: () => {
+            const req: any = {};
+            setTimeout(() => {
+              req.result = Array.from(mockStore.keys());
+              if (req.onsuccess) req.onsuccess();
+              if (tx.oncomplete) tx.oncomplete();
+            }, 0);
+            return req;
+          }
+        };
+        store.transaction = tx;
+        return store;
+      }
+    };
+    return tx;
+  },
+  createObjectStore: () => {}
+};
+
+(globalThis as any).indexedDB = {
+  open: () => {
+    const requestMock: any = {
+      result: dbMock,
+    };
+    setTimeout(() => {
+      if (requestMock.onsuccess) requestMock.onsuccess();
+    }, 0);
+    return requestMock;
+  }
+};
 
 describe("computeHash (SHA-256)", () => {
   it("produces a 64-character hex digest", () => {
@@ -185,5 +243,45 @@ describe("sodiumSealBox + sodiumOpenSealedBox", () => {
     const a = await sodiumSealBox("same-data", kp.publicKey);
     const b = await sodiumSealBox("same-data", kp.publicKey);
     expect(a).not.toBe(b);
+  });
+});
+
+describe("Profile private key storage encryption", () => {
+  it("stores private keys encrypted and recovers them successfully", async () => {
+    const profileId = "profile-123";
+    const privateKey = "my-super-secret-private-key";
+    
+    await storeProfilePrivateKey(profileId, privateKey);
+    
+    // The stored value should not be the plaintext key
+    const rawVal = mockStore.get(`ppro:profile_private_key:${profileId}`);
+    expect(rawVal).toBeDefined();
+    expect(typeof rawVal).not.toBe("string");
+    expect(rawVal.ciphertext).toBeDefined();
+    expect(rawVal.iv).toBeDefined();
+    
+    // Retrieval should return the plaintext key
+    const decrypted = await getProfilePrivateKey(profileId);
+    expect(decrypted).toBe(privateKey);
+    
+    // Listing keys should also return the decrypted key
+    const keys = await listProfilePrivateKeys();
+    expect(keys).toContainEqual({ profileId, privateKey });
+  });
+
+  it("retains backwards compatibility with legacy plaintext keys", async () => {
+    const profileId = "legacy-profile";
+    const plaintextKey = "legacy-plaintext-private-key";
+    
+    // Manually insert legacy plaintext key into the mock store
+    mockStore.set(`ppro:profile_private_key:${profileId}`, plaintextKey);
+    
+    // Retrieval should fall back to the legacy string value
+    const decrypted = await getProfilePrivateKey(profileId);
+    expect(decrypted).toBe(plaintextKey);
+    
+    // Listing keys should include the legacy entry
+    const keys = await listProfilePrivateKeys();
+    expect(keys).toContainEqual({ profileId, privateKey: plaintextKey });
   });
 });

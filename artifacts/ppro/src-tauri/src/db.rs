@@ -113,28 +113,55 @@ pub fn init_db(app: &AppHandle) -> Result<Connection, String> {
 }
 
 fn get_or_create_master_secret(key_path: &PathBuf) -> Result<Vec<u8>, String> {
-    if key_path.exists() {
-        let secret_b64 = fs::read_to_string(key_path)
-            .map_err(|e| format!("Failed to read key file: {}", e))?;
-        return base64::engine::general_purpose::STANDARD
-            .decode(secret_b64.trim())
-            .map_err(|e| format!("Failed to decode master secret: {}", e));
+    use keyring::Entry;
+
+    let service = "org.pedigreepro.app";
+    let username = "db_master_secret";
+
+    // 1. Try to read from OS keychain
+    if let Ok(entry) = Entry::new(service, username) {
+        if let Ok(secret_b64) = entry.get_password() {
+            if let Ok(decoded) = base64::engine::general_purpose::STANDARD.decode(secret_b64.trim()) {
+                return Ok(decoded);
+            }
+        }
     }
 
+    // 2. Fall back: check if legacy key file exists on disk
+    if key_path.exists() {
+        if let Ok(secret_b64) = fs::read_to_string(key_path) {
+            if let Ok(decoded) = base64::engine::general_purpose::STANDARD.decode(secret_b64.trim()) {
+                // Try to migrate to keyring for future launches
+                if let Ok(entry) = Entry::new(service, username) {
+                    let _ = entry.set_password(secret_b64.trim());
+                }
+                return Ok(decoded);
+            }
+        }
+    }
+
+    // 3. Generate a new secret
     let mut secret = vec![0u8; 32];
     {
         use rand::RngCore;
         rand::rngs::OsRng.fill_bytes(&mut secret);
     }
-
-    // SECURITY NOTE: The SQLCipher master secret is written to disk as base64 plaintext.
-    // This is an obfuscation-only measure — the file is NOT encrypted at rest.
-    // For production, replace this with OS keychain integration (e.g. keyring crate on
-    // macOS Keychain, Windows Credential Manager, Linux Secret Service) so the secret
-    // never touches the filesystem unencrypted.
     let secret_b64 = base64::engine::general_purpose::STANDARD.encode(&secret);
-    fs::write(key_path, &secret_b64)
-        .map_err(|e| format!("Failed to write key file: {}", e))?;
+
+    // 4. Try to write to OS keychain
+    let mut keychain_saved = false;
+    if let Ok(entry) = Entry::new(service, username) {
+        if entry.set_password(&secret_b64).is_ok() {
+            keychain_saved = true;
+        }
+    }
+
+    // 5. Fallback: If OS keychain fails, write to the file-based storage
+    if !keychain_saved {
+        eprintln!("WARNING: Failed to write master secret to OS keychain. Falling back to file storage.");
+        fs::write(key_path, &secret_b64)
+            .map_err(|e| format!("Failed to write key file: {}", e))?;
+    }
 
     Ok(secret)
 }
