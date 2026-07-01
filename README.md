@@ -162,7 +162,7 @@ pnpm tauri build
 
 ## AI-Assisted Development
 
-This repository was co-authored and maintained using advanced agentic AI coding assistants (specifically Google DeepMind's Antigravity). This collaborative workflow enabled rapid design iteration, robust full-stack security auditing, automated accessibility testing, and strict dual-build parity constraints—pairing clinical domain expertise with machine-driven execution.
+This project was developed with the assistance of agentic AI coding models (specifically Google DeepMind's Antigravity) to enable rapid auditing, automated testing, and secure cross-platform execution.
 
 ---
 
