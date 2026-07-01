@@ -147,16 +147,24 @@ pnpm --filter @workspace/ppro run test
 
 ### Build Tauri Desktop
 
-```powershell
-# Set OpenSSL environment (Windows)
-$env:OPENSSL_DIR = "C:\path\to\vcpkg\installed\x64-windows-static"
-$env:OPENSSL_STATIC = "1"
-$env:VCPKGRS_DYNAMIC = "0"
+Building locally on Windows requires **Strawberry Perl** to compile the vendored OpenSSL library from source:
 
-# Build MSI + NSIS
+```powershell
+# Install Perl (Windows)
+choco install strawberryperl -y
+
+# Build desktop binaries (MSI + NSIS)
 cd artifacts/ppro
-cargo tauri build
+pnpm tauri build
 ```
+
+---
+
+## AI-Assisted Development
+
+This repository was co-authored and maintained using advanced agentic AI coding assistants (specifically Google DeepMind's Antigravity). This collaborative workflow enabled rapid design iteration, robust full-stack security auditing, automated accessibility testing, and strict dual-build parity constraints—pairing clinical domain expertise with machine-driven execution.
+
+---
 
 ### Frontend-Only Build
 
