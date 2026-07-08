@@ -188,4 +188,75 @@ describe("validatePedigree", () => {
     expect(siblingMarriage).toBeTruthy();
     expect(siblingMarriage?.severity).toBe("error");
   });
+
+  it("flags direct lineage incest (parent-child)", () => {
+    const nodes = [
+      makeNode("father", { type: "male" }),
+      makeNode("daughter", { type: "female" }),
+    ];
+    const edges = [
+      makeEdge("e1", "father", "daughter", "parent-child"),
+      makeEdge("e2", "father", "daughter", "couple"),
+    ];
+    const result = validatePedigree({ nodes, edges });
+    const incestUnion = result.issues.find((i) => i.type === "incest_union");
+    expect(incestUnion).toBeTruthy();
+    expect(incestUnion?.severity).toBe("error");
+    expect(incestUnion?.detail).toContain("direct lineage");
+  });
+
+  it("flags avuncular incest (uncle-niece)", () => {
+    const nodes = [
+      makeNode("grandfather", { type: "male" }),
+      makeNode("grandmother", { type: "female" }),
+      makeNode("uncle", { type: "male" }),
+      makeNode("mother", { type: "female" }),
+      makeNode("father", { type: "male" }),
+      makeNode("niece", { type: "female" }),
+    ];
+    const edges = [
+      // Grandparents have uncle and mother
+      makeEdge("e1", "grandfather", "uncle", "parent-child"),
+      makeEdge("e2", "grandmother", "uncle", "parent-child"),
+      makeEdge("e3", "grandfather", "mother", "parent-child"),
+      makeEdge("e4", "grandmother", "mother", "parent-child"),
+      // Mother and father have niece
+      makeEdge("e5", "mother", "niece", "parent-child"),
+      makeEdge("e6", "father", "niece", "parent-child"),
+      // Uncle and niece form a couple
+      makeEdge("e7", "uncle", "niece", "couple"),
+    ];
+    const result = validatePedigree({ nodes, edges });
+    const incestUnion = result.issues.find((i) => i.type === "incest_union");
+    expect(incestUnion).toBeTruthy();
+    expect(incestUnion?.severity).toBe("error");
+    expect(incestUnion?.detail).toContain("avuncular");
+  });
+
+  it("does not flag cousin marriages as incest_union", () => {
+    const nodes = [
+      makeNode("grandfather", { type: "male" }),
+      makeNode("grandmother", { type: "female" }),
+      makeNode("parent1", { type: "male" }),
+      makeNode("parent2", { type: "female" }),
+      makeNode("cousin1", { type: "male" }),
+      makeNode("cousin2", { type: "female" }),
+    ];
+    const edges = [
+      // Grandparents have parent1 and parent2
+      makeEdge("e1", "grandfather", "parent1", "parent-child"),
+      makeEdge("e2", "grandmother", "parent1", "parent-child"),
+      makeEdge("e3", "grandfather", "parent2", "parent-child"),
+      makeEdge("e4", "grandmother", "parent2", "parent-child"),
+      // Cousin 1 is child of parent1
+      makeEdge("e5", "parent1", "cousin1", "parent-child"),
+      // Cousin 2 is child of parent2
+      makeEdge("e6", "parent2", "cousin2", "parent-child"),
+      // Cousin 1 and Cousin 2 form a couple
+      makeEdge("e7", "cousin1", "cousin2", "couple"),
+    ];
+    const result = validatePedigree({ nodes, edges });
+    const incestUnion = result.issues.find((i) => i.type === "incest_union");
+    expect(incestUnion).toBeFalsy();
+  });
 });

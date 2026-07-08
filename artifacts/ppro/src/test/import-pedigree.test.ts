@@ -264,4 +264,34 @@ describe("parseHaploPainterCSV robustness enhancements", () => {
     // There must be a gap between the two sibships to prevent sibling bar merging
     expect(minX_9_12).toBeGreaterThan(maxX_1_8);
   });
+
+  it("warns and drops invalid cyclic parent-child relationships during import", () => {
+    // 2-node cycle: A is parent of B, B is parent of A
+    const content = [
+      "FAM001\tA\tB\t0\t1\t1",
+      "FAM001\tB\tA\t0\t2\t1",
+    ].join("\n");
+    const result = parseFile(content, "cycle.txt");
+    expect(result.warnings.length).toBeGreaterThan(0);
+    expect(result.warnings.some(w => w.includes("Dropped invalid structure") || w.includes("Dropped node") || w.includes("Circular") || w.includes("Validation issue") || w.includes("cycle"))).toBe(true);
+    // Since cycle is dropped, layout succeeds, and the orphaned nodes are removed
+    expect(result.canvasData.nodes).toHaveLength(0);
+    expect(result.canvasData.edges.filter(e => e.type === "parent-child")).toHaveLength(0);
+  });
+
+  it("warns and drops self-loop edges and associated isolated/invalid nodes during import", () => {
+    // Node A is parent of itself (self-loop), Node B is completely isolated
+    const content = [
+      "FAM001\tA\tA\t0\t1\t1",
+      "FAM001\tB\t0\t0\t2\t1",
+    ].join("\n");
+    const result = parseFile(content, "self_loop_isolated.txt");
+    expect(result.warnings.length).toBeGreaterThan(0);
+    // Warning for self-loop: edge is dropped
+    expect(result.warnings.some(w => w.includes("Dropped edge") || w.includes("Self-connection") || w.includes("Validation warning"))).toBe(true);
+    // Since B is isolated, it is kept, but A is dropped because its self-loop edge was dropped.
+    // Result has 1 node and 0 edges.
+    expect(result.canvasData.nodes).toHaveLength(1);
+    expect(result.canvasData.edges).toHaveLength(0);
+  });
 });

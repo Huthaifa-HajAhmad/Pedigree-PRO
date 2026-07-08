@@ -1,5 +1,6 @@
 import type { PedigreeNode, PedigreeEdge } from "@/features/pedigree-editor/canvas/types";
 import { computeAutoLayout } from "./auto-layout";
+import { validatePedigree } from "./validate-pedigree";
 
 
 export interface CanvasData {
@@ -76,7 +77,7 @@ function parseAffectionLevel(code: string): { affected: boolean; level: number }
 // ---------------------------------------------------------------------------
 // Convert intermediate → CanvasData (G2: SAB/adoption, G3: consanguinity groups, G5: couple-bar edges)
 // ---------------------------------------------------------------------------
-function toCanvasData(individuals: Individual[]): CanvasData {
+function toCanvasData(individuals: Individual[], warnings?: string[]): CanvasData {
   const nodes: PedigreeNode[] = individuals.map((ind, idx) => {
     const ext = ind as ExtendedIndividual;
     const nodeType: PedigreeNode["type"] = ext.type === "sab" ? "sab" : ind.sex;
@@ -161,9 +162,69 @@ function toCanvasData(individuals: Individual[]): CanvasData {
     }
   }
 
-  const positionedNodes = computeAutoLayout(nodes, edges, false) as PedigreeNode[];
+  const validation = validatePedigree({ nodes, edges });
+  if (validation.issues.length > 0 && warnings) {
+    for (const issue of validation.issues) {
+      if (issue.severity === "error") {
+        const hasDroppedEdges = issue.edgeIds && issue.edgeIds.some(id => validation.invalidEdgeIds.has(id));
+        const hasDroppedNodes = issue.nodeIds && issue.nodeIds.some(id => validation.invalidNodeIds.has(id));
+        if (hasDroppedEdges && hasDroppedNodes) {
+          warnings.push(`Dropped invalid structure: ${issue.message}. ${issue.detail ?? ""}`);
+        } else if (hasDroppedEdges) {
+          warnings.push(`Dropped edge: ${issue.message}. ${issue.detail ?? ""}`);
+        } else if (hasDroppedNodes) {
+          warnings.push(`Dropped node: ${issue.message}. ${issue.detail ?? ""}`);
+        } else {
+          warnings.push(`Warned (kept): ${issue.message}. ${issue.detail ?? ""}`);
+        }
+      } else {
+        warnings.push(`Validation warning: ${issue.message}. ${issue.detail ?? ""}`);
+      }
+    }
+  }
 
-  return { nodes: positionedNodes, edges };
+  const cleanEdges = edges.filter((e) => !validation.invalidEdgeIds.has(e.id));
+
+  // Determine originally connected nodes
+  const originalConnectedNodeIds = new Set<string>();
+  for (const e of edges) {
+    originalConnectedNodeIds.add(e.sourceId);
+    originalConnectedNodeIds.add(e.targetId);
+  }
+
+  // Determine clean connected nodes
+  const cleanConnectedNodeIds = new Set<string>();
+  for (const e of cleanEdges) {
+    cleanConnectedNodeIds.add(e.sourceId);
+    cleanConnectedNodeIds.add(e.targetId);
+  }
+
+  // Errors that should cause node drops
+  const errorNodeIds = new Set<string>(
+    validation.issues
+      .filter((i) => i.severity === "error")
+      .flatMap((i) => i.nodeIds || [])
+  );
+
+  const cleanNodes = nodes.filter((n) => {
+    // Drop nodes associated with validation errors
+    if (errorNodeIds.has(n.id)) return false;
+    // Drop nodes that became orphaned/disconnected because their edges were dropped
+    if (originalConnectedNodeIds.has(n.id) && !cleanConnectedNodeIds.has(n.id)) {
+      return false;
+    }
+    return true;
+  });
+
+  const finalEdges = cleanEdges.filter(
+    (e) =>
+      cleanNodes.some((n) => n.id === e.sourceId) &&
+      cleanNodes.some((n) => n.id === e.targetId)
+  );
+
+  const positionedNodes = computeAutoLayout(cleanNodes, finalEdges, false) as PedigreeNode[];
+
+  return { nodes: positionedNodes, edges: finalEdges };
 }
 
 
@@ -226,7 +287,7 @@ export function parsePed(content: string, filename: string): ParseResult {
     : `Pedigree imported from ${filename}`;
 
   return {
-    canvasData: toCanvasData(individuals),
+    canvasData: toCanvasData(individuals, warnings),
     suggestedTitle,
     familyIds: familyIdList,
     warnings,
@@ -331,7 +392,7 @@ export function parseCsv(content: string, filename: string): ParseResult {
       : `Pedigree imported from ${filename}`;
 
   return {
-    canvasData: toCanvasData(individuals),
+    canvasData: toCanvasData(individuals, warnings),
     suggestedTitle,
     familyIds: familyIdList,
     warnings,
@@ -512,7 +573,7 @@ function parseHaploPainter(content: string, filename: string): ParseResult {
     : `Pedigree imported from ${filename}`;
 
   return {
-    canvasData: toCanvasData(individuals),
+    canvasData: toCanvasData(individuals, warnings),
     suggestedTitle,
     familyIds: familyIdList,
     warnings,
@@ -733,7 +794,7 @@ export function parseHaploPainterCSV(content: string, filename: string): ParseRe
     : `Pedigree imported from ${filename}`;
 
   return {
-    canvasData: toCanvasData(individuals),
+    canvasData: toCanvasData(individuals, warnings),
     suggestedTitle,
     familyIds: familyIdList,
     warnings,

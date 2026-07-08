@@ -21,7 +21,8 @@ export type IssueType =
   | "too_many_parents"
   | "same_sex_parents"
   | "same_sex_couple"
-  | "sibling_marriage";
+  | "sibling_marriage"
+  | "incest_union";
 
 export interface ValidationIssue {
   id: string;
@@ -39,6 +40,90 @@ export interface ValidationResult {
   warningCount: number;
   invalidNodeIds: Set<string>;
   invalidEdgeIds: Set<string>;
+}
+
+function getGenLevels(nodes: PedigreeNode[], edges: PedigreeEdge[]): Map<string, number> {
+  const genOf = new Map<string, number>();
+  const parentsOf = new Map<string, string[]>();
+  const childrenOf = new Map<string, string[]>();
+  const couplesOf = new Map<string, string[]>();
+  for (const n of nodes) {
+    parentsOf.set(n.id, []);
+    childrenOf.set(n.id, []);
+    couplesOf.set(n.id, []);
+  }
+  for (const e of edges) {
+    if (!parentsOf.has(e.sourceId) || !parentsOf.has(e.targetId)) continue;
+    if (e.type === "parent-child") {
+      parentsOf.get(e.targetId)!.push(e.sourceId);
+      childrenOf.get(e.sourceId)!.push(e.targetId);
+    } else if (e.type === "couple" || e.type === "consanguinity" || e.type === "divorced" || e.type === "separated") {
+      couplesOf.get(e.sourceId)!.push(e.targetId);
+      couplesOf.get(e.targetId)!.push(e.sourceId);
+    }
+  }
+
+  // Seed roots
+  const queue: string[] = [];
+  for (const n of nodes) {
+    if (parentsOf.get(n.id)!.length === 0) {
+      genOf.set(n.id, 0);
+      queue.push(n.id);
+    }
+  }
+
+  let head = 0;
+  while (head < queue.length) {
+    const entry = queue[head];
+    if (!entry) break;
+    head++;
+    const curr = entry;
+    const currGen = genOf.get(curr) ?? 0;
+
+    // Spouses
+    for (const partnerId of couplesOf.get(curr) ?? []) {
+      if (!genOf.has(partnerId)) {
+        genOf.set(partnerId, currGen);
+        queue.push(partnerId);
+      }
+    }
+    // Children
+    for (const childId of childrenOf.get(curr) ?? []) {
+      if (!genOf.has(childId)) {
+        genOf.set(childId, currGen + 1);
+        queue.push(childId);
+      }
+    }
+  }
+
+  // Handle unassigned nodes (disconnected components/cycles)
+  for (const n of nodes) {
+    if (!genOf.has(n.id)) {
+      genOf.set(n.id, 0);
+      queue.push(n.id);
+      while (head < queue.length) {
+        const entry = queue[head];
+        if (!entry) break;
+        head++;
+        const curr = entry;
+        const currGen = genOf.get(curr) ?? 0;
+        for (const partnerId of couplesOf.get(curr) ?? []) {
+          if (!genOf.has(partnerId)) {
+            genOf.set(partnerId, currGen);
+            queue.push(partnerId);
+          }
+        }
+        for (const childId of childrenOf.get(curr) ?? []) {
+          if (!genOf.has(childId)) {
+            genOf.set(childId, currGen + 1);
+            queue.push(childId);
+          }
+        }
+      }
+    }
+  }
+
+  return genOf;
 }
 
 export function validatePedigree(canvas: CanvasData): ValidationResult {
@@ -325,9 +410,11 @@ export function validatePedigree(canvas: CanvasData): ValidationResult {
     }
   }
 
-  // ── 11. Same-sex couples & Sibling marriages ──
+  // ── 11. Same-sex couples & Sibling marriages & Incestuous unions ──
   const reportedSameSexCouples = new Set<string>();
   const reportedSiblingMarriages = new Set<string>();
+  const reportedIncestUnions = new Set<string>();
+  const genOf = getGenLevels(nodes, edges);
 
   for (const edge of edges) {
     if ((edge.type === "couple" || edge.type === "consanguinity" || edge.type === "divorced" || edge.type === "separated") && nodeSet.has(edge.sourceId) && nodeSet.has(edge.targetId)) {
@@ -372,6 +459,55 @@ export function validatePedigree(canvas: CanvasData): ValidationResult {
             }
           }
         }
+
+        // Incestuous unions (direct lineage or avuncular/closer)
+        const coupleKey = [p1.id, p2.id].sort().join(":");
+        if (!reportedSiblingMarriages.has(coupleKey) && !reportedIncestUnions.has(coupleKey)) {
+          const ancestors1_d1 = new Set(parents1);
+          const ancestors1_d2 = new Set(parents1.flatMap(pId => childParentIds.get(pId) || []));
+          const ancestors1_d3 = new Set(Array.from(ancestors1_d2).flatMap(pId => childParentIds.get(pId) || []));
+
+          const ancestors2_d1 = new Set(parents2);
+          const ancestors2_d2 = new Set(parents2.flatMap(pId => childParentIds.get(pId) || []));
+          const ancestors2_d3 = new Set(Array.from(ancestors2_d2).flatMap(pId => childParentIds.get(pId) || []));
+
+          const allAncestors1 = new Set([...ancestors1_d1, ...ancestors1_d2, ...ancestors1_d3]);
+          const allAncestors2 = new Set([...ancestors2_d1, ...ancestors2_d2, ...ancestors2_d3]);
+
+          const isDirectLineage = allAncestors1.has(p2.id) || allAncestors2.has(p1.id);
+
+          let isAvuncular = false;
+          if (!isDirectLineage) {
+            const sharedAncestors = Array.from(allAncestors1).filter(a => allAncestors2.has(a));
+            if (sharedAncestors.length > 0) {
+              const gen1 = genOf.get(p1.id) ?? 0;
+              const gen2 = genOf.get(p2.id) ?? 0;
+              // Avuncular scope: limited to uncle-niece / aunt-nephew pairings where gen difference is <= 1.
+              // Deeper relations like great-uncle / great-niece (gen difference = 2) are out of scope.
+              if (Math.abs(gen1 - gen2) <= 1) {
+                const hasSharedAsParent = sharedAncestors.some(a => ancestors1_d1.has(a) || ancestors2_d1.has(a));
+                if (hasSharedAsParent) {
+                  isAvuncular = true;
+                }
+              }
+            }
+          }
+
+          if (isDirectLineage || isAvuncular) {
+            reportedIncestUnions.add(coupleKey);
+            issues.push({
+              id: `incest-union-${edge.id}`,
+              type: "incest_union",
+              severity: "error",
+              message: "Incompatible Familial Union",
+              detail: isDirectLineage
+                ? `"${p1.label || p1.id}" and "${p2.label || p2.id}" have a direct lineage relationship (parent-child or grandparent-grandchild). Direct lineage pairings are restricted.`
+                : `"${p1.label || p1.id}" and "${p2.label || p2.id}" have an avuncular relationship. Close biological family pairings are restricted in pedigrees.`,
+              nodeIds: [p1.id, p2.id],
+              edgeIds: [edge.id],
+            });
+          }
+        }
       }
     }
   }
@@ -400,4 +536,5 @@ export const ISSUE_TYPE_LABELS: Record<IssueType, string> = {
   same_sex_parents: "Same-Sex Biological Parents",
   same_sex_couple: "Same-Sex Couple",
   sibling_marriage: "Incompatible Sibling Relationship",
+  incest_union: "Incompatible Familial Union",
 };
