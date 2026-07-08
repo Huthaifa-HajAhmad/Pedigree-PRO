@@ -15,9 +15,10 @@ import {
   findInsertPosition,
   getRowTolerance,
   swapCouplePartners,
+  buildGenerations,
 } from "../lib/layout-engine";
 import { computeAutoLayout } from "../lib/auto-layout";
-import { PedigreeNode, PedigreeEdge, NODE_GAP } from "@/features/pedigree-editor/canvas/types";
+import { PedigreeNode, PedigreeEdge, NODE_GAP, NODE_SIZE } from "@/features/pedigree-editor/canvas/types";
 import { computeSibshipGroupTrack } from "@/features/pedigree-editor/canvas/canvasUtils";
 import { computeFamilyChildYOffset } from "@/features/pedigree-editor/canvas/SibshipGroup";
 
@@ -177,12 +178,12 @@ describe("layout-engine", () => {
       const newC2_1 = result.find(n => n.id === "c2_1")!;
 
       // We expect Family 2 to be pushed by EXACTLY the amount needed to maintain NODE_GAP (96.8)
-      // from Family 1's right parent (target 250).
-      // So newF2 should be at 250 + 96.8 = 346.8
-      // And because f2 shifted by 46.8 (from 300 to 346.8), m2 and c2_1 must also shift by exactly 46.8.
-      expect(newF2.x).toBeCloseTo(346.8, 1);
-      expect(newM2.x).toBeCloseTo(446.8, 1);
-      expect(newC2_1.x).toBeCloseTo(396.8, 1);
+      // from Family 1's right parent (target 248.4).
+      // So newF2 should be at 248.4 + 96.8 = 345.2
+      // And because f2 shifted by 45.2 (from 300 to 345.2), m2 and c2_1 must also shift by exactly 45.2.
+      expect(newF2.x).toBeCloseTo(345.2, 1);
+      expect(newM2.x).toBeCloseTo(445.2, 1);
+      expect(newC2_1.x).toBeCloseTo(395.2, 1);
     });
 
     it("anchors parents of origin and does not shift them when both have parents", () => {
@@ -1129,12 +1130,12 @@ describe("layout-engine", () => {
       const gaps = [xs[1] - xs[0], xs[2] - xs[1], xs[3] - xs[2]];
       gaps.sort((a, b) => a - b);
       expect(gaps[0]).toBeCloseTo(96.8, 1);
-      expect(gaps[1]).toBeCloseTo(109, 1);
-      expect(gaps[2]).toBeCloseTo(109, 1);
+      expect(gaps[1]).toBeCloseTo(110, 1);
+      expect(gaps[2]).toBeCloseTo(110, 1);
     });
 
     it("F0h (T2): getSubtreeWidth Connected Component Traversal for remarriages and wide siblings", () => {
-      // 10 siblings should span at least (10-1)*hSpacing = 9 * 109 = 981px.
+      // 10 siblings should span at least (10-1)*hSpacing = 9 * 110 = 990px.
       const nodes: any[] = [
         { id: "F", type: "male", ...baseNode },
         { id: "M", type: "female", ...baseNode },
@@ -1153,7 +1154,7 @@ describe("layout-engine", () => {
       const result = computeAutoLayout(nodes, edges, false);
       const childXs = result.filter(n => n.id.startsWith("c_")).map(n => n.x).sort((a, b) => a - b);
       const span = childXs[childXs.length - 1] - childXs[0];
-      expect(span).toBeGreaterThanOrEqual(981); // 9 * 109 = 981
+      expect(span).toBeGreaterThanOrEqual(990); // 9 * 110 = 990
     });
 
     it("N6: asserts computeAutoLayout successfully processes large-pedigree.json without overlaps or out-of-bound errors", () => {
@@ -1327,6 +1328,100 @@ describe("layout-engine", () => {
       expect(nC2.x - nC1.x).toBeCloseTo(290, 1);
       expect(nF.x).toBeGreaterThan(Math.min(nC1.x, nC2.x));
       expect(nF.x).toBeLessThan(Math.max(nC1.x, nC2.x));
+    });
+
+    it("B9 (T1.6): computeAutoLayout places MZ and DZ twins at their correct spacing gaps", () => {
+      // 1 father, 1 mother, 2 MZ twins, 2 DZ twins
+      const nodes: any[] = [
+        { id: "father", x: 100, y: 0, type: "male" },
+        { id: "mother", x: 200, y: 0, type: "female" },
+        { id: "mz1", x: 0, y: 120, type: "male" },
+        { id: "mz2", x: 0, y: 120, type: "female" },
+        { id: "dz1", x: 0, y: 120, type: "male" },
+        { id: "dz2", x: 0, y: 120, type: "female" },
+      ];
+      const edges: any[] = [
+        { id: "c1", sourceId: "father", targetId: "mother", type: "couple" },
+        // MZ twin group 1 (mono)
+        { id: "pc1", sourceId: "father", targetId: "mz1", type: "parent-child", twinGroup: "tg1", twinType: "m" },
+        { id: "pc2", sourceId: "mother", targetId: "mz1", type: "parent-child", twinGroup: "tg1", twinType: "m" },
+        { id: "pc3", sourceId: "father", targetId: "mz2", type: "parent-child", twinGroup: "tg1", twinType: "m" },
+        { id: "pc4", sourceId: "mother", targetId: "mz2", type: "parent-child", twinGroup: "tg1", twinType: "m" },
+        // DZ twin group 2 (dizygotic)
+        { id: "pc5", sourceId: "father", targetId: "dz1", type: "parent-child", twinGroup: "tg2", twinType: "d" },
+        { id: "pc6", sourceId: "mother", targetId: "dz1", type: "parent-child", twinGroup: "tg2", twinType: "d" },
+        { id: "pc7", sourceId: "father", targetId: "dz2", type: "parent-child", twinGroup: "tg2", twinType: "d" },
+        { id: "pc8", sourceId: "mother", targetId: "dz2", type: "parent-child", twinGroup: "tg2", twinType: "d" },
+      ];
+
+      const result = computeAutoLayout(nodes, edges, false) as PedigreeNode[];
+      const r_mz1 = result.find(n => n.id === "mz1")!;
+      const r_mz2 = result.find(n => n.id === "mz2")!;
+      const r_dz1 = result.find(n => n.id === "dz1")!;
+      const r_dz2 = result.find(n => n.id === "dz2")!;
+
+      // Verify twins are adjacent and spaced correctly
+      const mzGap = Math.abs(r_mz1.x - r_mz2.x);
+      const dzGap = Math.abs(r_dz1.x - r_dz2.x);
+
+      expect(mzGap).toBeCloseTo(NODE_SIZE * 0.55, 1);
+      expect(dzGap).toBeCloseTo(NODE_SIZE * 0.8, 1);
+    });
+  });
+
+  describe("buildGenerations cycle resolution", () => {
+    it("clamps generations to a maximum of 3 when a cycle is detected", () => {
+      const nodes: any[] = [
+        { id: "A" },
+        { id: "B" },
+      ];
+      const edges: any[] = [
+        { id: "e1", sourceId: "A", targetId: "B", type: "parent-child" },
+        { id: "e2", sourceId: "B", targetId: "A", type: "parent-child" }, // Cycle
+      ];
+
+      const genMap = buildGenerations(nodes, edges);
+      
+      // The maximum generation index should be clamped to at most 3
+      for (const gen of genMap.values()) {
+        expect(gen).toBeLessThanOrEqual(3);
+      }
+    });
+  });
+
+  describe("swapCouplePartners same-sex & unknown couples support", () => {
+    it("swaps same-sex partners to maintain correct left-right order", () => {
+      const nodes: any[] = [
+        { id: "A", type: "male", x: 100, y: 120 },
+        { id: "B", type: "male", x: 50, y: 120 }, // out of order relative to e1 source/target
+      ];
+      const edges: any[] = [
+        { id: "e1", sourceId: "A", targetId: "B", type: "couple", inverted: false },
+      ];
+
+      const swapped = swapCouplePartners(nodes, edges);
+      const resA = swapped.find(n => n.id === "A")!;
+      const resB = swapped.find(n => n.id === "B")!;
+      
+      // A (source) should end up on the left of B (target) since inverted: false
+      expect(resA.x).toBeLessThan(resB.x);
+    });
+
+    it("swaps unknown gender partners to maintain correct left-right order", () => {
+      const nodes: any[] = [
+        { id: "A", type: "unknown", x: 100, y: 120 },
+        { id: "B", type: "unknown", x: 50, y: 120 },
+      ];
+      const edges: any[] = [
+        { id: "e1", sourceId: "A", targetId: "B", type: "couple", inverted: true }, // inverted: true
+      ];
+
+      const swapped = swapCouplePartners(nodes, edges);
+      const resA = swapped.find(n => n.id === "A")!;
+      const resB = swapped.find(n => n.id === "B")!;
+      
+      // B (target) should end up on the left of A (source) since inverted: true
+      expect(resB.x).toBeLessThan(resA.x);
     });
   });
 });

@@ -8,7 +8,7 @@ import {
 import { getDefaultAnnotationColor } from "@/lib/theme";
 import { validatePedigree } from "@/lib/validate-pedigree";
 import { computeAutoLayout } from "@/lib/auto-layout";
-import { resolveAllCollisions, resolveAndRecenter, recenterAllFamilies, makeSpaceAtX, ROW_TOLERANCE } from "@/lib/layout-engine";
+import { resolveAllCollisions, resolveAndRecenter, recenterAllFamilies, makeSpaceAtX, ROW_TOLERANCE, buildGenerations } from "@/lib/layout-engine";
 import { computeAutoLabels, romanToInt } from "@/lib/pedigree-labels";
 import { generateThumbnail } from "@/lib/generate-thumbnail";
 import { toast } from "@/hooks/use-toast";
@@ -383,7 +383,8 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
             { id: `e${now + 1}`, type: "parent-child" as const, sourceId: pid, targetId: nid }
           ];
 
-          let resolved = resolveAllCollisions(p.nodes, p.edges);
+          const genIndexOf1 = buildGenerations(p.nodes, p.edges);
+          let resolved = resolveAllCollisions(p.nodes, p.edges, undefined, undefined, NODE_GAP, GEN_GRID, genIndexOf1);
           const rS = resolved.find(n => n.id === sid)!;
           const rP = resolved.find(n => n.id === pid)!;
           const trueChildX = (rS.x + rP.x) / 2;
@@ -392,8 +393,9 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
           resolved = [...resolved, newChildObj];
           const allEdges = [...p.edges, ...newEdges];
           
-          resolved = resolveAllCollisions(resolved, allEdges);
-          resolved = recenterAllFamilies(resolved, allEdges);
+          const genIndexOf2 = buildGenerations(resolved, allEdges);
+          resolved = resolveAllCollisions(resolved, allEdges, undefined, undefined, NODE_GAP, GEN_GRID, genIndexOf2);
+          resolved = recenterAllFamilies(resolved, allEdges, undefined, NODE_GAP, GEN_GRID, genIndexOf2);
 
           return { ...p, nodes: resolved, edges: allEdges };
         }
@@ -422,7 +424,8 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
           const nodesWithPartner = [...shiftedNodes, newPartner];
           const edgesWithPartner = [...p.edges, { id: `e${now}`, type: "couple" as const, sourceId: sid, targetId: mid }];
           
-          let resolved = resolveAllCollisions(nodesWithPartner, edgesWithPartner);
+          const genIndexOf3 = buildGenerations(nodesWithPartner, edgesWithPartner);
+          let resolved = resolveAllCollisions(nodesWithPartner, edgesWithPartner, undefined, undefined, NODE_GAP, GEN_GRID, genIndexOf3);
           const rS = resolved.find(n => n.id === sid)!;
           const rM = resolved.find(n => n.id === mid)!;
           const trueChildX = (rS.x + rM.x) / 2;
@@ -434,8 +437,9 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
             { id: `e${now + 2}`, type: "parent-child" as const, sourceId: mid, targetId: nid }
           ];
           
-          resolved = resolveAllCollisions(resolved, allEdges);
-          resolved = recenterAllFamilies(resolved, allEdges);
+          const genIndexOf4 = buildGenerations(resolved, allEdges);
+          resolved = resolveAllCollisions(resolved, allEdges, undefined, undefined, NODE_GAP, GEN_GRID, genIndexOf4);
+          resolved = recenterAllFamilies(resolved, allEdges, undefined, NODE_GAP, GEN_GRID, genIndexOf4);
 
           return { ...p, nodes: resolved, edges: allEdges };
         }
@@ -464,7 +468,8 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
         const newPartnerEdge: PedigreeEdge = { id: `e${now}`, type: "couple", sourceId: sid, targetId: nid };
         const allNodes = [...shiftedNodes, { id: nid, type: nt, ...nd, x: nx, y: ny }];
         const allEdges = [...p.edges, newPartnerEdge];
-        const resolved = resolveAndRecenter(allNodes, allEdges);
+        const genIndexOf = buildGenerations(allNodes, allEdges);
+        const resolved = resolveAndRecenter(allNodes, allEdges, undefined, genIndexOf);
 
         return { ...p, nodes: resolved, edges: allEdges };
       }
@@ -502,9 +507,10 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
 
         const allNodes = [...p.nodes, ...newParents];
         const allEdges = [...p.edges, ...newEdges];
-        let final = resolveAndRecenter(allNodes, allEdges, new Set([fid, mid2]));
+        const genIndexOf = buildGenerations(allNodes, allEdges);
+        let final = resolveAndRecenter(allNodes, allEdges, new Set([fid, mid2]), genIndexOf);
 
-        const minY = Math.min(...final.map(n => n.y));
+        const minY = final.reduce((min, n) => Math.min(min, n.y), Infinity);
         if (minY < GEN_GRID) {
           const shiftY = GEN_GRID - minY;
           final = final.map(n => ({ ...n, y: n.y + shiftY }));
@@ -711,7 +717,8 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
           ];
           const allEdges = [...p.edges, ...newEdges];
           
-          const resolvedNodes = resolveAndRecenter(allNodes, allEdges, new Set([mid]));
+          const genIndexOf = buildGenerations(allNodes, allEdges);
+          const resolvedNodes = resolveAndRecenter(allNodes, allEdges, new Set([mid]), genIndexOf);
 
           return { ...p, nodes: resolvedNodes, edges: allEdges };
         } });
@@ -950,9 +957,10 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
 
       const allNodes = [...p.nodes, ...newParents];
       const allEdges = [...p.edges, ...newEdges];
-      let final = resolveAndRecenter(allNodes, allEdges, new Set([fid, mid]));
+      const genIndexOf = buildGenerations(allNodes, allEdges);
+      let final = resolveAndRecenter(allNodes, allEdges, new Set([fid, mid]), genIndexOf);
 
-      const minY = Math.min(...final.map(n => n.y));
+      const minY = final.reduce((min, n) => Math.min(min, n.y), Infinity);
       if (minY < GEN_GRID) {
         const shiftY = GEN_GRID - minY;
         final = final.map(n => ({ ...n, y: n.y + shiftY }));
@@ -979,7 +987,8 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
       edgesToAdd.push({ id: `e${now + 2}`, type: "parent-child", sourceId: femaleId, targetId: nid });
       const allNodes = [...p.nodes, newChild];
       const allEdges = [...p.edges, ...edgesToAdd];
-      const resolved = resolveAndRecenter(allNodes, allEdges, new Set([nid]));
+      const genIndexOf = buildGenerations(allNodes, allEdges);
+      const resolved = resolveAndRecenter(allNodes, allEdges, new Set([nid]), genIndexOf);
       return { ...p, nodes: resolved, edges: allEdges };
     } });
   }, []);
@@ -1175,9 +1184,10 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
       const allEdges = [...filteredEdges, ...coupleEdges, ...parentChildEdges];
 
       const excludeIds = new Set(newNodes.map(n => n.id));
-      let final = resolveAndRecenter(allNodes, allEdges, excludeIds);
+      const genIndexOf = buildGenerations(allNodes, allEdges);
+      let final = resolveAndRecenter(allNodes, allEdges, excludeIds, genIndexOf);
 
-      const minY = Math.min(...final.map(n => n.y));
+      const minY = final.reduce((min, n) => Math.min(min, n.y), Infinity);
       if (minY < GEN_GRID) {
         const shiftY = GEN_GRID - minY;
         final = final.map(n => ({ ...n, y: n.y + shiftY }));

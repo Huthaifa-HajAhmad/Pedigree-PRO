@@ -33,24 +33,37 @@ export interface LayoutEdge {
   sourceId: string;
   targetId: string;
   inverted?: boolean;
+  twinGroup?: string;
+  twinType?: "m" | "d";
 }
 
-import { GEN_GRID, NODE_GAP, NODE_SIZE } from "@/features/pedigree-editor/canvas/types";
+import { NODE_SIZE } from "@/features/pedigree-editor/canvas/types";
 import { resolveAllCollisions, recenterAllFamilies, swapCouplePartners, collectSubtree, detectRowCollisions } from "./layout-engine";
+import { buildAdjacency, buildGenerations, DEFAULT_LAYOUT_CONFIG } from "./layout-shared";
+import type { LayoutConfig } from "./layout-shared";
+import { computeNodeStructuralHash, globalLayoutCache } from "./layout-cache";
 const CANVAS_CENTER_X = 700;
+
+function getTwinInfo(
+  nodeId: string,
+  twinGroupOf: Map<string, string | undefined>,
+  twinTypeOf: Map<string, "m" | "d" | undefined>
+) {
+  const group = twinGroupOf.get(nodeId);
+  return group ? { group, type: twinTypeOf.get(nodeId) } : null;
+}
 
 export function computeAutoLayout<T extends LayoutNode>(
   nodes: T[],
   edges: LayoutEdge[],
   respectPinned: boolean,
-  spacing?: { nodeGap: number; genGrid: number },
+  config?: Partial<LayoutConfig>,
   canvasWidth?: number
 ): T[] {
-  const nodeGap = spacing?.nodeGap ?? NODE_GAP;
-  const genGrid = spacing?.genGrid ?? GEN_GRID;
+  const cfg = { ...DEFAULT_LAYOUT_CONFIG, ...config };
+  const { nodeGap, genGrid, hSpacing, coupleSpacing, groupGap } = cfg;
+  const GROUP_GAP = groupGap;
   const genSpacing = genGrid;
-  const hSpacing = Math.round(nodeGap * 1.13); // maintain default proportion 110/96.8
-  const coupleSpacing = nodeGap;
   if (nodes.length === 0) return nodes;
 
   const pinnedNodes = respectPinned ? nodes.filter(n => n.pinned) : [];
@@ -63,159 +76,10 @@ export function computeAutoLayout<T extends LayoutNode>(
 
   const nodeMap = new Map(nodes.map((n) => [n.id, n]));
 
-  // ── Adjacency maps ──────────────────────────────────────────────────────
-  const childrenOf = new Map<string, string[]>();
-  const parentsOf = new Map<string, string[]>();
-  const couplesOf = new Map<string, string[]>();
-
-  for (const n of nodes) {
-    childrenOf.set(n.id, []);
-    parentsOf.set(n.id, []);
-    couplesOf.set(n.id, []);
-  }
-
-  for (const e of edges) {
-    if (!nodeMap.has(e.sourceId) || !nodeMap.has(e.targetId)) continue;
-    if (e.type === "parent-child") {
-      childrenOf.get(e.sourceId)!.push(e.targetId);
-      parentsOf.get(e.targetId)!.push(e.sourceId);
-    }
-    if (e.type === "couple" || e.type === "consanguinity" || e.type === "divorced" || e.type === "separated") {
-      couplesOf.get(e.sourceId)!.push(e.targetId);
-      couplesOf.get(e.targetId)!.push(e.sourceId);
-    }
-  }
-
-  const adj = { childrenOf, parentsOf, couplesOf };
-
-  // ── BFS generation assignment ───────────────────────────────────────────
-  // Couple partners are forced to the same generation (max of theirs).
-  const genOf = new Map<string, number>();
-  const roots = nodes.filter((n) => (parentsOf.get(n.id) ?? []).length === 0);
-  const queue: Array<{ id: string; gen: number }> = roots.map((n) => ({
-    id: n.id,
-    gen: 0,
-  }));
-
-  let head = 0;
-  while (head < queue.length) {
-    const entry = queue[head];
-    if (!entry) break;
-    head++;
-    const existing = genOf.get(entry.id);
-    if (existing !== undefined && existing >= entry.gen) continue;
-    genOf.set(entry.id, entry.gen);
-
-    // Propagate same generation to couple partners
-    for (const partnerId of couplesOf.get(entry.id) ?? []) {
-      const hasParentsSelf = (parentsOf.get(entry.id) ?? []).length > 0;
-      const hasParentsPartner = (parentsOf.get(partnerId) ?? []).length > 0;
-      const bothOrNeither = (hasParentsSelf && hasParentsPartner) || (!hasParentsSelf && !hasParentsPartner);
-      if (bothOrNeither) {
-        const partnerGen = genOf.get(partnerId);
-        if (partnerGen === undefined || partnerGen < entry.gen) {
-          queue.push({ id: partnerId, gen: entry.gen });
-        }
-      }
-    }
-    // Propagate to children
-    for (const childId of childrenOf.get(entry.id) ?? []) {
-      queue.push({ id: childId, gen: entry.gen + 1 });
-    }
-  }
-  // Disconnected nodes → generation 0
-  for (const n of nodes) {
-    if (!genOf.has(n.id)) genOf.set(n.id, 0);
-  }
-
-  // ── Unified spouse alignment, child downward and parent upward propagation loop ──
-  // This keeps the entire pedigree generation-aligned, even when ancestors
-  // get auto-created parents (which shifts generations at the top).
-  let stable = false;
-  let safety = 0;
-  while (!stable && safety++ < 100) {
-    stable = true;
-
-    for (const n of nodes) {
-      const myGen = genOf.get(n.id) ?? 0;
-
-      // 1. Spouse alignment: spouses must be in the same generation
-      for (const partnerId of couplesOf.get(n.id) ?? []) {
-        const partnerGen = genOf.get(partnerId) ?? 0;
-        if (partnerGen !== myGen) {
-          const hasParentsSelf = (parentsOf.get(n.id) ?? []).length > 0;
-          const hasParentsPartner = (parentsOf.get(partnerId) ?? []).length > 0;
-          
-          if ((hasParentsSelf && hasParentsPartner) || (!hasParentsSelf && !hasParentsPartner)) {
-            const max = Math.max(myGen, partnerGen);
-            genOf.set(n.id, max);
-            genOf.set(partnerId, max);
-            stable = false;
-          } else {
-            // One has parents, one does not.
-            // Keep the founder at min(founderGen, spouseGen) and let the spouse's gen stay.
-            const selfIsFounder = !hasParentsSelf;
-            const founderId = selfIsFounder ? n.id : partnerId;
-            const spouseId = selfIsFounder ? partnerId : n.id;
-            const founderGen = genOf.get(founderId) ?? 0;
-            const spouseGen = genOf.get(spouseId) ?? 0;
-            const newFounderGen = Math.min(founderGen, spouseGen);
-            if (founderGen !== newFounderGen) {
-              genOf.set(founderId, newFounderGen);
-              stable = false;
-            }
-          }
-        }
-      }
-
-      // 2. Downward child propagation: children must be at least myGen + 1
-      for (const childId of childrenOf.get(n.id) ?? []) {
-        const childGen = genOf.get(childId) ?? 0;
-        if (childGen < myGen + 1) {
-          genOf.set(childId, myGen + 1);
-          stable = false;
-        }
-      }
-
-      // 3. Upward parent propagation: parents must be at least myGen - 1
-      for (const parentId of parentsOf.get(n.id) ?? []) {
-        const parentGen = genOf.get(parentId) ?? 0;
-        if (parentGen < myGen - 1) {
-          genOf.set(parentId, myGen - 1);
-          stable = false;
-        } else if (parentGen > myGen) {
-          const parentHasParents = (parentsOf.get(parentId) ?? []).length > 0;
-          if (parentHasParents) {
-            genOf.set(parentId, myGen);
-            stable = false;
-          }
-        }
-      }
-    }
-  }
-
-  // Compact and normalize generations to consecutive integers starting at 0
-  const allGens = new Set(genOf.values());
-  for (const n of nodes) {
-    const parentIds = parentsOf.get(n.id) ?? [];
-    const myGen = genOf.get(n.id);
-    if (myGen === undefined) continue;
-    for (const pId of parentIds) {
-      const pGen = genOf.get(pId);
-      if (pGen === undefined) continue;
-      if (myGen > pGen + 1) {
-        for (let g = pGen + 1; g < myGen; g++) {
-          allGens.add(g);
-        }
-      }
-    }
-  }
-
-  const sortedGensList = [...allGens].sort((a, b) => a - b);
-  const remap = new Map(sortedGensList.map((g, i) => [g, i]));
-  for (const [id, gen] of genOf) {
-    genOf.set(id, remap.get(gen)!);
-  }
+  // ── Adjacency and Generation maps (consolidated) ─────────────────────────
+  const adj = buildAdjacency(nodes, edges as any);
+  const { childrenOf, parentsOf, couplesOf, twinTypeOf, twinGroupOf } = adj;
+  const genOf = buildGenerations(nodes, edges as any);
 
   // ── Group by generation ─────────────────────────────────────────────────
   const genGroups = new Map<number, string[]>();
@@ -289,7 +153,7 @@ export function computeAutoLayout<T extends LayoutNode>(
           effectiveParents.add(partnerId);
         }
       }
-      const parentKey = [...effectiveParents].sort().join("_");
+      const parentKey = [...effectiveParents].sort().join("_") || `orphan_group_${id}`;
       
       if (!groupsMap.has(parentKey)) {
         groupsMap.set(parentKey, []);
@@ -492,6 +356,11 @@ export function computeAutoLayout<T extends LayoutNode>(
           headIdx++;
           for (const partnerId of couplesOf.get(curr) ?? []) {
             if (!component.has(partnerId)) {
+              const partnerParents = parentsOf.get(partnerId) ?? [];
+              const hasOutsideParents = partnerParents.some(p => !visited.has(p));
+              if (hasOutsideParents) {
+                continue;
+              }
               component.add(partnerId);
               partnersQueue.push(partnerId);
             }
@@ -505,7 +374,11 @@ export function computeAutoLayout<T extends LayoutNode>(
         // Recurse to children of all nodes in this partner component
         for (const pId of component) {
           for (const childId of childrenOf.get(pId) ?? []) {
-            traverse(childId);
+            const childParents = parentsOf.get(childId) ?? [];
+            const allParentsInComponent = childParents.every((p) => component.has(p));
+            if (allParentsInComponent) {
+              traverse(childId);
+            }
           }
         }
       };
@@ -515,16 +388,37 @@ export function computeAutoLayout<T extends LayoutNode>(
       }
 
       // Group visited nodes by generation
-      const genCounts = new Map<number, number>();
+      const genNodes = new Map<number, string[]>();
       for (const id of visited) {
         const g = genOf.get(id) ?? 0;
-        genCounts.set(g, (genCounts.get(g) ?? 0) + 1);
+        if (!genNodes.has(g)) genNodes.set(g, []);
+        genNodes.get(g)!.push(id);
       }
 
-      const maxCount = Math.max(0, ...genCounts.values());
-      // Minimum width is 2 nodes (couple)
-      const calculatedWidth = maxCount > 0 ? (maxCount - 1) * hSpacing + NODE_SIZE : 0;
-      return Math.max(nodeGap * 2.06, calculatedWidth);
+      let maxRowWidth = 0;
+      for (const [, rowNodes] of genNodes.entries()) {
+        const N = rowNodes.length;
+        let C = 0;
+        const rowNodesSet = new Set(rowNodes);
+        const counted = new Set<string>();
+        for (const id of rowNodes) {
+          if (counted.has(id)) continue;
+          for (const partnerId of couplesOf.get(id) ?? []) {
+            if (rowNodesSet.has(partnerId)) {
+              C++;
+              counted.add(id);
+              counted.add(partnerId);
+              break;
+            }
+          }
+        }
+        const rowWidth = N > 0 ? (N - 1) * hSpacing + NODE_SIZE + C * (coupleSpacing - hSpacing) : 0;
+        if (rowWidth > maxRowWidth) {
+          maxRowWidth = rowWidth;
+        }
+      }
+
+      return Math.max(nodeGap * 2.06, maxRowWidth);
     };
 
     const relativeX = new Map<string, number>();
@@ -548,7 +442,9 @@ export function computeAutoLayout<T extends LayoutNode>(
     }
 
     const totalSpan = currentX;
-    const startX = effectiveCenterX - totalSpan / 2;
+    const firstW = orderedFgKeys.length > 0 ? (groupWidths.get(orderedFgKeys[0]!) ?? (nodeGap * 2.06)) : 0;
+    const lastW = orderedFgKeys.length > 0 ? (groupWidths.get(orderedFgKeys[orderedFgKeys.length - 1]!) ?? (nodeGap * 2.06)) : 0;
+    const startX = effectiveCenterX - totalSpan / 2 - (lastW - firstW) / 4;
 
     for (const key of orderedFgKeys) {
       const fg = founderGroupByKey.get(key)!;
@@ -581,7 +477,9 @@ export function computeAutoLayout<T extends LayoutNode>(
         knownPos,
         nodeMap,
         edges,
-        effectiveCenterX
+        effectiveCenterX,
+        twinGroupOf,
+        twinTypeOf
       );
 
       let totalWidth = 0;
@@ -590,7 +488,17 @@ export function computeAutoLayout<T extends LayoutNode>(
         const prev = ordered[i - 1];
         if (!curr || !prev) continue;
         const isCouple = (couplesOf.get(curr) ?? []).includes(prev);
-        totalWidth += isCouple ? coupleSpacing : hSpacing;
+        const twin1 = getTwinInfo(curr, twinGroupOf, twinTypeOf);
+        const twin2 = getTwinInfo(prev, twinGroupOf, twinTypeOf);
+        const areTwins = twin1 && twin2 && twin1.group === twin2.group;
+
+        if (areTwins) {
+          totalWidth += twin1.type === "m" ? (NODE_SIZE * 0.55) : (NODE_SIZE * 0.8);
+        } else if (isCouple) {
+          totalWidth += coupleSpacing;
+        } else {
+          totalWidth += hSpacing;
+        }
       }
 
       const idealStartX = group.centerX - totalWidth / 2;
@@ -666,7 +574,7 @@ export function computeAutoLayout<T extends LayoutNode>(
           } as any));
 
           for (const touchedY of touchedYs) {
-            const collisions = detectRowCollisions(allNodesList, touchedY, nodeGap);
+            const collisions = detectRowCollisions(allNodesList, touchedY, nodeGap, undefined, undefined, adj);
             if (collisions.length > 0) {
               hasCollision = true;
               break;
@@ -695,7 +603,17 @@ export function computeAutoLayout<T extends LayoutNode>(
           const prev = ordered[i - 1];
           if (prev) {
             const isCouple = (couplesOf.get(curr) ?? []).includes(prev);
-            x += isCouple ? coupleSpacing : hSpacing;
+            const twin1 = getTwinInfo(curr, twinGroupOf, twinTypeOf);
+            const twin2 = getTwinInfo(prev, twinGroupOf, twinTypeOf);
+            const areTwins = twin1 && twin2 && twin1.group === twin2.group;
+
+            if (areTwins) {
+              x += twin1.type === "m" ? (NODE_SIZE * 0.55) : (NODE_SIZE * 0.8);
+            } else if (isCouple) {
+              x += coupleSpacing;
+            } else {
+              x += hSpacing;
+            }
           }
         }
         knownPos.set(curr, { x, y });
@@ -704,15 +622,31 @@ export function computeAutoLayout<T extends LayoutNode>(
         const placedCenter = startX + totalWidth / 2;
         nextAvailableX = placedCenter + group.subtreeWidth / 2 + nodeGap;
       } else {
-        nextAvailableX = x + Math.round(nodeGap * 1.3);
+        nextAvailableX = x + GROUP_GAP;
       }
       prevGroupNodeIds = ordered;
     }
   }
 
-  // ── Apply initial positions ──
+  // ── Apply initial positions (seeding from cache where structure is unchanged) ──
   const unpinnedNodes = nodes.filter(n => !(respectPinned && n.pinned));
-  const minX = unpinnedNodes.length > 0 ? Math.min(...unpinnedNodes.map(n => knownPos.get(n.id)?.x ?? n.x)) : genGrid;
+  for (const n of unpinnedNodes) {
+    const currentHash = computeNodeStructuralHash(n.id, adj);
+    const cached = globalLayoutCache.get(n.id);
+    if (cached && cached.hash === currentHash) {
+      knownPos.set(n.id, { x: cached.x, y: cached.y });
+    } else if (!knownPos.has(n.id)) {
+      console.warn(`Node ${n.id} is missing from knownPos, assigning default position.`);
+      const gen = genOf.get(n.id) ?? 0;
+      const y = genYOf.get(gen) ?? genGrid;
+      knownPos.set(n.id, { x: genGrid, y });
+    }
+  }
+
+  const minX = unpinnedNodes.length > 0
+    ? unpinnedNodes.reduce((min, n) => Math.min(min, knownPos.get(n.id)!.x), Infinity)
+    : genGrid;
+
   if (minX < genGrid) {
     const shift = genGrid - minX;
     for (const [id, pos] of knownPos) {
@@ -740,12 +674,26 @@ export function computeAutoLayout<T extends LayoutNode>(
     pinnedIds,
     undefined,
     nodeGap,
-    genGrid
+    genGrid,
+    genOf,
+    canvasWidth
   );
 
-  const swappedNodes = swapCouplePartners(resolvedNodes, edges);
+  const swappedNodes = swapCouplePartners(resolvedNodes, edges, nodeGap);
 
-  return recenterAllFamilies(swappedNodes as any, edges as any, pinnedIds, nodeGap, genGrid) as unknown as T[];
+  const result = recenterAllFamilies(swappedNodes as any, edges as any, pinnedIds, nodeGap, genGrid, genOf, canvasWidth) as unknown as T[];
+
+  // Update layout cache with finalized coordinates
+  for (const resNode of result) {
+    const currentHash = computeNodeStructuralHash(resNode.id, adj);
+    globalLayoutCache.set(resNode.id, {
+      x: resNode.x,
+      y: resNode.y,
+      hash: currentHash
+    });
+  }
+
+  return result;
 }
 
 
@@ -787,7 +735,9 @@ function orderNodesForGen(
   knownPos: Map<string, { x: number; y: number }>,
   nodeMap: Map<string, LayoutNode>,
   edges: LayoutEdge[],
-  effectiveCenterX: number
+  effectiveCenterX: number,
+  twinGroupOf: Map<string, string | undefined>,
+  twinTypeOf: Map<string, "m" | "d" | undefined>,
 ): string[] {
   const seen = new Set<string>();
   const groups: string[][] = [];
@@ -832,6 +782,57 @@ function orderNodesForGen(
     groups.push(partnerGroup);
   }
 
+  // Merge partner groups of the same twinGroup into a single group
+  const twinClusters = new Map<string, string[][]>();
+  const nonTwinGroups: string[][] = [];
+
+  for (const g of groups) {
+    const childId = g.find((id) => nodeIdsSet.has(id));
+    const twinInfo = childId ? getTwinInfo(childId, twinGroupOf, twinTypeOf) : null;
+    if (twinInfo) {
+      if (!twinClusters.has(twinInfo.group)) {
+        twinClusters.set(twinInfo.group, []);
+      }
+      twinClusters.get(twinInfo.group)!.push(g);
+    } else {
+      nonTwinGroups.push(g);
+    }
+  }
+
+  const mergedGroups: string[][] = [...nonTwinGroups];
+  for (const [_, memberGroups] of twinClusters.entries()) {
+    const clusterTwins = memberGroups.flatMap((g) => g.filter((id) => nodeIdsSet.has(id)));
+    const clusterSpouses = memberGroups.flatMap((g) => g.filter((id) => !nodeIdsSet.has(id)));
+
+    clusterTwins.sort((a, b) => {
+      const p1 = nodeMap.get(a);
+      const p2 = nodeMap.get(b);
+      if (p1 && p2 && p1.type !== p2.type) {
+        return p1.type === "male" ? -1 : 1;
+      }
+      return a.localeCompare(b);
+    });
+
+    const mergedCluster: string[] = [];
+    for (let i = 0; i < clusterTwins.length; i++) {
+      const tc = clusterTwins[i];
+      if (tc === undefined) continue;
+      const tcSpouses = (couplesOf.get(tc) ?? []).filter((p) => clusterSpouses.includes(p));
+
+      if (i === 0) {
+        mergedCluster.push(...tcSpouses);
+        mergedCluster.push(tc);
+      } else if (i === clusterTwins.length - 1) {
+        mergedCluster.push(tc);
+        mergedCluster.push(...tcSpouses);
+      } else {
+        mergedCluster.push(tc);
+        mergedCluster.push(...tcSpouses);
+      }
+    }
+    mergedGroups.push(mergedCluster);
+  }
+
   // Optimize placement order within sibling groups to place spouses closest to their partners
   const ownParentX = avgParentX(nodeIds, parentsOf, couplesOf, knownPos, nodeMap, effectiveCenterX);
 
@@ -851,7 +852,7 @@ function orderNodesForGen(
 
   const indexMap = new Map<string, number>(nodeIds.map((id, i) => [id, i]));
 
-  groups.sort((a, b) => {
+  mergedGroups.sort((a, b) => {
     const aOffset = getSpouseOffset(a);
     const bOffset = getSpouseOffset(b);
     if (Math.abs(aOffset - bOffset) > 1) {
@@ -892,7 +893,7 @@ function orderNodesForGen(
     return idxA - idxB;
   });
 
-  return groups.flat();
+  return mergedGroups.flat();
 }
 
 function avgParentX(
