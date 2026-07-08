@@ -197,6 +197,90 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
           </div>
         </PanelSection>
 
+        {/* Section: Layout Spacing */}
+        <PanelSection title="Layout Spacing" icon={<Ruler className="w-3.5 h-3.5" />} defaultOpen={true}>
+          <div className="space-y-4">
+            {/* Node Gap Slider */}
+            <div className="space-y-1">
+              <div className="flex items-center justify-between text-xs">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">Node Gap</span>
+                  {(config.nodeGap !== 96.8) && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        updateConfig({ nodeGap: 96.8 });
+                        setTimeout(() => ops.runAutoLayout(false), 50);
+                      }}
+                      className="text-[9px] text-primary hover:text-primary-foreground hover:bg-primary/20 px-1 rounded transition-colors"
+                      title="Reset to 96.8"
+                    >
+                      Reset
+                    </button>
+                  )}
+                </div>
+                <span className="font-mono text-foreground tabular-nums">{config.nodeGap ?? 96.8}px</span>
+              </div>
+              <input
+                type="range"
+                min={60}
+                max={200}
+                step={2}
+                value={config.nodeGap ?? 96.8}
+                onChange={(e) => {
+                  updateConfig({ nodeGap: Number(e.target.value) });
+                  ops.runAutoLayout(false);
+                }}
+                className="w-full cursor-pointer border-none outline-none focus-visible:ring-1 focus-visible:ring-primary"
+              />
+            </div>
+
+            {/* Generation Height / Grid Slider */}
+            <div className="space-y-1">
+              <div className="flex items-center justify-between text-xs">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">Row Height</span>
+                  {(config.genGrid !== 120) && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        updateConfig({ genGrid: 120 });
+                        setTimeout(() => ops.runAutoLayout(false), 50);
+                      }}
+                      className="text-[9px] text-primary hover:text-primary-foreground hover:bg-primary/20 px-1 rounded transition-colors"
+                      title="Reset to 120"
+                    >
+                      Reset
+                    </button>
+                  )}
+                </div>
+                <span className="font-mono text-foreground tabular-nums">{config.genGrid ?? 120}px</span>
+              </div>
+              <input
+                type="range"
+                min={80}
+                max={250}
+                step={5}
+                value={config.genGrid ?? 120}
+                onChange={(e) => {
+                  updateConfig({ genGrid: Number(e.target.value) });
+                  ops.runAutoLayout(false);
+                }}
+                className="w-full cursor-pointer border-none outline-none focus-visible:ring-1 focus-visible:ring-primary"
+              />
+            </div>
+
+            {/* Apply spacing settings button */}
+            <button
+              type="button"
+              onClick={() => ops.runAutoLayout(false)}
+              className="w-full py-1.5 px-3 text-xs font-semibold rounded border border-primary bg-primary/10 text-primary hover:bg-primary/20 transition-all"
+            >
+              Recalculate Auto-Layout
+            </button>
+          </div>
+        </PanelSection>
+
         {/* Section: Toolbar */}
         <PanelSection title="Toolbar" icon={<PanelTop className="w-3.5 h-3.5" />} defaultOpen={false}>
           <div className="space-y-4">
