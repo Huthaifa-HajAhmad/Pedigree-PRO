@@ -2,6 +2,8 @@ import { TrendingUp } from "lucide-react";
 import { useState, useMemo } from "react";
 import type { PedigreeNode, PedigreeEdge } from "@/features/pedigree-editor/canvas/types";
 import { computeRisk, type InheritanceMode, type RiskResult } from "@/lib/risk-calculator";
+import { calculateInbreeding } from "@/lib/inbreeding";
+import { computeAutoLabels } from "@/lib/pedigree-labels";
 import { PanelShell } from "@/components/shared/panels/PanelShell";
 import { PanelSection } from "@/components/shared/panels/PanelSection";
 
@@ -132,6 +134,20 @@ export function RiskPanelSidebar({
   const effectiveFocusId = focusId ?? proband?.id ?? null;
   const focusNode = effectiveFocusId ? (canvas.nodes.find((n) => n.id === effectiveFocusId) ?? null) : null;
 
+  const inbreedingCoefficients = useMemo(() => {
+    return calculateInbreeding(canvas.nodes, canvas.edges);
+  }, [canvas.nodes, canvas.edges]);
+
+  const autoLabels = useMemo(() => {
+    return computeAutoLabels(canvas.nodes, canvas.edges);
+  }, [canvas.nodes, canvas.edges]);
+
+  const getDisplayName = (n: PedigreeNode) => {
+    const roman = autoLabels.get(n.id);
+    const baseLabel = n.label || n.type;
+    return roman ? `${roman} — ${baseLabel}` : baseLabel;
+  };
+
   const summary = useMemo(() => {
     const valid = canvas.nodes.filter((n) => n.type !== "sab" && n.type !== "pregnancy");
     return {
@@ -258,7 +274,7 @@ export function RiskPanelSidebar({
               <option value="">— select individual —</option>
               {validNodes.map((n) => (
                 <option key={n.id} value={n.id}>
-                  {n.label || n.type}{n.proband ? " (Proband)" : n.affected ? " (Aff)" : n.carrier ? " (Carrier)" : ""}
+                  {getDisplayName(n)}{n.proband ? " (Proband)" : n.affected ? " (Aff)" : n.carrier ? " (Carrier)" : ""}
                 </option>
               ))}
             </select>
@@ -294,7 +310,7 @@ export function RiskPanelSidebar({
               >
                 <div className="min-w-0">
                   <div className="text-xs text-foreground truncate">
-                    {node.label || node.type}{node.proband ? " ★" : ""}
+                    {getDisplayName(node)}{node.proband ? " ★" : ""}
                   </div>
                   {(node.affected || node.carrier) && (
                     <div className="text-xs" style={{ color: node.affected ? "hsl(var(--destructive))" : "hsl(var(--warning))" }}>
@@ -309,6 +325,27 @@ export function RiskPanelSidebar({
               </button>
             ))}
           </div>
+        </PanelSection>
+      )}
+
+      {inbreedingCoefficients.length > 0 ? (
+        <PanelSection title="Inbreeding Coefficients (F)">
+          <div className="space-y-1.5">
+            {inbreedingCoefficients.map((res) => (
+              <div key={res.nodeId} className="flex justify-between items-center bg-card/50 border border-border/80 rounded-lg px-2.5 py-1.5">
+                <span className="text-xs font-medium text-foreground">
+                  {getDisplayName(canvas.nodes.find(n => n.id === res.nodeId) || { id: res.nodeId, type: "unknown", label: res.label } as any)}
+                </span>
+                <span className="text-xs font-bold text-primary bg-background border border-border/50 px-1.5 py-0.5 rounded">
+                  F = {(res.fValue * 100).toFixed(2)}%
+                </span>
+              </div>
+            ))}
+          </div>
+        </PanelSection>
+      ) : (
+        <PanelSection title="Inbreeding Coefficients (F)">
+          <p className="text-xs text-muted-foreground italic">No consanguinity detected (all individuals F = 0).</p>
         </PanelSection>
       )}
     </PanelShell>
