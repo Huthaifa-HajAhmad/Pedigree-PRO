@@ -313,7 +313,7 @@ export function PropertiesPanel({
                                       aria-label={idx === 0 ? "Genotype" : `Genotype Row ${idx + 1}`}
                                       defaultValue={gVal}
                                       key={`bulk-geno-${idx}-${gVal}`}
-                                      className="w-36 bg-background border border-border/80 rounded-lg px-2.5 py-1 text-xs outline-none hover:bg-accent/20 focus:border-muted-foreground/45 focus-visible:ring-0 shadow-none transition-all duration-200 font-mono"
+                                      className="flex-1 min-w-[120px] bg-background border border-border/80 rounded-lg px-2.5 py-1 text-xs outline-none hover:bg-accent/20 focus:border-muted-foreground/45 focus-visible:ring-0 shadow-none transition-all duration-200 font-mono"
                                       onKeyDown={(e) => {
                                         if (e.key === "Enter") {
                                           handleBulkGenotypeChange(idx, (e.target as HTMLInputElement).value || "");
@@ -765,6 +765,56 @@ export function PropertiesPanel({
                 </div>
               </div>
 
+              {/* Secondary Color Selector (only shown for split shading styles) */}
+              {singleSelected && ["left-half", "right-half", "top-half", "bottom-half", "quadrant"].includes(singleSelected.shading ?? "") && (
+                <div className="animate-in fade-in slide-in-from-top-1 duration-200">
+                  <label className="text-xs text-muted-foreground uppercase tracking-wider block mb-1.5">
+                    Secondary Color (Dual Phenotype)
+                  </label>
+                  <div className="flex gap-1.5 flex-wrap items-center">
+                    <button
+                      type="button"
+                      onClick={() => onUpdateSelectedNode({ color2: undefined })}
+                      className="w-5.5 h-5.5 rounded-full border border-border/50 transition-transform hover:scale-110 flex-shrink-0 flex items-center justify-center text-[10px] font-bold text-muted-foreground hover:text-foreground hover:bg-muted bg-background"
+                      style={{ outline: !singleSelected.color2 ? "2px solid hsl(var(--primary))" : "none", outlineOffset: 1 }}
+                      title="Clear secondary color (default background)"
+                    >
+                      ×
+                    </button>
+                    {["#ffb3b3", "#ffd9b3", "#ffffb3", "#c1f0c1", "#b3d9ff", "#d9b3ff", "#ffb3d9", "#e2e8f0"].map((c) => (
+                      <button
+                        key={c}
+                        type="button"
+                        onClick={() => onUpdateSelectedNode({ color2: c })}
+                        className="w-5.5 h-5.5 rounded-full border border-border/50 transition-transform hover:scale-110 flex-shrink-0"
+                        style={{ background: c, outline: singleSelected.color2 === c ? "2px solid hsl(var(--primary))" : "none", outlineOffset: 1 }}
+                        title={c}
+                      />
+                    ))}
+                    
+                    {/* Custom secondary color input */}
+                    <label
+                      className="relative w-5.5 h-5.5 rounded-full overflow-hidden flex-shrink-0 transition-transform hover:scale-110 cursor-pointer"
+                      style={{
+                        boxShadow: "0 0 0 1px hsl(var(--border)/0.3)",
+                        background: "conic-gradient(red, yellow, lime, aqua, blue, magenta, red)",
+                        outline: (singleSelected.color2 && !["#ffb3b3", "#ffd9b3", "#ffffb3", "#c1f0c1", "#b3d9ff", "#d9b3ff", "#ffb3d9", "#e2e8f0"].includes(singleSelected.color2)) ? "2px solid hsl(var(--primary))" : "none",
+                        outlineOffset: 1,
+                      }}
+                      title="Custom secondary color"
+                    >
+                      <input
+                        type="color"
+                        value={singleSelected.color2 || "#000000"}
+                        onChange={(e) => onUpdateSelectedNode({ color2: e.target.value })}
+                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                        aria-label="Custom secondary color"
+                      />
+                    </label>
+                  </div>
+                </div>
+              )}
+
               {/* Shading Style Selector (Segmented Rows) */}
               <div>
                 <label className="text-xs text-muted-foreground uppercase tracking-wider block mb-1.5">Shading Style</label>
@@ -789,6 +839,7 @@ export function PropertiesPanel({
                               onUpdateSelectedNode({
                                 shading: isNone || opt.value === "solid" ? undefined : opt.value,
                                 affected: !isNone,
+                                color2: undefined,
                               });
                             }}
                             className={`flex-1 py-1 rounded-md text-[10px] font-medium transition-all border text-center ${
@@ -917,7 +968,7 @@ export function PropertiesPanel({
                               value={gVal}
                               onChange={(e) => handleGenotypeChange(idx, e.target.value)}
                               placeholder="e.g. +/-"
-                              className="w-36 bg-background border border-border/80 rounded-lg px-2.5 py-1 text-xs outline-none hover:bg-accent/20 focus:border-muted-foreground/45 focus-visible:ring-0 shadow-none transition-all duration-200"
+                              className="flex-1 min-w-[120px] bg-background border border-border/80 rounded-lg px-2.5 py-1 text-xs outline-none hover:bg-accent/20 focus:border-muted-foreground/45 focus-visible:ring-0 shadow-none transition-all duration-200"
                             />
                           </div>
                           <div className="flex bg-muted/60 p-0.5 rounded-lg border border-border/60 items-stretch w-full">

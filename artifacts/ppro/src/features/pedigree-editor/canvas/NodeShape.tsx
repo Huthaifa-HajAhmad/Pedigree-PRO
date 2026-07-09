@@ -74,6 +74,8 @@ export const NodeShape = memo(function NodeShape({
     ? "url(#shading-cross-hatched)"
     : sStyle === "dots"
     ? "url(#shading-dots)"
+    : (node.color2 && ["left-half", "right-half", "top-half", "bottom-half", "quadrant"].includes(sStyle))
+    ? node.color2
     : node.carrier
     ? "hsl(var(--primary) / 0.08)"
     : "hsl(var(--card))";

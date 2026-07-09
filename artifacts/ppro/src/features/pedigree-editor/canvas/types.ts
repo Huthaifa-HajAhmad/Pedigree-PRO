@@ -20,6 +20,7 @@ export interface PedigreeNode {
   y: number;
   pinned?: boolean;
   color?: string;
+  color2?: string;
   genotype?: string;
   shading?: "solid" | "striped" | "cross-hatched" | "dots" | "left-half" | "right-half" | "top-half" | "bottom-half" | "quadrant";
   genotype2?: string;
