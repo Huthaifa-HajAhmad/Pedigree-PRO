@@ -15,6 +15,7 @@ interface ShareGroupProps {
   handleExportSVG: (options?: { transparent?: boolean }) => void;
   handleExportPPRO: () => void;
   handleExportJSON: () => void;
+  handleExportPED: () => void;
   pedigreeTitle: string;
   canvasNodes: any[];
   canvasEdges: any[];
@@ -24,7 +25,7 @@ interface ShareGroupProps {
 export function ShareGroup({
   setShowShareModal, showExportMenu, setShowExportMenu, exportingFormat,
   handleExportReport, handleExportPDF, handleExportPPTX,
-  handleExportPNG, handleExportSVG, handleExportPPRO, handleExportJSON,
+  handleExportPNG, handleExportSVG, handleExportPPRO, handleExportJSON, handleExportPED,
   pedigreeTitle, canvasNodes, canvasEdges, labelHidden = false,
 }: ShareGroupProps) {
 
@@ -104,6 +105,13 @@ export function ShareGroup({
           description: "Plain text machine-readable JSON structure for database exchange and API integrations.",
           icon: <FileCode className="w-5 h-5 text-slate-500" />,
           action: handleExportJSON
+        },
+        {
+          id: "ped",
+          name: "Linkage PED (.ped)",
+          description: "Standard PLINK/GATK lineage format for genetics research and linkage analysis.",
+          icon: <FileText className="w-5 h-5 text-indigo-500" />,
+          action: handleExportPED
         }
       ]
     }

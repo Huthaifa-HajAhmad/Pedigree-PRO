@@ -1,7 +1,7 @@
 import { useMemo, useEffect, useState, useContext, useCallback } from "react";
 import { useParams } from "wouter";
 import { useGetPedigree } from "@workspace/api-client-react";
-import { exportPPRO, exportPDF, exportPPTX, exportClinicalReport, exportPNG, exportSVG, exportJSON } from "@/lib/export-pedigree";
+import { exportPPRO, exportPDF, exportPPTX, exportClinicalReport, exportPNG, exportSVG, exportJSON, exportPED } from "@/lib/export-pedigree";
 import { PedigreeEditorProvider, usePedigreeEditor } from "@/features/pedigree-editor/context";
 import { PedigreeCanvasBody } from "@/features/pedigree-editor/PedigreeCanvasBody";
 import type { PedigreeNode, PedigreeEdge, PedigreeAnnotation, CanvasData, DragState } from "@/features/pedigree-editor/canvas/types";
@@ -16,7 +16,6 @@ import type { ThemeId } from "@/lib/theme";
 import { CanvasConfigOverrideProvider } from "@/features/pedigree-editor/context/CanvasConfigContext";
 import type { CanvasConfig } from "@/features/pedigree-editor/context/CanvasConfigContext";
 
-const PEDIGREE_TEMPLATES = getTemplateOptions();
 
 export default function PedigreeCanvas() {
   const params = useParams<{ id: string }>();
@@ -213,7 +212,7 @@ function PedigreeCanvasInner() {
         bakeEmptyLabels={ops.bakeEmptyLabels} bakeAllLabels={ops.bakeAllLabels}
         updateCanvas={ops.updateCanvas}
         showTemplates={state.showTemplates} setShowTemplates={toggle.setShowTemplates}
-        templates={PEDIGREE_TEMPLATES} buildTemplate={buildTemplate}
+        templates={getTemplateOptions()} buildTemplate={buildTemplate}
         showRiskPanel={state.showRiskPanel} setShowRiskPanel={toggle.setShowRiskPanel}
         showValidation={state.showValidation} setShowValidation={toggle.setShowValidation}
         validation={{ errorCount: memo.validation.errorCount, warningCount: memo.validation.warningCount }}
@@ -244,6 +243,7 @@ function PedigreeCanvasInner() {
           await exportPPRO(pedigree?.id ?? 0, exporterKey, getExportInfo().title);
         }, "PPRO")}
         handleExportJSON={he(() => exportJSON(getExportInfo(), state.canvas), "JSON")}
+        handleExportPED={he(() => exportPED(getExportInfo(), state.canvas), "PED")}
         clearSelection={() => ctx.dispatch({ type: "SET_STATE", patch: { selectedIds: new Set(), selectedAnnotationId: null } })}
         pedigreeTitle={pedigree?.title ?? ""}
         onDeletePedigree={() => ops.handleDeletePedigree(pedigree?.id ?? 0, pedigree?.title ?? "")}

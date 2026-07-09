@@ -106,6 +106,7 @@ export interface RibbonToolbarProps {
   handleExportSVG: () => void;
   handleExportPPRO: () => void;
   handleExportJSON: () => void;
+  handleExportPED: () => void;
   pedigreeTitle: string;
   onDeletePedigree: () => void;
   clearSelection?: () => void;
@@ -113,7 +114,7 @@ export interface RibbonToolbarProps {
 
 export function RibbonToolbar(props: RibbonToolbarProps) {
   const [confirmOpen, setConfirmOpen] = useState(false);
-  const [confirmProps, setConfirmProps] = useState<{ title: string; message: string; onConfirm: () => void } | null>(null);
+  const [confirmProps, setConfirmProps] = useState<{ title: string; message: string; onConfirm: () => void; confirmLabel?: string } | null>(null);
   const { mode } = useToolbarLayout();
   const scrollRef = useRef<HTMLDivElement>(null);
   const [showLeftFade, setShowLeftFade] = useState(false);
@@ -135,8 +136,8 @@ export function RibbonToolbar(props: RibbonToolbarProps) {
     return () => { el.removeEventListener("scroll", update); ro.disconnect(); };
   }, []);
 
-  const openConfirm = (title: string, message: string, onConfirm: () => void) => {
-    setConfirmProps({ title, message, onConfirm });
+  const openConfirm = (title: string, message: string, onConfirm: () => void, confirmLabel?: string) => {
+    setConfirmProps({ title, message, onConfirm, confirmLabel });
     setConfirmOpen(true);
   };
 
@@ -218,7 +219,7 @@ export function RibbonToolbar(props: RibbonToolbarProps) {
           showLegend={props.showLegend} setShowLegend={props.setShowLegend}
           validation={props.validation} templates={props.templates}
           buildTemplate={props.buildTemplate} updateCanvas={props.updateCanvas}
-          canvasNodes={props.canvasNodes} openConfirm={openConfirm} labelHidden={hideLabels || compactSecondaries}
+          canvasNodes={props.canvasNodes} canvasEdges={props.canvasEdges} openConfirm={openConfirm} labelHidden={hideLabels || compactSecondaries}
           onClearSelection={props.clearSelection}
           runAutoLayout={props.runAutoLayout} />
 
@@ -243,6 +244,7 @@ export function RibbonToolbar(props: RibbonToolbarProps) {
           handleExportSVG={props.handleExportSVG}
           handleExportPPRO={props.handleExportPPRO}
           handleExportJSON={props.handleExportJSON}
+          handleExportPED={props.handleExportPED}
           pedigreeTitle={props.pedigreeTitle}
           canvasNodes={props.canvasNodes}
           canvasEdges={props.canvasEdges}
@@ -279,7 +281,7 @@ export function RibbonToolbar(props: RibbonToolbarProps) {
           title={confirmProps.title}
           message={confirmProps.message}
           variant="destructive"
-          confirmLabel="Replace"
+          confirmLabel={confirmProps.confirmLabel ?? "Replace"}
           onConfirm={() => { setConfirmOpen(false); confirmProps.onConfirm(); }}
           onCancel={() => setConfirmOpen(false)}
         />

@@ -1,5 +1,6 @@
 import { computeRisk } from "@/lib/risk-calculator";
 import { exportPedigreePpro } from "@workspace/api-client-react";
+import { buildAdjacency, buildNodeMap } from "./layout-shared";
 
 export interface ExportNode {
   id: string;
@@ -19,6 +20,7 @@ export interface ExportNode {
   y: number;
   shading?: "solid" | "striped" | "cross-hatched" | "dots" | "left-half" | "right-half" | "top-half" | "bottom-half" | "quadrant";
   color?: string;
+  color2?: string;
   genotype?: string;
   genotype2?: string;
   additionalGenotypes?: string[];
@@ -371,6 +373,39 @@ export async function exportJSON(info: ExportInfo, canvas: ExportCanvas): Promis
   };
   const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
   await triggerDownload(blob, `${safeFilename(info.title)}.json`);
+}
+
+export async function exportPED(info: ExportInfo, canvas: ExportCanvas): Promise<void> {
+  const adj = buildAdjacency(canvas.nodes, canvas.edges);
+  const nodeMap = buildNodeMap(canvas.nodes);
+  const famId = safeFilename(info.title) || "FAM1";
+
+  const lines: string[] = [];
+  for (const node of canvas.nodes) {
+    // Find parents
+    const pIds = adj.parentsOf.get(node.id) ?? [];
+    let fatherId = "0";
+    let motherId = "0";
+    for (const pId of pIds) {
+      const parentNode = nodeMap.get(pId);
+      if (parentNode) {
+        if (parentNode.type === "male") {
+          fatherId = parentNode.id;
+        } else if (parentNode.type === "female") {
+          motherId = parentNode.id;
+        }
+      }
+    }
+
+    const sexCode = node.type === "male" ? "1" : node.type === "female" ? "2" : "0";
+    const phenoCode = node.affected ? "2" : "1";
+
+    lines.push(`${famId}\t${node.id}\t${fatherId}\t${motherId}\t${sexCode}\t${phenoCode}`);
+  }
+
+  const content = lines.join("\n") + "\n";
+  const blob = new Blob([content], { type: "text/plain" });
+  await triggerDownload(blob, `${safeFilename(info.title)}.ped`);
 }
 
 export async function exportPPRO(pedigreeId: number, exporterKey: string, title: string): Promise<void> {
