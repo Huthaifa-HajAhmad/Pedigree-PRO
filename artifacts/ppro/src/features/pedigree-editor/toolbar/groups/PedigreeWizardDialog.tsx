@@ -69,11 +69,42 @@ export function PedigreeWizardDialog({
     }
   }, [probandSex]);
 
-  // Reset steps on open
+  // Reset steps and config on open
   useEffect(() => {
     if (open) {
       setStep(1);
       setShowPlacementConfirm(false);
+      
+      // Reset all wizard configuration options to defaults
+      setGenerations(3);
+      setIncludePaternal(true);
+      setPaternalUncles(0);
+      setPaternalAunts(0);
+      setIncludeMaternal(true);
+      setMaternalUncles(0);
+      setMaternalAunts(0);
+      setProbandSex("male");
+      setProbandAffected(false);
+      setBrothers(0);
+      setSisters(0);
+      setHasPartner(false);
+      setPartnerSex("female");
+      setSons(0);
+      setDaughters(0);
+      setAffectedFather(false);
+      setAffectedMother(false);
+      setAffectedPaternalGF(false);
+      setAffectedPaternalGM(false);
+      setAffectedMaternalGF(false);
+      setAffectedMaternalGM(false);
+      setAffectedBrothersCount(0);
+      setAffectedSistersCount(0);
+      setAffectedPaternalUnclesCount(0);
+      setAffectedPaternalAuntsCount(0);
+      setAffectedMaternalUnclesCount(0);
+      setAffectedMaternalAuntsCount(0);
+      setAffectedSonsCount(0);
+      setAffectedDaughtersCount(0);
     }
   }, [open]);
 
@@ -1036,7 +1067,7 @@ function PedigreePreview({ step, config }: { step: number; config: PedigreeWizar
   // 2. Compute positions using auto-layout
   const layoutNodes = stepNodes.map(n => ({ id: n.id, x: 0, y: 0, type: n.type }));
   const layoutEdges = stepEdges.map(e => ({ id: e.id, type: e.type, sourceId: e.sourceId, targetId: e.targetId }));
-  const positions = computeAutoLayout(layoutNodes, layoutEdges, false);
+  const positions = computeAutoLayout(layoutNodes, layoutEdges, false, { enableCache: false });
   
   const nodes = stepNodes.map(n => {
     const pos = positions.find(p => p.id === n.id);
