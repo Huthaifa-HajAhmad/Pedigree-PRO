@@ -292,6 +292,18 @@ All 20 items from the `.kilo/plans/1778972218810-hidden-rocket.md` code review p
 **Medium ✅:** relay_receive GET→POST, share_token validation, error sanitization, CommandMap type, ShareModal encryption messaging, LanShare plaintext confirmation, PII in console.error, initialSyncDoneRef reset<br>
 **Low ✅:** type="button" (10 buttons), aria-label accessibility, React.StrictMode, refetchOnWindowFocus disabled, edges.length dependency, draft path consolidation, HKDF recommendation
 
+### Completed (July 2026)
+
+**Layout Engine Remediation & Optimization:** ✅ Complete.
+- **Topological Generation Assignment (L1)**: Rewrote assignment to construct couple-components, build Directed Acyclic Graphs, and apply Kahn's topological sort with longest-path layering, completely replacing the iterative fixpoint.
+- **Order-Independent Subtree Traversal (L2)**: Refactored `collectSubtree` to use pre-calculated node descendants, making the spouse married-in check completely deterministic and order-independent.
+- **Math & Spacing Improvements (M2, O1, N1, D3)**: Corrected group centering math to be symmetric, validated that parents reside on the same row, parameterized twin spacing gaps via config, and replaced hardcoded canvas center reference with dynamic center config.
+- **Batched Collision Sweep & Oscillation Loops (S3, L3, A2)**: Batched parent recentering shifts across all generation rows to run collision resolution once per safety loop (reducing sweeps from $O(G \times I)$ to $O(I)$), scaled loop safety limits dynamically based on pedigree size, and made the top-down child recentering pass conditional.
+- **$O(1)$ BFS Queue (S5)**: Replaced `queue.shift()` inside the founder BFS loop with a head-pointer loop to avoid $O(N)$ array shifts.
+- **Subtree-Aware Sibling Spacing (L4)**: Enabled spacing engine to shift siblings with spouses/children rigidly together using dry-run verification to ensure zero collisions.
+- **Type Safety (D2)**: Refactored layout algorithm signatures to use generic types and a simplified `EdgeSubset` interface, removing all `as any` type assertions.
+- **Layout Caching**: Implemented a 1,000-entry LRU eviction cache with opt-out settings and cache reset safety.
+
 ### Remaining Deferred Items
 
 **UX5 extended — ContextMenu keyboard navigation polish:**

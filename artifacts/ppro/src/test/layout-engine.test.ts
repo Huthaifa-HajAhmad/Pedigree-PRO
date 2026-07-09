@@ -326,7 +326,7 @@ describe("layout-engine", () => {
       expect(newSib2.x).toBeCloseTo(300);
     });
 
-    it("does not shift inner sibling if it has couples or children", () => {
+    it("shifts inner sibling and its couple partner as a rigid unit if it has a couple", () => {
       const nodes: PedigreeNode[] = [
         { id: "father", x: 150, y: 100, type: "male", ...baseNode },
         { id: "mother", x: 240, y: 100, type: "female", ...baseNode },
@@ -350,7 +350,9 @@ describe("layout-engine", () => {
       const result = evenOutSiblingSpacing(nodes, edges);
       
       const newSib2 = result.find(n => n.id === "sib2")!;
-      expect(newSib2.x).toBe(210);
+      const newPartner = result.find(n => n.id === "partner2")!;
+      expect(newSib2.x).toBe(300);
+      expect(newPartner.x).toBe(390);
     });
   });
 

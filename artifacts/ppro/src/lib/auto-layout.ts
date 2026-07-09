@@ -41,8 +41,7 @@ import { NODE_SIZE } from "@/features/pedigree-editor/canvas/types";
 import { resolveAllCollisions, recenterAllFamilies, swapCouplePartners, collectSubtree, detectRowCollisions } from "./layout-engine";
 import { buildAdjacency, buildGenerations, DEFAULT_LAYOUT_CONFIG } from "./layout-shared";
 import type { LayoutConfig } from "./layout-shared";
-import { computeNodeStructuralHash, globalLayoutCache } from "./layout-cache";
-const CANVAS_CENTER_X = 700;
+import { computeNodeStructuralHash, globalLayoutCache, setCacheEntry } from "./layout-cache";
 
 function getTwinInfo(
   nodeId: string,
@@ -61,13 +60,13 @@ export function computeAutoLayout<T extends LayoutNode>(
   canvasWidth?: number
 ): T[] {
   const cfg = { ...DEFAULT_LAYOUT_CONFIG, ...config };
-  const { nodeGap, genGrid, hSpacing, coupleSpacing, groupGap } = cfg;
+  const { nodeGap, genGrid, hSpacing, coupleSpacing, groupGap, twinGapMono, twinGapDizygotic } = cfg;
   const GROUP_GAP = groupGap;
   const genSpacing = genGrid;
   if (nodes.length === 0) return nodes;
 
   const pinnedNodes = respectPinned ? nodes.filter(n => n.pinned) : [];
-  let effectiveCenterX = CANVAS_CENTER_X;
+  let effectiveCenterX = cfg.canvasCenterX;
   if (pinnedNodes.length > 0) {
     effectiveCenterX = pinnedNodes.reduce((sum, n) => sum + n.x, 0) / pinnedNodes.length;
   } else if (canvasWidth !== undefined) {
@@ -77,9 +76,9 @@ export function computeAutoLayout<T extends LayoutNode>(
   const nodeMap = new Map(nodes.map((n) => [n.id, n]));
 
   // ── Adjacency and Generation maps (consolidated) ─────────────────────────
-  const adj = buildAdjacency(nodes, edges as any);
+  const adj = buildAdjacency(nodes, edges);
   const { childrenOf, parentsOf, couplesOf, twinTypeOf, twinGroupOf } = adj;
-  const genOf = buildGenerations(nodes, edges as any);
+  const genOf = buildGenerations(nodes, edges);
 
   // ── Group by generation ─────────────────────────────────────────────────
   const genGroups = new Map<number, string[]>();
@@ -239,7 +238,7 @@ export function computeAutoLayout<T extends LayoutNode>(
 
     for (const [root, ids] of mergedGroupsMap) {
       groupsMap.set(root, ids);
-      const centers = mergedGroupCenters.get(root) || [CANVAS_CENTER_X];
+      const centers = mergedGroupCenters.get(root) || [effectiveCenterX];
       const avgCenter = centers.reduce((a, b) => a + b, 0) / centers.length;
       groupCenterX.set(root, avgCenter);
       for (const id of ids) {
@@ -322,8 +321,10 @@ export function computeAutoLayout<T extends LayoutNode>(
 
       const component: string[] = [];
       const queue = [fg.key];
-      while (queue.length > 0) {
-        const curr = queue.shift()!;
+      let head = 0;
+      while (head < queue.length) {
+        const curr = queue[head]!;
+        head++;
         if (visitedFg.has(curr)) continue;
         visitedFg.add(curr);
         component.push(curr);
@@ -444,7 +445,8 @@ export function computeAutoLayout<T extends LayoutNode>(
     const totalSpan = currentX;
     const firstW = orderedFgKeys.length > 0 ? (groupWidths.get(orderedFgKeys[0]!) ?? (nodeGap * 2.06)) : 0;
     const lastW = orderedFgKeys.length > 0 ? (groupWidths.get(orderedFgKeys[orderedFgKeys.length - 1]!) ?? (nodeGap * 2.06)) : 0;
-    const startX = effectiveCenterX - totalSpan / 2 - (lastW - firstW) / 4;
+    const totalWidth = totalSpan + firstW / 2 + lastW / 2;
+    const startX = effectiveCenterX - totalWidth / 2 + firstW / 2;
 
     for (const key of orderedFgKeys) {
       const fg = founderGroupByKey.get(key)!;
@@ -493,7 +495,7 @@ export function computeAutoLayout<T extends LayoutNode>(
         const areTwins = twin1 && twin2 && twin1.group === twin2.group;
 
         if (areTwins) {
-          totalWidth += twin1.type === "m" ? (NODE_SIZE * 0.55) : (NODE_SIZE * 0.8);
+          totalWidth += twin1.type === "m" ? twinGapMono : twinGapDizygotic;
         } else if (isCouple) {
           totalWidth += coupleSpacing;
         } else {
@@ -560,18 +562,12 @@ export function computeAutoLayout<T extends LayoutNode>(
 
           // Validate with detectRowCollisions on all touched rows
           let hasCollision = false;
-          const allNodesList = Array.from(knownPos.entries()).map(([id, pos]) => ({
+          const allNodesList: LayoutNode[] = Array.from(knownPos.entries()).map(([id, pos]) => ({
             id,
             x: pos.x,
             y: pos.y,
             type: nodeMap.get(id)?.type ?? "male",
-            affected: false,
-            carrier: false,
-            deceased: false,
-            proband: false,
-            label: "",
-            age: "",
-          } as any));
+          }));
 
           for (const touchedY of touchedYs) {
             const collisions = detectRowCollisions(allNodesList, touchedY, nodeGap, undefined, undefined, adj);
@@ -608,7 +604,7 @@ export function computeAutoLayout<T extends LayoutNode>(
             const areTwins = twin1 && twin2 && twin1.group === twin2.group;
 
             if (areTwins) {
-              x += twin1.type === "m" ? (NODE_SIZE * 0.55) : (NODE_SIZE * 0.8);
+              x += twin1.type === "m" ? twinGapMono : twinGapDizygotic;
             } else if (isCouple) {
               x += coupleSpacing;
             } else {
@@ -632,7 +628,7 @@ export function computeAutoLayout<T extends LayoutNode>(
   const unpinnedNodes = nodes.filter(n => !(respectPinned && n.pinned));
   for (const n of unpinnedNodes) {
     const currentHash = computeNodeStructuralHash(n.id, adj);
-    const cached = globalLayoutCache.get(n.id);
+    const cached = cfg.enableCache !== false ? globalLayoutCache.get(n.id) : undefined;
     if (cached && cached.hash === currentHash) {
       knownPos.set(n.id, { x: cached.x, y: cached.y });
     } else if (!knownPos.has(n.id)) {
@@ -669,8 +665,8 @@ export function computeAutoLayout<T extends LayoutNode>(
   );
   
   const resolvedNodes = resolveAllCollisions(
-    initialNodes as any,
-    edges as any,
+    initialNodes,
+    edges,
     pinnedIds,
     undefined,
     nodeGap,
@@ -681,16 +677,26 @@ export function computeAutoLayout<T extends LayoutNode>(
 
   const swappedNodes = swapCouplePartners(resolvedNodes, edges, nodeGap);
 
-  const result = recenterAllFamilies(swappedNodes as any, edges as any, pinnedIds, nodeGap, genGrid, genOf, canvasWidth) as unknown as T[];
+  const result = recenterAllFamilies(
+    swappedNodes,
+    edges,
+    pinnedIds,
+    nodeGap,
+    genGrid,
+    genOf,
+    canvasWidth
+  ) as T[];
 
   // Update layout cache with finalized coordinates
-  for (const resNode of result) {
-    const currentHash = computeNodeStructuralHash(resNode.id, adj);
-    globalLayoutCache.set(resNode.id, {
-      x: resNode.x,
-      y: resNode.y,
-      hash: currentHash
-    });
+  if (cfg.enableCache !== false) {
+    for (const resNode of result) {
+      const currentHash = computeNodeStructuralHash(resNode.id, adj);
+      setCacheEntry(resNode.id, {
+        x: resNode.x,
+        y: resNode.y,
+        hash: currentHash
+      });
+    }
   }
 
   return result;

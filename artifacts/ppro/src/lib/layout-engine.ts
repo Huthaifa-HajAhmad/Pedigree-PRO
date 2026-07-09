@@ -19,7 +19,7 @@
 import { NODE_SIZE, NODE_GAP, GEN_GRID } from "@/features/pedigree-editor/canvas/types";
 import type { PedigreeNode, PedigreeEdge, CanvasData } from "@/features/pedigree-editor/canvas/types";
 import { buildAdjacency, buildGenerations, buildNodeMap } from "./layout-shared";
-import type { AdjacencyMaps } from "./layout-shared";
+import type { AdjacencyMaps, LayoutNode, EdgeSubset } from "./layout-shared";
 export { buildGenerations };
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -47,7 +47,7 @@ const ROW_TOLERANCE = GEN_GRID / 2; // 60px — correct for 120px generation gri
 // ── Bounding box computation ───────────────────────────────────────────────
 
 /** Compute the bounding box of a single node */
-function nodeBBox(node: PedigreeNode): BBox {
+function nodeBBox(node: LayoutNode): BBox {
   const halfS = NODE_SIZE / 2;
   return {
     left: node.x - halfS,
@@ -76,7 +76,7 @@ function mergeBBoxes(boxes: BBox[]): BBox {
  */
 export function computeSubtreeBBox(
   nodeId: string,
-  nodeMap: Map<string, PedigreeNode>,
+  nodeMap: Map<string, LayoutNode>,
   adj: AdjacencyMaps,
   visited?: Set<string>,
 ): BBox {
@@ -96,7 +96,7 @@ export function computeSubtreeBBox(
 /**
  * Helper to compute Y tolerance dynamically based on generation Ys.
  */
-export function getRowTolerance(nodes: PedigreeNode[], genGrid = GEN_GRID): number {
+export function getRowTolerance(nodes: LayoutNode[], genGrid = GEN_GRID): number {
   const uniqueYs = Array.from(new Set(nodes.map(n => n.y))).sort((a, b) => a - b);
   if (uniqueYs.length === 0) return genGrid / 2;
   const allMultiples = uniqueYs.every(y => Math.round(y) % genGrid === 0);
@@ -114,9 +114,9 @@ export function getRowTolerance(nodes: PedigreeNode[], genGrid = GEN_GRID): numb
 
 // ── Row-based collision detection ──────────────────────────────────────────
 
-interface Collision {
-  leftNode: PedigreeNode;
-  rightNode: PedigreeNode;
+export interface Collision<T extends LayoutNode = LayoutNode> {
+  leftNode: T;
+  rightNode: T;
   overlap: number; // positive = overlapping by this many px
 }
 
@@ -124,14 +124,16 @@ interface Collision {
  * Detect horizontal collisions between nodes on the same generation row.
  * Uses a sweep-line approach: sort nodes by X, then check adjacent pairs for overlap.
  */
-export function detectRowCollisions(
-  nodes: PedigreeNode[],
+export function detectRowCollisions<T extends LayoutNode>(
+  nodes: T[],
   rowY: number,
   minGap: number = NODE_GAP,
   tolerance?: number,
   genIndexOf?: Map<string, number>,
   adj?: AdjacencyMaps,
-): Collision[] {
+  twinGapMono: number = NODE_SIZE * 0.55,
+  twinGapDizygotic: number = NODE_SIZE * 0.8,
+): Collision<T>[] {
   const tol = tolerance ?? getRowTolerance(nodes);
   const rowNodes = genIndexOf
     ? nodes.filter(n => genIndexOf.get(n.id) === rowY)
@@ -141,7 +143,7 @@ export function detectRowCollisions(
 
   rowNodes.sort((a, b) => a.x - b.x);
 
-  const collisions: Collision[] = [];
+  const collisions: Collision<T>[] = [];
   for (let i = 1; i < rowNodes.length; i++) {
     const left = rowNodes[i - 1]!;
     const right = rowNodes[i]!;
@@ -152,7 +154,7 @@ export function detectRowCollisions(
       const twins = adj.twinsOf.get(left.id);
       if (twins && twins.includes(right.id)) {
         const type = adj.twinTypeOf.get(left.id);
-        currentMinGap = type === "m" ? (NODE_SIZE * 0.55) : (NODE_SIZE * 0.8);
+        currentMinGap = type === "m" ? twinGapMono : twinGapDizygotic;
       }
     }
 
@@ -174,13 +176,36 @@ export function detectRowCollisions(
  * Collect all descendant node IDs of a given node (children, grandchildren, etc.)
  * AND their couple partners. This is the full "subtree" that must move together.
  */
+export function collectDescendants(
+  startNodeId: string,
+  adj: AdjacencyMaps,
+  visited = new Set<string>()
+): Set<string> {
+  if (visited.has(startNodeId)) return visited;
+  visited.add(startNodeId);
+  for (const childId of adj.childrenOf.get(startNodeId) ?? []) {
+    collectDescendants(childId, adj, visited);
+  }
+  return visited;
+}
+
 export function collectSubtree(
   nodeId: string,
   adj: AdjacencyMaps,
   visited?: Set<string>,
   options?: { anchorMarriedIn?: boolean },
 ): Set<string> {
-  const v = visited ?? new Set<string>();
+  const descendants = collectDescendants(nodeId, adj);
+  return collectSubtreeInternal(nodeId, adj, descendants, visited ?? new Set<string>(), options);
+}
+
+function collectSubtreeInternal(
+  nodeId: string,
+  adj: AdjacencyMaps,
+  descendants: Set<string>,
+  v: Set<string>,
+  options?: { anchorMarriedIn?: boolean }
+): Set<string> {
   if (v.has(nodeId)) return v;
   v.add(nodeId);
 
@@ -188,11 +213,11 @@ export function collectSubtree(
   for (const partnerId of adj.couplesOf.get(nodeId) ?? []) {
     if (!v.has(partnerId)) {
       if (options?.anchorMarriedIn) {
-        // If the partner has parents, and those parents are not in the visited set,
-        // we do not include the partner in the rigid subtree to avoid breaking parent-child connections.
+        // A spouse partnerId is married-in if they have parents in the pedigree,
+        // but at least one parent is NOT in the starting node's descendant subtree.
         const partnerParents = adj.parentsOf.get(partnerId) ?? [];
-        const hasUnvisitedParents = Array.from(partnerParents).some(pId => !v.has(pId));
-        if (hasUnvisitedParents) {
+        const hasExternalParents = partnerParents.some(pId => !descendants.has(pId));
+        if (hasExternalParents) {
           continue;
         }
       }
@@ -200,19 +225,19 @@ export function collectSubtree(
       v.add(partnerId);
       // Partner's own children
       for (const childId of adj.childrenOf.get(partnerId) ?? []) {
-        collectSubtree(childId, adj, v, options);
+        collectSubtreeInternal(childId, adj, descendants, v, options);
       }
     }
   }
 
   // Include children recursively
   for (const childId of adj.childrenOf.get(nodeId) ?? []) {
-    collectSubtree(childId, adj, v, options);
+    collectSubtreeInternal(childId, adj, descendants, v, options);
   }
 
   // Include twins recursively (twins must move rigidly together)
   for (const twinId of adj.twinsOf.get(nodeId) ?? []) {
-    collectSubtree(twinId, adj, v, options);
+    collectSubtreeInternal(twinId, adj, descendants, v, options);
   }
 
   return v;
@@ -228,16 +253,16 @@ export function collectSubtree(
  * @param direction If specified, only compute the shift in that direction.
  *                  Otherwise, compute both and pick the cheaper one.
  */
-export function computeShiftPlan(
-  nodes: PedigreeNode[],
-  edges: PedigreeEdge[],
-  nodeToShift: PedigreeNode,
+export function computeShiftPlan<T extends LayoutNode>(
+  nodes: T[],
+  edges: EdgeSubset[],
+  nodeToShift: T,
   overlap: number,
   direction?: 1 | -1,
   excludeIds?: Set<string>,
   prebuiltAdj?: AdjacencyMaps,
-  prebuiltNodeMap?: Map<string, PedigreeNode>,
-  prebuiltRowMap?: Map<number, PedigreeNode[]>,
+  prebuiltNodeMap?: Map<string, T>,
+  prebuiltRowMap?: Map<number, T[]>,
   genGrid = GEN_GRID,
   genIndexOf?: Map<string, number>,
 ): ShiftPlan {
@@ -270,15 +295,16 @@ export function computeShiftPlan(
     let orderViolationPenalty = 0;
     let activeRowMap = prebuiltRowMap;
     if (!activeRowMap) {
-      activeRowMap = new Map<number, PedigreeNode[]>();
+      const tempMap = new Map<number, T[]>();
       for (const n of nodes) {
         const rY = genIndexOf ? (genIndexOf.get(n.id) ?? 0) : Math.round(n.y / genGrid) * genGrid;
-        if (!activeRowMap.has(rY)) activeRowMap.set(rY, []);
-        activeRowMap.get(rY)!.push(n);
+        if (!tempMap.has(rY)) tempMap.set(rY, []);
+        tempMap.get(rY)!.push(n);
       }
-      for (const [, rowNodes] of activeRowMap) {
+      for (const [, rowNodes] of tempMap) {
         rowNodes.sort((a, b) => a.x - b.x);
       }
+      activeRowMap = tempMap;
     }
 
     for (const [, rowNodes] of activeRowMap) {
@@ -328,16 +354,18 @@ export function computeShiftPlan(
  * @param excludeIds Node IDs that should not be shifted (e.g. the newly placed node)
  * @returns          New node array with resolved positions
  */
-export function resolveAllCollisions(
-  nodes: PedigreeNode[],
-  edges: PedigreeEdge[],
+export function resolveAllCollisions<T extends LayoutNode>(
+  nodes: T[],
+  edges: EdgeSubset[],
   excludeIds?: Set<string>,
   targetNodes?: Set<string>,
   nodeGap = NODE_GAP,
   genGrid = GEN_GRID,
   genIndexOf?: Map<string, number>,
   canvasWidth?: number,
-): PedigreeNode[] {
+  twinGapMono = NODE_SIZE * 0.55,
+  twinGapDizygotic = NODE_SIZE * 0.8,
+): T[] {
   let currentNodes = [...nodes.map(n => ({ ...n }))]; // deep clone positions
   const adj = buildAdjacency(currentNodes, edges);
   
@@ -361,7 +389,7 @@ export function resolveAllCollisions(
     let nodeMap = buildNodeMap(currentNodes);
     
     // T10: prebuild rowMap and sort once per cascade
-    const rowMap = new Map<number, PedigreeNode[]>();
+    const rowMap = new Map<number, T[]>();
     for (const node of currentNodes) {
       const rY = genIndexOf ? (genIndexOf.get(node.id) ?? 0) : Math.round(node.y / genGrid) * genGrid;
       if (!rowMap.has(rY)) rowMap.set(rY, []);
@@ -377,7 +405,7 @@ export function resolveAllCollisions(
 
     for (const rowY of rows) {
       // T13: Pass calculated tolerance into detectRowCollisions
-      const collisions = detectRowCollisions(currentNodes, rowY, nodeGap, tolerance, genIndexOf, adj);
+      const collisions = detectRowCollisions(currentNodes, rowY, nodeGap, tolerance, genIndexOf, adj, twinGapMono, twinGapDizygotic);
 
       for (const collision of collisions) {
         anyCollision = true;
@@ -386,7 +414,7 @@ export function resolveAllCollisions(
         const leftExcluded = excludeIds?.has(collision.leftNode.id);
         const rightExcluded = excludeIds?.has(collision.rightNode.id);
 
-        let nodeToShift: PedigreeNode;
+        let nodeToShift: T;
         let shiftDirection: 1 | -1;
 
         if (leftExcluded && !rightExcluded) {
@@ -459,7 +487,7 @@ export function resolveAllCollisions(
     
     let hasAnyRemainingCollision = false;
     for (const rowY of rows) {
-      if (detectRowCollisions(currentNodes, rowY, nodeGap, tolerance, genIndexOf, adj).length > 0) {
+      if (detectRowCollisions(currentNodes, rowY, nodeGap, tolerance, genIndexOf, adj, twinGapMono, twinGapDizygotic).length > 0) {
         hasAnyRemainingCollision = true;
         break;
       }
@@ -470,7 +498,7 @@ export function resolveAllCollisions(
     }
 
     // Safety pass: rebuild rowMap since we're shifting
-    const rowMap = new Map<number, PedigreeNode[]>();
+    const rowMap = new Map<number, T[]>();
     for (const n of currentNodes) {
       const rowKey = genIndexOf ? (genIndexOf.get(n.id) ?? 0) : Math.round(n.y / genGrid) * genGrid;
       if (!rowMap.has(rowKey)) rowMap.set(rowKey, []);
@@ -551,7 +579,8 @@ export function resolveAllCollisions(
   return currentNodes.map(n => {
     if (n.pinned) return n;
     const snappedX = Math.max(genGrid, Math.round(n.x * 10) / 10);
-    const clampedX = canvasWidth !== undefined ? Math.min(snappedX, canvasWidth - genGrid) : snappedX;
+    const maxW = canvasWidth !== undefined ? canvasWidth : 50 * genGrid;
+    const clampedX = Math.min(snappedX, maxW - genGrid);
     const snappedY = genIndexOf ? n.y : Math.round(n.y / genGrid) * genGrid;
     return {
       ...n,
@@ -570,9 +599,9 @@ export function resolveAllCollisions(
  * Returns the shifted nodes if safe, or the original nodes if shifting
  * would cause new collisions.
  */
-export function recenterParents(
-  nodes: PedigreeNode[],
-  edges: PedigreeEdge[],
+export function recenterParents<T extends LayoutNode>(
+  nodes: T[],
+  edges: EdgeSubset[],
   parentIds: string[],
   childIds: string[],
   excludeIds?: Set<string>,
@@ -580,12 +609,26 @@ export function recenterParents(
   genGrid = GEN_GRID,
   genIndexOf?: Map<string, number>,
   canvasWidth?: number,
-): PedigreeNode[] {
+): T[] {
   const nodeMap = buildNodeMap(nodes);
-  const parents = parentIds.map(id => nodeMap.get(id)).filter((n): n is PedigreeNode => !!n);
-  const children = childIds.map(id => nodeMap.get(id)).filter((n): n is PedigreeNode => !!n);
+  const parents = parentIds.map(id => nodeMap.get(id)).filter((n): n is T => !!n);
+  const children = childIds.map(id => nodeMap.get(id)).filter((n): n is T => !!n);
 
   if (parents.length === 0 || children.length === 0) return nodes;
+
+  // N1: Validate parents share the same generation index / Y row
+  const firstParentGen = genIndexOf?.get(parents[0]!.id);
+  const firstParentY = parents[0]!.y;
+  const tolerance = getRowTolerance(nodes, genGrid);
+
+  for (let i = 1; i < parents.length; i++) {
+    const p = parents[i]!;
+    if (genIndexOf) {
+      if (genIndexOf.get(p.id) !== firstParentGen) return nodes;
+    } else {
+      if (Math.abs(p.y - firstParentY) > tolerance) return nodes;
+    }
+  }
 
   const hasPinnedOrExcluded = parents.some(
     p => p.pinned || excludeIds?.has(p.id) || edges.some(e => e.type === "parent-child" && e.targetId === p.id)
@@ -738,18 +781,17 @@ export function recenterParents(
     });
   }
 
-  if (canvasWidth !== undefined) {
-    currentNodes = currentNodes.map(n => {
-      if (n.pinned || allExclude.has(n.id)) return n;
-      const isParentRow = parentGen !== undefined && genIndexOf
-        ? genIndexOf.get(n.id) === parentGen
-        : Math.abs(n.y - parentY) < tol;
-      if (isParentRow) {
-        return { ...n, x: Math.min(n.x, canvasWidth - genGrid) };
-      }
-      return n;
-    });
-  }
+  const maxW = canvasWidth !== undefined ? canvasWidth : 50 * genGrid;
+  currentNodes = currentNodes.map(n => {
+    if (n.pinned || allExclude.has(n.id)) return n;
+    const isParentRow = parentGen !== undefined && genIndexOf
+      ? genIndexOf.get(n.id) === parentGen
+      : Math.abs(n.y - parentY) < tol;
+    if (isParentRow) {
+      return { ...n, x: Math.min(n.x, maxW - genGrid) };
+    }
+    return n;
+  });
 
   // T3.0d: finalize couples to canonical nodeGap in a post-pass when anchorMarriedIn stretched them
   if (parents.length === 2 && !hasPinnedOrExcluded) {
@@ -790,15 +832,15 @@ export function recenterParents(
  * Global bottom-up pass: recenters all parents over their children.
  * Ripples from the lowest generation up to the highest.
  */
-export function recenterAllChildren(
-  nodes: PedigreeNode[],
-  edges: PedigreeEdge[],
+export function recenterAllChildren<T extends LayoutNode>(
+  nodes: T[],
+  edges: EdgeSubset[],
   excludeIds?: Set<string>,
   nodeGap = NODE_GAP,
   genGrid = GEN_GRID,
   genIndexOf?: Map<string, number>,
   canvasWidth?: number,
-): PedigreeNode[] {
+): T[] {
   let currentNodes = [...nodes.map(n => ({ ...n }))];
   const adj = buildAdjacency(currentNodes, edges);
   let nodeMap = buildNodeMap(currentNodes);
@@ -847,8 +889,8 @@ export function recenterAllChildren(
     });
 
     for (const f of rowFamilies) {
-      const parents = f.parentIds.map(id => nodeMap.get(id)).filter((n): n is PedigreeNode => !!n);
-      const children = f.childIds.map(id => nodeMap.get(id)).filter((n): n is PedigreeNode => !!n);
+      const parents = f.parentIds.map(id => nodeMap.get(id)).filter((n): n is T => !!n);
+      const children = f.childIds.map(id => nodeMap.get(id)).filter((n): n is T => !!n);
       if (parents.length === 0 || children.length === 0) continue;
 
       // Calculate parent midpoint using mean of all effective parents
@@ -892,14 +934,14 @@ export function recenterAllChildren(
   return currentNodes;
 }
 
-export function evenOutSiblingSpacing(
-  nodes: PedigreeNode[],
-  edges: PedigreeEdge[],
+export function evenOutSiblingSpacing<T extends LayoutNode>(
+  nodes: T[],
+  edges: EdgeSubset[],
   excludeIds?: Set<string>,
   nodeGap = NODE_GAP,
   genGrid = GEN_GRID,
   genIndexOf?: Map<string, number>,
-): PedigreeNode[] {
+): T[] {
   let currentNodes = [...nodes.map(n => ({ ...n }))];
   const adj = buildAdjacency(currentNodes, edges);
   const nodeMap = buildNodeMap(currentNodes);
@@ -914,70 +956,121 @@ export function evenOutSiblingSpacing(
   }
 
   for (const [, f] of families) {
-    const siblings = f.childIds.map(id => nodeMap.get(id)).filter((n): n is PedigreeNode => !!n);
+    const siblings = f.childIds.map(id => nodeMap.get(id)).filter((n): n is T => !!n);
     if (siblings.length < 3) continue;
 
     siblings.sort((a, b) => a.x - b.x);
 
-    // Check if all inner siblings are free to shift
-    let allInnerFree = true;
-    for (let i = 1; i < siblings.length - 1; i++) {
-      const sib = siblings[i]!;
-      const hasCouples = (adj.couplesOf.get(sib.id) ?? []).length > 0;
-      const hasChildren = (adj.childrenOf.get(sib.id) ?? []).length > 0;
-      const isExcluded = excludeIds?.has(sib.id);
-      const isTwin = (adj.twinsOf.get(sib.id) ?? []).length > 0;
-      if (hasCouples || hasChildren || isExcluded || isTwin) {
-        allInnerFree = false;
-        break;
+    const firstX = siblings[0]!.x;
+    const lastX = siblings[siblings.length - 1]!.x;
+    const totalSpan = lastX - firstX;
+    const step = totalSpan / (siblings.length - 1);
+
+    // Filter out sibling nodes (and their partner subtrees) from collision checks
+    // to prevent self-collisions during the shift.
+    const allSiblingsSubtreeIds = new Set<string>();
+    for (const sib of siblings) {
+      const subtree = collectSubtree(sib.id, adj, undefined, { anchorMarriedIn: true });
+      for (const id of subtree) {
+        allSiblingsSubtreeIds.add(id);
       }
     }
 
-    if (allInnerFree) {
-      const firstX = siblings[0]!.x;
-      const lastX = siblings[siblings.length - 1]!.x;
-      const totalSpan = lastX - firstX;
-      const step = totalSpan / (siblings.length - 1);
+    const siblingIdToTargetX = new Map<string, number>();
+    let siblingShiftsSucceeded = true;
 
-      const parentY = siblings[0]!.y;
-      const siblingIds = new Set(siblings.map(s => s.id));
-      const sibGen = genIndexOf?.get(siblings[0]!.id);
-      const tol = getRowTolerance(currentNodes, genGrid);
-      const rowNodes = currentNodes.filter(
-        n => {
-          if (siblingIds.has(n.id)) return false;
-          if (sibGen !== undefined && genIndexOf) {
-            return genIndexOf.get(n.id) === sibGen;
-          } else {
-            return Math.abs(n.y - parentY) < tol;
-          }
+    // Temporary cloned node list for testing dry-run shifts
+    const testNodes = currentNodes.map(n => ({ ...n }));
+    const testNodesMap = buildNodeMap(testNodes);
+
+    for (let i = 1; i < siblings.length - 1; i++) {
+      const sib = siblings[i]!;
+      const targetX = firstX + i * step;
+      const shiftAmount = targetX - sib.x;
+      if (Math.abs(shiftAmount) < 0.1) continue;
+
+      if (excludeIds?.has(sib.id)) {
+        siblingShiftsSucceeded = false;
+        break;
+      }
+
+      // Collect the rigid subtree of this inner sibling
+      const subtree = collectSubtree(sib.id, adj, undefined, { anchorMarriedIn: true });
+      
+      // If the subtree contains any pinned/excluded nodes, we cannot shift it
+      const hasPinnedOrExcluded = Array.from(subtree).some(
+        id => {
+          const node = nodeMap.get(id);
+          return node?.pinned || excludeIds?.has(id);
         }
       );
+      if (hasPinnedOrExcluded) {
+        siblingShiftsSucceeded = false;
+        break;
+      }
 
-      let safeToEvenOut = true;
-      for (let i = 1; i < siblings.length - 1; i++) {
-        const targetX = firstX + i * step;
-        const wouldCollide = rowNodes.some(
-          rn => Math.abs(rn.x - targetX) < nodeGap - 0.05
-        );
-        if (wouldCollide) {
-          safeToEvenOut = false;
-          break;
+      // Test shift the subtree
+      for (const id of subtree) {
+        const n = testNodesMap.get(id);
+        if (n) {
+          n.x += shiftAmount;
         }
       }
 
-      if (safeToEvenOut) {
-        const siblingIdToTargetX = new Map<string, number>();
-        for (let i = 1; i < siblings.length - 1; i++) {
-          const sib = siblings[i]!;
-          const targetX = firstX + i * step;
-          siblingIdToTargetX.set(sib.id, targetX);
-        }
+      // Verify that this shift does not cause any collisions with other nodes on their respective generation rows
+      let wouldCollide = false;
+      for (const id of subtree) {
+        const shiftedNode = testNodesMap.get(id)!;
+        const nodeGen = genIndexOf?.get(id) ?? (Math.round(shiftedNode.y / genGrid) * genGrid);
+        
+        // Find other nodes on the same generation row
+        const sameRowNodes = testNodes.filter(
+          n => {
+            if (subtree.has(n.id)) return false; // ignore self
+            const nGen = genIndexOf?.get(n.id) ?? (Math.round(n.y / genGrid) * genGrid);
+            return nGen === nodeGen;
+          }
+        );
 
-        currentNodes = currentNodes.map(n => {
-          const targetX = siblingIdToTargetX.get(n.id);
-          return targetX !== undefined ? { ...n, x: targetX } : n;
-        });
+        for (const other of sameRowNodes) {
+          const gap = Math.abs(shiftedNode.x - other.x);
+          
+          let minAllowedGap = nodeGap;
+          const twins = adj.twinsOf.get(shiftedNode.id);
+          if (twins && twins.includes(other.id)) {
+            const twinType = adj.twinTypeOf.get(shiftedNode.id);
+            minAllowedGap = twinType === "m" ? (NODE_SIZE * 0.55) : (NODE_SIZE * 0.8);
+          }
+
+          if (gap < minAllowedGap - 0.05) {
+            wouldCollide = true;
+            break;
+          }
+        }
+        if (wouldCollide) break;
+      }
+
+      if (wouldCollide) {
+        siblingShiftsSucceeded = false;
+        break;
+      }
+
+      // Record target X positions for sibling subtree nodes
+      for (const id of subtree) {
+        const currentVal = testNodesMap.get(id)!;
+        siblingIdToTargetX.set(id, currentVal.x);
+      }
+    }
+
+    if (siblingShiftsSucceeded && siblingIdToTargetX.size > 0) {
+      currentNodes = currentNodes.map(n => {
+        const targetX = siblingIdToTargetX.get(n.id);
+        return targetX !== undefined ? { ...n, x: targetX } : n;
+      });
+      // Re-initialize nodeMap for subsequent families
+      nodeMap.clear();
+      for (const n of currentNodes) {
+        nodeMap.set(n.id, n);
       }
     }
   }
@@ -985,7 +1078,7 @@ export function evenOutSiblingSpacing(
   return currentNodes;
 }
 
-function hashState(nodes: PedigreeNode[]): number {
+function hashState(nodes: LayoutNode[]): number {
   let hash = 0x811c9dc5;
   for (const n of nodes) {
     const val = Math.round(n.x * 10);
@@ -1001,16 +1094,18 @@ function hashState(nodes: PedigreeNode[]): number {
   return hash >>> 0;
 }
 
-export function recenterAllFamilies(
-  nodes: PedigreeNode[],
-  edges: PedigreeEdge[],
+export function recenterAllFamilies<T extends LayoutNode>(
+  nodes: T[],
+  edges: EdgeSubset[],
   excludeIds?: Set<string>,
   nodeGap = NODE_GAP,
   genGrid = GEN_GRID,
   genIndexOf?: Map<string, number>,
   canvasWidth?: number,
-): PedigreeNode[] {
-  let currentNodes = [...nodes.map(n => ({ ...n }))];
+  twinGapMono = NODE_SIZE * 0.55,
+  twinGapDizygotic = NODE_SIZE * 0.8,
+): T[] {
+  let currentNodes = nodes.map(n => ({ ...n }));
   const adj = buildAdjacency(currentNodes, edges);
   
   const families = new Map<string, { parentIds: string[]; childIds: string[] }>();
@@ -1044,7 +1139,8 @@ export function recenterAllFamilies(
   const history = new Set<number>();
   let changed = true;
   let safety = 0;
-  while (changed && safety++ < 15) {
+  const safetyLimit = Math.max(15, Math.ceil(Math.sqrt(nodes.length) * 3));
+  while (changed && safety++ < safetyLimit) {
     changed = false;
     const prevXs = currentNodes.map(n => n.x);
 
@@ -1054,6 +1150,8 @@ export function recenterAllFamilies(
       break;
     }
     history.add(stateHash);
+
+    let anyParentRowResolved = false;
 
     for (const rowY of sortedRows) {
       const rowFamilies = familyList.filter(f => {
@@ -1081,19 +1179,17 @@ export function recenterAllFamilies(
         }).map(n => n.id)
       ]);
 
-      let parentRowResolved = false;
-
       for (const f of rowFamilies) {
         const nextNodes = recenterParents(currentNodes, edges, f.parentIds, f.childIds, rowExcludeIds, nodeGap, genGrid, genIndexOf, canvasWidth);
         if (nextNodes !== currentNodes) {
           currentNodes = nextNodes;
-          parentRowResolved = true;
+          anyParentRowResolved = true;
         }
       }
+    }
 
-      if (parentRowResolved) {
-        currentNodes = resolveAllCollisions(currentNodes, edges, excludeIds, undefined, nodeGap, genGrid, genIndexOf, canvasWidth);
-      }
+    if (anyParentRowResolved) {
+      currentNodes = resolveAllCollisions(currentNodes, edges, excludeIds, undefined, nodeGap, genGrid, genIndexOf, canvasWidth, twinGapMono, twinGapDizygotic);
     }
 
     const maxDelta = currentNodes.reduce((max, n, i) => Math.max(max, Math.abs(n.x - prevXs[i]!)), 0);
@@ -1103,10 +1199,13 @@ export function recenterAllFamilies(
   }
 
   // Always resolve collisions one final time to guarantee no horizontal overlaps
-  currentNodes = resolveAllCollisions(currentNodes, edges, excludeIds, undefined, nodeGap, genGrid, genIndexOf, canvasWidth);
+  currentNodes = resolveAllCollisions(currentNodes, edges, excludeIds, undefined, nodeGap, genGrid, genIndexOf, canvasWidth, twinGapMono, twinGapDizygotic);
 
-  // Run top-down child recentering pass to align children under parent midpoints
-  currentNodes = recenterAllChildren(currentNodes, edges, excludeIds, nodeGap, genGrid, genIndexOf, canvasWidth);
+  // L3: Only run top-down child recentering pass if bottom-up family recentering actually shifted nodes
+  const bottomUpChanged = currentNodes.some((n, idx) => Math.abs(n.x - nodes[idx]!.x) > 0.1);
+  if (bottomUpChanged) {
+    currentNodes = recenterAllChildren(currentNodes, edges, excludeIds, nodeGap, genGrid, genIndexOf, canvasWidth);
+  }
 
   // Even out sibling spacing for inner siblings
   currentNodes = evenOutSiblingSpacing(currentNodes, edges, excludeIds, nodeGap, genGrid, genIndexOf);
@@ -1115,7 +1214,8 @@ export function recenterAllFamilies(
   return currentNodes.map(n => {
     if (n.pinned) return n;
     const snappedX = Math.max(genGrid, Math.round(n.x * 10) / 10);
-    const clampedX = canvasWidth !== undefined ? Math.min(snappedX, canvasWidth - genGrid) : snappedX;
+    const maxW = canvasWidth !== undefined ? canvasWidth : 50 * genGrid;
+    const clampedX = Math.min(snappedX, maxW - genGrid);
     const snappedY = genIndexOf ? n.y : Math.round(n.y / genGrid) * genGrid;
     return {
       ...n,
@@ -1131,8 +1231,8 @@ export function recenterAllFamilies(
  * Optimized to O(N log N) via sorted-list binary search and colliders scan.
  */
 export function findInsertPosition(
-  nodes: PedigreeNode[],
-  edges: PedigreeEdge[],
+  nodes: LayoutNode[],
+  edges: EdgeSubset[],
   targetX: number,
   targetY: number,
   excludeIds?: Set<string>,
@@ -1187,9 +1287,9 @@ export function findInsertPosition(
 
 // ── Convenience: resolve and recenter in one call ──────────────────────────
 
-export function swapCouplePartners(nodes: PedigreeNode[], edges: PedigreeEdge[], nodeGap = NODE_GAP): PedigreeNode[] {
+export function swapCouplePartners<T extends LayoutNode>(nodes: T[], edges: EdgeSubset[], nodeGap = NODE_GAP): T[] {
   const nodeMap = new Map(nodes.map(n => [n.id, n]));
-  const result = [...nodes.map(n => ({ ...n }))];
+  const result = nodes.map(n => ({ ...n }));
 
   const coupleCount = new Map<string, number>();
   for (const e of edges) {
@@ -1247,13 +1347,13 @@ export function swapCouplePartners(nodes: PedigreeNode[], edges: PedigreeEdge[],
  * Full pipeline: resolve all collisions, then globally recenter parents.
  * This is the main entry point for the layout engine.
  */
-export function resolveAndRecenter(
-  nodes: PedigreeNode[],
-  edges: PedigreeEdge[],
+export function resolveAndRecenter<T extends LayoutNode>(
+  nodes: T[],
+  edges: EdgeSubset[],
   excludeIds?: Set<string>,
   genIndexOf?: Map<string, number>,
   canvasWidth?: number,
-): PedigreeNode[] {
+): T[] {
   const resolved = resolveAllCollisions(nodes, edges, excludeIds, undefined, NODE_GAP, GEN_GRID, genIndexOf, canvasWidth);
   const swapped = swapCouplePartners(resolved, edges);
   return recenterAllFamilies(swapped, edges, excludeIds, NODE_GAP, GEN_GRID, genIndexOf, canvasWidth);
@@ -1303,11 +1403,11 @@ export function insertNodeWithCollisionResolution(
  * If blocked, it shifts only the exact amount needed to clear the gap.
  * This prevents unnecessary inflation of inter-family spacing.
  */
-export function ensureSpaceAtX(
-  nodes: PedigreeNode[],
+export function ensureSpaceAtX<T extends LayoutNode>(
+  nodes: T[],
   emptyStartX: number,
   emptyEndX: number,
-): PedigreeNode[] {
+): T[] {
   // Find nodes that are inside the zone we want empty
   const blockingNodes = nodes.filter(n => n.x > emptyStartX && n.x < emptyEndX);
   if (blockingNodes.length === 0) {
@@ -1343,11 +1443,11 @@ export function ensureSpaceAtX(
  * the insertion point is completely empty across the entire canvas, preserving
  * the global topological order without relying on physics-based collision pushing.
  */
-export function makeSpaceAtX(
-  nodes: PedigreeNode[],
+export function makeSpaceAtX<T extends LayoutNode>(
+  nodes: T[],
   xThreshold: number,
   space: number = NODE_GAP,
-): PedigreeNode[] {
+): T[] {
   return nodes.map(n => {
     if (n.x >= xThreshold - 0.05) { // allow small float tolerance
       return { ...n, x: n.x + space };

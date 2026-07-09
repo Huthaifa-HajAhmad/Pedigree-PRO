@@ -1,4 +1,4 @@
-import { PedigreeNode, PedigreeEdge, NODE_GAP, NODE_SIZE, GEN_GRID } from "@/features/pedigree-editor/canvas/types";
+import { NODE_GAP, NODE_SIZE, GEN_GRID } from "@/features/pedigree-editor/canvas/types";
 
 export interface LayoutConfig {
   nodeSize: number;
@@ -11,6 +11,7 @@ export interface LayoutConfig {
   groupGap: number;
   canvasCenterX: number;
   rowTolerance: number;
+  enableCache?: boolean;
 }
 
 export const DEFAULT_LAYOUT_CONFIG: LayoutConfig = {
@@ -24,6 +25,7 @@ export const DEFAULT_LAYOUT_CONFIG: LayoutConfig = {
   groupGap: Math.round(NODE_GAP * 1.3), // 126
   canvasCenterX: 700,
   rowTolerance: GEN_GRID / 2, // 60
+  enableCache: true,
 };
 
 export interface AdjacencyMaps {
@@ -35,6 +37,25 @@ export interface AdjacencyMaps {
   twinGroupOf: Map<string, string | undefined>;
 }
 
+export interface EdgeSubset {
+  id: string;
+  sourceId: string;
+  targetId: string;
+  type: string;
+  twinType?: "m" | "d";
+  twinGroup?: string;
+  inverted?: boolean;
+}
+
+export interface LayoutNode {
+  id: string;
+  x: number;
+  y: number;
+  type?: string;
+  pinned?: boolean;
+  color2?: string;
+}
+
 export interface LayoutQuality {
   collisionCount: number;
   totalEdgeLength: number;
@@ -44,7 +65,7 @@ export interface LayoutQuality {
 /**
  * Builds static adjacency maps from a set of nodes and edges.
  */
-export function buildAdjacency(nodes: Array<{ id: string }>, edges: PedigreeEdge[]): AdjacencyMaps {
+export function buildAdjacency(nodes: Array<{ id: string }>, edges: EdgeSubset[]): AdjacencyMaps {
   const nodeIds = new Set(nodes.map(n => n.id));
   const childrenOf = new Map<string, string[]>();
   const parentsOf = new Map<string, string[]>();
@@ -114,12 +135,13 @@ export function buildAdjacency(nodes: Array<{ id: string }>, edges: PedigreeEdge
 /**
  * Builds node-to-generation maps using BFS & generation propagation with cyclic bounds checking.
  */
-export function buildGenerations(nodes: Array<{ id: string }>, edges: PedigreeEdge[]): Map<string, number> {
+export function buildGenerations(nodes: Array<{ id: string }>, edges: EdgeSubset[]): Map<string, number> {
   const nodeMap = new Map(nodes.map(n => [n.id, n]));
+  
+  // 1. Build basic childrenOf, parentsOf, and couplesOf mappings
   const childrenOf = new Map<string, string[]>();
   const parentsOf = new Map<string, string[]>();
   const couplesOf = new Map<string, string[]>();
-
   for (const n of nodes) {
     childrenOf.set(n.id, []);
     parentsOf.set(n.id, []);
@@ -127,11 +149,9 @@ export function buildGenerations(nodes: Array<{ id: string }>, edges: PedigreeEd
   }
 
   const seenEdges = new Set<string>();
-
   for (const e of edges) {
     if (!nodeMap.has(e.sourceId) || !nodeMap.has(e.targetId)) continue;
     if (e.sourceId === e.targetId) continue;
-
     const edgeKey = `${e.type}:${e.sourceId}:${e.targetId}`;
     if (seenEdges.has(edgeKey)) continue;
     seenEdges.add(edgeKey);
@@ -146,133 +166,134 @@ export function buildGenerations(nodes: Array<{ id: string }>, edges: PedigreeEd
     }
   }
 
-  const genOf = new Map<string, number>();
-  const roots = nodes.filter((n) => (parentsOf.get(n.id) ?? []).length === 0);
-  const queue: Array<{ id: string; gen: number }> = roots.map((n) => ({
-    id: n.id,
-    gen: 0,
-  }));
+  // 2. Identify couple components (spouses must reside in the same generation component if both or neither have parents)
+  const componentOf = new Map<string, string>(); // nodeId -> componentId
+  const componentMembers = new Map<string, string[]>(); // componentId -> nodeIds
+
+  const visitedComponents = new Set<string>();
+  for (const n of nodes) {
+    if (visitedComponents.has(n.id)) continue;
+    // BFS to find all connected couple partners
+    const componentId = n.id;
+    const members: string[] = [];
+    const queue = [n.id];
+    visitedComponents.add(n.id);
+    
+    let head = 0;
+    while (head < queue.length) {
+      const curr = queue[head]!;
+      head++;
+      members.push(curr);
+      componentOf.set(curr, componentId);
+      for (const partner of couplesOf.get(curr) ?? []) {
+        const hasParentsSelf = (parentsOf.get(curr) ?? []).length > 0;
+        const hasParentsPartner = (parentsOf.get(partner) ?? []).length > 0;
+        const bothOrNeither = (hasParentsSelf && hasParentsPartner) || (!hasParentsSelf && !hasParentsPartner);
+        if (bothOrNeither && !visitedComponents.has(partner)) {
+          visitedComponents.add(partner);
+          queue.push(partner);
+        }
+      }
+    }
+    componentMembers.set(componentId, members);
+  }
+
+  // 3. Build DAG between couple components
+  const compChildren = new Map<string, Set<string>>(); // compId -> Set of child compIds
+  const compParents = new Map<string, Set<string>>(); // compId -> Set of parent compIds
+  const compInDegree = new Map<string, number>();
+
+  for (const compId of componentMembers.keys()) {
+    compChildren.set(compId, new Set());
+    compParents.set(compId, new Set());
+    compInDegree.set(compId, 0);
+  }
+
+  for (const n of nodes) {
+    const parentComp = componentOf.get(n.id)!;
+    for (const childId of childrenOf.get(n.id) ?? []) {
+      const childComp = componentOf.get(childId)!;
+      if (parentComp !== childComp) {
+        if (!compChildren.get(parentComp)!.has(childComp)) {
+          compChildren.get(parentComp)!.add(childComp);
+          compParents.get(childComp)!.add(parentComp);
+        }
+      }
+    }
+  }
+
+  // Calculate in-degrees
+  for (const [compId, parents] of compParents.entries()) {
+    compInDegree.set(compId, parents.size);
+  }
+
+  // 4. Run longest-path generation assignment (DAG BFS / topological order)
+  const compGen = new Map<string, number>();
+  for (const compId of componentMembers.keys()) {
+    compGen.set(compId, 0);
+  }
+
+  // Topological sort queue
+  const queue: string[] = [];
+  for (const [compId, inDegree] of compInDegree.entries()) {
+    if (inDegree === 0) {
+      queue.push(compId);
+    }
+  }
 
   let head = 0;
+  let processedCount = 0;
+  const topoOrder: string[] = [];
   while (head < queue.length) {
-    const entry = queue[head];
-    if (!entry) break;
+    const u = queue[head]!;
     head++;
-    const existing = genOf.get(entry.id);
-    if (existing !== undefined && existing >= entry.gen) continue;
-    genOf.set(entry.id, entry.gen);
+    processedCount++;
+    topoOrder.push(u);
+    const uGen = compGen.get(u)!;
 
-    // Propagate same generation to couple partners
-    for (const partnerId of couplesOf.get(entry.id) ?? []) {
-      const hasParentsSelf = (parentsOf.get(entry.id) ?? []).length > 0;
-      const hasParentsPartner = (parentsOf.get(partnerId) ?? []).length > 0;
-      const bothOrNeither = (hasParentsSelf && hasParentsPartner) || (!hasParentsSelf && !hasParentsPartner);
-      if (bothOrNeither) {
-        const partnerGen = genOf.get(partnerId);
-        if (partnerGen === undefined || partnerGen < entry.gen) {
-          queue.push({ id: partnerId, gen: entry.gen });
-        }
+    for (const v of compChildren.get(u) ?? []) {
+      const nextGen = uGen + 1;
+      if (nextGen > compGen.get(v)!) {
+        compGen.set(v, nextGen);
       }
-    }
-    // Propagate to children
-    for (const childId of childrenOf.get(entry.id) ?? []) {
-      queue.push({ id: childId, gen: entry.gen + 1 });
+      const newInDegree = compInDegree.get(v)! - 1;
+      compInDegree.set(v, newInDegree);
+      if (newInDegree === 0) {
+        queue.push(v);
+      }
     }
   }
 
-  // Disconnected nodes -> generation 0
-  for (const n of nodes) {
-    if (!genOf.has(n.id)) genOf.set(n.id, 0);
-  }
-
-  // Propagation loop with boundary cap
-  let stable = false;
-  let safety = 0;
-  const MAX_GEN = nodes.length + 1;
-  while (!stable && safety++ < 100) {
-    stable = true;
-    let cycleDetected = false;
-
-    for (const n of nodes) {
-      const myGen = genOf.get(n.id) ?? 0;
-
-      // 1. Spouse alignment
-      for (const partnerId of couplesOf.get(n.id) ?? []) {
-        const partnerGen = genOf.get(partnerId) ?? 0;
-        if (partnerGen !== myGen) {
-          const hasParentsSelf = (parentsOf.get(n.id) ?? []).length > 0;
-          const hasParentsPartner = (parentsOf.get(partnerId) ?? []).length > 0;
-          
-          if ((hasParentsSelf && hasParentsPartner) || (!hasParentsSelf && !hasParentsPartner)) {
-            const max = Math.max(myGen, partnerGen);
-            if (max > MAX_GEN) {
-              cycleDetected = true;
-              break;
-            }
-            genOf.set(n.id, max);
-            genOf.set(partnerId, max);
-            stable = false;
-          } else {
-            const selfIsFounder = !hasParentsSelf;
-            const founderId = selfIsFounder ? n.id : partnerId;
-            const spouseId = selfIsFounder ? partnerId : n.id;
-            const founderGen = genOf.get(founderId) ?? 0;
-            const spouseGen = genOf.get(spouseId) ?? 0;
-            const newFounderGen = Math.min(founderGen, spouseGen);
-            if (founderGen !== newFounderGen) {
-              genOf.set(founderId, newFounderGen);
-              stable = false;
-            }
-          }
-        }
+  // Upward propagation pass to ensure parentGen >= childGen - 1
+  for (let i = topoOrder.length - 1; i >= 0; i--) {
+    const u = topoOrder[i]!;
+    const uGen = compGen.get(u)!;
+    for (const p of compParents.get(u) ?? []) {
+      const minParentGen = uGen - 1;
+      if (compGen.get(p)! < minParentGen) {
+        compGen.set(p, minParentGen);
       }
-      if (cycleDetected) break;
-
-      // 2. Downward child propagation
-      for (const childId of childrenOf.get(n.id) ?? []) {
-        const childGen = genOf.get(childId) ?? 0;
-        if (childGen < myGen + 1) {
-          const nextGen = myGen + 1;
-          if (nextGen > MAX_GEN) {
-            cycleDetected = true;
-            break;
-          }
-          genOf.set(childId, nextGen);
-          stable = false;
-        }
-      }
-      if (cycleDetected) break;
-
-      // 3. Upward parent propagation
-      for (const parentId of parentsOf.get(n.id) ?? []) {
-        const parentGen = genOf.get(parentId) ?? 0;
-        if (parentGen < myGen - 1) {
-          const nextGen = myGen - 1;
-          genOf.set(parentId, nextGen);
-          stable = false;
-        } else if (parentGen > myGen) {
-          const parentHasParents = (parentsOf.get(parentId) ?? []).length > 0;
-          if (parentHasParents) {
-            genOf.set(parentId, myGen);
-            stable = false;
-          }
-        }
-      }
-      if (cycleDetected) break;
-    }
-
-    if (cycleDetected) {
-      // Clamp generations to a maximum of 3 when a cycle is detected
-      for (const [id, gen] of genOf.entries()) {
-        if (gen > 3) {
-          genOf.set(id, 3);
-        }
-      }
-      stable = true;
     }
   }
 
-  // Compact and normalize generations
+  // Guard: if there is a cycle (processedCount !== componentMembers.size),
+  // clamp everything to at most 3
+  if (processedCount < componentMembers.size) {
+    for (const compId of componentMembers.keys()) {
+      compGen.set(compId, Math.min(compGen.get(compId) ?? 0, 3));
+    }
+  }
+
+  // 5. Map component generations back to individual nodes
+  const genOf = new Map<string, number>();
+  for (const [compId, members] of componentMembers.entries()) {
+    const gen = compGen.get(compId) ?? 0;
+    for (const m of members) {
+      genOf.set(m, gen);
+    }
+  }
+
+  // 6. Compact and normalize generations
   const allGens = new Set(genOf.values());
   for (const n of nodes) {
     const parentIds = parentsOf.get(n.id) ?? [];
@@ -306,15 +327,15 @@ export function buildNodeMap<T extends { id: string }>(nodes: T[]): Map<string, 
  * Evaluates the visual quality of a pedigree layout.
  */
 export function evaluateLayoutQuality(
-  nodes: PedigreeNode[],
-  edges: PedigreeEdge[],
+  nodes: LayoutNode[],
+  edges: EdgeSubset[],
   config: LayoutConfig = DEFAULT_LAYOUT_CONFIG
 ): LayoutQuality {
   const nodeMap = buildNodeMap(nodes);
   const adj = buildAdjacency(nodes, edges);
 
   // Group nodes by Y row (snapped by rowTolerance)
-  const rowMap = new Map<number, PedigreeNode[]>();
+  const rowMap = new Map<number, LayoutNode[]>();
   for (const n of nodes) {
     const rY = Math.round(n.y / config.rowTolerance) * config.rowTolerance;
     if (!rowMap.has(rY)) rowMap.set(rY, []);
