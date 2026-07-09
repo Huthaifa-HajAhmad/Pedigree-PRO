@@ -28,11 +28,86 @@ const PEDIGREE_TEMPLATES: readonly TemplateOption[] = [
   { key: "twins-template",    name: "Twins Starter",       desc: "Parents with monozygotic & dizygotic twins", category: "special" },
 ];
 
+export interface CustomTemplate {
+  key: string;
+  name: string;
+  desc: string;
+  category: "custom";
+  canvasData: CanvasData;
+}
+
+export function getCustomTemplates(): CustomTemplate[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const stored = localStorage.getItem("pedigree-pro-custom-templates");
+    return stored ? JSON.parse(stored) : [];
+  } catch {
+    return [];
+  }
+}
+
+export function saveCustomTemplate(name: string, desc: string, canvasData: CanvasData): void {
+  if (typeof window === "undefined") return;
+  const templates = getCustomTemplates();
+  const newTpl: CustomTemplate = {
+    key: `custom_${Date.now()}`,
+    name,
+    desc,
+    category: "custom",
+    canvasData: {
+      nodes: canvasData.nodes.map(n => ({ ...n, pinned: undefined })),
+      edges: canvasData.edges.map(e => ({ ...e })),
+      annotations: canvasData.annotations ? canvasData.annotations.map(a => ({ ...a })) : []
+    }
+  };
+  templates.push(newTpl);
+  localStorage.setItem("pedigree-pro-custom-templates", JSON.stringify(templates));
+}
+
+export function deleteCustomTemplate(key: string): void {
+  if (typeof window === "undefined") return;
+  let templates = getCustomTemplates();
+  templates = templates.filter(t => t.key !== key);
+  localStorage.setItem("pedigree-pro-custom-templates", JSON.stringify(templates));
+}
+
 export function getTemplateOptions(): readonly TemplateOption[] {
-  return PEDIGREE_TEMPLATES;
+  const customs = getCustomTemplates().map(t => ({
+    key: t.key,
+    name: t.name,
+    desc: t.desc,
+    category: t.category as any
+  }));
+  return [...PEDIGREE_TEMPLATES, ...customs];
 }
 
 export function buildTemplate(key: string): CanvasData {
+  if (key.startsWith("custom_")) {
+    const customTemplates = getCustomTemplates();
+    const match = customTemplates.find(t => t.key === key);
+    if (match) {
+      const ts = Date.now();
+      const mapId = (oldId: string) => `t${ts}_${oldId}`;
+      return {
+        nodes: match.canvasData.nodes.map(n => ({
+          ...n,
+          id: mapId(n.id)
+        })),
+        edges: match.canvasData.edges.map(e => ({
+          ...e,
+          id: `te${ts}_${e.id}`,
+          sourceId: mapId(e.sourceId),
+          targetId: mapId(e.targetId)
+        })),
+        annotations: match.canvasData.annotations ? match.canvasData.annotations.map(a => ({
+          ...a,
+          id: `ta${ts}_${a.id}`,
+          nodeId: mapId(a.nodeId)
+        })) : []
+      };
+    }
+  }
+
   const ts = Date.now();
   const n = (s: string) => `t${ts}_${s}`;
   const e = (s: string) => `te${ts}_${s}`;

@@ -1,10 +1,10 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { LayoutTemplate, TrendingUp, AlertTriangle, ShieldCheck, BookOpen, Clock, Plus, Trash2, ArrowLeft } from "lucide-react";
 import type { CanvasData } from "@/features/pedigree-editor/canvas/types";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { useDraggable } from "@/hooks/use-draggable";
 
-import { TemplateOption } from "@/features/pedigree-editor/utils/templates";
+import { TemplateOption, saveCustomTemplate, deleteCustomTemplate, getTemplateOptions } from "@/features/pedigree-editor/utils/templates";
 
 interface ValidationSummary {
   errorCount: number;
@@ -25,7 +25,8 @@ interface ClinicalGroupProps {
   buildTemplate: (key: string) => CanvasData;
   updateCanvas: (updater: (prev: CanvasData) => CanvasData) => void;
   canvasNodes: any[];
-  openConfirm: (title: string, message: string, onConfirm: () => void) => void;
+  canvasEdges: any[];
+  openConfirm: (title: string, message: string, onConfirm: () => void, confirmLabel?: string) => void;
   labelHidden?: boolean;
   onClearSelection?: () => void;
   runAutoLayout: (respectPinned: boolean, isManual?: boolean, selectedOnly?: boolean) => void;
@@ -53,6 +54,19 @@ const getTemplateSvg = (key: string) => {
   const affectedStroke = "hsl(var(--primary))";
   const affectedFill = "hsl(var(--primary))";
   const carrierDotColor = "hsl(var(--primary))";
+
+  if (key.startsWith("custom_")) {
+    return (
+      <svg {...commonSvgProps}>
+        {shadowDef}
+        <rect x="15" y="10" width="70" height="40" rx="4" stroke={strokeNormal} strokeDasharray="3 2" fill="none" strokeWidth="1.2" />
+        <path d="M 35 30 L 50 30 L 65 30 M 50 20 L 50 30 M 35 30 L 35 40 M 65 30 L 65 40" stroke={strokeLineColor} strokeWidth="1.5" strokeLinecap="round" />
+        <rect x="45" y="15" width="10" height="10" rx="1.5" stroke={strokeNormal} fill={fillCard} strokeWidth="1.2" filter="url(#thumb-shadow)" />
+        <circle cx="35" cy="40" r="5" stroke={strokeNormal} fill={fillCard} strokeWidth="1.2" filter="url(#thumb-shadow)" />
+        <polygon points="65,35 70,40 65,45 60,40" stroke={strokeNormal} fill={fillCard} strokeWidth="1.2" filter="url(#thumb-shadow)" />
+      </svg>
+    );
+  }
 
   if (key === "nuclear") {
     return (
@@ -518,13 +532,21 @@ const getTemplateSvg = (key: string) => {
 export function ClinicalGroup({
   showTemplates, setShowTemplates, showRiskPanel, setShowRiskPanel,
   showValidation, setShowValidation, showLegend, setShowLegend,
-  validation, templates, buildTemplate, updateCanvas, canvasNodes, openConfirm, labelHidden = false,
+  validation, templates, buildTemplate, updateCanvas, canvasNodes, canvasEdges, openConfirm, labelHidden = false,
   onClearSelection,
   runAutoLayout,
 }: ClinicalGroupProps) {
 
   const [activeCategory, setActiveCategory] = useState<string>("all");
   const [selectedTemplateKey, setSelectedTemplateKey] = useState<string | null>(null);
+  const [customTemplatesCount, setCustomTemplatesCount] = useState(0);
+  const [showSaveForm, setShowSaveForm] = useState(false);
+  const [newTemplateName, setNewTemplateName] = useState("");
+  const [newTemplateDesc, setNewTemplateDesc] = useState("");
+
+  const currentTemplates = useMemo(() => {
+    return getTemplateOptions();
+  }, [templates, customTemplatesCount]);
 
   const canvasNodesLength = canvasNodes.length;
 
@@ -548,9 +570,10 @@ export function ClinicalGroup({
     { id: "consanguinity", label: "Consanguinity", icon: <AlertTriangle className="w-4 h-4" /> },
     { id: "inheritance", label: "Inheritance Patterns", icon: <TrendingUp className="w-4 h-4" /> },
     { id: "special", label: "Special Layouts", icon: <Clock className="w-4 h-4" /> },
+    { id: "custom", label: "Custom Templates", icon: <Plus className="w-4 h-4" /> },
   ];
 
-  const filteredTemplates = templates.filter((tpl) => {
+  const filteredTemplates = currentTemplates.filter((tpl: TemplateOption) => {
     if (activeCategory === "all") return true;
     return tpl.category === activeCategory;
   });
@@ -672,7 +695,7 @@ export function ClinicalGroup({
           >
             
             {/* Left Side: Sidebar navigation OR Append choices */}
-            <div className="w-full md:w-[280px] bg-slate-50/50 dark:bg-slate-950/40 p-5 flex flex-col justify-between border-r border-slate-200 dark:border-slate-800/60 shrink-0">
+            <div className="w-full md:w-[280px] bg-slate-50/50 dark:bg-slate-950/40 p-5 flex flex-col justify-between border-r border-slate-200 dark:border-slate-800/60 shrink-0 overflow-y-auto">
               {selectedTemplateKey === null ? (
                 // Category list view
                 <div className="space-y-6">
@@ -706,6 +729,65 @@ export function ClinicalGroup({
                     <div>
                       Select a pedigree layout to load. If your canvas contains existing elements, you can insert it side-by-side or perform a clean replace.
                     </div>
+                  </div>
+
+                  <div className="pt-4 border-t border-slate-200 dark:border-slate-800">
+                    {!showSaveForm ? (
+                      <button
+                        type="button"
+                        disabled={canvasNodes.length === 0}
+                        onClick={() => {
+                          setNewTemplateName("");
+                          setNewTemplateDesc("");
+                          setShowSaveForm(true);
+                        }}
+                        className="w-full flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-lg border border-teal-500/30 text-teal-600 dark:text-teal-400 hover:bg-teal-500/5 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
+                      >
+                        <Plus className="w-4 h-4" /> Save Current as Template
+                      </button>
+                    ) : (
+                      <div className="space-y-3 p-3 bg-slate-500/5 border border-border/50 rounded-lg text-left">
+                        <h4 className="text-[10px] font-bold text-foreground uppercase tracking-wider">New Custom Template</h4>
+                        <div className="space-y-2">
+                          <input
+                            type="text"
+                            placeholder="Template Name"
+                            value={newTemplateName}
+                            onChange={(e) => setNewTemplateName(e.target.value)}
+                            className="w-full bg-background border border-border rounded px-2 py-1.5 text-xs outline-none focus:border-teal-500 focus:ring-0"
+                          />
+                          <textarea
+                            placeholder="Description"
+                            value={newTemplateDesc}
+                            onChange={(e) => setNewTemplateDesc(e.target.value)}
+                            rows={2}
+                            className="w-full bg-background border border-border rounded px-2 py-1.5 text-xs outline-none focus:border-teal-500 focus:ring-0 resize-none"
+                          />
+                        </div>
+                        <div className="flex gap-2 justify-end">
+                          <button
+                            type="button"
+                            onClick={() => setShowSaveForm(false)}
+                            className="px-2 py-1 text-[10px] font-medium hover:bg-slate-200 dark:hover:bg-slate-800 rounded"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            type="button"
+                            disabled={!newTemplateName.trim()}
+                            onClick={() => {
+                              saveCustomTemplate(newTemplateName.trim(), newTemplateDesc.trim() || "Custom user template", { nodes: canvasNodes, edges: canvasEdges, annotations: [] });
+                              setCustomTemplatesCount(prev => prev + 1);
+                              setActiveCategory("custom");
+                              setShowSaveForm(false);
+                            }}
+                            className="px-2.5 py-1 text-[10px] font-semibold bg-teal-500 hover:bg-teal-600 text-white rounded disabled:opacity-50"
+                          >
+                            Save
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               ) : (
@@ -785,31 +867,54 @@ export function ClinicalGroup({
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {filteredTemplates.map((tpl) => (
-                    <button
-                      type="button"
-                      key={tpl.key}
-                      onClick={() => {
-                        if (canvasNodesLength === 0) {
-                          handleLoadReplace(tpl.key);
-                        } else {
-                          setSelectedTemplateKey(tpl.key);
-                        }
-                      }}
-                      className="group flex flex-col items-center justify-between p-4 rounded-xl border border-border/60 bg-card hover:bg-accent/40 hover:border-border transition-all text-center h-48 focus:outline-none focus:ring-1 focus:ring-ring"
-                    >
-                      <div className="flex-1 flex items-center justify-center p-2 rounded bg-accent/30 group-hover:bg-accent/70 transition-colors w-full overflow-hidden">
-                        {getTemplateSvg(tpl.key)}
-                      </div>
-                      <div className="mt-3 w-full">
-                        <h5 className="text-xs font-bold text-foreground group-hover:text-primary transition-colors">
-                          {tpl.name}
-                        </h5>
-                        <p className="text-[10px] text-muted-foreground leading-normal mt-0.5">
-                          {tpl.desc}
-                        </p>
-                      </div>
-                    </button>
+                  {filteredTemplates.map((tpl: TemplateOption) => (
+                    <div key={tpl.key} className="relative group">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (canvasNodesLength === 0) {
+                            handleLoadReplace(tpl.key);
+                          } else {
+                            setSelectedTemplateKey(tpl.key);
+                          }
+                        }}
+                        className="w-full flex flex-col items-center justify-between p-4 rounded-xl border border-border/60 bg-card hover:bg-accent/40 hover:border-border transition-all text-center h-48 focus:outline-none focus:ring-1 focus:ring-ring"
+                      >
+                        <div className="flex-1 flex items-center justify-center p-2 rounded bg-accent/30 group-hover:bg-accent/70 transition-colors w-full overflow-hidden">
+                          {getTemplateSvg(tpl.key)}
+                        </div>
+                        <div className="mt-3 w-full">
+                          <h5 className="text-xs font-bold text-foreground group-hover:text-primary transition-colors">
+                            {tpl.name}
+                          </h5>
+                          <p className="text-[10px] text-muted-foreground leading-normal mt-0.5">
+                            {tpl.desc}
+                          </p>
+                        </div>
+                      </button>
+                      {tpl.key.startsWith("custom_") && (
+                        <button
+                          type="button"
+                          title="Delete custom template"
+                          aria-label="Delete custom template"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openConfirm(
+                              "Delete Template",
+                              "Are you sure you want to permanently delete this custom template?",
+                              () => {
+                                deleteCustomTemplate(tpl.key);
+                                setCustomTemplatesCount(prev => prev + 1);
+                              },
+                              "Delete"
+                            );
+                          }}
+                          className="absolute top-2 right-2 p-1.5 rounded-lg bg-red-500/10 hover:bg-red-500 text-red-600 hover:text-white border border-red-500/20 opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
                   ))}
                 </div>
               </div>
