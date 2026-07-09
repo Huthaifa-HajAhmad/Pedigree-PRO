@@ -5,6 +5,7 @@ import { visualizer } from "rollup-plugin-visualizer";
 import path from "path";
 import fs from "fs";
 import pkg from "./package.json";
+import { createRequire } from "module";
 
 const rawPort = process.env.PORT ?? "4173";
 const port = Number(rawPort);
@@ -16,13 +17,20 @@ if (Number.isNaN(port) || port <= 0) {
 const basePath = process.env.BASE_PATH ?? "/";
 
 function sqljsWasmPlugin() {
-  const wasmRel = path.join("..", "..", "node_modules", "sql.js", "dist", "sql-wasm-browser.wasm");
+  let wasmPath = "";
+  try {
+    const require = createRequire(path.join(import.meta.dirname, "..", "..", "lib", "browser-backend", "src", "index.ts"));
+    const sqljsDir = path.dirname(require.resolve("sql.js"));
+    wasmPath = path.join(sqljsDir, "sql-wasm-browser.wasm");
+  } catch {
+    const wasmRel = path.join("..", "..", "node_modules", "sql.js", "dist", "sql-wasm-browser.wasm");
+    wasmPath = path.join(import.meta.dirname, wasmRel);
+  }
 
   return {
     name: "sqljs-wasm",
     configureServer(server: any) {
       server.middlewares.use("/sql-wasm-browser.wasm", (req: any, res: any, _next: any) => {
-        const wasmPath = path.join(import.meta.dirname, wasmRel);
         if (fs.existsSync(wasmPath)) {
           res.setHeader("Content-Type", "application/wasm");
           res.setHeader("Access-Control-Allow-Origin", "*");
@@ -35,7 +43,6 @@ function sqljsWasmPlugin() {
       });
     },
     writeBundle() {
-      const wasmPath = path.join(import.meta.dirname, wasmRel);
       if (!fs.existsSync(wasmPath)) {
         throw new Error("sql.js WASM not found: " + wasmPath);
       }
