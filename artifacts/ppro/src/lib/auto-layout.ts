@@ -19,23 +19,8 @@
 //     adjacent generations and for centering their children).
 // ──────────────────────────────────────────────────────────────────────────
 
-export interface LayoutNode {
-  id: string;
-  x: number;
-  y: number;
-  type?: "male" | "female" | "unknown" | "pregnancy" | "sab";
-  pinned?: boolean;
-}
-
-export interface LayoutEdge {
-  id: string;
-  type: "couple" | "parent-child" | "consanguinity" | "divorced" | "separated";
-  sourceId: string;
-  targetId: string;
-  inverted?: boolean;
-  twinGroup?: string;
-  twinType?: "m" | "d";
-}
+import type { LayoutNode, EdgeSubset as LayoutEdge } from "./layout-shared";
+export type { LayoutNode, LayoutEdge };
 
 import { NODE_SIZE } from "@/features/pedigree-editor/canvas/types";
 import { resolveAllCollisions, recenterAllFamilies, swapCouplePartners, collectSubtree, detectRowCollisions } from "./layout-engine";

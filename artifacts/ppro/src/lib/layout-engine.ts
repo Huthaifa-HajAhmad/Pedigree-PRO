@@ -544,19 +544,10 @@ export function resolveAllCollisions<T extends LayoutNode>(
           }
 
           if (movingNodes.size > 0) {
-            currentNodes = currentNodes.map(cn => {
+            for (const cn of currentNodes) {
               if (movingNodes.has(cn.id)) {
-                return { ...cn, x: cn.x + maxPush };
+                cn.x += maxPush;
               }
-              return cn;
-            });
-
-            // Update rowNodes for continued iteration using a Map for O(1) lookups
-            const currentNodesMap = new Map(currentNodes.map(cn => [cn.id, cn]));
-            for (let j = i; j < rowNodes.length; j++) {
-              const n = rowNodes[j]!;
-              const updated = currentNodesMap.get(n.id);
-              if (updated) rowNodes[j] = updated;
             }
           }
         }
@@ -715,15 +706,13 @@ export function recenterParents<T extends LayoutNode>(
     if (Math.abs(s) < 0.01) continue;
 
     const subtree = collectSubtree(p.id, adj, undefined, { anchorMarriedIn: true });
-    currentNodes = currentNodes.map(n => {
-      if (allExclude.has(n.id)) return n;
-      if (parentIdSet.has(n.id) && n.id !== p.id) return n;
+    for (const n of currentNodes) {
+      if (allExclude.has(n.id)) continue;
+      if (parentIdSet.has(n.id) && n.id !== p.id) continue;
       if (subtree.has(n.id)) {
-        return { ...n, x: n.x + s };
+        n.x += s;
       }
-      return n;
-    });
-    currentNodesMap = buildNodeMap(currentNodes);
+    }
   }
 
   // Second, perform a rightward sweep-line push pass for nodes to the right of the parents.
@@ -736,15 +725,13 @@ export function recenterParents<T extends LayoutNode>(
     if (nextNode.x < currNode.x + nodeGap - 0.05) {
       const push = (currNode.x + nodeGap) - nextNode.x;
       const subtree = collectSubtree(nextId, adj, undefined, { anchorMarriedIn: true });
-      currentNodes = currentNodes.map(n => {
-        if (allExclude.has(n.id)) return n;
-        if (parentIdSet.has(n.id) && n.id !== nextId) return n;
+      for (const n of currentNodes) {
+        if (allExclude.has(n.id)) continue;
+        if (parentIdSet.has(n.id) && n.id !== nextId) continue;
         if (subtree.has(n.id)) {
-          return { ...n, x: n.x + push };
+          n.x += push;
         }
-        return n;
-      });
-      currentNodesMap = buildNodeMap(currentNodes);
+      }
     }
   }
 
@@ -758,15 +745,13 @@ export function recenterParents<T extends LayoutNode>(
     if (prevNode.x > currNode.x - nodeGap + 0.05) {
       const push = (currNode.x - nodeGap) - prevNode.x;
       const subtree = collectSubtree(prevId, adj, undefined, { anchorMarriedIn: true });
-      currentNodes = currentNodes.map(n => {
-        if (allExclude.has(n.id)) return n;
-        if (parentIdSet.has(n.id) && n.id !== prevId) return n;
+      for (const n of currentNodes) {
+        if (allExclude.has(n.id)) continue;
+        if (parentIdSet.has(n.id) && n.id !== prevId) continue;
         if (subtree.has(n.id)) {
-          return { ...n, x: n.x + push };
+          n.x += push;
         }
-        return n;
-      });
-      currentNodesMap = buildNodeMap(currentNodes);
+      }
     }
   }
 
@@ -775,23 +760,23 @@ export function recenterParents<T extends LayoutNode>(
   const minX = rowNodesForMinX.reduce((min, n) => Math.min(min, n.x), Infinity);
   if (minX < genGrid) {
     const adjust = genGrid - minX;
-    currentNodes = currentNodes.map(n => {
-      if (n.pinned || allExclude.has(n.id)) return n;
-      return { ...n, x: n.x + adjust };
-    });
+    for (const n of currentNodes) {
+      if (!n.pinned && !allExclude.has(n.id)) {
+        n.x += adjust;
+      }
+    }
   }
 
   const maxW = canvasWidth !== undefined ? canvasWidth : 50 * genGrid;
-  currentNodes = currentNodes.map(n => {
-    if (n.pinned || allExclude.has(n.id)) return n;
+  for (const n of currentNodes) {
+    if (n.pinned || allExclude.has(n.id)) continue;
     const isParentRow = parentGen !== undefined && genIndexOf
       ? genIndexOf.get(n.id) === parentGen
       : Math.abs(n.y - parentY) < tol;
     if (isParentRow) {
-      return { ...n, x: Math.min(n.x, maxW - genGrid) };
+      n.x = Math.min(n.x, maxW - genGrid);
     }
-    return n;
-  });
+  }
 
   // T3.0d: finalize couples to canonical nodeGap in a post-pass when anchorMarriedIn stretched them
   if (parents.length === 2 && !hasPinnedOrExcluded) {
@@ -816,11 +801,6 @@ export function recenterParents<T extends LayoutNode>(
           node1.x = mid - (dir * nodeGap) / 2;
           node2.x = mid + (dir * nodeGap) / 2;
         }
-        currentNodes = currentNodes.map(n => {
-          if (n.id === p1.id) return { ...n, x: node1.x };
-          if (n.id === p2.id) return { ...n, x: node2.x };
-          return n;
-        });
       }
     }
   }
@@ -983,6 +963,16 @@ export function evenOutSiblingSpacing<T extends LayoutNode>(
     const testNodes = currentNodes.map(n => ({ ...n }));
     const testNodesMap = buildNodeMap(testNodes);
 
+    // Pre-group testNodes by generation row/Y-coordinate for O(1) row lookups (N7 optimization)
+    const testNodesByRow = new Map<number, typeof testNodes>();
+    for (const n of testNodes) {
+      const nGen = genIndexOf?.get(n.id) ?? (Math.round(n.y / genGrid) * genGrid);
+      if (!testNodesByRow.has(nGen)) {
+        testNodesByRow.set(nGen, []);
+      }
+      testNodesByRow.get(nGen)!.push(n);
+    }
+
     for (let i = 1; i < siblings.length - 1; i++) {
       const sib = siblings[i]!;
       const targetX = firstX + i * step;
@@ -1023,13 +1013,9 @@ export function evenOutSiblingSpacing<T extends LayoutNode>(
         const shiftedNode = testNodesMap.get(id)!;
         const nodeGen = genIndexOf?.get(id) ?? (Math.round(shiftedNode.y / genGrid) * genGrid);
         
-        // Find other nodes on the same generation row
-        const sameRowNodes = testNodes.filter(
-          n => {
-            if (subtree.has(n.id)) return false; // ignore self
-            const nGen = genIndexOf?.get(n.id) ?? (Math.round(n.y / genGrid) * genGrid);
-            return nGen === nodeGen;
-          }
+        // Find other nodes on the same generation row (O(1) row lookup + subtree filter)
+        const sameRowNodes = (testNodesByRow.get(nodeGen) ?? []).filter(
+          n => !subtree.has(n.id)
         );
 
         for (const other of sameRowNodes) {
@@ -1078,21 +1064,7 @@ export function evenOutSiblingSpacing<T extends LayoutNode>(
   return currentNodes;
 }
 
-function hashState(nodes: LayoutNode[]): number {
-  let hash = 0x811c9dc5;
-  for (const n of nodes) {
-    const val = Math.round(n.x * 10);
-    hash ^= (val & 0xFF);
-    hash = Math.imul(hash, 0x01000193);
-    hash ^= ((val >> 8) & 0xFF);
-    hash = Math.imul(hash, 0x01000193);
-    hash ^= ((val >> 16) & 0xFF);
-    hash = Math.imul(hash, 0x01000193);
-    hash ^= ((val >> 24) & 0xFF);
-    hash = Math.imul(hash, 0x01000193);
-  }
-  return hash >>> 0;
-}
+
 
 export function recenterAllFamilies<T extends LayoutNode>(
   nodes: T[],
@@ -1136,7 +1108,7 @@ export function recenterAllFamilies<T extends LayoutNode>(
   // T2.5: hoist getRowTolerance to top of function
   const tol = getRowTolerance(currentNodes, genGrid);
 
-  const history = new Set<number>();
+  const history = new Set<string>();
   let changed = true;
   let safety = 0;
   const safetyLimit = Math.max(15, Math.ceil(Math.sqrt(nodes.length) * 3));
@@ -1144,20 +1116,24 @@ export function recenterAllFamilies<T extends LayoutNode>(
     changed = false;
     const prevXs = currentNodes.map(n => n.x);
 
-    // T2.4: Oscillation / limit cycle check using numeric FNV-1a hash
-    const stateHash = hashState(currentNodes);
+    // T2.4: Oscillation / limit cycle check using string-based state hash
+    const stateHash = currentNodes
+      .map(n => `${n.id}:${n.x.toFixed(2)}`)
+      .sort()
+      .join("|");
     if (history.has(stateHash)) {
       break;
     }
     history.add(stateHash);
 
     let anyParentRowResolved = false;
+    const nodeMap = buildNodeMap(currentNodes);
 
     for (const rowY of sortedRows) {
       const rowFamilies = familyList.filter(f => {
         const childId = f.childIds[0];
         if (!childId) return false;
-        const child = currentNodes.find(n => n.id === childId);
+        const child = nodeMap.get(childId);
         if (!child) return false;
         if (genIndexOf) {
           return genIndexOf.get(child.id) === rowY;

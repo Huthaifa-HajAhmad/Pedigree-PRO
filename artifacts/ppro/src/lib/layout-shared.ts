@@ -37,21 +37,25 @@ export interface AdjacencyMaps {
   twinGroupOf: Map<string, string | undefined>;
 }
 
+export type EdgeType = "couple" | "parent-child" | "consanguinity" | "divorced" | "separated";
+
 export interface EdgeSubset {
   id: string;
   sourceId: string;
   targetId: string;
-  type: string;
+  type: EdgeType;
   twinType?: "m" | "d";
   twinGroup?: string;
   inverted?: boolean;
 }
 
+export type NodeType = "male" | "female" | "unknown" | "pregnancy" | "sab";
+
 export interface LayoutNode {
   id: string;
   x: number;
   y: number;
-  type?: string;
+  type?: NodeType;
   pinned?: boolean;
   color2?: string;
 }

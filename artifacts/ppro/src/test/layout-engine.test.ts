@@ -18,6 +18,7 @@ import {
   buildGenerations,
 } from "../lib/layout-engine";
 import { computeAutoLayout } from "../lib/auto-layout";
+import { evaluateLayoutQuality } from "../lib/layout-shared";
 import { PedigreeNode, PedigreeEdge, NODE_GAP, NODE_SIZE } from "@/features/pedigree-editor/canvas/types";
 import { computeSibshipGroupTrack } from "@/features/pedigree-editor/canvas/canvasUtils";
 import { computeFamilyChildYOffset } from "@/features/pedigree-editor/canvas/SibshipGroup";
@@ -1424,6 +1425,29 @@ describe("layout-engine", () => {
       
       // B (target) should end up on the left of A (source) since inverted: true
       expect(resB.x).toBeLessThan(resA.x);
+    });
+  });
+
+  describe("layout quality assertions", () => {
+    it("asserts that computeAutoLayout produces zero collisions on a standard structure", () => {
+      const nodes: any[] = [
+        { id: "father", type: "male", ...baseNode },
+        { id: "mother", type: "female", ...baseNode },
+        { id: "child1", type: "male", ...baseNode },
+        { id: "child2", type: "female", ...baseNode },
+      ];
+      const edges: any[] = [
+        { id: "e1", sourceId: "father", targetId: "mother", type: "couple" },
+        { id: "e2", sourceId: "father", targetId: "child1", type: "parent-child" },
+        { id: "e3", sourceId: "mother", targetId: "child1", type: "parent-child" },
+        { id: "e4", sourceId: "father", targetId: "child2", type: "parent-child" },
+        { id: "e5", sourceId: "mother", targetId: "child2", type: "parent-child" },
+      ];
+
+      const result = computeAutoLayout(nodes, edges, false);
+      const quality = evaluateLayoutQuality(result, edges);
+      expect(quality.collisionCount).toBe(0);
+      expect(quality.centeringDeviation).toBeCloseTo(55, 1);
     });
   });
 });
