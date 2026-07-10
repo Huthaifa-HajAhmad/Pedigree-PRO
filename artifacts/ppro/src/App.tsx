@@ -21,6 +21,7 @@ const PedigreeShare = lazy(() => import("@/pages/pedigree-share"));
 const Profiles = lazy(() => import("@/pages/profiles"));
 const Settings = lazy(() => import("@/pages/settings"));
 const About = lazy(() => import("@/pages/about"));
+const WhatsNew = lazy(() => import("@/pages/whats-new"));
 const Onboarding = lazy(() => import("@/components/Onboarding"));
 
 function PageLoader() {
@@ -75,6 +76,7 @@ function Router() {
               <Route path="/pedigrees" component={Pedigrees} />
               <Route path="/profiles" component={Profiles} />
               <Route path="/settings" component={Settings} />
+              <Route path="/whats-new" component={WhatsNew} />
               <Route path="/about" component={About} />
               <Route component={NotFound} />
             </Switch>

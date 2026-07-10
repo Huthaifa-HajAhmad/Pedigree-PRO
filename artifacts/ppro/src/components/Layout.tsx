@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link, useLocation } from "wouter";
-import { Activity, LayoutDashboard, Dna, ChevronRight, UserCircle, Wifi, WifiOff, Menu, X, Settings, ShieldCheck, Lock, Tag, User } from "lucide-react";
+import { Activity, LayoutDashboard, Dna, ChevronRight, UserCircle, Wifi, WifiOff, Menu, X, Settings, ShieldCheck, Lock, Tag, User, Sparkles } from "lucide-react";
 import { SkipToContent } from "@/components/SkipToContent";
 import { useTheme } from "@/lib/theme";
 import { getAppVersion } from "@/lib/version";
@@ -25,6 +25,7 @@ const navItems = [
   { path: "/patients", label: "Patients", icon: Activity },
   { path: "/profiles", label: "Profiles", icon: UserCircle },
   { path: "/settings", label: "Settings", icon: Settings },
+  { path: "/whats-new", label: "What's New", icon: Sparkles },
   { path: "/about", label: "About", icon: ShieldCheck },
 ];
 
