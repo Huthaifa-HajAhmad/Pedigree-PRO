@@ -1,6 +1,6 @@
 [package]
 name = "pedigree-pro"
-version = "1.2.6"
+version = "1.3.0"
 description = "Pedigree PRO — Secure Clinical Pedigree Platform"
 authors = ["Pedigree PRO Contributors"]
 edition = "2021"

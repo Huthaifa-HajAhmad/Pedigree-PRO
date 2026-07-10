@@ -17,13 +17,13 @@ export default function WhatsNewPage() {
           </div>
 
           <div className="relative border-l border-border pl-6 ml-3 space-y-8 my-2">
-            {/* Version 1.2.6 */}
+            {/* Version 1.3.0 */}
             <div className="relative">
               <div className="absolute -left-[31px] top-1 w-3.5 h-3.5 rounded-full border border-primary bg-background flex items-center justify-center">
                 <span className="w-1.5 h-1.5 rounded-full bg-primary" />
               </div>
               <div className="flex items-center gap-2">
-                <span className="text-sm font-semibold text-foreground">Version 1.2.6</span>
+                <span className="text-sm font-semibold text-foreground">Version 1.3.0</span>
                 <span className="bg-primary/10 text-primary text-[10px] px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">Latest</span>
               </div>
               <p className="text-[10px] text-muted-foreground mt-0.5">July 2026</p>
