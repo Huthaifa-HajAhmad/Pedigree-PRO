@@ -1,6 +1,7 @@
 import { memo, useState, useRef, useCallback, useEffect } from "react";
 import type { PedigreeNode } from "./types";
 import { useCanvasConfig } from "@/features/pedigree-editor/context/CanvasConfigContext";
+import { getQuadrantsForStyle } from "@/features/pedigree-editor/utils/helpers";
 
 
 interface NodeShapeProps {
@@ -96,28 +97,30 @@ export const NodeShape = memo(function NodeShape({
     if (sStyle === "none" || sStyle === "solid" || sStyle === "striped" || sStyle === "cross-hatched" || sStyle === "dots") {
       return null;
     }
+    const [q1, q2, q3, q4] = getQuadrantsForStyle(sStyle);
+    if (!q1 && !q2 && !q3 && !q4) return null;
+
+    const elements: React.ReactNode[] = [];
+    const R = S / 2;
+
     if (node.type === "male") {
-      if (sStyle === "left-half") return <rect x={-S/2} y={-S/2} width={S/2} height={S} fill={fillShadingColor} pointerEvents="none" />;
-      if (sStyle === "right-half") return <rect x={0} y={-S/2} width={S/2} height={S} fill={fillShadingColor} pointerEvents="none" />;
-      if (sStyle === "top-half") return <rect x={-S/2} y={-S/2} width={S} height={S/2} fill={fillShadingColor} pointerEvents="none" />;
-      if (sStyle === "bottom-half") return <rect x={-S/2} y={0} width={S} height={S/2} fill={fillShadingColor} pointerEvents="none" />;
-      if (sStyle === "quadrant") return <rect x={0} y={-S/2} width={S/2} height={S/2} fill={fillShadingColor} pointerEvents="none" />;
+      if (q1) elements.push(<rect key="q1" x={0} y={-R} width={R} height={R} fill={node.colorQ1 || fillShadingColor} pointerEvents="none" />);
+      if (q2) elements.push(<rect key="q2" x={-R} y={-R} width={R} height={R} fill={node.colorQ2 || fillShadingColor} pointerEvents="none" />);
+      if (q3) elements.push(<rect key="q3" x={-R} y={0} width={R} height={R} fill={node.colorQ3 || fillShadingColor} pointerEvents="none" />);
+      if (q4) elements.push(<rect key="q4" x={0} y={0} width={R} height={R} fill={node.colorQ4 || fillShadingColor} pointerEvents="none" />);
+    } else if (node.type === "female") {
+      if (q1) elements.push(<path key="q1" d={`M 0 0 L 0 ${-R} A ${R} ${R} 0 0 1 ${R} 0 Z`} fill={node.colorQ1 || fillShadingColor} pointerEvents="none" />);
+      if (q2) elements.push(<path key="q2" d={`M 0 0 L ${-R} 0 A ${R} ${R} 0 0 1 0 ${-R} Z`} fill={node.colorQ2 || fillShadingColor} pointerEvents="none" />);
+      if (q3) elements.push(<path key="q3" d={`M 0 0 L 0 ${R} A ${R} ${R} 0 0 1 ${-R} 0 Z`} fill={node.colorQ3 || fillShadingColor} pointerEvents="none" />);
+      if (q4) elements.push(<path key="q4" d={`M 0 0 L ${R} 0 A ${R} ${R} 0 0 1 0 ${R} Z`} fill={node.colorQ4 || fillShadingColor} pointerEvents="none" />);
+    } else if (node.type === "unknown" || node.type === "pregnancy") {
+      if (q1) elements.push(<polygon key="q1" points={`0,0 0,${-R} ${R},0`} fill={node.colorQ1 || fillShadingColor} pointerEvents="none" />);
+      if (q2) elements.push(<polygon key="q2" points={`0,0 ${-R},0 0,${-R}`} fill={node.colorQ2 || fillShadingColor} pointerEvents="none" />);
+      if (q3) elements.push(<polygon key="q3" points={`0,0 0,${R} ${-R},0`} fill={node.colorQ3 || fillShadingColor} pointerEvents="none" />);
+      if (q4) elements.push(<polygon key="q4" points={`0,0 ${R},0 0,${R}`} fill={node.colorQ4 || fillShadingColor} pointerEvents="none" />);
     }
-    if (node.type === "female") {
-      if (sStyle === "left-half") return <path d={`M 0 ${-S/2} A ${S/2} ${S/2} 0 0 0 0 ${S/2} Z`} fill={fillShadingColor} pointerEvents="none" />;
-      if (sStyle === "right-half") return <path d={`M 0 ${-S/2} A ${S/2} ${S/2} 0 0 1 0 ${S/2} Z`} fill={fillShadingColor} pointerEvents="none" />;
-      if (sStyle === "top-half") return <path d={`M ${-S/2} 0 A ${S/2} ${S/2} 0 0 1 ${S/2} 0 Z`} fill={fillShadingColor} pointerEvents="none" />;
-      if (sStyle === "bottom-half") return <path d={`M ${-S/2} 0 A ${S/2} ${S/2} 0 0 0 ${S/2} 0 Z`} fill={fillShadingColor} pointerEvents="none" />;
-      if (sStyle === "quadrant") return <path d={`M 0 0 L 0 ${-S/2} A ${S/2} ${S/2} 0 0 1 ${S/2} 0 Z`} fill={fillShadingColor} pointerEvents="none" />;
-    }
-    if (node.type === "unknown" || node.type === "pregnancy") {
-      if (sStyle === "left-half") return <polygon points={`0,${-S/2} 0,${S/2} ${-S/2},0`} fill={fillShadingColor} pointerEvents="none" />;
-      if (sStyle === "right-half") return <polygon points={`0,${-S/2} 0,${S/2} ${S/2},0`} fill={fillShadingColor} pointerEvents="none" />;
-      if (sStyle === "top-half") return <polygon points={`-S/2,0 S/2,0 0,${-S/2}`} fill={fillShadingColor} pointerEvents="none" />;
-      if (sStyle === "bottom-half") return <polygon points={`-S/2,0 S/2,0 0,${S/2}`} fill={fillShadingColor} pointerEvents="none" />;
-      if (sStyle === "quadrant") return <polygon points={`0,0 0,${-S/2} ${S/2},0`} fill={fillShadingColor} pointerEvents="none" />;
-    }
-    return null;
+
+    return <>{elements}</>;
   };
 
   return (
@@ -253,7 +256,7 @@ export const NodeShape = memo(function NodeShape({
         return (
           <>
             {autoLabel && <text x={0} y={S / 2 + autoLabelSize + 5} textAnchor="middle" fontSize={autoLabelSize} fill={cfg.config.autoLabelColor || "hsl(var(--foreground) / 0.45)"} style={{ userSelect: "none", fontFamily: "JetBrains Mono, monospace", letterSpacing: "0.05em" }}>{autoLabel}</text>}
-            {!autoLabel && node.label && <text x={0} y={S / 2 + 14} textAnchor="middle" fontSize={9} fill="hsl(var(--foreground))" style={{ userSelect: "none", fontFamily: "JetBrains Mono, monospace" }}>{node.label}</text>}
+            {!autoLabel && cfg.config.showRelationshipLabels !== false && node.label && <text x={0} y={S / 2 + 14} textAnchor="middle" fontSize={9} fill="hsl(var(--foreground))" style={{ userSelect: "none", fontFamily: "JetBrains Mono, monospace" }}>{node.label}</text>}
             {showAgeSetting && node.age && <text x={0} y={ageY} textAnchor="middle" fontSize={ageFontSize} fill="hsl(var(--foreground) / 0.55)" style={{ userSelect: "none", fontFamily: "JetBrains Mono, monospace" }}>{node.age}y</text>}
             {showAgeSetting && node.dob && !node.age && <text x={0} y={ageY} textAnchor="middle" fontSize={ageFontSize} fill="hsl(var(--foreground) / 0.5)" style={{ userSelect: "none", fontFamily: "JetBrains Mono, monospace" }}>{node.dob.length >= 4 ? `b.${node.dob.slice(0, 4)}` : node.dob}</text>}
             {node.condition && (

@@ -25,6 +25,10 @@ import { useLocation } from "wouter";
 import { ShareModal } from "@/components/ShareModal";
 import { usePedigreeEditor } from "@/features/pedigree-editor/context/usePedigreeEditor";
 import { useCanvasConfig } from "@/features/pedigree-editor/context/CanvasConfigContext";
+import { useQueryClient } from "@tanstack/react-query";
+import { useCreatePedigree, queryKeys } from "@workspace/api-client-react";
+import { computeHash } from "@workspace/crypto";
+import { listProfilePrivateKeys } from "@workspace/browser-backend";
 import { parseCanvas } from "@/features/pedigree-editor/utils/helpers";
 import type { PedigreeNode, CanvasData } from "@/features/pedigree-editor/canvas/types";
 import { NODE_SIZE } from "@/features/pedigree-editor/canvas/types";
@@ -167,6 +171,35 @@ export function PedigreeCanvasBody() {
   const { config, updateConfig } = useCanvasConfig();
 
   const { toast } = useToast();
+  const createPedigree = useCreatePedigree();
+  const queryClient = useQueryClient();
+
+  const handleCreateNewPedigree = useCallback(async () => {
+    const canvasData = JSON.stringify({ nodes: [], edges: [], annotations: [] });
+    const canvasHash = computeHash(canvasData);
+    const keys = await listProfilePrivateKeys();
+    const activeKey = keys.length > 0 ? keys[0] : null;
+    const cryptoModule = await import("@workspace/crypto");
+    const creatorKey = activeKey ? await cryptoModule.getPublicKeyFromPrivate(activeKey.privateKey) : "";
+    const creatorSignature = activeKey ? await cryptoModule.signData(canvasHash, activeKey.privateKey) : null;
+    try {
+      const pedigreeObj = await createPedigree.mutateAsync({
+        title: "New Pedigree",
+        canvas_data: canvasData,
+        canvas_hash: canvasHash,
+        creator_key: creatorKey,
+        creator_signature: creatorSignature
+      });
+      if (!pedigreeObj?.id) return;
+      queryClient.setQueryData(queryKeys.pedigree(pedigreeObj.id), pedigreeObj);
+      queryClient.invalidateQueries({ queryKey: queryKeys.pedigrees });
+      ops.openTab(pedigreeObj.id, pedigreeObj.title);
+      navigate(`/pedigrees/${pedigreeObj.id}`);
+    } catch (err) {
+      console.error("Failed to create pedigree:", err);
+    }
+  }, [createPedigree, queryClient, ops, navigate]);
+
   const [sidePanelWidth, setSidePanelWidth] = useState(320);
   const isResizingRef = useRef(false);
 
@@ -629,6 +662,7 @@ const RAIL_MAX_X = 400;
             onOpenTab={(tid, title) => { ops.openTab(tid, title); navigate(`/pedigrees/${tid}`); }}
             onReorderTab={ops.reorderTabs}
             onDeletePedigree={ops.handleDeletePedigree}
+            onCreatePedigree={handleCreateNewPedigree}
             saveStatus={state.saveStatus}
           />
           <div
@@ -954,6 +988,7 @@ const RAIL_MAX_X = 400;
               selectedIds={selectedIds}
               onMarkAsTwins={markAsTwins}
               onUnmarkTwins={unmarkTwins}
+              onAlignSelected={alignSelected}
             />
           );
         })()}

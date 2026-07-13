@@ -384,7 +384,7 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
           ];
 
           const genIndexOf1 = buildGenerations(p.nodes, p.edges);
-          let resolved = resolveAllCollisions(p.nodes, p.edges, undefined, undefined, NODE_GAP, GEN_GRID, genIndexOf1);
+          let resolved = resolveAllCollisions(p.nodes, p.edges, undefined, NODE_GAP, GEN_GRID, genIndexOf1);
           const rS = resolved.find(n => n.id === sid)!;
           const rP = resolved.find(n => n.id === pid)!;
           const trueChildX = (rS.x + rP.x) / 2;
@@ -394,7 +394,7 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
           const allEdges = [...p.edges, ...newEdges];
           
           const genIndexOf2 = buildGenerations(resolved, allEdges);
-          resolved = resolveAllCollisions(resolved, allEdges, undefined, undefined, NODE_GAP, GEN_GRID, genIndexOf2);
+          resolved = resolveAllCollisions(resolved, allEdges, undefined, NODE_GAP, GEN_GRID, genIndexOf2);
           resolved = recenterAllFamilies(resolved, allEdges, undefined, NODE_GAP, GEN_GRID, genIndexOf2);
 
           return { ...p, nodes: resolved, edges: allEdges };
@@ -425,7 +425,7 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
           const edgesWithPartner = [...p.edges, { id: `e${now}`, type: "couple" as const, sourceId: sid, targetId: mid }];
           
           const genIndexOf3 = buildGenerations(nodesWithPartner, edgesWithPartner);
-          let resolved = resolveAllCollisions(nodesWithPartner, edgesWithPartner, undefined, undefined, NODE_GAP, GEN_GRID, genIndexOf3);
+          let resolved = resolveAllCollisions(nodesWithPartner, edgesWithPartner, undefined, NODE_GAP, GEN_GRID, genIndexOf3);
           const rS = resolved.find(n => n.id === sid)!;
           const rM = resolved.find(n => n.id === mid)!;
           const trueChildX = (rS.x + rM.x) / 2;
@@ -438,7 +438,7 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
           ];
           
           const genIndexOf4 = buildGenerations(resolved, allEdges);
-          resolved = resolveAllCollisions(resolved, allEdges, undefined, undefined, NODE_GAP, GEN_GRID, genIndexOf4);
+          resolved = resolveAllCollisions(resolved, allEdges, undefined, NODE_GAP, GEN_GRID, genIndexOf4);
           resolved = recenterAllFamilies(resolved, allEdges, undefined, NODE_GAP, GEN_GRID, genIndexOf4);
 
           return { ...p, nodes: resolved, edges: allEdges };
@@ -743,7 +743,13 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
     }
   }, []);
 
-  const runAutoLayout = useCallback((rp: boolean, isManual = false, selectedOnly = false) => {
+  const runAutoLayout = useCallback((
+    rp: boolean,
+    isManual = false,
+    selectedOnly = false,
+    skipFit = false,
+    spacingOverrides?: { nodeGap?: number; genGrid?: number }
+  ) => {
     if (isManual) {
       backgroundSaveVersion("Auto-saved before Layout Alignment", stateRef.current.canvas);
     }
@@ -758,13 +764,17 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
       });
     }
 
+    const localConfig = stateRef.current.canvas.settings?.config;
+    const resolvedNodeGap = spacingOverrides?.nodeGap ?? localConfig?.nodeGap ?? configRef.current.nodeGap;
+    const resolvedGenGrid = spacingOverrides?.genGrid ?? localConfig?.genGrid ?? configRef.current.genGrid;
+
     const arranged = computeAutoLayout(
       nodesToProcess,
       stateRef.current.canvas.edges,
       rp,
       {
-        nodeGap: configRef.current.nodeGap,
-        genGrid: configRef.current.genGrid
+        nodeGap: resolvedNodeGap,
+        genGrid: resolvedGenGrid
       }
     );
 
@@ -781,7 +791,7 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
       updater: (prev) => ({ ...prev, nodes: finalNodes as PedigreeNode[] })
     });
 
-    if (configRef.current.autoFitLayout && finalNodes.length > 0) {
+    if (!skipFit && configRef.current.autoFitLayout && finalNodes.length > 0) {
       const pad = 40 * 0.5; // NODE_SIZE = 40
       const xs = finalNodes.map((n) => n.x);
       const ys = finalNodes.map((n) => n.y);

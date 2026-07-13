@@ -167,7 +167,7 @@ export interface PedigreeEditorOps {
   addFreeAnnotation: (x: number, y: number) => void;
   updateAnnotation: (annId: string, updates: Partial<PedigreeAnnotation>) => void;
   deleteAnnotation: (annId: string) => void;
-  runAutoLayout: (resetPins: boolean, isManual?: boolean, selectedOnly?: boolean) => void;
+  runAutoLayout: (resetPins: boolean, isManual?: boolean, selectedOnly?: boolean, skipFit?: boolean, spacingOverrides?: { nodeGap?: number; genGrid?: number }) => void;
   bakeEmptyLabels: () => void;
   bakeAllLabels: () => void;
   openConfirm: (title: string, message: string, onConfirm: () => void, variant?: "default" | "destructive") => void;

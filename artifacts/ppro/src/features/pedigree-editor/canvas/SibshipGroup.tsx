@@ -44,7 +44,7 @@ export function computeFamilyChildYOffset(
   autoLabels?: Map<string, string>,
   parentOffsets?: Map<string, number>,
   edges?: PedigreeEdge[],
-  config?: { showGenotypes: boolean; genotypeFontSize: number; genotypeOffset: number }
+  config?: any
 ): Map<string, number> {
   const result = new Map<string, number>();
   const nodeMap = new Map(nodes.map((n) => [n.id, n]));
@@ -95,10 +95,11 @@ export function computeFamilyChildYOffset(
   const { track: sibTrack, maxTrack: maxSibTrack } = edges
     ? computeSibshipGroupTrackAndMax(parentIds, childIds, edges, nodes, parentOffsets)
     : { track: 0, maxTrack: 0 };
-  const idealBarY = childTopY - MIN_BAR_CHILD_GAP - sibTrack * 12;
+  const dropHeight = config?.sibshipDropHeight ?? MIN_BAR_CHILD_GAP;
+  const idealBarY = childTopY - dropHeight - sibTrack * 12;
   const minRequiredBarY = maxBottom + 22 + maxTrackIndex * 8 + (maxSibTrack - sibTrack) * 12;
   const barY = Math.max(idealBarY, minRequiredBarY);
-  const ABSOLUTE_MIN_GAP = MIN_BAR_CHILD_GAP;
+  const ABSOLUTE_MIN_GAP = dropHeight;
   const delta = Math.max(0, barY + ABSOLUTE_MIN_GAP - childTopY);
 
   if (delta > 0) {
@@ -122,7 +123,7 @@ export function SibshipGroup({ parentIds, childIds, nodes, edges = [], invalid, 
 }) {
   const cfg = useCanvasConfig();
   const S = cfg.config.nodeSize;
-  const stroke = invalid ? "hsl(var(--destructive))" : cfg.config.edgeColor.startsWith("hsl(") ? "hsl(var(--foreground) / 0.5)" : cfg.config.edgeColor;
+  const stroke = invalid ? "hsl(var(--destructive))" : (cfg.config.edgeColor || "#000000").startsWith("hsl(") ? "hsl(var(--foreground) / 0.5)" : (cfg.config.edgeColor || "#000000");
   const sw = invalid ? 2 : cfg.config.edgeWidthNormal;
   const dash = invalid ? "5 3" : undefined;
 
@@ -222,8 +223,9 @@ export function SibshipGroup({ parentIds, childIds, nodes, edges = [], invalid, 
     parentOffsets,
     childOffsets
   );
+  const dropHeight = cfg.config.sibshipDropHeight ?? MIN_BAR_CHILD_GAP;
   const barY = Math.max(
-    childTopY - MIN_BAR_CHILD_GAP - sibTrack * 12,
+    childTopY - dropHeight - sibTrack * 12,
     maxBottom + 22 + maxTrackIndex * 8 + (maxSibTrack - sibTrack) * 12
   );
 

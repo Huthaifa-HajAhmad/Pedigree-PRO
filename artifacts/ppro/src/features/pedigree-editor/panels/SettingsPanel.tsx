@@ -1,4 +1,4 @@
-import { Palette, Ruler, Hash, Check, RotateCcw, Settings, Type, Grid, Eye, Dna, PanelTop, Calendar } from "lucide-react";
+import { Palette, Ruler, Hash, Check, RotateCcw, Settings, Type, Grid, Eye, Dna, PanelTop, Calendar, User } from "lucide-react";
 import { PanelShell } from "@/components/shared/panels/PanelShell";
 import { PanelSection } from "@/components/shared/panels/PanelSection";
 import { usePedigreeEditor } from "@/features/pedigree-editor/context";
@@ -65,7 +65,7 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
       title="Canvas Settings"
       icon={<Settings className="w-3.5 h-3.5" />}
       onClose={onClose}
-      width="w-80"
+      width="w-full"
     >
       <div className="space-y-4">
         {/* Section 1: Appearance (Theme Selection) */}
@@ -198,7 +198,7 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
         </PanelSection>
 
         {/* Section: Layout Spacing */}
-        <PanelSection title="Layout Spacing" icon={<Ruler className="w-3.5 h-3.5" />} defaultOpen={true}>
+        <PanelSection title="Layout Spacing" icon={<Ruler className="w-3.5 h-3.5" />} defaultOpen={false}>
           <div className="space-y-4">
             {/* Node Gap Slider */}
             <div className="space-y-1">
@@ -210,7 +210,7 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
                       type="button"
                       onClick={() => {
                         updateConfig({ nodeGap: 96.8 });
-                        setTimeout(() => ops.runAutoLayout(false), 50);
+                        setTimeout(() => ops.runAutoLayout(false, false, false, true, { nodeGap: 96.8 }), 50);
                       }}
                       className="text-[9px] text-primary hover:text-primary-foreground hover:bg-primary/20 px-1 rounded transition-colors"
                       title="Reset to 96.8"
@@ -228,8 +228,9 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
                 step={2}
                 value={config.nodeGap ?? 96.8}
                 onChange={(e) => {
-                  updateConfig({ nodeGap: Number(e.target.value) });
-                  ops.runAutoLayout(false);
+                  const val = Number(e.target.value);
+                  updateConfig({ nodeGap: val });
+                  ops.runAutoLayout(false, false, false, true, { nodeGap: val });
                 }}
                 className="w-full cursor-pointer border-none outline-none focus-visible:ring-1 focus-visible:ring-primary"
               />
@@ -239,13 +240,13 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
             <div className="space-y-1">
               <div className="flex items-center justify-between text-xs">
                 <div className="flex items-center gap-1.5">
-                  <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">Row Height</span>
+                  <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">Between Gen Gap</span>
                   {(config.genGrid !== 120) && (
                     <button
                       type="button"
                       onClick={() => {
                         updateConfig({ genGrid: 120 });
-                        setTimeout(() => ops.runAutoLayout(false), 50);
+                        setTimeout(() => ops.runAutoLayout(false, false, false, true, { genGrid: 120 }), 50);
                       }}
                       className="text-[9px] text-primary hover:text-primary-foreground hover:bg-primary/20 px-1 rounded transition-colors"
                       title="Reset to 120"
@@ -263,8 +264,42 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
                 step={5}
                 value={config.genGrid ?? 120}
                 onChange={(e) => {
-                  updateConfig({ genGrid: Number(e.target.value) });
-                  ops.runAutoLayout(false);
+                  const val = Number(e.target.value);
+                  updateConfig({ genGrid: val });
+                  ops.runAutoLayout(false, false, false, true, { genGrid: val });
+                }}
+                className="w-full cursor-pointer border-none outline-none focus-visible:ring-1 focus-visible:ring-primary"
+              />
+            </div>
+
+            {/* Sibship Drop Height Slider */}
+            <div className="space-y-1">
+              <div className="flex items-center justify-between text-xs">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">Sibship Drop Height</span>
+                  {(config.sibshipDropHeight !== 30) && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        updateConfig({ sibshipDropHeight: 30 });
+                      }}
+                      className="text-[9px] text-primary hover:text-primary-foreground hover:bg-primary/20 px-1 rounded transition-colors"
+                      title="Reset to 30"
+                    >
+                      Reset
+                    </button>
+                  )}
+                </div>
+                <span className="font-mono text-foreground tabular-nums">{config.sibshipDropHeight ?? 30}px</span>
+              </div>
+              <input
+                type="range"
+                min={15}
+                max={60}
+                step={2}
+                value={config.sibshipDropHeight ?? 30}
+                onChange={(e) => {
+                  updateConfig({ sibshipDropHeight: Number(e.target.value) });
                 }}
                 className="w-full cursor-pointer border-none outline-none focus-visible:ring-1 focus-visible:ring-primary"
               />
@@ -383,6 +418,13 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
                 </div>
               </div>
             )}
+            <ToggleRow
+              label="Relationship Labels"
+              description="Show relationship names (e.g., Uncle, Sister) under node symbols"
+              checked={config.showRelationshipLabels ?? true}
+              onChange={() => updateConfig({ showRelationshipLabels: !(config.showRelationshipLabels ?? true) })}
+              icon={<User className="w-3.5 h-3.5" />}
+            />
             <ToggleRow
               label="Show Node Age"
               description="Show age/DOB under node symbols"
@@ -567,8 +609,8 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
           </div>
         </PanelSection>
 
-        {/* Section 4: Canvas Geometry & Spacing */}
-        <PanelSection title="Geometry & Spacing" icon={<Ruler className="w-3.5 h-3.5" />} defaultOpen={false}>
+        {/* Section 4: Node Geometry */}
+        <PanelSection title="Node Geometry" icon={<Ruler className="w-3.5 h-3.5" />} defaultOpen={false}>
           <div className="space-y-4">
             {/* Node Configuration Group */}
             <div className="p-3 rounded-lg border border-border/50 bg-card/50 space-y-3.5 shadow-xs animate-in fade-in duration-200">
@@ -605,66 +647,8 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
                 />
               </div>
 
-              {/* Sibling Gap */}
-              <div className="space-y-1 border-b border-border/35 pb-4 pt-1">
-                <div className="flex items-center justify-between text-xs">
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">Sibling Gap (H)</span>
-                    {(config.nodeGap !== DEFAULT_CANVAS_CONFIG.nodeGap) && (
-                      <button
-                        type="button"
-                        onClick={() => updateConfig({ nodeGap: DEFAULT_CANVAS_CONFIG.nodeGap })}
-                        className="text-[9px] text-primary hover:text-primary-foreground hover:bg-primary/20 px-1 rounded transition-colors"
-                        title={`Reset to ${DEFAULT_CANVAS_CONFIG.nodeGap}px`}
-                      >
-                        Reset
-                      </button>
-                    )}
-                  </div>
-                  <span className="font-mono text-foreground tabular-nums">{config.nodeGap}px</span>
-                </div>
-                <input
-                  type="range"
-                  min={60}
-                  max={150}
-                  step={5}
-                  value={config.nodeGap}
-                  onChange={(e) => updateConfig({ nodeGap: Number(e.target.value) })}
-                  className="w-full cursor-pointer border-none outline-none focus-visible:ring-1 focus-visible:ring-primary"
-                />
-              </div>
-
-              {/* Generation Spacing */}
-              <div className="space-y-1 border-b border-border/35 pb-4 pt-1">
-                <div className="flex items-center justify-between text-xs">
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">Gen Gap (V)</span>
-                    {(config.genGrid !== DEFAULT_CANVAS_CONFIG.genGrid) && (
-                      <button
-                        type="button"
-                        onClick={() => updateConfig({ genGrid: DEFAULT_CANVAS_CONFIG.genGrid })}
-                        className="text-[9px] text-primary hover:text-primary-foreground hover:bg-primary/20 px-1 rounded transition-colors"
-                        title={`Reset to ${DEFAULT_CANVAS_CONFIG.genGrid}px`}
-                      >
-                        Reset
-                      </button>
-                    )}
-                  </div>
-                  <span className="font-mono text-foreground tabular-nums">{config.genGrid}px</span>
-                </div>
-                <input
-                  type="range"
-                  min={80}
-                  max={200}
-                  step={10}
-                  value={config.genGrid}
-                  onChange={(e) => updateConfig({ genGrid: Number(e.target.value) })}
-                  className="w-full cursor-pointer border-none outline-none focus-visible:ring-1 focus-visible:ring-primary"
-                />
-              </div>
-
               {/* Carrier Dot Size */}
-              <div className="space-y-1 border-b border-border/35 pb-4 pt-1">
+              <div className="space-y-1 pt-1">
                 <div className="flex items-center justify-between text-xs">
                   <div className="flex items-center gap-1.5">
                     <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">Carrier Dot Size</span>

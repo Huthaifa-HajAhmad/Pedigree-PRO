@@ -31,6 +31,8 @@ export interface CanvasConfig {
   autoFitLayout?: boolean;
   showAge?: boolean;
   ageFontSize?: number;
+  showRelationshipLabels?: boolean;
+  sibshipDropHeight?: number;
 }
 
 export const DEFAULT_CANVAS_CONFIG: CanvasConfig = {
@@ -63,6 +65,8 @@ export const DEFAULT_CANVAS_CONFIG: CanvasConfig = {
   autoFitLayout: true,
   showAge: true,
   ageFontSize: 10,
+  showRelationshipLabels: true,
+  sibshipDropHeight: 30,
 };
 
 const STORAGE_KEY = "ppro_canvas_config";
