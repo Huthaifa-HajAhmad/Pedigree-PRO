@@ -59,11 +59,17 @@ export function PreviewStep({ importMode, filename, title, setTitle, patientId, 
       </div>
 
       {result.warnings.length > 0 && (
-        <div className="border border-yellow-500/30 bg-yellow-500/10 rounded p-3 space-y-1">
-          <div className="flex items-center gap-2 text-yellow-400 text-xs font-semibold uppercase tracking-wider">
+        <div className="border border-amber-500/20 bg-amber-500/5 dark:bg-amber-500/10 dark:border-amber-500/30 rounded p-3 space-y-1">
+          <div className="flex items-center gap-2 text-amber-800 dark:text-amber-400 text-xs font-semibold uppercase tracking-wider sticky top-0 pb-1">
             <AlertTriangle className="w-3.5 h-3.5" /> {result.warnings.length} warning{result.warnings.length !== 1 ? "s" : ""}
           </div>
-          {result.warnings.map((w, i) => <div key={`${w.substring(0, 24)}-${i}`} className="text-xs text-yellow-300/80">{w}</div>)}
+          <div className="max-h-32 overflow-y-auto space-y-1 pr-1">
+            {result.warnings.map((w, i) => (
+              <div key={`${w.substring(0, 24)}-${i}`} className="text-xs text-amber-700 dark:text-amber-300/90">
+                {w}
+              </div>
+            ))}
+          </div>
         </div>
       )}
 

@@ -20,7 +20,7 @@ export const EdgeLine = memo(function EdgeLine({ edge, nodes, invalid, renderOff
   const tgt = nodes.find((n) => n.id === edge.targetId);
   if (!src || !tgt) return null;
   const S = cfg.config.nodeSize;
-  const edgeStroke = invalid ? "#FF4040" : cfg.config.edgeColor.startsWith("hsl(") ? "hsl(var(--foreground) / 0.5)" : cfg.config.edgeColor;
+  const edgeStroke = invalid ? "#FF4040" : (cfg.config.edgeColor || "#000000").startsWith("hsl(") ? "hsl(var(--foreground) / 0.5)" : (cfg.config.edgeColor || "#000000");
   const edgeWidth = invalid ? 2 : cfg.config.edgeWidthNormal;
   const edgeDash = invalid ? "5 3" : undefined;
 

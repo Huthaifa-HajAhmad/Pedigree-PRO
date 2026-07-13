@@ -31,7 +31,7 @@ export function UploadStep({ dragOver, setDragOver, fileRef, handleFileInput, ha
         <Upload className={`w-7 h-7 transition-colors ${dragOver ? "text-primary" : "text-muted-foreground"}`} />
         <div className="text-center">
           <div className="text-sm font-medium">Drop file here or click to browse</div>
-          <div className="text-xs text-muted-foreground mt-1">.ppro · .ped · .hp · .utf8 — max 20 MB</div>
+          <div className="text-xs text-muted-foreground mt-1">.ppro · .ped · .csv · .hp · .txt · .tsv — max 20 MB</div>
         </div>
         <input
           ref={fileRef}
