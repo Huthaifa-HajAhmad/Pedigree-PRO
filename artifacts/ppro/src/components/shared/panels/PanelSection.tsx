@@ -5,6 +5,7 @@ interface PanelSectionProps {
   title: string;
   icon?: ReactNode;
   defaultOpen?: boolean;
+  actions?: ReactNode;
   children: ReactNode;
 }
 
@@ -12,6 +13,7 @@ export function PanelSection({
   title,
   icon,
   defaultOpen = true,
+  actions,
   children,
 }: PanelSectionProps) {
   const [open, setOpen] = useState(defaultOpen);
@@ -27,6 +29,11 @@ export function PanelSection({
         <span className="text-xs font-semibold text-foreground uppercase tracking-wider flex-1">
           {title}
         </span>
+        {actions && (
+          <div onClick={(e) => e.stopPropagation()} className="flex items-center">
+            {actions}
+          </div>
+        )}
         <ChevronDown
           className={`w-3.5 h-3.5 text-muted-foreground transition-transform ${open ? "" : "-rotate-90"}`}
         />

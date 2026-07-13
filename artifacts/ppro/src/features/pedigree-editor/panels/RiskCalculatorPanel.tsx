@@ -1,4 +1,4 @@
-import { TrendingUp, AlertTriangle } from "lucide-react";
+import { TrendingUp, AlertTriangle, Info } from "lucide-react";
 import { useState, useMemo } from "react";
 import type { PedigreeNode, PedigreeEdge } from "@/features/pedigree-editor/canvas/types";
 import { computeRisk, type InheritanceMode, type RiskResult } from "@/lib/risk-calculator";
@@ -6,6 +6,7 @@ import { calculateInbreeding } from "@/lib/inbreeding";
 import { computeAutoLabels } from "@/lib/pedigree-labels";
 import { PanelShell } from "@/components/shared/panels/PanelShell";
 import { PanelSection } from "@/components/shared/panels/PanelSection";
+import { InbreedingInfoModal } from "../modals/InbreedingInfoModal";
 
 
 export const MODES: { id: InheritanceMode; label: string; title: string }[] = [
@@ -129,6 +130,7 @@ export function RiskPanelSidebar({
 }) {
   const [focusId, setFocusId] = useState<string | null>(null);
   const [carrierRate, setCarrierRate] = useState<number>(1 / 50);
+  const [infoModalOpen, setInfoModalOpen] = useState(false);
 
   const proband = canvas.nodes.find((n) => n.proband);
   const effectiveFocusId = focusId ?? proband?.id ?? null;
@@ -329,7 +331,19 @@ export function RiskPanelSidebar({
       )}
 
       {inbreedingCoefficients.length > 0 ? (
-        <PanelSection title="Inbreeding Coefficients (F)">
+        <PanelSection
+          title="Inbreeding Coefficients (F)"
+          actions={
+            <button
+              type="button"
+              aria-label="Coefficient of Inbreeding info"
+              onClick={() => setInfoModalOpen(true)}
+              className="text-muted-foreground hover:text-primary p-0.5 hover:bg-accent/40 rounded transition-colors mr-0.5"
+            >
+              <Info className="w-3.5 h-3.5" />
+            </button>
+          }
+        >
           <div className="space-y-1.5">
             {inbreedingCoefficients.map((res) => (
               <div key={res.nodeId} className="flex justify-between items-center bg-card/50 border border-border/80 rounded-lg px-2.5 py-1.5">
@@ -344,7 +358,19 @@ export function RiskPanelSidebar({
           </div>
         </PanelSection>
       ) : (
-        <PanelSection title="Inbreeding Coefficients (F)">
+        <PanelSection
+          title="Inbreeding Coefficients (F)"
+          actions={
+            <button
+              type="button"
+              aria-label="Coefficient of Inbreeding info"
+              onClick={() => setInfoModalOpen(true)}
+              className="text-muted-foreground hover:text-primary p-0.5 hover:bg-accent/40 rounded transition-colors mr-0.5"
+            >
+              <Info className="w-3.5 h-3.5" />
+            </button>
+          }
+        >
           <p className="text-xs text-muted-foreground italic">No consanguinity detected (all individuals F = 0).</p>
         </PanelSection>
       )}
@@ -357,6 +383,8 @@ export function RiskPanelSidebar({
           This calculator uses simplified Mendelian models for educational and preliminary assessment purposes only. It is not a certified diagnostic tool and should not be used as a substitute for professional genetic counseling or clinical decision-making.
         </p>
       </div>
+
+      <InbreedingInfoModal open={infoModalOpen} onOpenChange={setInfoModalOpen} />
     </PanelShell>
   );
 }
