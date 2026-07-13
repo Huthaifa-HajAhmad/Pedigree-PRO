@@ -577,38 +577,65 @@ export function PropertiesPanel({
             Delete {selectedIds.size} Nodes
           </button>
         </PanelShell>
-      ) : singleSelected ? (
-        <PanelShell key={`single-${singleSelected.id}`} title={`${singleSelected.type}`} icon={<User className="w-3.5 h-3.5" />} width="w-full">
-          {/* Basic Info */}
-          <PanelSection title="Basic Info" icon={<User className="w-3 h-3" />}>
-            <div className="space-y-2.5">
-              <div className="flex items-center justify-between gap-3">
-                <label htmlFor="prop-node-inside-text" className="text-xs text-muted-foreground uppercase tracking-wider">Inside Text</label>
-                <input id="prop-node-inside-text" data-testid="input-node-inside-text" value={singleSelected.insideText ?? ""}
-                  onChange={(e) => onUpdateSelectedNode({ insideText: e.target.value || undefined })}
-                  placeholder="e.g. 3" className="w-36 bg-background border border-border/80 rounded-lg px-2.5 py-1 text-xs outline-none hover:bg-accent/20 focus:border-muted-foreground/45 focus-visible:ring-0 shadow-none transition-all duration-200" />
+      ) : singleSelected ? (() => {
+        const ageStr = singleSelected.age || "";
+        const hasM = ageStr.toLowerCase().endsWith("m");
+        const ageVal = hasM ? ageStr.slice(0, -1).trim() : ageStr;
+        const ageUnit = hasM ? "m" : "y";
+        return (
+          <PanelShell key={`single-${singleSelected.id}`} title={`${singleSelected.type}`} icon={<User className="w-3.5 h-3.5" />} width="w-full">
+            {/* Basic Info */}
+            <PanelSection title="Basic Info" icon={<User className="w-3 h-3" />}>
+              <div className="space-y-2.5">
+                <div className="flex items-center justify-between gap-3">
+                  <label htmlFor="prop-node-inside-text" className="text-xs text-muted-foreground uppercase tracking-wider">Inside Text</label>
+                  <input id="prop-node-inside-text" data-testid="input-node-inside-text" value={singleSelected.insideText ?? ""}
+                    onChange={(e) => onUpdateSelectedNode({ insideText: e.target.value || undefined })}
+                    placeholder="e.g. 3" className="w-36 bg-background border border-border/80 rounded-lg px-2.5 py-1 text-xs outline-none hover:bg-accent/20 focus:border-muted-foreground/45 focus-visible:ring-0 shadow-none transition-all duration-200" />
+                </div>
+                <div className="flex items-center justify-between gap-3">
+                  <label htmlFor="prop-node-age" className="text-xs text-muted-foreground uppercase tracking-wider">Age</label>
+                  <div className="flex gap-1.5 w-36">
+                    <input id="prop-node-age" data-testid="input-node-age" value={ageVal}
+                      onChange={(e) => {
+                        const val = e.target.value.trim();
+                        if (!val) {
+                          onUpdateSelectedNode({ age: undefined });
+                        } else {
+                          onUpdateSelectedNode({ age: ageUnit === "m" ? `${val}m` : val });
+                        }
+                      }}
+                      placeholder="e.g. 42" className="flex-1 bg-background border border-border/80 rounded-lg px-2.5 py-1 text-xs outline-none hover:bg-accent/20 focus:border-muted-foreground/45 focus-visible:ring-0 shadow-none transition-all duration-200" />
+                    <select
+                      value={ageUnit}
+                      onChange={(e) => {
+                        const newUnit = e.target.value;
+                        if (ageVal) {
+                          onUpdateSelectedNode({ age: newUnit === "m" ? `${ageVal}m` : ageVal });
+                        }
+                      }}
+                      className="bg-background border border-border/80 rounded-lg px-1.5 py-1 text-xs outline-none hover:bg-accent/20 focus:border-muted-foreground/45 focus-visible:ring-0 shadow-none cursor-pointer"
+                    >
+                      <option value="y">Yrs</option>
+                      <option value="m">Mos</option>
+                    </select>
+                  </div>
+                </div>
+                <div className="flex items-center justify-between gap-3">
+                  <label htmlFor="prop-node-dob" className="text-xs text-muted-foreground uppercase tracking-wider">Date of Birth</label>
+                  <input id="prop-node-dob" type="date" value={singleSelected.dob ?? ""}
+                    onChange={(e) => {
+                      const dobVal = e.target.value;
+                      const calculatedAge = calculateAgeFromDob(dobVal);
+                      onUpdateSelectedNode({
+                        dob: dobVal || undefined,
+                        age: calculatedAge || singleSelected.age
+                      });
+                    }}
+                    className="w-36 bg-background border border-border/80 rounded-lg px-2.5 py-1 text-xs outline-none hover:bg-accent/20 focus:border-muted-foreground/45 focus-visible:ring-0 shadow-none text-muted-foreground transition-all duration-200" />
+                </div>
               </div>
-              <div className="flex items-center justify-between gap-3">
-                <label htmlFor="prop-node-age" className="text-xs text-muted-foreground uppercase tracking-wider">Age</label>
-                <input id="prop-node-age" data-testid="input-node-age" value={singleSelected.age}
-                  onChange={(e) => onUpdateSelectedNode({ age: e.target.value })}
-                  placeholder="e.g. 42" className="w-36 bg-background border border-border/80 rounded-lg px-2.5 py-1 text-xs outline-none hover:bg-accent/20 focus:border-muted-foreground/45 focus-visible:ring-0 shadow-none transition-all duration-200" />
-              </div>
-              <div className="flex items-center justify-between gap-3">
-                <label htmlFor="prop-node-dob" className="text-xs text-muted-foreground uppercase tracking-wider">Date of Birth</label>
-                <input id="prop-node-dob" type="date" value={singleSelected.dob ?? ""}
-                  onChange={(e) => {
-                    const dobVal = e.target.value;
-                    const calculatedAge = calculateAgeFromDob(dobVal);
-                    onUpdateSelectedNode({
-                      dob: dobVal || undefined,
-                      age: calculatedAge || singleSelected.age
-                    });
-                  }}
-                  className="w-36 bg-background border border-border/80 rounded-lg px-2.5 py-1 text-xs outline-none hover:bg-accent/20 focus:border-muted-foreground/45 focus-visible:ring-0 shadow-none text-muted-foreground transition-all duration-200" />
-              </div>
-            </div>
-          </PanelSection>          {/* Type & Status */}
+            </PanelSection>          {/* Type & Status */}
           <PanelSection title="Type & Status" icon={<Dna className="w-3 h-3" />}>
             <div className="space-y-4">
               {/* Gender selection buttons polished */}
@@ -893,9 +920,9 @@ export function PropertiesPanel({
                 </div>
               </div>
 
-              {/* Quadrant Configuration (only shown for split/quadrant shading styles) */}
+              {/* Quadrant Configuration (only shown for quadrant shading style or custom segments) */}
               {singleSelected && (
-                ["left-half", "right-half", "top-half", "bottom-half", "quadrant"].includes(singleSelected.shading ?? "") || 
+                singleSelected.shading === "quadrant" || 
                 (singleSelected.shading && (singleSelected.shading.startsWith("q") || singleSelected.shading.includes(",")))
               ) && (() => {
                 const currentStyle = singleSelected.shading || "";
@@ -1224,7 +1251,7 @@ export function PropertiesPanel({
             <Trash2 className="w-3 h-3 inline mr-1" /> Delete Node
           </button>
         </PanelShell>
-      ) : selectedAnnotationId && selectedIds.size === 0 ? (() => {
+      )})() : selectedAnnotationId && selectedIds.size === 0 ? (() => {
         const ann = canvasAnnotations.find((a) => a.id === selectedAnnotationId);
         if (!ann) return null;
         return (
