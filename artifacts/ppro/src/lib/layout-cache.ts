@@ -25,11 +25,27 @@ export function computeNodeStructuralHash(nodeId: string, adj: AdjacencyMaps): s
  */
 export const globalLayoutCache: LayoutCacheMap = new Map();
 
+let lastNodeGap: number | undefined;
+let lastGenGrid: number | undefined;
+
+/**
+ * Checks if the layout spacing configuration has changed, and clears the cache if so.
+ */
+export function checkAndClearCache(nodeGap: number, genGrid: number): void {
+  if (nodeGap !== lastNodeGap || genGrid !== lastGenGrid) {
+    globalLayoutCache.clear();
+    lastNodeGap = nodeGap;
+    lastGenGrid = genGrid;
+  }
+}
+
 /**
  * Safely clears the layout coordinates cache.
  */
 export function clearLayoutCache(): void {
   globalLayoutCache.clear();
+  lastNodeGap = undefined;
+  lastGenGrid = undefined;
 }
 
 /**

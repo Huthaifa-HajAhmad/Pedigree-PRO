@@ -26,7 +26,7 @@ import { NODE_SIZE } from "@/features/pedigree-editor/canvas/types";
 import { resolveAllCollisions, recenterAllFamilies, swapCouplePartners, collectSubtree, detectRowCollisions } from "./layout-engine";
 import { buildAdjacency, buildGenerations, DEFAULT_LAYOUT_CONFIG } from "./layout-shared";
 import type { LayoutConfig } from "./layout-shared";
-import { computeNodeStructuralHash, globalLayoutCache, setCacheEntry } from "./layout-cache";
+import { computeNodeStructuralHash, globalLayoutCache, setCacheEntry, checkAndClearCache } from "./layout-cache";
 
 function getTwinInfo(
   nodeId: string,
@@ -48,6 +48,13 @@ export function computeAutoLayout<T extends LayoutNode>(
   const { nodeGap, genGrid, hSpacing, coupleSpacing, groupGap, twinGapMono, twinGapDizygotic } = cfg;
   const GROUP_GAP = groupGap;
   const genSpacing = genGrid;
+
+  if (cfg.enableCache !== false) {
+    checkAndClearCache(nodeGap, genGrid);
+  }
+
+  const DEFAULT_LEFT_MARGIN = 120;
+
   if (nodes.length === 0) return nodes;
 
   const pinnedNodes = respectPinned ? nodes.filter(n => n.pinned) : [];
@@ -330,40 +337,46 @@ export function computeAutoLayout<T extends LayoutNode>(
     const getSubtreeWidth = (fgIds: string[]): number => {
       const visited = new Set<string>();
       
-      const traverse = (nodeId: string) => {
-        if (visited.has(nodeId)) return;
-        
-        // Find all transitively connected partners
-        const partnersQueue = [nodeId];
-        const component = new Set<string>([nodeId]);
-        let headIdx = 0;
-        while (headIdx < partnersQueue.length) {
-          const curr = partnersQueue[headIdx]!;
-          headIdx++;
-          for (const partnerId of couplesOf.get(curr) ?? []) {
-            if (!component.has(partnerId)) {
-              const partnerParents = parentsOf.get(partnerId) ?? [];
-              const hasOutsideParents = partnerParents.some(p => !visited.has(p));
-              if (hasOutsideParents) {
-                continue;
+      const traverse = (startId: string) => {
+        const stack = [startId];
+        while (stack.length > 0) {
+          const nodeId = stack.pop()!;
+          if (visited.has(nodeId)) continue;
+          
+          // Find all transitively connected partners
+          const partnersQueue = [nodeId];
+          const component = new Set<string>([nodeId]);
+          let headIdx = 0;
+          while (headIdx < partnersQueue.length) {
+            const curr = partnersQueue[headIdx]!;
+            headIdx++;
+            for (const partnerId of couplesOf.get(curr) ?? []) {
+              if (!component.has(partnerId)) {
+                const partnerParents = parentsOf.get(partnerId) ?? [];
+                const hasOutsideParents = partnerParents.some(p => !visited.has(p));
+                if (hasOutsideParents) {
+                  continue;
+                }
+                component.add(partnerId);
+                partnersQueue.push(partnerId);
               }
-              component.add(partnerId);
-              partnersQueue.push(partnerId);
             }
           }
-        }
 
-        for (const pId of component) {
-          visited.add(pId);
-        }
+          for (const pId of component) {
+            visited.add(pId);
+          }
 
-        // Recurse to children of all nodes in this partner component
-        for (const pId of component) {
-          for (const childId of childrenOf.get(pId) ?? []) {
-            const childParents = parentsOf.get(childId) ?? [];
-            const allParentsInComponent = childParents.every((p) => component.has(p));
-            if (allParentsInComponent) {
-              traverse(childId);
+          // Push children of all nodes in this partner component to stack
+          for (const pId of component) {
+            const children = childrenOf.get(pId) ?? [];
+            for (let i = children.length - 1; i >= 0; i--) {
+              const childId = children[i]!;
+              const childParents = parentsOf.get(childId) ?? [];
+              const allParentsInComponent = childParents.every((p) => component.has(p));
+              if (allParentsInComponent && !visited.has(childId)) {
+                stack.push(childId);
+              }
             }
           }
         }
@@ -506,8 +519,8 @@ export function computeAutoLayout<T extends LayoutNode>(
           if (!pos) continue;
           
           const limitX = pos.x - maxPossibleLeftShift;
-          if (limitX < genGrid) {
-            maxPossibleLeftShift = pos.x - genGrid;
+          if (limitX < DEFAULT_LEFT_MARGIN) {
+            maxPossibleLeftShift = pos.x - DEFAULT_LEFT_MARGIN;
           }
           
           for (const [otherId, otherPos] of knownPos) {
@@ -620,16 +633,16 @@ export function computeAutoLayout<T extends LayoutNode>(
       console.warn(`Node ${n.id} is missing from knownPos, assigning default position.`);
       const gen = genOf.get(n.id) ?? 0;
       const y = genYOf.get(gen) ?? genGrid;
-      knownPos.set(n.id, { x: genGrid, y });
+      knownPos.set(n.id, { x: DEFAULT_LEFT_MARGIN, y });
     }
   }
 
   const minX = unpinnedNodes.length > 0
     ? unpinnedNodes.reduce((min, n) => Math.min(min, knownPos.get(n.id)!.x), Infinity)
-    : genGrid;
+    : DEFAULT_LEFT_MARGIN;
 
-  if (minX < genGrid) {
-    const shift = genGrid - minX;
+  if (minX < DEFAULT_LEFT_MARGIN) {
+    const shift = DEFAULT_LEFT_MARGIN - minX;
     for (const [id, pos] of knownPos) {
       const node = nodeMap.get(id);
       if (respectPinned && node?.pinned) continue;
@@ -644,16 +657,17 @@ export function computeAutoLayout<T extends LayoutNode>(
     return { ...n, x: pos.x, y: pos.y };
   });
 
+  const optimizedNodes = applyBarycenterHeuristic(initialNodes, edges, genOf, adj, nodeGap, hSpacing, twinGapMono, twinGapDizygotic);
+
   // ── Overlap resolution: use shared collision resolver for horizontal overlaps ──
   const pinnedIds = new Set(
     nodes.filter((n) => respectPinned && n.pinned).map((n) => n.id)
   );
   
   const resolvedNodes = resolveAllCollisions(
-    initialNodes,
+    optimizedNodes,
     edges,
     pinnedIds,
-    undefined,
     nodeGap,
     genGrid,
     genOf,
@@ -671,6 +685,8 @@ export function computeAutoLayout<T extends LayoutNode>(
     genOf,
     canvasWidth
   ) as T[];
+
+
 
   // Update layout cache with finalized coordinates
   if (cfg.enableCache !== false) {
@@ -730,6 +746,14 @@ function orderNodesForGen(
   twinGroupOf: Map<string, string | undefined>,
   twinTypeOf: Map<string, "m" | "d" | undefined>,
 ): string[] {
+  const coupleEdgeMap = new Map<string, LayoutEdge>();
+  for (const e of edges) {
+    if (e.type === "couple" || e.type === "consanguinity" || e.type === "divorced" || e.type === "separated") {
+      const key = e.sourceId < e.targetId ? `${e.sourceId}|${e.targetId}` : `${e.targetId}|${e.sourceId}`;
+      coupleEdgeMap.set(key, e);
+    }
+  }
+
   const seen = new Set<string>();
   const groups: string[][] = [];
   const nodeIdsSet = new Set(nodeIds);
@@ -753,11 +777,8 @@ function orderNodesForGen(
         const p2 = nodeMap.get(b);
         if (!p1 || !p2) return 0;
         
-        const edge = edges.find(
-          (e) =>
-            (e.type === "couple" || e.type === "consanguinity" || e.type === "divorced" || e.type === "separated") &&
-            ((e.sourceId === a && e.targetId === b) || (e.sourceId === b && e.targetId === a))
-        );
+        const key = a < b ? `${a}|${b}` : `${b}|${a}`;
+        const edge = coupleEdgeMap.get(key);
         const isInverted = edge?.inverted ?? false;
         
         if (p1.type !== p2.type) {
@@ -900,4 +921,164 @@ function avgParentX(
     xs.push(...getEffectiveParentXs(id, parentsOf, couplesOf, knownPos, nodeMap));
   }
   return xs.length > 0 ? xs.reduce((a, b) => a + b, 0) / xs.length : effectiveCenterX;
+}
+
+function applyBarycenterHeuristic<T extends LayoutNode>(
+  nodes: T[],
+  edges: LayoutEdge[],
+  genOf: Map<string, number>,
+  adj: ReturnType<typeof buildAdjacency>,
+  nodeGap: number,
+  hSpacing: number,
+  twinGapMono = NODE_SIZE * 0.55,
+  twinGapDizygotic = NODE_SIZE * 0.8
+): T[] {
+  const genGroups = new Map<number, T[]>();
+  for (const n of nodes) {
+    const gen = genOf.get(n.id) ?? 0;
+    if (!genGroups.has(gen)) genGroups.set(gen, []);
+    genGroups.get(gen)!.push(n);
+  }
+
+  const sortedGens = [...genGroups.keys()].sort((a, b) => a - b);
+  const nodeMap = new Map(nodes.map(n => [n.id, n]));
+
+  for (let pass = 0; pass < 2; pass++) {
+    const sweepOrder = pass % 2 === 0 ? sortedGens : [...sortedGens].reverse();
+
+    for (const gen of sweepOrder) {
+      const genNodes = genGroups.get(gen) ?? [];
+      if (genNodes.length <= 1) continue;
+
+      const hasPinnedInGen = genNodes.some(n => n.pinned);
+      if (hasPinnedInGen) continue;
+
+      let components: T[][] = [];
+      const visited = new Set<string>();
+
+      genNodes.sort((a, b) => a.x - b.x);
+
+      for (const n of genNodes) {
+        if (visited.has(n.id)) continue;
+        visited.add(n.id);
+
+        const partners = (adj.couplesOf.get(n.id) ?? []).filter(pId => {
+          const pNode = nodeMap.get(pId);
+          return pNode && genOf.get(pId) === gen;
+        });
+
+        const comp = [n];
+        for (const pId of partners) {
+          if (!visited.has(pId)) {
+            visited.add(pId);
+            const pNode = nodeMap.get(pId)!;
+            comp.push(pNode);
+          }
+        }
+        components.push(comp);
+      }
+
+      const componentBarycenters = new Map<T[], number>();
+
+      for (const comp of components) {
+        let sumX = 0;
+        let count = 0;
+
+        for (const node of comp) {
+          const parents = adj.parentsOf.get(node.id) ?? [];
+          const children = adj.childrenOf.get(node.id) ?? [];
+          const neighbors = [...parents, ...children];
+
+          for (const neighId of neighbors) {
+            const neighNode = nodeMap.get(neighId);
+            if (neighNode) {
+              sumX += neighNode.x;
+              count++;
+            }
+          }
+        }
+
+        const bary = count > 0 ? sumX / count : comp.reduce((sum, n) => sum + n.x, 0) / comp.length;
+        componentBarycenters.set(comp, bary);
+      }
+
+      const compInitialIndex = new Map<T[], number>();
+      components.forEach((comp, idx) => {
+        compInitialIndex.set(comp, idx);
+      });
+
+      // Group sibling components (sharing exact same parents) into clusters.
+      // Non-sibling components (founders or unknown parentage) each get their own unique cluster.
+      const clusters = new Map<string, T[][]>();
+      let uniqueCounter = 0;
+      components.forEach(comp => {
+        let parentKey = "";
+        const nodesWithParents = comp.filter(n => {
+          const pIds = adj.parentsOf.get(n.id);
+          return pIds && pIds.length > 0;
+        });
+
+
+        if (nodesWithParents.length === 1) {
+          const pIds = adj.parentsOf.get(nodesWithParents[0]!.id)!;
+          parentKey = [...pIds].sort().join("_");
+        } else if (nodesWithParents.length > 1) {
+          // Cousin marriage: multiple nodes have parents.
+          // Deterministically select one to anchor to their sibling group.
+          // We prefer the female partner, falling back to ID sorting.
+          const femaleNode = nodesWithParents.find(n => n.type === "female");
+          const anchorNode = femaleNode ?? [...nodesWithParents].sort((a, b) => a.id.localeCompare(b.id))[0]!;
+          const pIds = adj.parentsOf.get(anchorNode.id)!;
+          parentKey = [...pIds].sort().join("_");
+        }
+
+        const clusterKey = parentKey ? `siblings_${parentKey}` : `unique_${uniqueCounter++}_${compInitialIndex.get(comp)}`;
+        if (!clusters.has(clusterKey)) {
+          clusters.set(clusterKey, []);
+        }
+        clusters.get(clusterKey)!.push(comp);
+      });
+
+      const clusterList = Array.from(clusters.entries()).map(([key, comps]) => {
+        comps.sort((a, b) => compInitialIndex.get(a)! - compInitialIndex.get(b)!);
+        const sumBary = comps.reduce((sum, comp) => sum + componentBarycenters.get(comp)!, 0);
+        const avgBary = sumBary / comps.length;
+        return { key, comps, barycenter: avgBary, minInitialIndex: compInitialIndex.get(comps[0]!)! };
+      });
+
+      clusterList.sort((a, b) => {
+        if (Math.abs(a.barycenter - b.barycenter) < 0.1) {
+          return a.minInitialIndex - b.minInitialIndex;
+        }
+        return a.barycenter - b.barycenter;
+      });
+
+      components = clusterList.flatMap(c => c.comps);
+
+      let currentX = genNodes.reduce((min, n) => Math.min(min, n.x), Infinity);
+      const newNodesOrder = components.flat();
+
+      for (let i = 0; i < newNodesOrder.length; i++) {
+        const node = newNodesOrder[i]!;
+        if (i > 0) {
+          const prev = newNodesOrder[i - 1]!;
+          const isCouple = (adj.couplesOf.get(node.id) ?? []).includes(prev.id);
+          const twin1 = getTwinInfo(node.id, adj.twinGroupOf, adj.twinTypeOf);
+          const twin2 = getTwinInfo(prev.id, adj.twinGroupOf, adj.twinTypeOf);
+          const areTwins = twin1 && twin2 && twin1.group === twin2.group;
+
+          let gap = hSpacing;
+          if (isCouple) {
+            gap = nodeGap;
+          } else if (areTwins) {
+            gap = twin1.type === "m" ? twinGapMono : twinGapDizygotic;
+          }
+          currentX += gap;
+        }
+        node.x = currentX;
+      }
+    }
+  }
+
+  return nodes;
 }

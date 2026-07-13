@@ -134,3 +134,25 @@ export function findSpawnPos(
   const globalMaxY = Math.max(...existingNodes.map((n) => n.y));
   return { x: viewBox.x + vbW / 2, y: globalMaxY + GEN_GRID };
 }
+
+export function getQuadrantsForStyle(style?: string): [boolean, boolean, boolean, boolean] {
+  if (!style) return [false, false, false, false];
+  if (style === "quadrant" || style === "q1") return [true, false, false, false];
+  if (style === "q2") return [false, true, false, false];
+  if (style === "q3") return [false, false, true, false];
+  if (style === "q4") return [false, false, false, true];
+  if (style === "left-half" || style === "q2,q3") return [false, true, true, false];
+  if (style === "right-half" || style === "q1,q4") return [true, false, false, true];
+  if (style === "top-half" || style === "q1,q2") return [true, true, false, false];
+  if (style === "bottom-half" || style === "q3,q4") return [false, false, true, true];
+  if (style === "solid" || style === "q1,q2,q3,q4") return [true, true, true, true];
+  
+  // Custom split/comma lists (e.g. "q1,q3")
+  const parts = style.split(",");
+  return [
+    parts.includes("q1"),
+    parts.includes("q2"),
+    parts.includes("q3"),
+    parts.includes("q4")
+  ];
+}

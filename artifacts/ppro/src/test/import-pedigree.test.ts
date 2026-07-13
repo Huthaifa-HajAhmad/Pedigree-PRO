@@ -238,6 +238,7 @@ describe("parseHaploPainterCSV robustness enhancements", () => {
     expect(result.warnings).toHaveLength(0);
     
     const nodeMap = new Map(result.canvasData.nodes.map(n => [n.label, n]));
+
     
     // Spouses must share the same Y row
     const checkSpouses = (id1: string, id2: string) => {

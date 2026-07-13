@@ -345,6 +345,15 @@ export function parseCsv(content: string, filename: string): ParseResult {
   const colName     = resolveColumn(headers, ["name", "label", "full_name", "fullname", "individual_name"]);
   const colAge      = resolveColumn(headers, ["age", "age_at_exam", "current_age"]);
 
+  if (colId === -1 && colSex === -1 && colFather === -1 && colMother === -1 && colAffected === -1) {
+    return {
+      canvasData: { nodes: [], edges: [] },
+      suggestedTitle: filename,
+      familyIds: [],
+      warnings: ["Invalid file format: No pedigree columns (ID, Sex, Father, Mother, Affected) were found. Please check the file format."]
+    };
+  }
+
   if (colId === -1) {
     warnings.push('No "id" column found — using row numbers as IDs.');
   }
@@ -883,7 +892,34 @@ export function validateImport(canvas: CanvasData): ImportValidationIssue[] {
 // ---------------------------------------------------------------------------
 export function parseFile(content: string, filename: string): ParseResult {
   const sanitized = sanitizeContent(content);
+  const sanitizedTrimmed = sanitized.trim();
   const ext = filename.split(".").pop()?.toLowerCase() ?? "";
+
+  if (sanitizedTrimmed.startsWith("pst0") || (ext === "hp" && !sanitizedTrimmed.startsWith("Individual:"))) {
+    return {
+      canvasData: { nodes: [], edges: [] },
+      suggestedTitle: filename,
+      familyIds: [],
+      warnings: [
+        "This file appears to be a native HaploPainter save file (.hp). " +
+        "Pedigree PRO cannot load native .hp workspace files directly. " +
+        "Please open the file in HaploPainter, select 'File > Export' (or 'Save As') " +
+        "and choose 'LINKAGE format (.ped)' or 'CSV format', then import that file here."
+      ]
+    };
+  }
+
+  if (sanitizedTrimmed.startsWith("<")) {
+    return {
+      canvasData: { nodes: [], edges: [] },
+      suggestedTitle: filename,
+      familyIds: [],
+      warnings: [
+        "Invalid file format: The uploaded file appears to be an HTML document (such as a sign-in or web page) rather than a pedigree data file. " +
+        "Please ensure you are uploading a valid pedigree file (.ped, .hp, or .csv)."
+      ]
+    };
+  }
 
   if (ext === "ped" || ext === "hap" || ext === "tfam") {
     return parsePed(sanitized, filename);

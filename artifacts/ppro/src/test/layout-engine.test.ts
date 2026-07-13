@@ -215,13 +215,13 @@ describe("layout-engine", () => {
         { id: "e3", sourceId: "m1", targetId: "c1", type: "parent-child" },
       ];
 
-      const result = recenterParents(nodes, edges, ["f1", "m1"], ["c1"]);
+      const result = recenterParents(nodes, edges, ["f1", "m1"], ["c1"], new Set(["gf1", "gm1", "gf2", "gm2"]));
       const newF1 = result.find(n => n.id === "f1")!;
       const newM1 = result.find(n => n.id === "m1")!;
 
-      // Both f1 and m1 should shift to center over child, keeping their original distance (300)
-      expect(newF1.x).toBeCloseTo(200, 1);
-      expect(newM1.x).toBeCloseTo(500, 1);
+      // Both f1 and m1 should remain at their parent-anchored X positions
+      expect(newF1.x).toBeCloseTo(148.4, 1);
+      expect(newM1.x).toBeCloseTo(448.4, 1);
     });
 
     it("anchors the parent and aligns the spouse when only one has parents", () => {
@@ -249,9 +249,9 @@ describe("layout-engine", () => {
       const newF1 = result.find(n => n.id === "f1")!;
       const newM1 = result.find(n => n.id === "m1")!;
 
-      // Both f1 and m1 should shift to center over child, keeping their original distance (151.6)
-      expect(newF1.x).toBeCloseTo(174.2, 1);
-      expect(newM1.x).toBeCloseTo(325.8, 1);
+      // f1 should be anchored at 148.4, and spouse m1 should be placed exactly NODE_GAP (96.8) away at 245.2
+      expect(newF1.x).toBeCloseTo(148.4, 1);
+      expect(newM1.x).toBeCloseTo(245.2, 1);
     });
   });
 
@@ -926,8 +926,8 @@ describe("layout-engine", () => {
       const newPriorChild = result.find(n => n.id === "prior_child")!;
       
       expect(newHusband.y).toBeCloseTo(120 + 3 * 120, 1);
-      expect(newWife.y).toBeCloseTo(120, 1);
-      expect(newPriorChild.y).toBeCloseTo(120 + 1 * 120, 1);
+      expect(newWife.y).toBeCloseTo(120 + 3 * 120, 1);
+      expect(newPriorChild.y).toBeCloseTo(120 + 4 * 120, 1);
     });
 
     it("T9: derives center from canvasWidth param", () => {

@@ -297,6 +297,42 @@ export function buildGenerations(nodes: Array<{ id: string }>, edges: EdgeSubset
     }
   }
 
+  // 5.5. Align couple partners and propagate generation changes to descendants/parents (NEW-7)
+  let changed = true;
+  let iterations = 0;
+  const maxIterations = nodes.length * 2;
+  while (changed && iterations < maxIterations) {
+    changed = false;
+    
+    // Spouses must be on the same generation
+    for (const e of edges) {
+      if (e.type === "couple" || e.type === "consanguinity" || e.type === "divorced" || e.type === "separated") {
+        const genA = genOf.get(e.sourceId) ?? 0;
+        const genB = genOf.get(e.targetId) ?? 0;
+        if (genA !== genB) {
+          const maxGen = Math.max(genA, genB);
+          genOf.set(e.sourceId, maxGen);
+          genOf.set(e.targetId, maxGen);
+          changed = true;
+        }
+      }
+    }
+    
+    // Children must be at least one generation below parents
+    for (const e of edges) {
+      if (e.type === "parent-child") {
+        const parentGen = genOf.get(e.sourceId) ?? 0;
+        const childGen = genOf.get(e.targetId) ?? 0;
+        if (childGen < parentGen + 1) {
+          genOf.set(e.targetId, parentGen + 1);
+          changed = true;
+        }
+      }
+    }
+    
+    iterations++;
+  }
+
   // 6. Compact and normalize generations
   const allGens = new Set(genOf.values());
   for (const n of nodes) {

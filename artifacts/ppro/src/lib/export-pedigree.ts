@@ -1,6 +1,7 @@
 import { computeRisk } from "@/lib/risk-calculator";
 import { exportPedigreePpro } from "@workspace/api-client-react";
 import { buildAdjacency, buildNodeMap } from "./layout-shared";
+import { getQuadrantsForStyle } from "@/features/pedigree-editor/utils/helpers";
 
 export interface ExportNode {
   id: string;
@@ -18,9 +19,13 @@ export interface ExportNode {
   notes?: string;
   x: number;
   y: number;
-  shading?: "solid" | "striped" | "cross-hatched" | "dots" | "left-half" | "right-half" | "top-half" | "bottom-half" | "quadrant";
+  shading?: string;
   color?: string;
   color2?: string;
+  colorQ1?: string;
+  colorQ2?: string;
+  colorQ3?: string;
+  colorQ4?: string;
   genotype?: string;
   genotype2?: string;
   additionalGenotypes?: string[];
@@ -467,16 +472,12 @@ function drawShadedCircleInPdf(doc: any, lx: number, LYc: number, LS: number, st
     doc.circle(cx + r * 0.4, cy - r * 0.4, 0.25, "F");
     doc.circle(cx - r * 0.4, cy + r * 0.4, 0.25, "F");
     doc.circle(cx + r * 0.4, cy + r * 0.4, 0.25, "F");
-  } else if (style === "left-half") {
-    drawWedge(Math.PI / 2, Math.PI * 1.5);
-  } else if (style === "right-half") {
-    drawWedge(-Math.PI / 2, Math.PI / 2);
-  } else if (style === "top-half") {
-    drawWedge(Math.PI, Math.PI * 2);
-  } else if (style === "bottom-half") {
-    drawWedge(0, Math.PI);
-  } else if (style === "quadrant") {
-    drawWedge(-Math.PI / 2, 0);
+  } else {
+    const [q1, q2, q3, q4] = getQuadrantsForStyle(style);
+    if (q1) drawWedge(-Math.PI / 2, 0);
+    if (q2) drawWedge(Math.PI, Math.PI * 1.5);
+    if (q3) drawWedge(Math.PI / 2, Math.PI);
+    if (q4) drawWedge(0, Math.PI / 2);
   }
 }
 
@@ -1088,83 +1089,48 @@ export async function exportPPTX(info: ExportInfo, canvas: ExportCanvas) {
           fill: { color: "64748B" },
           line: { color: "64748B", width: 0 }
         });
-      } else if (style === "left-half") {
-        slide.addShape(pptx.ShapeType.rect, {
-          x: lx,
-          y: ly - lSize / 2,
-          w: lSize / 2,
-          h: lSize,
-          fill: { color: "64748B" },
-          line: { color: "64748B", width: 0 }
-        });
-        slide.addShape(pptx.ShapeType.ellipse, {
-          x: lx,
-          y: ly - lSize / 2,
-          w: lSize,
-          h: lSize,
-          fill: { color: "transparent" },
-          line: { color: "0F172A", width: 1 }
-        });
-      } else if (style === "right-half") {
-        slide.addShape(pptx.ShapeType.rect, {
-          x: lx + lSize / 2,
-          y: ly - lSize / 2,
-          w: lSize / 2,
-          h: lSize,
-          fill: { color: "64748B" },
-          line: { color: "64748B", width: 0 }
-        });
-        slide.addShape(pptx.ShapeType.ellipse, {
-          x: lx,
-          y: ly - lSize / 2,
-          w: lSize,
-          h: lSize,
-          fill: { color: "transparent" },
-          line: { color: "0F172A", width: 1 }
-        });
-      } else if (style === "top-half") {
-        slide.addShape(pptx.ShapeType.rect, {
-          x: lx,
-          y: ly - lSize / 2,
-          w: lSize,
-          h: lSize / 2,
-          fill: { color: "64748B" },
-          line: { color: "64748B", width: 0 }
-        });
-        slide.addShape(pptx.ShapeType.ellipse, {
-          x: lx,
-          y: ly - lSize / 2,
-          w: lSize,
-          h: lSize,
-          fill: { color: "transparent" },
-          line: { color: "0F172A", width: 1 }
-        });
-      } else if (style === "bottom-half") {
-        slide.addShape(pptx.ShapeType.rect, {
-          x: lx,
-          y: ly,
-          w: lSize,
-          h: lSize / 2,
-          fill: { color: "64748B" },
-          line: { color: "64748B", width: 0 }
-        });
-        slide.addShape(pptx.ShapeType.ellipse, {
-          x: lx,
-          y: ly - lSize / 2,
-          w: lSize,
-          h: lSize,
-          fill: { color: "transparent" },
-          line: { color: "0F172A", width: 1 }
-        });
-      } else if (style === "quadrant") {
-        slide.addShape(pptx.ShapeType.rect, {
-          x: lx + lSize / 2,
-          y: ly - lSize / 2,
-          w: lSize / 2,
-          h: lSize / 2,
-          fill: { color: "64748B" },
-          line: { color: "64748B", width: 0 }
-        });
+      } else if (style && (style === "left-half" || style === "right-half" || style === "top-half" || style === "bottom-half" || style === "quadrant" || style.startsWith("q"))) {
+        const [q1, q2, q3, q4] = getQuadrantsForStyle(style);
+        if (q1) {
+          slide.addShape(pptx.ShapeType.rect, {
+            x: lx + lSize / 2,
+            y: ly - lSize / 2,
+            w: lSize / 2,
+            h: lSize / 2,
+            fill: { color: "64748B" },
+            line: { color: "64748B", width: 0 }
+          });
+        }
+        if (q2) {
+          slide.addShape(pptx.ShapeType.rect, {
+            x: lx,
+            y: ly - lSize / 2,
+            w: lSize / 2,
+            h: lSize / 2,
+            fill: { color: "64748B" },
+            line: { color: "64748B", width: 0 }
+          });
+        }
+        if (q3) {
+          slide.addShape(pptx.ShapeType.rect, {
+            x: lx,
+            y: ly,
+            w: lSize / 2,
+            h: lSize / 2,
+            fill: { color: "64748B" },
+            line: { color: "64748B", width: 0 }
+          });
+        }
+        if (q4) {
+          slide.addShape(pptx.ShapeType.rect, {
+            x: lx + lSize / 2,
+            y: ly,
+            w: lSize / 2,
+            h: lSize / 2,
+            fill: { color: "64748B" },
+            line: { color: "64748B", width: 0 }
+          });
+        }
         slide.addShape(pptx.ShapeType.ellipse, {
           x: lx,
           y: ly - lSize / 2,
