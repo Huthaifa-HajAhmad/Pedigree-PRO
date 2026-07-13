@@ -19,12 +19,27 @@ function calculateAgeFromDob(dob?: string): string {
   const birthDate = new Date(dob);
   if (isNaN(birthDate.getTime())) return "";
   const today = new Date();
-  let age = today.getFullYear() - birthDate.getFullYear();
-  const m = today.getMonth() - birthDate.getMonth();
-  if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
-    age--;
+  
+  // Calculate raw difference in months
+  let months = (today.getFullYear() - birthDate.getFullYear()) * 12;
+  months -= birthDate.getMonth();
+  months += today.getMonth();
+  
+  // Adjust for partial month days
+  if (today.getDate() < birthDate.getDate()) {
+    months--;
   }
-  return age >= 0 ? String(age) : "";
+  
+  if (months < 0) return "";
+  
+  // If age is less than 12 months, return age in months (e.g. "3m")
+  if (months < 12) {
+    return `${months}m`;
+  }
+  
+  // Otherwise, return age in years
+  const years = Math.floor(months / 12);
+  return String(years);
 }
 
 export function PropertiesPanel({
@@ -593,32 +608,36 @@ export function PropertiesPanel({
                     onChange={(e) => onUpdateSelectedNode({ insideText: e.target.value || undefined })}
                     placeholder="e.g. 3" className="w-36 bg-background border border-border/80 rounded-lg px-2.5 py-1 text-xs outline-none hover:bg-accent/20 focus:border-muted-foreground/45 focus-visible:ring-0 shadow-none transition-all duration-200" />
                 </div>
-                <div className="flex items-center justify-between gap-3">
-                  <label htmlFor="prop-node-age" className="text-xs text-muted-foreground uppercase tracking-wider">Age</label>
-                  <div className="flex gap-1.5 w-36">
-                    <input id="prop-node-age" data-testid="input-node-age" value={ageVal}
-                      onChange={(e) => {
-                        const val = e.target.value.trim();
-                        if (!val) {
-                          onUpdateSelectedNode({ age: undefined });
-                        } else {
-                          onUpdateSelectedNode({ age: ageUnit === "m" ? `${val}m` : val });
-                        }
-                      }}
-                      placeholder="e.g. 42" className="flex-1 bg-background border border-border/80 rounded-lg px-2.5 py-1 text-xs outline-none hover:bg-accent/20 focus:border-muted-foreground/45 focus-visible:ring-0 shadow-none transition-all duration-200" />
-                    <select
-                      value={ageUnit}
-                      onChange={(e) => {
-                        const newUnit = e.target.value;
-                        if (ageVal) {
-                          onUpdateSelectedNode({ age: newUnit === "m" ? `${ageVal}m` : ageVal });
-                        }
-                      }}
-                      className="bg-background border border-border/80 rounded-lg px-1.5 py-1 text-xs outline-none hover:bg-accent/20 focus:border-muted-foreground/45 focus-visible:ring-0 shadow-none cursor-pointer"
-                    >
-                      <option value="y">Yrs</option>
-                      <option value="m">Mos</option>
-                    </select>
+                <div className="flex items-start justify-between gap-3">
+                  <label htmlFor="prop-node-age" className="text-xs text-muted-foreground uppercase tracking-wider pt-1.5">Age</label>
+                  <div className="flex flex-col items-end gap-1">
+                    <div className="flex gap-1.5 w-36">
+                      <input id="prop-node-age" data-testid="input-node-age" value={ageVal}
+                        onChange={(e) => {
+                          const val = e.target.value.trim();
+                          if (!val) {
+                            onUpdateSelectedNode({ age: undefined });
+                          } else {
+                            onUpdateSelectedNode({ age: ageUnit === "m" ? `${val}m` : val });
+                          }
+                        }}
+                        placeholder={ageUnit === "m" ? "e.g. 3" : "e.g. 42"}
+                        className="w-[84px] bg-background border border-border/80 rounded-lg px-2.5 py-1 text-xs outline-none hover:bg-accent/20 focus:border-muted-foreground/45 focus-visible:ring-0 shadow-none transition-all duration-200" />
+                      <select
+                        value={ageUnit}
+                        onChange={(e) => {
+                          const newUnit = e.target.value;
+                          if (ageVal) {
+                            onUpdateSelectedNode({ age: newUnit === "m" ? `${ageVal}m` : ageVal });
+                          }
+                        }}
+                        className="w-[56px] bg-background border border-border/80 rounded-lg px-1.5 py-1 text-xs outline-none hover:bg-accent/20 focus:border-muted-foreground/45 focus-visible:ring-0 shadow-none cursor-pointer"
+                      >
+                        <option value="y">Yrs</option>
+                        <option value="m">Mos</option>
+                      </select>
+                    </div>
+                    <span className="text-[9px] text-muted-foreground/75 pr-0.5 select-none">y = years, m = months</span>
                   </div>
                 </div>
                 <div className="flex items-center justify-between gap-3">
