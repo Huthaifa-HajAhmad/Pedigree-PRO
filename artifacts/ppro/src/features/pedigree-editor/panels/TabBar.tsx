@@ -20,6 +20,7 @@ interface TabBarProps {
   onOpenTab: (id: number, title: string) => void;
   onReorderTab?: (fromIndex: number, toIndex: number) => void;
   onDeletePedigree: (tabId: number, tabTitle: string) => void;
+  onCreatePedigree?: () => void;
   saveStatus?: "idle" | "saving" | "saved";
 }
 
@@ -35,6 +36,7 @@ export function TabBar({
   onOpenTab,
   onReorderTab,
   onDeletePedigree,
+  onCreatePedigree,
   saveStatus = "idle",
 }: TabBarProps) {
   const dragIndexRef = useRef<number | null>(null);
@@ -230,10 +232,9 @@ export function TabBar({
           {/* Add tab button inside rail */}
           <button
             type="button"
-            data-tab-picker-trigger
-            onClick={onToggleTabPicker}
-            title="Open pedigree"
-            aria-label="Open another pedigree"
+            onClick={onCreatePedigree || onToggleTabPicker}
+            title="New pedigree"
+            aria-label="Create new pedigree"
             className="flex items-center justify-center w-8 h-9 mb-0.5 rounded-full flex-shrink-0 text-gray-700/50 hover:text-gray-900 hover:bg-black/5 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/60"
           >
             <Plus className="w-4 h-4" />
@@ -243,6 +244,7 @@ export function TabBar({
           {tabs.length > 0 && (
             <button
               type="button"
+              data-tab-picker-trigger
               onClick={onToggleTabPicker}
               title="Switch pedigree"
               aria-label="Switch pedigree"

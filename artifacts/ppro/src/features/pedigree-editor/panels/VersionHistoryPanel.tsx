@@ -12,7 +12,8 @@ export function VersionHistoryPanel({ onClose }: { onClose: () => void }) {
       title="Version History"
       icon={<Clock className="w-3.5 h-3.5" />}
       onClose={onClose}
-      width="w-80"
+      width="w-full"
+      disableScroll={true}
       actions={
         <button
           type="button"
@@ -25,9 +26,9 @@ export function VersionHistoryPanel({ onClose }: { onClose: () => void }) {
         </button>
       }
     >
-      <div className="space-y-3">
-        <p className="text-xs text-muted-foreground">Select any snapshot below to preview changes</p>
-        <div className="space-y-2">
+      <div className="flex flex-col h-full overflow-hidden min-h-0">
+        <p className="text-xs text-muted-foreground flex-shrink-0 mb-3">Select any snapshot below to preview changes</p>
+        <div className="flex-1 overflow-y-auto space-y-2 pr-1 min-h-0">
           {versionsLoading ? (
             Array.from({ length: 3 }, (_, i) => (
               <div key={i} className="p-3 animate-pulse h-16 bg-muted/20 rounded-lg border border-border/50" />
@@ -174,39 +175,39 @@ export function VersionHistoryPanel({ onClose }: { onClose: () => void }) {
             })
           )}
         </div>
-      </div>
 
-      {state.isPreviewMode && (
-        <div className="sticky bottom-0 bg-background/95 backdrop-blur-md border-t border-border -mx-3 -mb-3 p-3.5 z-10 space-y-3 shadow-[0_-4px_12px_rgba(0,0,0,0.05)]">
-          <label className="flex items-center gap-2 cursor-pointer select-none">
-            <input
-              type="checkbox"
-              checked={state.showVisualDiff}
-              onChange={(e) => dispatch({ type: "TOGGLE_VISUAL_DIFF", enabled: e.target.checked })}
-              className="w-3.5 h-3.5 rounded border-border text-primary focus:ring-primary/30"
-            />
-            <span className="text-xs text-muted-foreground font-semibold">Highlight Changes</span>
-          </label>
-          <div className="flex gap-2">
-            <Button
-              type="button"
-              size="sm"
-              onClick={() => ops.handleRestoreVersion(state.previewVersionId || 0)}
-              className="flex-1"
-            >
-              Restore
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              onClick={() => dispatch({ type: "EXIT_PREVIEW" })}
-            >
-              Exit
-            </Button>
+        {state.isPreviewMode && (
+          <div className="bg-background/95 border-t border-border pt-3.5 mt-3 space-y-3 flex-shrink-0">
+            <label className="flex items-center gap-2 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={state.showVisualDiff}
+                onChange={(e) => dispatch({ type: "TOGGLE_VISUAL_DIFF", enabled: e.target.checked })}
+                className="w-3.5 h-3.5 rounded border-border text-primary focus:ring-primary/30"
+              />
+              <span className="text-xs text-muted-foreground font-semibold">Highlight Changes</span>
+            </label>
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                size="sm"
+                onClick={() => ops.handleRestoreVersion(state.previewVersionId || 0)}
+                className="flex-1"
+              >
+                Restore
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => dispatch({ type: "EXIT_PREVIEW" })}
+              >
+                Exit
+              </Button>
+            </div>
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </PanelShell>
   );
 }

@@ -1,10 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
-import { useQueryClient } from "@tanstack/react-query";
-import { useListPedigrees, useCreatePedigree, queryKeys } from "@workspace/api-client-react";
-import { Dna, Plus, Upload } from "lucide-react";
-import { computeHash, signData } from "@workspace/crypto";
-import { listProfilePrivateKeys } from "@workspace/browser-backend";
+import { useListPedigrees } from "@workspace/api-client-react";
+import { Dna, Upload } from "lucide-react";
 import { ImportDialog } from "@/components/ImportDialog";
 
 export function TabPickerPopover({
@@ -25,29 +22,7 @@ export function TabPickerPopover({
     return () => clearTimeout(timer);
   }, [search]);
   const { data: pedigrees } = useListPedigrees({ search: debouncedSearch || undefined });
-  const createPedigree = useCreatePedigree();
-  const queryClient = useQueryClient();
 
-  const handleNewPedigree = async () => {
-    const canvasData = JSON.stringify({ nodes: [], edges: [], annotations: [] });
-    const canvasHash = computeHash(canvasData);
-    const keys = await listProfilePrivateKeys();
-    const activeKey = keys.length > 0 ? keys[0] : null;
-    const creatorKey = activeKey ? await (await import("@workspace/crypto")).getPublicKeyFromPrivate(activeKey.privateKey) : "";
-    const creatorSignature = activeKey ? await signData(canvasHash, activeKey.privateKey) : null;
-    try {
-      const pedigree = await createPedigree.mutateAsync(
-        { title: "New Pedigree", canvas_data: canvasData, canvas_hash: canvasHash, creator_key: creatorKey, creator_signature: creatorSignature },
-      );
-      if (!pedigree?.id) return;
-      queryClient.setQueryData(queryKeys.pedigree(pedigree.id), pedigree);
-      queryClient.invalidateQueries({ queryKey: queryKeys.pedigrees });
-      onOpen(pedigree.id, pedigree.title);
-      onClose();
-    } catch (err) {
-      console.error("Failed to create pedigree:", err);
-    }
-  };
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -128,11 +103,6 @@ export function TabPickerPopover({
         )}
       </div>
       <div className="border-t border-border p-1.5">
-        <button type="button" onClick={handleNewPedigree} disabled={createPedigree.isPending}
-          className="w-full flex items-center gap-2 px-3 py-2 text-xs rounded-md hover:bg-accent text-primary font-medium transition-colors disabled:opacity-40">
-          <Plus className="w-3 h-3" />
-          <span>{createPedigree.isPending ? "Creating..." : "New Pedigree"}</span>
-        </button>
         <ImportDialog>
           <button type="button" className="w-full flex items-center gap-2 px-3 py-2 text-xs rounded-md hover:bg-accent text-primary font-medium transition-colors">
             <Upload className="w-3 h-3" />

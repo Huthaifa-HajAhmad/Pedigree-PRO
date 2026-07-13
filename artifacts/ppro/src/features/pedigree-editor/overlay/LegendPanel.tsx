@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { BookOpen, X, Camera } from "lucide-react";
+import { getQuadrantsForStyle } from "../utils/helpers";
 
 function LegendSymbol({ k, isPublication }: { k: string; isPublication?: boolean }) {
   const G = isPublication ? "#0284c7" : "hsl(var(--primary))";
@@ -98,43 +99,16 @@ function LegendSymbol({ k, isPublication }: { k: string; isPublication?: boolean
         </svg>
       );
     }
-    if (style === "left-half") {
+    const [q1, q2, q3, q4] = getQuadrantsForStyle(style);
+    if (q1 || q2 || q3 || q4) {
+      const R = 5;
       return (
         <svg width={14} height={14} viewBox="-7 -7 14 14">
-          <circle r={5} fill="none" stroke={strokeColor} strokeWidth={1.5} />
-          <path d="M 0 -5 A 5 5 0 0 0 0 5 Z" fill={fillCol} />
-        </svg>
-      );
-    }
-    if (style === "right-half") {
-      return (
-        <svg width={14} height={14} viewBox="-7 -7 14 14">
-          <circle r={5} fill="none" stroke={strokeColor} strokeWidth={1.5} />
-          <path d="M 0 -5 A 5 5 0 0 1 0 5 Z" fill={fillCol} />
-        </svg>
-      );
-    }
-    if (style === "top-half") {
-      return (
-        <svg width={14} height={14} viewBox="-7 -7 14 14">
-          <circle r={5} fill="none" stroke={strokeColor} strokeWidth={1.5} />
-          <path d="M -5 0 A 5 5 0 0 1 5 0 Z" fill={fillCol} />
-        </svg>
-      );
-    }
-    if (style === "bottom-half") {
-      return (
-        <svg width={14} height={14} viewBox="-7 -7 14 14">
-          <circle r={5} fill="none" stroke={strokeColor} strokeWidth={1.5} />
-          <path d="M -5 0 A 5 5 0 0 0 5 0 Z" fill={fillCol} />
-        </svg>
-      );
-    }
-    if (style === "quadrant") {
-      return (
-        <svg width={14} height={14} viewBox="-7 -7 14 14">
-          <circle r={5} fill="none" stroke={strokeColor} strokeWidth={1.5} />
-          <path d="M 0 0 L 0 -5 A 5 5 0 0 1 5 0 Z" fill={fillCol} />
+          <circle r={R} fill="none" stroke={strokeColor} strokeWidth={1.5} />
+          {q1 && <path d={`M 0 0 L 0 ${-R} A ${R} ${R} 0 0 1 ${R} 0 Z`} fill={fillCol} />}
+          {q2 && <path d={`M 0 0 L ${-R} 0 A ${R} ${R} 0 0 1 0 ${-R} Z`} fill={fillCol} />}
+          {q3 && <path d={`M 0 0 L 0 ${R} A ${R} ${R} 0 0 1 ${-R} 0 Z`} fill={fillCol} />}
+          {q4 && <path d={`M 0 0 L ${R} 0 A ${R} ${R} 0 0 1 0 ${R} Z`} fill={fillCol} />}
         </svg>
       );
     }

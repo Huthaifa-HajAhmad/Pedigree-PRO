@@ -8,6 +8,7 @@ interface PanelShellProps {
   actions?: ReactNode;
   width?: string;
   children: ReactNode;
+  disableScroll?: boolean;
 }
 
 export function PanelShell({
@@ -17,6 +18,7 @@ export function PanelShell({
   actions,
   width = "w-72",
   children,
+  disableScroll = false,
 }: PanelShellProps) {
   return (
     <div className={`${width} h-full border-l border-sidebar-border bg-sidebar text-sidebar-foreground flex flex-col flex-shrink-0 overflow-hidden shadow-[-6px_0_16px_rgba(0,0,0,0.12),0_4px_16px_rgba(0,0,0,0.08)]`}>
@@ -41,7 +43,7 @@ export function PanelShell({
           )}
         </div>
       </div>
-      <div className="flex-1 overflow-y-auto p-3 space-y-5">
+      <div className={`flex-1 p-3 ${disableScroll ? "overflow-hidden flex flex-col min-h-0" : "overflow-y-auto space-y-5"}`}>
         {children}
       </div>
     </div>

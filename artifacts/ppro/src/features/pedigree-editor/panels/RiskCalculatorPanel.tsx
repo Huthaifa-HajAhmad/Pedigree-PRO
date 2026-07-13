@@ -1,4 +1,4 @@
-import { TrendingUp } from "lucide-react";
+import { TrendingUp, AlertTriangle } from "lucide-react";
 import { useState, useMemo } from "react";
 import type { PedigreeNode, PedigreeEdge } from "@/features/pedigree-editor/canvas/types";
 import { computeRisk, type InheritanceMode, type RiskResult } from "@/lib/risk-calculator";
@@ -348,6 +348,15 @@ export function RiskPanelSidebar({
           <p className="text-xs text-muted-foreground italic">No consanguinity detected (all individuals F = 0).</p>
         </PanelSection>
       )}
+
+      <div className="bg-amber-500/5 border border-amber-500/20 rounded-lg p-3 space-y-1 mt-4 mx-3 mb-2">
+        <div className="text-[10px] font-semibold text-amber-600 uppercase tracking-wider flex items-center gap-1.5">
+          <AlertTriangle className="w-3.5 h-3.5" /> Clinical Disclaimer
+        </div>
+        <p className="text-[10px] text-muted-foreground leading-relaxed font-sans">
+          This calculator uses simplified Mendelian models for educational and preliminary assessment purposes only. It is not a certified diagnostic tool and should not be used as a substitute for professional genetic counseling or clinical decision-making.
+        </p>
+      </div>
     </PanelShell>
   );
 }

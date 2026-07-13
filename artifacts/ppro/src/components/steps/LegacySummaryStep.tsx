@@ -14,8 +14,12 @@ export function LegacySummaryStep({ result, onDone }: LegacySummaryStepProps) {
         <CheckCircle2 className="w-5 h-5 text-primary flex-shrink-0" />
         <div className="text-sm font-medium text-primary">Migration Complete</div>
       </div>
-      <div className="text-xs text-muted-foreground space-y-1">
-        {result.warnings.map((w, i) => <div key={`${w.substring(0, 24)}-${i}`} className="text-primary/80">{w}</div>)}
+      <div className="max-h-32 overflow-y-auto text-xs text-muted-foreground space-y-1 pr-1">
+        {result.warnings.map((w, i) => (
+          <div key={`${w.substring(0, 24)}-${i}`} className="text-primary/80">
+            {w}
+          </div>
+        ))}
       </div>
       <Button onClick={onDone} className="w-full">View Pedigrees</Button>
     </div>

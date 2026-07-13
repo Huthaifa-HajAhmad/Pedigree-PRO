@@ -34,6 +34,7 @@ export function ContextMenu({
   selectedIds,
   onMarkAsTwins,
   onUnmarkTwins,
+  onAlignSelected,
 }: {
   ctxNode: PedigreeNode;
   canvasEdges: PedigreeEdge[];
@@ -49,12 +50,14 @@ export function ContextMenu({
   selectedIds?: Set<string>;
   onMarkAsTwins?: (nodeIds: string[], twinType: "m" | "d") => void;
   onUnmarkTwins?: (nodeIds: string[]) => void;
+  onAlignSelected?: (axis: "x" | "y") => void;
 }) {
   const isMale      = ctxNode.type === "male";
   const isPregnancy = ctxNode.type === "pregnancy";
   const isSab       = ctxNode.type === "sab";
   const isUnknown   = ctxNode.type === "unknown";
   const isEndpoint  = isPregnancy || isSab;
+  const isMultiSelect = !!(selectedIds && selectedIds.size > 1 && selectedIds.has(ctxNode.id));
 
   const { partnerEdges, hasPartner, hasParents, hasChildren, otherProband } = useMemo(() => {
     const pEdges = canvasEdges.filter(
@@ -295,25 +298,41 @@ export function ContextMenu({
 
         <div ref={contentRef}>
           {/* Header */}
-          <div className="px-3 py-2 border-b border-border sticky top-0 bg-popover z-10">
-            <div className="flex items-center gap-2">
-              <TypeIcon type={ctxNode.type} />
-              <div>
-                <div className="text-xs font-medium capitalize text-foreground">
-                  {ctxNode.label || ctxNode.type}
+          {isMultiSelect ? (
+            <div className="px-3 py-2 border-b border-border sticky top-0 bg-popover z-10">
+              <div className="flex items-center gap-2">
+                <Palette className="w-3.5 h-3.5 text-primary flex-shrink-0" />
+                <div>
+                  <div className="text-xs font-semibold text-foreground">
+                    Multiple Selection
+                  </div>
+                  <div className="text-[10px] text-muted-foreground mt-0.5">
+                    {selectedIds?.size} individuals selected
+                  </div>
                 </div>
-                {contextSummary && (
-                  <div className="text-xs text-muted-foreground mt-0.5">{contextSummary}</div>
-                )}
               </div>
             </div>
-          </div>
+          ) : (
+            <div className="px-3 py-2 border-b border-border sticky top-0 bg-popover z-10">
+              <div className="flex items-center gap-2">
+                <TypeIcon type={ctxNode.type} />
+                <div>
+                  <div className="text-xs font-medium capitalize text-foreground">
+                    {ctxNode.label || ctxNode.type}
+                  </div>
+                  {contextSummary && (
+                    <div className="text-xs text-muted-foreground mt-0.5">{contextSummary}</div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Set Type — flyout submenu */}
           <div className="relative group">
             <button ref={typeButtonRef} type="button" role="menuitem" className={btn} onClick={() => { setExpandType((v) => !v); setExpandAdd(false); }} onMouseEnter={handleTypeEnter} onMouseLeave={handleTypeLeave} aria-haspopup="menu" aria-expanded={expandType}>
               <TypeIcon type={ctxNode.type} />
-              <span className="flex-1">Set Type</span>
+              <span className="flex-1">{isMultiSelect ? "Set Type for Selected" : "Set Type"}</span>
               <ChevronRight className="w-3 h-3 text-muted-foreground" />
             </button>
             {expandType && typeFlyoutPos && (
@@ -347,58 +366,60 @@ export function ContextMenu({
           {/* Set Color — opens standalone picker near node */}
           <button type="button" role="menuitem" className={btn} onClick={() => { onClose(); onOpenColorPicker(ctxNode.id); }}>
             <Palette className={ICON_CLS} />
-            <span className="flex-1">Set Color</span>
+            <span className="flex-1">{isMultiSelect ? "Set Color for Selected" : "Set Color"}</span>
             {ctxNode.color && <span className="w-3 h-3 rounded-full border border-border/50 flex-shrink-0" style={{ background: ctxNode.color }} />}
           </button>
 
           {/* Add Relatives — flyout submenu */}
-          <div className="relative group">
-            <button ref={addButtonRef} type="button" role="menuitem" className={btn} onClick={() => { setExpandAdd((v) => !v); setExpandType(false); }} onMouseEnter={handleAddEnter} onMouseLeave={handleAddLeave} aria-haspopup="menu" aria-expanded={expandAdd}>
-              <ArrowDown className={ICON_CLS} />
-              <span className="flex-1">Add Relatives</span>
-              <ChevronRight className="w-3 h-3 text-muted-foreground" />
-            </button>
-            {expandAdd && addFlyoutPos && (
-              <div ref={addFlyoutRef} role="menu" className="fixed z-50 min-w-[180px] border border-border rounded-md shadow-xl bg-popover"
-                style={{ left: addFlyoutPos.left, top: addFlyoutPos.top }}
-                onMouseEnter={() => { if (hoverAddTimerRef.current !== null) { clearTimeout(hoverAddTimerRef.current); hoverAddTimerRef.current = null; } }}
-                onMouseLeave={handleAddLeave}>
-                {!isEndpoint && !isUnknown ? (
-                  <button type="button" role="menuitem" className={btn} onClick={() => { onAddContextNode("child"); onClose(); }}>
-                    <ArrowDown className={ICON_CLS} /> Add Child <span className="ml-auto text-muted-foreground text-xs">C</span>
+          {!isMultiSelect && (
+            <div className="relative group">
+              <button ref={addButtonRef} type="button" role="menuitem" className={btn} onClick={() => { setExpandAdd((v) => !v); setExpandType(false); }} onMouseEnter={handleAddEnter} onMouseLeave={handleAddLeave} aria-haspopup="menu" aria-expanded={expandAdd}>
+                <ArrowDown className={ICON_CLS} />
+                <span className="flex-1">Add Relatives</span>
+                <ChevronRight className="w-3 h-3 text-muted-foreground" />
+              </button>
+              {expandAdd && addFlyoutPos && (
+                <div ref={addFlyoutRef} role="menu" className="fixed z-50 min-w-[180px] border border-border rounded-md shadow-xl bg-popover"
+                  style={{ left: addFlyoutPos.left, top: addFlyoutPos.top }}
+                  onMouseEnter={() => { if (hoverAddTimerRef.current !== null) { clearTimeout(hoverAddTimerRef.current); hoverAddTimerRef.current = null; } }}
+                  onMouseLeave={handleAddLeave}>
+                  {!isEndpoint && !isUnknown ? (
+                    <button type="button" role="menuitem" className={btn} onClick={() => { onAddContextNode("child"); onClose(); }}>
+                      <ArrowDown className={ICON_CLS} /> Add Child <span className="ml-auto text-muted-foreground text-xs">C</span>
+                    </button>
+                  ) : (
+                    <button type="button" role="menuitem" aria-disabled className={mbtn} title={isUnknown ? "Unknown sex nodes cannot parent children" : `${ctxNode.type}s cannot parent children`}>
+                      <ArrowDown className={ICON_CLS} /> Add Child <span className="ml-auto text-xs">N/A</span>
+                    </button>
+                  )}
+                  {!isEndpoint && !isUnknown ? (
+                    <button type="button" role="menuitem" className={btn} onClick={() => { onAddContextNode("partner"); onClose(); }}>
+                      <ArrowRight className={ICON_CLS} /> {hasPartner ? "Add Another Partner" : "Add Partner"}
+                      <span className="ml-auto text-muted-foreground text-xs">R</span>
+                    </button>
+                  ) : (
+                    <button type="button" role="menuitem" aria-disabled className={mbtn} title={isUnknown ? "Unknown sex nodes don't form couple links" : `${ctxNode.type}s don't form couple links`}>
+                      <ArrowRight className={ICON_CLS} /> Add Partner <span className="ml-auto text-xs">N/A</span>
+                    </button>
+                  )}
+                  <button type="button" role="menuitem" className={btn} onClick={() => { onAddContextNode("sibling"); onClose(); }}>
+                    <ArrowLeftRight className={ICON_CLS} /> Add Sibling
+                    {!hasParents && <span className="ml-1 text-xs text-muted-foreground">(no parents yet)</span>}
+                    <span className="ml-auto text-muted-foreground text-xs">B</span>
                   </button>
-                ) : (
-                  <button type="button" role="menuitem" aria-disabled className={mbtn} title={isUnknown ? "Unknown sex nodes cannot parent children" : `${ctxNode.type}s cannot parent children`}>
-                    <ArrowDown className={ICON_CLS} /> Add Child <span className="ml-auto text-xs">N/A</span>
-                  </button>
-                )}
-                {!isEndpoint && !isUnknown ? (
-                  <button type="button" role="menuitem" className={btn} onClick={() => { onAddContextNode("partner"); onClose(); }}>
-                    <ArrowRight className={ICON_CLS} /> {hasPartner ? "Add Another Partner" : "Add Partner"}
-                    <span className="ml-auto text-muted-foreground text-xs">R</span>
-                  </button>
-                ) : (
-                  <button type="button" role="menuitem" aria-disabled className={mbtn} title={isUnknown ? "Unknown sex nodes don't form couple links" : `${ctxNode.type}s don't form couple links`}>
-                    <ArrowRight className={ICON_CLS} /> Add Partner <span className="ml-auto text-xs">N/A</span>
-                  </button>
-                )}
-                <button type="button" role="menuitem" className={btn} onClick={() => { onAddContextNode("sibling"); onClose(); }}>
-                  <ArrowLeftRight className={ICON_CLS} /> Add Sibling
-                  {!hasParents && <span className="ml-1 text-xs text-muted-foreground">(no parents yet)</span>}
-                  <span className="ml-auto text-muted-foreground text-xs">B</span>
-                </button>
-                {!hasParents && !isEndpoint ? (
-                  <button type="button" role="menuitem" className={btn} onClick={() => { onAddContextNode("parents"); onClose(); }}>
-                    <ArrowUp className={ICON_CLS} /> Add Parents
-                  </button>
-                ) : (
-                  <button type="button" role="menuitem" aria-disabled className={mbtn} title={hasParents ? "Already has parents" : `${ctxNode.type}s cannot have parents`}>
-                    <ArrowUp className={ICON_CLS} /> Add Parents <span className="ml-auto text-xs">N/A</span>
-                  </button>
-                )}
-              </div>
-            )}
-          </div>
+                  {!hasParents && !isEndpoint ? (
+                    <button type="button" role="menuitem" className={btn} onClick={() => { onAddContextNode("parents"); onClose(); }}>
+                      <ArrowUp className={ICON_CLS} /> Add Parents
+                    </button>
+                  ) : (
+                    <button type="button" role="menuitem" aria-disabled className={mbtn} title={hasParents ? "Already has parents" : `${ctxNode.type}s cannot have parents`}>
+                      <ArrowUp className={ICON_CLS} /> Add Parents <span className="ml-auto text-xs">N/A</span>
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
 
           {sep}
 
@@ -406,12 +427,16 @@ export function ContextMenu({
           {grp("Status")}
           <button type="button" role="menuitem" className={ctxNode.affected ? abtn : btn} onClick={() => { onToggleNodeProp(ctxNode.id, "affected"); onClose(); }}>
             {ctxNode.affected ? <CheckCircle2 className={`${ICON_CLS} text-primary`} /> : <Circle className={ICON_CLS} />}
-            {ctxNode.affected ? "Unmark Affected" : "Mark Affected"}
+            {isMultiSelect
+              ? (ctxNode.affected ? "Unmark Selected Affected" : "Mark Selected Affected")
+              : (ctxNode.affected ? "Unmark Affected" : "Mark Affected")}
           </button>
           {!isSab ? (
             <button type="button" role="menuitem" className={ctxNode.carrier ? abtn : btn} onClick={() => { onToggleNodeProp(ctxNode.id, "carrier"); onClose(); }}>
               {ctxNode.carrier ? <CircleDot className={`${ICON_CLS} text-primary`} /> : <Circle className={ICON_CLS} />}
-              {ctxNode.carrier ? "Unmark Carrier" : "Mark Carrier"}
+              {isMultiSelect
+                ? (ctxNode.carrier ? "Unmark Selected Carrier" : "Mark Selected Carrier")
+                : (ctxNode.carrier ? "Unmark Carrier" : "Mark Carrier")}
             </button>
           ) : (
             <button type="button" role="menuitem" aria-disabled className={mbtn} title="SABs are not marked as carriers">
@@ -421,7 +446,9 @@ export function ContextMenu({
           {!isEndpoint ? (
             <button type="button" role="menuitem" className={ctxNode.deceased ? abtn : btn} onClick={() => { onToggleNodeProp(ctxNode.id, "deceased"); onClose(); }}>
               {ctxNode.deceased ? <X className={`${ICON_CLS} text-primary`} /> : <Circle className={ICON_CLS} />}
-              {ctxNode.deceased ? "Unmark Deceased" : "Mark Deceased"}
+              {isMultiSelect
+                ? (ctxNode.deceased ? "Unmark Selected Deceased" : "Mark Selected Deceased")
+                : (ctxNode.deceased ? "Unmark Deceased" : "Mark Deceased")}
             </button>
           ) : (
             <button type="button" role="menuitem" aria-disabled className={mbtn} title={isPregnancy ? "Deceased pregnancy should be SAB" : "SAB implies deceased"}>
@@ -429,39 +456,56 @@ export function ContextMenu({
               <span className="ml-auto text-xs">{isPregnancy ? "→ use SAB" : "implicit"}</span>
             </button>
           )}
-          {!isSab ? (
+          {!isSab && !isMultiSelect && (
             <button type="button" role="menuitem" className={ctxNode.proband ? abtn : btn} onClick={() => { onToggleNodeProp(ctxNode.id, "proband"); onClose(); }}>
               {ctxNode.proband ? <Star className={`${ICON_CLS} text-primary`} /> : <Circle className={ICON_CLS} />}
               {ctxNode.proband ? "Remove Proband" : otherProband ? "Set Proband (replace)" : "Set as Proband"}
             </button>
-          ) : (
-            <button type="button" role="menuitem" aria-disabled className={mbtn}><Star className={ICON_CLS} />Proband <span className="ml-auto text-xs">N/A</span></button>
           )}
-
-          {sep}
 
           {/* Connect */}
-          {grp("Connect", isEndpoint ? "limited" : undefined)}
-          {!isEndpoint ? (
-            <button type="button" role="menuitem" className={btn} onClick={() => { onSetLinkMode("couple", ctxNode.id); onClose(); }}>
-              <Link2 className={ICON_CLS} /> Couple link…
-            </button>
-          ) : (
-            <button type="button" role="menuitem" aria-disabled className={mbtn}><Link2 className={ICON_CLS} /> Couple link <span className="ml-auto text-xs">N/A</span></button>
+          {!isMultiSelect && (
+            <>
+              {sep}
+              {grp("Connect", isEndpoint ? "limited" : undefined)}
+              {!isEndpoint ? (
+                <button type="button" role="menuitem" className={btn} onClick={() => { onSetLinkMode("couple", ctxNode.id); onClose(); }}>
+                  <Link2 className={ICON_CLS} /> Couple link…
+                </button>
+              ) : (
+                <button type="button" role="menuitem" aria-disabled className={mbtn}><Link2 className={ICON_CLS} /> Couple link <span className="ml-auto text-xs">N/A</span></button>
+              )}
+              {!isEndpoint ? (
+                <button type="button" role="menuitem" className={btn} onClick={() => { onSetLinkMode("parent-child", ctxNode.id); onClose(); }}>
+                  <GitBranch className={ICON_CLS} /> Parent→Child…
+                </button>
+              ) : (
+                <button type="button" role="menuitem" aria-disabled className={mbtn}><GitBranch className={ICON_CLS} /> Parent→Child <span className="ml-auto text-xs">N/A</span></button>
+              )}
+              {!isEndpoint ? (
+                <button type="button" role="menuitem" className={btn} onClick={() => { onSetLinkMode("consanguinity", ctxNode.id); onClose(); }}>
+                  <GitMerge className={ICON_CLS} /> Consanguinity…
+                </button>
+              ) : (
+                <button type="button" role="menuitem" aria-disabled className={mbtn}><GitMerge className={ICON_CLS} /> Consanguinity <span className="ml-auto text-xs">N/A</span></button>
+              )}
+            </>
           )}
-          {!isEndpoint ? (
-            <button type="button" role="menuitem" className={btn} onClick={() => { onSetLinkMode("parent-child", ctxNode.id); onClose(); }}>
-              <GitBranch className={ICON_CLS} /> Parent→Child…
-            </button>
-          ) : (
-            <button type="button" role="menuitem" aria-disabled className={mbtn}><GitBranch className={ICON_CLS} /> Parent→Child <span className="ml-auto text-xs">N/A</span></button>
-          )}
-          {!isEndpoint ? (
-            <button type="button" role="menuitem" className={btn} onClick={() => { onSetLinkMode("consanguinity", ctxNode.id); onClose(); }}>
-              <GitMerge className={ICON_CLS} /> Consanguinity…
-            </button>
-          ) : (
-            <button type="button" role="menuitem" aria-disabled className={mbtn}><GitMerge className={ICON_CLS} /> Consanguinity <span className="ml-auto text-xs">N/A</span></button>
+
+          {/* Align Selected Nodes */}
+          {isMultiSelect && onAlignSelected && (
+            <>
+              {sep}
+              {grp("Align")}
+              <button type="button" role="menuitem" className={btn} onClick={() => { onAlignSelected("x"); onClose(); }}>
+                <ArrowDown className={ICON_CLS} style={{ transform: "rotate(-90deg)" }} />
+                <span>Align Horizontally (X)</span>
+              </button>
+              <button type="button" role="menuitem" className={btn} onClick={() => { onAlignSelected("y"); onClose(); }}>
+                <ArrowDown className={ICON_CLS} />
+                <span>Align Vertically (Y)</span>
+              </button>
+            </>
           )}
 
           {/* Twins */}
@@ -505,7 +549,7 @@ export function ContextMenu({
           {/* Danger */}
           <button type="button" role="menuitem" className={dbtn} onClick={() => { onClose(); onDeleteSelected(); }}>
             <Trash2 className={`${ICON_CLS} text-red-400`} />
-            Delete
+            {isMultiSelect ? "Delete Selected" : "Delete"}
           </button>
         </div>
       </div>
