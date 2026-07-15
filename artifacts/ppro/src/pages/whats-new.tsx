@@ -17,14 +17,51 @@ export default function WhatsNewPage() {
           </div>
 
           <div className="relative border-l border-border pl-6 ml-3 space-y-8 my-2">
-            {/* Version 1.3.0 */}
+            {/* Version 1.3.5 */}
             <div className="relative">
               <div className="absolute -left-[31px] top-1 w-3.5 h-3.5 rounded-full border border-primary bg-background flex items-center justify-center">
                 <span className="w-1.5 h-1.5 rounded-full bg-primary" />
               </div>
               <div className="flex items-center gap-2">
-                <span className="text-sm font-semibold text-foreground">Version 1.3.0</span>
+                <span className="text-sm font-semibold text-foreground">Version 1.3.5</span>
                 <span className="bg-primary/10 text-primary text-[10px] px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">Latest</span>
+              </div>
+              <p className="text-[10px] text-muted-foreground mt-0.5">July 2026</p>
+              <ul className="mt-3 space-y-2 text-xs text-muted-foreground leading-relaxed">
+                <li className="flex items-start gap-2">
+                  <span className="text-primary font-bold select-none mt-0.5">•</span>
+                  <span><strong>Layout Spacing Controls:</strong> Added dynamic "Between Gen Gap" and "Sibship Drop Height" sliders to easily customize pedigree layouts with immediate, smooth live redraws on the canvas.</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-primary font-bold select-none mt-0.5">•</span>
+                  <span><strong>Topological Layout Engine:</strong> Upgraded the auto-layout engine to utilize topological Kahn sort longest-path layering, subtree-aware sibling spacing, and dynamic layout caching to prevent overlaps.</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-primary font-bold select-none mt-0.5">•</span>
+                  <span><strong>Visual Quadrant Shading Editor:</strong> Redesigned custom quadrant shading with a visual 2x2 grid segment selector, restricting segment customization strictly to the "Quadrant" shading style.</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-primary font-bold select-none mt-0.5">•</span>
+                  <span><strong>Age in Months & Suffix Support:</strong> Enabled typing custom age suffixes like months (`4m`). DOB calculator automatically outputs age in months (e.g. `3m`) for infants under 1 year.</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-primary font-bold select-none mt-0.5">•</span>
+                  <span><strong>Inbreeding Clinical Guidance:</strong> Added an intuitive clinical information and evidence validation modal next to the Inbreeding Coefficients card, citing Wright (1922) and Bennett et al. (2021).</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-primary font-bold select-none mt-0.5">•</span>
+                  <span><strong>UI & Accessibility Refinements:</strong> Polished CSV/Spreadsheet warning contrast, added file upload extension hints (`.csv`/`.tsv`), and completed accessibility audits.</span>
+                </li>
+              </ul>
+            </div>
+
+            {/* Version 1.3.0 */}
+            <div className="relative">
+              <div className="absolute -left-[31px] top-1 w-3.5 h-3.5 rounded-full border border-border bg-background flex items-center justify-center">
+                <span className="w-1.5 h-1.5 rounded-full bg-primary/60" />
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-semibold text-foreground">Version 1.3.0</span>
               </div>
               <p className="text-[10px] text-muted-foreground mt-0.5">July 2026</p>
               <ul className="mt-3 space-y-2 text-xs text-muted-foreground leading-relaxed">
