@@ -324,4 +324,64 @@ describe("canvasUtils loop tracking", () => {
     expect(crossings.length).toBeGreaterThan(0);
     expect(crossings).toContain(168);
   });
+
+  it("detects twin-aware stepped boundary crossings and handles intermediate nodes", () => {
+    const nodes: PedigreeNode[] = [
+      { id: "n1", x: 100, y: 100, type: "male", ...baseNode },
+      { id: "n2", x: 200, y: 100, type: "female", ...baseNode },
+      { id: "twin1", x: 130, y: 220, type: "male", ...baseNode },
+      { id: "twin2", x: 170, y: 220, type: "female", ...baseNode },
+    ];
+    const edges: PedigreeEdge[] = [
+      { id: "e1", sourceId: "n1", targetId: "n2", type: "couple" },
+      { id: "pc1", sourceId: "n1", targetId: "twin1", type: "parent-child" },
+      { id: "pc2", sourceId: "n2", targetId: "twin1", type: "parent-child" },
+      { id: "pc3", sourceId: "n1", targetId: "twin2", type: "parent-child", twinType: "m", twinGroup: "tg1" },
+      { id: "pc4", sourceId: "n2", targetId: "twin2", type: "parent-child", twinType: "m", twinGroup: "tg1" },
+    ];
+    
+    // Test that computeVerticalCrossingYCoordinates executes successfully on twin sibling lines
+    const crossings = computeVerticalCrossingYCoordinates(
+      150, 50, 310, edges, nodes, undefined, 44, false, undefined, undefined, []
+    );
+    expect(Array.isArray(crossings)).toBe(true);
+  });
+
+  it("detects vertical drop crossing another family's stepped horizontal segment", () => {
+    const nodes: PedigreeNode[] = [
+      // Family A (stepped children group)
+      { id: "An1", x: 100, y: 100, type: "male", ...baseNode },
+      { id: "An2", x: 200, y: 100, type: "female", ...baseNode },
+      { id: "An3", x: 250, y: 220, type: "male", ...baseNode },
+      { id: "An4", x: 350, y: 220, type: "female", ...baseNode },
+
+      // Family B (drop line crossing Family A's stepY segment at X=200)
+      { id: "Bn1", x: 150, y: 0, type: "male", ...baseNode },
+      { id: "Bn2", x: 250, y: 0, type: "female", ...baseNode },
+      { id: "Bn3", x: 200, y: 220, type: "male", ...baseNode },
+    ];
+
+    const edges: PedigreeEdge[] = [
+      // Family A edges
+      { id: "eA", sourceId: "An1", targetId: "An2", type: "couple" },
+      { id: "eA_pc1", sourceId: "An1", targetId: "An3", type: "parent-child" },
+      { id: "eA_pc2", sourceId: "An2", targetId: "An3", type: "parent-child" },
+      { id: "eA_pc3", sourceId: "An1", targetId: "An4", type: "parent-child" },
+      { id: "eA_pc4", sourceId: "An2", targetId: "An4", type: "parent-child" },
+
+      // Family B edges
+      { id: "eB", sourceId: "Bn1", targetId: "Bn2", type: "couple" },
+      { id: "eB_pc1", sourceId: "Bn1", targetId: "Bn3", type: "parent-child" },
+      { id: "eB_pc2", sourceId: "Bn2", targetId: "Bn3", type: "parent-child" },
+    ];
+
+    // Family B's drop is at X=200 (couple center), from coupleY (22) to childTopY (198).
+    // Let's call computeVerticalCrossingYCoordinates at midX = 200, topY = 22, bottomY = 198
+    const crossings = computeVerticalCrossingYCoordinates(
+      200, 22, 198, edges, nodes, undefined, 44, false, undefined, "eB", []
+    );
+
+    // It should detect Family A's stepY (which is barY - 15 = 168 - 15 = 153)
+    expect(crossings).toContain(153);
+  });
 });

@@ -9,30 +9,36 @@ export function parseCanvas(raw: string | null | undefined): CanvasData {
     const parsed = JSON.parse(raw);
     if (!parsed || !parsed.nodes) return DEFAULT_CANVAS;
     return {
-      nodes: (parsed.nodes ?? []).map((n: any) => ({
-        id: String(n.id ?? ""),
-        type: n.type || "unknown",
-        affected: Boolean(n.affected ?? false),
-        affectedLevel: typeof n.affectedLevel === "number" ? n.affectedLevel : undefined,
-        carrier: Boolean(n.carrier ?? false),
-        deceased: Boolean(n.deceased ?? false),
-        proband: Boolean(n.proband ?? false),
-        adopted: n.adopted !== undefined ? Boolean(n.adopted) : undefined,
-        label: String(n.label ?? ""),
-        age: String(n.age ?? ""),
-        dob: n.dob !== undefined ? String(n.dob) : undefined,
-        condition: n.condition !== undefined ? String(n.condition) : undefined,
-        notes: n.notes !== undefined ? String(n.notes) : undefined,
-        insideText: n.insideText !== undefined ? String(n.insideText) : undefined,
-        x: Number(n.x ?? 0),
-        y: Number(n.y ?? 0),
-        pinned: Boolean(n.pinned ?? false),
-        color: n.color !== undefined ? String(n.color) : undefined,
-        genotype: n.genotype !== undefined ? String(n.genotype) : undefined,
-        shading: n.shading !== undefined ? String(n.shading) : undefined,
-        genotype2: n.genotype2 !== undefined ? String(n.genotype2) : undefined,
-        additionalGenotypes: Array.isArray(n.additionalGenotypes) ? n.additionalGenotypes.map(String) : undefined,
-      })),
+      nodes: (parsed.nodes ?? []).map((n: any, i: number) => {
+        const rawX = Number(n.x ?? 0);
+        const rawY = Number(n.y ?? 0);
+        const x = isFinite(rawX) ? rawX : (i + 1) * NODE_GAP;
+        const y = isFinite(rawY) ? rawY : GEN_GRID;
+        return {
+          id: String(n.id ?? ""),
+          type: n.type || "unknown",
+          affected: Boolean(n.affected ?? false),
+          affectedLevel: typeof n.affectedLevel === "number" ? n.affectedLevel : undefined,
+          carrier: Boolean(n.carrier ?? false),
+          deceased: Boolean(n.deceased ?? false),
+          proband: Boolean(n.proband ?? false),
+          adopted: n.adopted !== undefined ? Boolean(n.adopted) : undefined,
+          label: String(n.label ?? ""),
+          age: String(n.age ?? ""),
+          dob: n.dob !== undefined ? String(n.dob) : undefined,
+          condition: n.condition !== undefined ? String(n.condition) : undefined,
+          notes: n.notes !== undefined ? String(n.notes) : undefined,
+          insideText: n.insideText !== undefined ? String(n.insideText) : undefined,
+          x,
+          y,
+          pinned: Boolean(n.pinned ?? false),
+          color: n.color !== undefined ? String(n.color) : undefined,
+          genotype: n.genotype !== undefined ? String(n.genotype) : undefined,
+          shading: n.shading !== undefined ? String(n.shading) : undefined,
+          genotype2: n.genotype2 !== undefined ? String(n.genotype2) : undefined,
+          additionalGenotypes: Array.isArray(n.additionalGenotypes) ? n.additionalGenotypes.map(String) : undefined,
+        };
+      }),
       edges: (parsed.edges ?? []).map((e: any) => ({
         id: String(e.id ?? ""),
         type: e.type || "couple",
@@ -61,16 +67,16 @@ export function parseCanvas(raw: string | null | undefined): CanvasData {
       settings: parsed.settings ? {
         themeId: parsed.settings.themeId !== undefined ? String(parsed.settings.themeId) as any : undefined,
         config: parsed.settings.config ? {
-          nodeSize: typeof parsed.settings.config.nodeSize === "number" ? parsed.settings.config.nodeSize : undefined,
+          nodeSize: typeof parsed.settings.config.nodeSize === "number" && isFinite(parsed.settings.config.nodeSize) ? parsed.settings.config.nodeSize : undefined,
           nodeStrokeColor: typeof parsed.settings.config.nodeStrokeColor === "string" ? parsed.settings.config.nodeStrokeColor : undefined,
           edgeColor: typeof parsed.settings.config.edgeColor === "string" ? parsed.settings.config.edgeColor : undefined,
-          edgeWidthNormal: typeof parsed.settings.config.edgeWidthNormal === "number" ? parsed.settings.config.edgeWidthNormal : undefined,
-          annFontSize: typeof parsed.settings.config.annFontSize === "number" ? parsed.settings.config.annFontSize : undefined,
+          edgeWidthNormal: typeof parsed.settings.config.edgeWidthNormal === "number" && isFinite(parsed.settings.config.edgeWidthNormal) ? parsed.settings.config.edgeWidthNormal : undefined,
+          annFontSize: typeof parsed.settings.config.annFontSize === "number" && isFinite(parsed.settings.config.annFontSize) ? parsed.settings.config.annFontSize : undefined,
           annFontFamily: typeof parsed.settings.config.annFontFamily === "string" ? parsed.settings.config.annFontFamily : undefined,
           annBold: typeof parsed.settings.config.annBold === "boolean" ? parsed.settings.config.annBold : undefined,
           annUppercase: typeof parsed.settings.config.annUppercase === "boolean" ? parsed.settings.config.annUppercase : undefined,
           annDefaultPos: typeof parsed.settings.config.annDefaultPos === "string" ? parsed.settings.config.annDefaultPos as any : undefined,
-          toolbarHeight: typeof parsed.settings.config.toolbarHeight === "number" ? parsed.settings.config.toolbarHeight : undefined,
+          toolbarHeight: typeof parsed.settings.config.toolbarHeight === "number" && isFinite(parsed.settings.config.toolbarHeight) ? parsed.settings.config.toolbarHeight : undefined,
         } : undefined,
       } : undefined,
     };

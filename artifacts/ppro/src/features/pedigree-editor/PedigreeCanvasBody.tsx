@@ -269,6 +269,7 @@ export function PedigreeCanvasBody() {
     updateSelectedNode, bulkUpdate, alignSelected,
     handleNodeClick, handleNodeDoubleClick, handleNodeContextMenu, handleDragStart,
     handleMouseMove, handleMouseUp, handleSVGMouseDown, handleWheel, updateEdgeType,
+    toggleCoupleInverted,
     getSVGCoords, handleRestoreVersion,
     addSiblings, markAsTwins, unmarkTwins,
   } = ops;
@@ -1047,6 +1048,7 @@ const RAIL_MAX_X = 400;
                 onUnmarkTwins={unmarkTwins}
                 onRemoveEdges={ops.removeEdges}
                 onUpdateEdgeType={updateEdgeType}
+                onToggleCoupleInverted={toggleCoupleInverted}
                 onCreateCoupleEdge={ops.createCoupleEdge}
                 onCreateConsanguinityEdge={ops.createConsanguinityEdge}
                 onCreateCoupleAndChild={ops.createCoupleAndChild}

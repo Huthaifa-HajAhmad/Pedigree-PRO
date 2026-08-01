@@ -1,7 +1,12 @@
 import { getModuleCanvasConfig } from "@/features/pedigree-editor/context/CanvasConfigContext";
 import type { PedigreeNode, PedigreeAnnotation, PedigreeEdge } from "./types";
+import { ROW_TOLERANCE, buildAdjacency } from "@/lib/layout-engine";
 
-const ROW_TOLERANCE = 30; // standard tolerance to group nodes on the same horizontal row
+/**
+ * ARC CROSSING DRAWING CONVENTION:
+ * - The segment displaced from its natural row (drops, loops) carries the arc.
+ * - The stable segment (sibling bar, node row) stays flat.
+ */
 
 /**
  * Finds all nodes horizontally between n1 and n2 on the same generation row.
@@ -589,9 +594,34 @@ export function computeVerticalCrossingYCoordinates(
       midParentX = parent1.x;
     }
 
-    const childXs = familyChildren.map(c => c.x);
-    const minChildX = Math.min(...childXs);
-    const maxChildX = Math.max(...childXs);
+    const adj = buildAdjacency(nodes, allEdges);
+    const twinGroups = new Map<string, PedigreeNode[]>();
+    for (const c of familyChildren) {
+      const tg = adj.twinGroupOf.get(c.id);
+      if (tg) {
+        if (!twinGroups.has(tg)) twinGroups.set(tg, []);
+        twinGroups.get(tg)!.push(c);
+      }
+    }
+    const twinChildIds = new Set<string>();
+    for (const [, members] of twinGroups) {
+      if (members.length >= 2) {
+        for (const m of members) twinChildIds.add(m.id);
+      }
+    }
+    const nonTwinXs = familyChildren.filter((c) => !twinChildIds.has(c.id)).map((c) => c.x);
+    const twinDropMidXs: number[] = [];
+    for (const [, members] of twinGroups) {
+      if (members.length >= 2) {
+        const twinXs = members.map((m) => m.x);
+        twinDropMidXs.push(twinXs.reduce((a, b) => a + b, 0) / twinXs.length);
+      }
+    }
+    const allBarXs = [...nonTwinXs, ...twinDropMidXs];
+    if (allBarXs.length === 0) continue;
+
+    const minChildX = Math.min(...allBarXs);
+    const maxChildX = Math.max(...allBarXs);
 
     const barLeft = Math.min(midParentX, minChildX);
     const barRight = Math.max(midParentX, maxChildX);

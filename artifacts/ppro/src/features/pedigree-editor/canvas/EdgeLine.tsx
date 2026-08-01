@@ -48,8 +48,9 @@ export const EdgeLine = memo(function EdgeLine({ edge, nodes, invalid, renderOff
     rightXVal: number = rightX
   ) => {
     let d = `M ${leftXVal} ${leftYVal} L ${leftXVal} ${yVal}`;
+    const r = cfg.config.edgeArcRadius ?? 6;
     for (const x of crossings) {
-      d += ` L ${x - 6} ${yVal} A 6 6 0 0 1 ${x + 6} ${yVal}`;
+      d += ` L ${x - r} ${yVal} A ${r} ${r} 0 0 1 ${x + r} ${yVal}`;
     }
     d += ` L ${rightXVal} ${yVal} L ${rightXVal} ${rightYVal}`;
     return d;
@@ -100,11 +101,47 @@ export const EdgeLine = memo(function EdgeLine({ edge, nodes, invalid, renderOff
       const slashHalfHeight = Math.max(5, edgeWidth * 1.5);
       const slashHalfWidth = Math.max(2, edgeWidth * 0.6);
       const slashGap = Math.max(2, edgeWidth * 0.8);
+
+      let suppressSlash = false;
+      const slashBox = {
+        left: midX - 10,
+        right: midX + 10,
+        top: yDrop - 10,
+        bottom: yDrop + 10
+      };
+
+      for (const n of intermediateNodes) {
+        const nOff = renderOffsets?.get(n.id) ?? 0;
+        const nodeBox = {
+          left: n.x - S / 2,
+          right: n.x + S / 2,
+          top: n.y + nOff - S / 2,
+          bottom: n.y + nOff + S * 1.5
+        };
+        const overlapX = slashBox.right >= nodeBox.left && slashBox.left <= nodeBox.right;
+        const overlapY = slashBox.bottom >= nodeBox.top && slashBox.top <= nodeBox.bottom;
+        if (overlapX && overlapY) {
+          suppressSlash = true;
+          break;
+        }
+      }
+
+      const hasChildren = edges.some(e => e.type === "parent-child" && (e.sourceId === edge.sourceId || e.sourceId === edge.targetId));
+      const slashX = hasChildren ? midX - 15 : midX;
+
+      if (suppressSlash) {
+        return (
+          <g stroke={edgeStroke} strokeWidth={edgeWidth} fill="none">
+            <path d={buildPath(yDrop)} />
+          </g>
+        );
+      }
+
       return (
         <g stroke={edgeStroke} strokeWidth={edgeWidth} fill="none">
           <path d={buildPath(yDrop)} />
-          <line x1={midX - slashGap - slashHalfWidth} y1={yDrop + slashHalfHeight} x2={midX - slashGap + slashHalfWidth} y2={yDrop - slashHalfHeight} />
-          <line x1={midX + slashGap - slashHalfWidth} y1={yDrop + slashHalfHeight} x2={midX + slashGap + slashHalfWidth} y2={yDrop - slashHalfHeight} />
+          <line x1={slashX - slashGap - slashHalfWidth} y1={yDrop + slashHalfHeight} x2={slashX - slashGap + slashHalfWidth} y2={yDrop - slashHalfHeight} />
+          <line x1={slashX + slashGap - slashHalfWidth} y1={yDrop + slashHalfHeight} x2={slashX + slashGap + slashHalfWidth} y2={yDrop - slashHalfHeight} />
         </g>
       );
     }
