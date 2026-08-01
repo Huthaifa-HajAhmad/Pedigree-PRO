@@ -12,6 +12,8 @@ export interface LayoutConfig {
   canvasCenterX: number;
   rowTolerance: number;
   enableCache?: boolean;
+  crossingMinimizationSweeps?: number;
+  edgeArcRadius?: number;
 }
 
 export const DEFAULT_LAYOUT_CONFIG: LayoutConfig = {
@@ -26,6 +28,8 @@ export const DEFAULT_LAYOUT_CONFIG: LayoutConfig = {
   canvasCenterX: 700,
   rowTolerance: GEN_GRID / 2, // 60
   enableCache: true,
+  crossingMinimizationSweeps: 15,
+  edgeArcRadius: 6,
 };
 
 export interface AdjacencyMaps {
@@ -140,35 +144,9 @@ export function buildAdjacency(nodes: Array<{ id: string }>, edges: EdgeSubset[]
  * Builds node-to-generation maps using BFS & generation propagation with cyclic bounds checking.
  */
 export function buildGenerations(nodes: Array<{ id: string }>, edges: EdgeSubset[]): Map<string, number> {
-  const nodeMap = new Map(nodes.map(n => [n.id, n]));
   
   // 1. Build basic childrenOf, parentsOf, and couplesOf mappings
-  const childrenOf = new Map<string, string[]>();
-  const parentsOf = new Map<string, string[]>();
-  const couplesOf = new Map<string, string[]>();
-  for (const n of nodes) {
-    childrenOf.set(n.id, []);
-    parentsOf.set(n.id, []);
-    couplesOf.set(n.id, []);
-  }
-
-  const seenEdges = new Set<string>();
-  for (const e of edges) {
-    if (!nodeMap.has(e.sourceId) || !nodeMap.has(e.targetId)) continue;
-    if (e.sourceId === e.targetId) continue;
-    const edgeKey = `${e.type}:${e.sourceId}:${e.targetId}`;
-    if (seenEdges.has(edgeKey)) continue;
-    seenEdges.add(edgeKey);
-
-    if (e.type === "parent-child") {
-      childrenOf.get(e.sourceId)!.push(e.targetId);
-      parentsOf.get(e.targetId)!.push(e.sourceId);
-    }
-    if (e.type === "couple" || e.type === "consanguinity" || e.type === "divorced" || e.type === "separated") {
-      couplesOf.get(e.sourceId)!.push(e.targetId);
-      couplesOf.get(e.targetId)!.push(e.sourceId);
-    }
-  }
+  const { childrenOf, parentsOf, couplesOf } = buildAdjacency(nodes, edges);
 
   // 2. Identify couple components (spouses must reside in the same generation component if both or neither have parents)
   const componentOf = new Map<string, string>(); // nodeId -> componentId
@@ -281,10 +259,13 @@ export function buildGenerations(nodes: Array<{ id: string }>, edges: EdgeSubset
   }
 
   // Guard: if there is a cycle (processedCount !== componentMembers.size),
-  // clamp everything to at most 3
+  // clamp only unprocessed components to at most 3
   if (processedCount < componentMembers.size) {
+    const processed = new Set(topoOrder);
     for (const compId of componentMembers.keys()) {
-      compGen.set(compId, Math.min(compGen.get(compId) ?? 0, 3));
+      if (!processed.has(compId)) {
+        compGen.set(compId, Math.min(compGen.get(compId) ?? 0, 3));
+      }
     }
   }
 
@@ -426,4 +407,63 @@ export function evaluateLayoutQuality(
     totalEdgeLength,
     centeringDeviation: childWithTwoParentsCount > 0 ? totalCenteringDeviation / childWithTwoParentsCount : 0
   };
+}
+
+export function evaluateCostAwareInversion(
+  nodeId1: string,
+  nodeId2: string,
+  nodeMap: Map<string, LayoutNode>,
+  parentsOf: Map<string, string[]>,
+  childrenOf: Map<string, string[]>,
+  knownPos?: Map<string, { x: number; y: number }>
+): boolean {
+  const n1 = nodeMap.get(nodeId1);
+  const n2 = nodeMap.get(nodeId2);
+  if (!n1 || !n2) return false;
+
+  const getNeighborAvgX = (nodeId: string, spouseId: string) => {
+    const parentIds = parentsOf.get(nodeId) ?? [];
+    
+    // Find children with other spouses
+    const otherChildrenIds: string[] = [];
+    const childrenIds = childrenOf.get(nodeId) ?? [];
+    for (const cId of childrenIds) {
+      const pIds = parentsOf.get(cId) ?? [];
+      if (pIds.length === 2 && !pIds.includes(spouseId)) {
+        otherChildrenIds.push(cId);
+      }
+    }
+
+    const neighborIds = [...parentIds, ...otherChildrenIds];
+    if (neighborIds.length === 0) return undefined;
+
+    let sumX = 0;
+    let count = 0;
+    for (const id of neighborIds) {
+      const pos = knownPos?.get(id) ?? nodeMap.get(id);
+      if (pos) {
+        sumX += pos.x;
+        count++;
+      }
+    }
+    return count > 0 ? sumX / count : undefined;
+  };
+
+  const avgX1 = getNeighborAvgX(nodeId1, nodeId2);
+  const avgX2 = getNeighborAvgX(nodeId2, nodeId1);
+
+  if (avgX1 !== undefined && avgX2 !== undefined) {
+    const isNode1Male = n1.type === "male";
+    if (isNode1Male) {
+      // Normal: male on left of female -> male.x < female.x -> avgX1 < avgX2
+      // Inverted: female on left of male -> female.x < male.x -> avgX2 < avgX1
+      return avgX1 > avgX2;
+    } else {
+      // Normal: female on right of male -> female.x > male.x -> avgX1 > avgX2
+      // Inverted: female on left of male -> female.x < male.x -> avgX1 < avgX2
+      return avgX1 < avgX2;
+    }
+  }
+
+  return false;
 }

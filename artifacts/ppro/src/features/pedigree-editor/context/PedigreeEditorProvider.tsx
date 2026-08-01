@@ -360,7 +360,12 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
     dispatch({ type: "UPDATE_CANVAS", updater: (p) => {
       const s = p.nodes.find((n) => n.id === sid); if (!s) return p;
       if ((rel === "child" || rel === "partner") && s.type === "unknown") return p;
-      const SY = GEN_GRID;
+      const localConfig = p.settings?.config;
+      const cfgNodeGap = localConfig?.nodeGap ?? configRef.current.nodeGap ?? NODE_GAP;
+      const cfgGenGrid = localConfig?.genGrid ?? configRef.current.genGrid ?? GEN_GRID;
+      const cfgTwinGapMono = localConfig?.twinGapMono ?? configRef.current.twinGapMono;
+      const cfgTwinGapDizygotic = localConfig?.twinGapDizygotic ?? configRef.current.twinGapDizygotic;
+      const SY = cfgGenGrid;
       const nd = { affected: false, carrier: false, deceased: false, proband: false, label: "", age: "" };
       let nx: number, ny: number, nt: PedigreeNode["type"]; const ne: PedigreeEdge[] = [];
       if (rel === "child") {
@@ -384,7 +389,7 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
           ];
 
           const genIndexOf1 = buildGenerations(p.nodes, p.edges);
-          let resolved = resolveAllCollisions(p.nodes, p.edges, undefined, NODE_GAP, GEN_GRID, genIndexOf1);
+          let resolved = resolveAllCollisions(p.nodes, p.edges, undefined, cfgNodeGap, cfgGenGrid, genIndexOf1, undefined, cfgTwinGapMono, cfgTwinGapDizygotic);
           const rS = resolved.find(n => n.id === sid)!;
           const rP = resolved.find(n => n.id === pid)!;
           const trueChildX = (rS.x + rP.x) / 2;
@@ -394,8 +399,8 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
           const allEdges = [...p.edges, ...newEdges];
           
           const genIndexOf2 = buildGenerations(resolved, allEdges);
-          resolved = resolveAllCollisions(resolved, allEdges, undefined, NODE_GAP, GEN_GRID, genIndexOf2);
-          resolved = recenterAllFamilies(resolved, allEdges, undefined, NODE_GAP, GEN_GRID, genIndexOf2);
+          resolved = resolveAllCollisions(resolved, allEdges, undefined, cfgNodeGap, cfgGenGrid, genIndexOf2, undefined, cfgTwinGapMono, cfgTwinGapDizygotic);
+          resolved = recenterAllFamilies(resolved, allEdges, undefined, cfgNodeGap, cfgGenGrid, genIndexOf2, undefined, cfgTwinGapMono, cfgTwinGapDizygotic);
 
           return { ...p, nodes: resolved, edges: allEdges };
         }
@@ -413,7 +418,7 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
               if (partnerOnRight === standardIsRight) partnerDir = partnerDir > 0 ? -1 : 1;
             }
           }
-          const gap = existingCoupleForChild ? Math.round(NODE_GAP * 1.5) : NODE_GAP;
+          const gap = existingCoupleForChild ? Math.round(cfgNodeGap * 1.5) : cfgNodeGap;
           
           const insertX = partnerDir > 0 ? s.x + gap : s.x;
           const shiftedNodes = makeSpaceAtX(p.nodes, insertX, gap);
@@ -425,7 +430,7 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
           const edgesWithPartner = [...p.edges, { id: `e${now}`, type: "couple" as const, sourceId: sid, targetId: mid }];
           
           const genIndexOf3 = buildGenerations(nodesWithPartner, edgesWithPartner);
-          let resolved = resolveAllCollisions(nodesWithPartner, edgesWithPartner, undefined, NODE_GAP, GEN_GRID, genIndexOf3);
+          let resolved = resolveAllCollisions(nodesWithPartner, edgesWithPartner, undefined, cfgNodeGap, cfgGenGrid, genIndexOf3, undefined, cfgTwinGapMono, cfgTwinGapDizygotic);
           const rS = resolved.find(n => n.id === sid)!;
           const rM = resolved.find(n => n.id === mid)!;
           const trueChildX = (rS.x + rM.x) / 2;
@@ -438,8 +443,8 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
           ];
           
           const genIndexOf4 = buildGenerations(resolved, allEdges);
-          resolved = resolveAllCollisions(resolved, allEdges, undefined, NODE_GAP, GEN_GRID, genIndexOf4);
-          resolved = recenterAllFamilies(resolved, allEdges, undefined, NODE_GAP, GEN_GRID, genIndexOf4);
+          resolved = resolveAllCollisions(resolved, allEdges, undefined, cfgNodeGap, cfgGenGrid, genIndexOf4, undefined, cfgTwinGapMono, cfgTwinGapDizygotic);
+          resolved = recenterAllFamilies(resolved, allEdges, undefined, cfgNodeGap, cfgGenGrid, genIndexOf4, undefined, cfgTwinGapMono, cfgTwinGapDizygotic);
 
           return { ...p, nodes: resolved, edges: allEdges };
         }
@@ -458,7 +463,7 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
           }
         }
         
-        const gap = existingCouple ? Math.round(NODE_GAP * 1.5) : NODE_GAP;
+        const gap = existingCouple ? Math.round(cfgNodeGap * 1.5) : cfgNodeGap;
         const insertX = dir > 0 ? s.x + gap : s.x;
         
         const shiftedNodes = makeSpaceAtX(p.nodes, insertX, gap);
@@ -469,7 +474,7 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
         const allNodes = [...shiftedNodes, { id: nid, type: nt, ...nd, x: nx, y: ny }];
         const allEdges = [...p.edges, newPartnerEdge];
         const genIndexOf = buildGenerations(allNodes, allEdges);
-        const resolved = resolveAndRecenter(allNodes, allEdges, undefined, genIndexOf);
+        const resolved = resolveAndRecenter(allNodes, allEdges, undefined, genIndexOf, undefined, undefined, cfgNodeGap, cfgGenGrid, cfgTwinGapMono, cfgTwinGapDizygotic, configRef.current.crossingMinimizationSweeps);
 
         return { ...p, nodes: resolved, edges: allEdges };
       }
@@ -477,7 +482,7 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
         const fid = `n${now}`, mid2 = `n${now + 1}`; ny = s.y - SY;
         // Parents go on the row above. If there's overlap, we just shift them until we find a free spot.
         // We use findInsertPosition to find the nearest topologically free spot without triggering a physics wave
-        const fatherStartX = Math.max(GEN_GRID, s.x - NODE_GAP / 2);
+        const fatherStartX = Math.max(cfgGenGrid, s.x - cfgNodeGap / 2);
         
         let collision = true;
         let testX = fatherStartX;
@@ -485,15 +490,15 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
         while (collision) {
           collision = false;
           for (const n of rowNodes) {
-            if (Math.abs(n.x - testX) < NODE_GAP - 0.05 || Math.abs(n.x - (testX + NODE_GAP)) < NODE_GAP - 0.05) {
+            if (Math.abs(n.x - testX) < cfgNodeGap - 0.05 || Math.abs(n.x - (testX + cfgNodeGap)) < cfgNodeGap - 0.05) {
               collision = true;
-              testX += NODE_GAP;
+              testX += cfgNodeGap;
               break;
             }
           }
         }
         const fatherX = testX;
-        const motherX = testX + NODE_GAP;
+        const motherX = testX + cfgNodeGap;
 
         const newParents: PedigreeNode[] = [
           { id: fid, type: "male", ...nd, x: fatherX, y: ny },
@@ -508,11 +513,11 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
         const allNodes = [...p.nodes, ...newParents];
         const allEdges = [...p.edges, ...newEdges];
         const genIndexOf = buildGenerations(allNodes, allEdges);
-        let final = resolveAndRecenter(allNodes, allEdges, new Set([fid, mid2]), genIndexOf);
+        let final = resolveAndRecenter(allNodes, allEdges, undefined, genIndexOf, undefined, undefined, cfgNodeGap, cfgGenGrid, cfgTwinGapMono, cfgTwinGapDizygotic, configRef.current.crossingMinimizationSweeps);
 
         const minY = final.reduce((min, n) => Math.min(min, n.y), Infinity);
-        if (minY < GEN_GRID) {
-          const shiftY = GEN_GRID - minY;
+        if (minY < cfgGenGrid) {
+          const shiftY = cfgGenGrid - minY;
           final = final.map(n => ({ ...n, y: n.y + shiftY }));
         }
 
@@ -685,6 +690,12 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
       if (s.linkSource !== nid) {
         if (s.linkMode === "consanguinity") dispatch({ type: "UPDATE_CANVAS", updater: (p) => ({ ...p, edges: [...p.edges.filter((ed) => !(ed.type === "couple" && ((ed.sourceId === s.linkSource && ed.targetId === nid) || (ed.sourceId === nid && ed.targetId === s.linkSource)))), { id: `e${Date.now()}`, type: "consanguinity", sourceId: s.linkSource!, targetId: nid }] }) });
         else if (s.linkMode === "parent-child") dispatch({ type: "UPDATE_CANVAS", updater: (p) => {
+          const localConfig = p.settings?.config;
+          const cfgNodeGap = localConfig?.nodeGap ?? configRef.current.nodeGap ?? NODE_GAP;
+          const cfgGenGrid = localConfig?.genGrid ?? configRef.current.genGrid ?? GEN_GRID;
+          const cfgTwinGapMono = localConfig?.twinGapMono ?? configRef.current.twinGapMono;
+          const cfgTwinGapDizygotic = localConfig?.twinGapDizygotic ?? configRef.current.twinGapDizygotic;
+
           const pn = p.nodes.find((n) => n.id === s.linkSource); if (!pn) return p;
           if (p.edges.some((ed) => (ed.type === "couple" || ed.type === "consanguinity") && (ed.sourceId === s.linkSource || ed.targetId === s.linkSource))) {
             const ce = p.edges.find((ed) => (ed.type === "couple" || ed.type === "consanguinity") && (ed.sourceId === s.linkSource || ed.targetId === s.linkSource))!;
@@ -705,8 +716,8 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
               if (partnerOnRight === standardIsRight) dir = dir > 0 ? -1 : 1;
             }
           }
-          const insertX = dir > 0 ? pn.x + NODE_GAP : pn.x;
-          const shiftedNodes = makeSpaceAtX(p.nodes, insertX, NODE_GAP);
+          const insertX = dir > 0 ? pn.x + cfgNodeGap : pn.x;
+          const shiftedNodes = makeSpaceAtX(p.nodes, insertX, cfgNodeGap);
           
           const newPartner = { id: mid, type: mt, affected: false, carrier: false, deceased: false, proband: false, label: "", age: "", x: insertX, y: pn.y };
           const allNodes = [...shiftedNodes, newPartner];
@@ -718,7 +729,7 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
           const allEdges = [...p.edges, ...newEdges];
           
           const genIndexOf = buildGenerations(allNodes, allEdges);
-          const resolvedNodes = resolveAndRecenter(allNodes, allEdges, new Set([mid]), genIndexOf);
+          const resolvedNodes = resolveAndRecenter(allNodes, allEdges, new Set([mid]), genIndexOf, undefined, undefined, cfgNodeGap, cfgGenGrid, cfgTwinGapMono, cfgTwinGapDizygotic, configRef.current.crossingMinimizationSweeps);
 
           return { ...p, nodes: resolvedNodes, edges: allEdges };
         } });
@@ -774,7 +785,8 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
       rp,
       {
         nodeGap: resolvedNodeGap,
-        genGrid: resolvedGenGrid
+        genGrid: resolvedGenGrid,
+        enableCache: false,   // explicit Auto Layout always computes fresh — no stale cache influence
       }
     );
 
@@ -918,7 +930,12 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
   const createParentsForGroup = useCallback((nodeIds: string[]) => {
     dispatch({ type: "UPDATE_CANVAS", updater: (p) => {
       if (nodeIds.length === 0) return p;
-      const SY = GEN_GRID;
+      const localConfig = p.settings?.config;
+      const cfgNodeGap = localConfig?.nodeGap ?? configRef.current.nodeGap ?? NODE_GAP;
+      const cfgGenGrid = localConfig?.genGrid ?? configRef.current.genGrid ?? GEN_GRID;
+      const cfgTwinGapMono = localConfig?.twinGapMono ?? configRef.current.twinGapMono;
+      const cfgTwinGapDizygotic = localConfig?.twinGapDizygotic ?? configRef.current.twinGapDizygotic;
+      const SY = cfgGenGrid;
       const now = Date.now();
       const nd = { affected: false, carrier: false, deceased: false, proband: false, label: "", age: "" };
       
@@ -928,7 +945,7 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
 
       const selectedNodes = p.nodes.filter(n => nodeIds.includes(n.id));
       const avgX = selectedNodes.reduce((sum, n) => sum + n.x, 0) / selectedNodes.length;
-      const fatherStartX = Math.max(GEN_GRID, avgX - NODE_GAP / 2);
+      const fatherStartX = Math.max(cfgGenGrid, avgX - cfgNodeGap / 2);
 
       let collision = true;
       let testX = fatherStartX;
@@ -936,15 +953,15 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
       while (collision) {
         collision = false;
         for (const n of rowNodes) {
-          if (Math.abs(n.x - testX) < NODE_GAP - 0.05 || Math.abs(n.x - (testX + NODE_GAP)) < NODE_GAP - 0.05) {
+          if (Math.abs(n.x - testX) < cfgNodeGap - 0.05 || Math.abs(n.x - (testX + cfgNodeGap)) < cfgNodeGap - 0.05) {
             collision = true;
-            testX += NODE_GAP;
+            testX += cfgNodeGap;
             break;
           }
         }
       }
       const fatherX = testX;
-      const motherX = testX + NODE_GAP;
+      const motherX = testX + cfgNodeGap;
 
       const fid = `n${now}_father`;
       const mid = `n${now}_mother`;
@@ -968,11 +985,11 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
       const allNodes = [...p.nodes, ...newParents];
       const allEdges = [...p.edges, ...newEdges];
       const genIndexOf = buildGenerations(allNodes, allEdges);
-      let final = resolveAndRecenter(allNodes, allEdges, new Set([fid, mid]), genIndexOf);
+      let final = resolveAndRecenter(allNodes, allEdges, undefined, genIndexOf, undefined, undefined, cfgNodeGap, cfgGenGrid, cfgTwinGapMono, cfgTwinGapDizygotic, configRef.current.crossingMinimizationSweeps);
 
       const minY = final.reduce((min, n) => Math.min(min, n.y), Infinity);
-      if (minY < GEN_GRID) {
-        const shiftY = GEN_GRID - minY;
+      if (minY < cfgGenGrid) {
+        const shiftY = cfgGenGrid - minY;
         final = final.map(n => ({ ...n, y: n.y + shiftY }));
       }
 
@@ -982,13 +999,19 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
 
   const createCoupleAndChild = useCallback((maleId: string, femaleId: string) => {
     dispatch({ type: "UPDATE_CANVAS", updater: (p) => {
+      const localConfig = p.settings?.config;
+      const cfgNodeGap = localConfig?.nodeGap ?? configRef.current.nodeGap ?? NODE_GAP;
+      const cfgGenGrid = localConfig?.genGrid ?? configRef.current.genGrid ?? GEN_GRID;
+      const cfgTwinGapMono = localConfig?.twinGapMono ?? configRef.current.twinGapMono;
+      const cfgTwinGapDizygotic = localConfig?.twinGapDizygotic ?? configRef.current.twinGapDizygotic;
+
       const male = p.nodes.find(n => n.id === maleId);
       const female = p.nodes.find(n => n.id === femaleId);
       if (!male || !female) return p;
       const hasCoupleEdge = p.edges.some(e => (e.type === "couple" || e.type === "consanguinity") && ((e.sourceId === maleId && e.targetId === femaleId) || (e.sourceId === femaleId && e.targetId === maleId)));
       const now = Date.now();
       const nid = `n${now}-${Math.random().toString(36).slice(2, 6)}`;
-      const childY = Math.max(male.y, female.y) + GEN_GRID;
+      const childY = Math.max(male.y, female.y) + cfgGenGrid;
       const childX = (male.x + female.x) / 2;
       const newChild: PedigreeNode = { id: nid, type: "unknown", affected: false, carrier: false, deceased: false, proband: false, label: "", age: "", x: childX, y: childY };
       const edgesToAdd: PedigreeEdge[] = [];
@@ -998,7 +1021,7 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
       const allNodes = [...p.nodes, newChild];
       const allEdges = [...p.edges, ...edgesToAdd];
       const genIndexOf = buildGenerations(allNodes, allEdges);
-      const resolved = resolveAndRecenter(allNodes, allEdges, new Set([nid]), genIndexOf);
+      const resolved = resolveAndRecenter(allNodes, allEdges, new Set([nid]), genIndexOf, undefined, undefined, cfgNodeGap, cfgGenGrid, cfgTwinGapMono, cfgTwinGapDizygotic, configRef.current.crossingMinimizationSweeps);
       return { ...p, nodes: resolved, edges: allEdges };
     } });
   }, []);
@@ -1038,8 +1061,14 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
   ) => {
     addSiblingsBlockedRef.current = false;
     dispatch({ type: "UPDATE_CANVAS", updater: (p) => {
+      const localConfig = p.settings?.config;
+      const cfgNodeGap = localConfig?.nodeGap ?? configRef.current.nodeGap ?? NODE_GAP;
+      const cfgGenGrid = localConfig?.genGrid ?? configRef.current.genGrid ?? GEN_GRID;
+      const cfgTwinGapMono = localConfig?.twinGapMono ?? configRef.current.twinGapMono;
+      const cfgTwinGapDizygotic = localConfig?.twinGapDizygotic ?? configRef.current.twinGapDizygotic;
+
       const s = p.nodes.find((n) => n.id === sourceId); if (!s) return p;
-      const SY = GEN_GRID;
+      const SY = cfgGenGrid;
       const nd = { affected: false, carrier: false, deceased: false, proband: false, label: "", age: "" };
 
       // Separate new siblings from the source node
@@ -1057,8 +1086,8 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
         const fid = `n${now}_father`;
         const mid = `n${now}_mother`;
         const parentY = s.y - SY;
-        const fatherX = Math.max(GEN_GRID, s.x - NODE_GAP / 2 + 0.01);
-        const motherX = Math.max(fatherX + NODE_GAP, s.x + NODE_GAP / 2 - 0.01);
+        const fatherX = Math.max(cfgGenGrid, s.x - cfgNodeGap / 2 + 0.01);
+        const motherX = Math.max(fatherX + cfgNodeGap, s.x + cfgNodeGap / 2 - 0.01);
 
         createdParents.push(
           { id: fid, type: "male", ...nd, x: fatherX, y: parentY, label: "" },
@@ -1163,11 +1192,11 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
           } else if (leftIdx !== -1) {
             const leftId = finalChildIdsOrder[leftIdx]!;
             const leftX = currentX.get(leftId)!;
-            xVal = leftX + (idx - leftIdx) * NODE_GAP;
+            xVal = leftX + (idx - leftIdx) * cfgNodeGap;
           } else if (rightIdx !== -1) {
             const rightId = finalChildIdsOrder[rightIdx]!;
             const rightX = currentX.get(rightId)!;
-            xVal = rightX - (rightIdx - idx) * NODE_GAP;
+            xVal = rightX - (rightIdx - idx) * cfgNodeGap;
           }
         }
 
@@ -1195,11 +1224,11 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
 
       const excludeIds = new Set(newNodes.map(n => n.id));
       const genIndexOf = buildGenerations(allNodes, allEdges);
-      let final = resolveAndRecenter(allNodes, allEdges, excludeIds, genIndexOf);
+      let final = resolveAndRecenter(allNodes, allEdges, excludeIds, genIndexOf, undefined, undefined, cfgNodeGap, cfgGenGrid, cfgTwinGapMono, cfgTwinGapDizygotic, configRef.current.crossingMinimizationSweeps);
 
       const minY = final.reduce((min, n) => Math.min(min, n.y), Infinity);
-      if (minY < GEN_GRID) {
-        const shiftY = GEN_GRID - minY;
+      if (minY < cfgGenGrid) {
+        const shiftY = cfgGenGrid - minY;
         final = final.map(n => ({ ...n, y: n.y + shiftY }));
       }
 
@@ -1312,6 +1341,21 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
     }) });
   }, []);
 
+  const toggleCoupleInverted = useCallback((edgeId: string) => {
+    dispatch({ type: "UPDATE_CANVAS", updater: (p) => {
+      const nextEdges = p.edges.map((e) => e.id === edgeId ? { ...e, inverted: !(e.inverted ?? false) } : e);
+      const localConfig = p.settings?.config;
+      const cfgNodeGap = localConfig?.nodeGap ?? configRef.current.nodeGap ?? NODE_GAP;
+      const cfgGenGrid = localConfig?.genGrid ?? configRef.current.genGrid ?? GEN_GRID;
+      const cfgTwinGapMono = localConfig?.twinGapMono ?? configRef.current.twinGapMono;
+      const cfgTwinGapDizygotic = localConfig?.twinGapDizygotic ?? configRef.current.twinGapDizygotic;
+
+      const genIndexOf = buildGenerations(p.nodes, nextEdges);
+      const resolved = resolveAndRecenter(p.nodes, nextEdges, undefined, genIndexOf, undefined, undefined, cfgNodeGap, cfgGenGrid, cfgTwinGapMono, cfgTwinGapDizygotic, configRef.current.crossingMinimizationSweeps);
+      return { ...p, nodes: resolved, edges: nextEdges };
+    } });
+  }, []);
+
   const toggleTwinSelectMode = useCallback(() => {
     const s = stateRef.current;
     if (s.twinSelectMode) {
@@ -1380,11 +1424,11 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
 
   const value = useMemo<PedigreeEditorContextValue>(() => ({
     state, dispatch,
-    ops: { updateCanvas, undo, redo, addNode, addContextNode, toggleNodeProp, setNodeType, setNodeColor, handleNodeContextMenu, handleNodeDoubleClick, handleNodeClick, deleteSelected, updateSelectedNode, bulkUpdate, alignSelected, addAnnotation, addFreeAnnotation, updateAnnotation, deleteAnnotation, runAutoLayout, bakeEmptyLabels, bakeAllLabels, openConfirm, navigateArrow, handleCloseTab, openTab, reorderTabs, renameTab, fitToScreen, getSVGCoords, handleDragStart, handleMouseMove, handleMouseUp, handleSVGMouseDown, handleWheel, handleSaveVersion, commitSaveVersion, handleDeleteVersion, handleRestoreVersion, createConsanguinityEdge, createCoupleEdge, createCoupleAndChild, createParentsForGroup, addSiblings, markAsTwins, unmarkTwins, removeEdges, updateEdgeType, toggleTwinSelectMode, clearTwinCandidates, handleDeletePedigree, backgroundSaveVersion },
+    ops: { updateCanvas, undo, redo, addNode, addContextNode, toggleNodeProp, setNodeType, setNodeColor, handleNodeContextMenu, handleNodeDoubleClick, handleNodeClick, deleteSelected, updateSelectedNode, bulkUpdate, alignSelected, addAnnotation, addFreeAnnotation, updateAnnotation, deleteAnnotation, runAutoLayout, bakeEmptyLabels, bakeAllLabels, openConfirm, navigateArrow, handleCloseTab, openTab, reorderTabs, renameTab, fitToScreen, getSVGCoords, handleDragStart, handleMouseMove, handleMouseUp, handleSVGMouseDown, handleWheel, handleSaveVersion, commitSaveVersion, handleDeleteVersion, handleRestoreVersion, createConsanguinityEdge, createCoupleEdge, createCoupleAndChild, createParentsForGroup, addSiblings, markAsTwins, unmarkTwins, removeEdges, updateEdgeType, toggleCoupleInverted, toggleTwinSelectMode, clearTwinCandidates, handleDeletePedigree, backgroundSaveVersion },
     memo: { autoLabels, validation, searchMatches, generationRailEntries, legendEntries, visibleGenRows, vbW, vbH, MM_W, MM_H, singleSelected: state.selectedIds.size === 1 ? state.canvas.nodes.find((n) => state.selectedIds.has(n.id)) ?? null : null, anySelected: state.selectedIds.size > 0, tabItems },
     refs: { svgRef, canvasRef, preDragCanvasRef, lassoRef, isLassoingRef, lassoRectRef, spaceHeldRef, rafRef, searchInputRef, draftKeyRef, draftEnabledRef, pendingAnnDragRef },
     pedigree, versions, versionsLoading, profiles, saveVersionPending: saveVersionMutation.isPending, showDraftBanner, onRestoreDraft, handleDismissDraft,
-  }), [state, updateCanvas, undo, redo, addNode, addContextNode, toggleNodeProp, setNodeType, setNodeColor, handleNodeContextMenu, handleNodeDoubleClick, handleNodeClick, deleteSelected, updateSelectedNode, bulkUpdate, alignSelected, addAnnotation, addFreeAnnotation, updateAnnotation, deleteAnnotation, runAutoLayout, bakeEmptyLabels, bakeAllLabels, openConfirm, navigateArrow, openTab, reorderTabs, renameTab, fitToScreen, getSVGCoords, handleDragStart, handleMouseMove, handleMouseUp, handleSVGMouseDown, handleWheel, commitSaveVersion, handleDeleteVersion, handleRestoreVersion, createConsanguinityEdge, createCoupleEdge, createCoupleAndChild, createParentsForGroup, addSiblings, markAsTwins, unmarkTwins, removeEdges, toggleTwinSelectMode, clearTwinCandidates, handleDeletePedigree, backgroundSaveVersion, autoLabels, validation, searchMatches, generationRailEntries, legendEntries, visibleGenRows, vbW, vbH, MM_W, MM_H, tabItems, saveVersionMutation.isPending, deleteVersionMutation.isPending]);
+  }), [state, updateCanvas, undo, redo, addNode, addContextNode, toggleNodeProp, setNodeType, setNodeColor, handleNodeContextMenu, handleNodeDoubleClick, handleNodeClick, deleteSelected, updateSelectedNode, bulkUpdate, alignSelected, addAnnotation, addFreeAnnotation, updateAnnotation, deleteAnnotation, runAutoLayout, bakeEmptyLabels, bakeAllLabels, openConfirm, navigateArrow, openTab, reorderTabs, renameTab, fitToScreen, getSVGCoords, handleDragStart, handleMouseMove, handleMouseUp, handleSVGMouseDown, handleWheel, commitSaveVersion, handleDeleteVersion, handleRestoreVersion, createConsanguinityEdge, createCoupleEdge, createCoupleAndChild, createParentsForGroup, addSiblings, markAsTwins, unmarkTwins, removeEdges, updateEdgeType, toggleCoupleInverted, toggleTwinSelectMode, clearTwinCandidates, handleDeletePedigree, backgroundSaveVersion, autoLabels, validation, searchMatches, generationRailEntries, legendEntries, visibleGenRows, vbW, vbH, MM_W, MM_H, tabItems, saveVersionMutation.isPending, deleteVersionMutation.isPending]);
 
   return <PedigreeEditorContext.Provider value={value}>{children}</PedigreeEditorContext.Provider>;
 }

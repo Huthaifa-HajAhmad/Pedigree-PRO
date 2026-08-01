@@ -18,8 +18,9 @@
 
 import { NODE_SIZE, NODE_GAP, GEN_GRID } from "@/features/pedigree-editor/canvas/types";
 import type { PedigreeNode, PedigreeEdge, CanvasData } from "@/features/pedigree-editor/canvas/types";
-import { buildAdjacency, buildGenerations, buildNodeMap } from "./layout-shared";
+import { buildAdjacency, buildGenerations, buildNodeMap, evaluateCostAwareInversion } from "./layout-shared";
 import type { AdjacencyMaps, LayoutNode, EdgeSubset } from "./layout-shared";
+import { minimizeCrossings } from "./crossing-minimization";
 export { buildGenerations };
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -31,6 +32,15 @@ export interface BBox {
   top: number;
   bottom: number;
 }
+
+export class PinnedBlockConflictError extends Error {
+  constructor(message?: string) {
+    super(message ?? "Could not place nodes without moving pinned nodes.");
+    this.name = "PinnedBlockConflictError";
+    Object.setPrototypeOf(this, PinnedBlockConflictError.prototype);
+  }
+}
+
 
 
 
@@ -446,6 +456,10 @@ export function resolveAllCollisions<T extends LayoutNode>(
               ...b2.offsets.map(o => b1BaseOffset + o - b2.offsets[0]!)
             ];
 
+            if (b1.pinnedX !== null && b2.pinnedX !== null) {
+              throw new PinnedBlockConflictError("Could not place nodes without moving pinned nodes.");
+            }
+
             let newPinnedX = b1.pinnedX;
             if (b2.pinnedX !== null) {
               if (newPinnedX === null) {
@@ -479,20 +493,52 @@ export function resolveAllCollisions<T extends LayoutNode>(
         }
       }
 
-      // Apply shifts and propagate to subtrees
-      const shifted = new Set<string>();
+      // Apply shifts and propagate to subtrees using average of all ancestral shifts
+      const nodeShiftsMap = new Map<string, number[]>();
       for (const [nodeId, shift] of shifts) {
-        if (shifted.has(nodeId)) continue;
-        
         const subtree = collectSubtree(nodeId, adj, undefined, { anchorMarriedIn: true });
+        
+        // Find all pinned nodes in the subtree
+        const doNotShift = new Set<string>();
         for (const id of subtree) {
-          if (pinnedIds.has(id)) continue;
-          if (shifted.has(id)) continue;
-          
+          const n = nodeMap.get(id);
+          if (pinnedIds.has(id) || (n && n.pinned)) {
+            doNotShift.add(id);
+          }
+        }
+        
+        // Propagate doNotShift state to spouses recursively
+        let added = true;
+        while (added) {
+          added = false;
+          for (const id of subtree) {
+            if (doNotShift.has(id)) {
+              const spouses = adj.couplesOf.get(id) ?? [];
+              for (const sId of spouses) {
+                if (subtree.has(sId) && !doNotShift.has(sId)) {
+                  doNotShift.add(sId);
+                  added = true;
+                }
+              }
+            }
+          }
+        }
+
+        for (const id of subtree) {
+          if (doNotShift.has(id)) continue;
+          if (!nodeShiftsMap.has(id)) {
+            nodeShiftsMap.set(id, []);
+          }
+          nodeShiftsMap.get(id)!.push(shift);
+        }
+      }
+
+      for (const [id, shiftList] of nodeShiftsMap.entries()) {
+        const avgShift = shiftList.reduce((sum, s) => sum + s, 0) / shiftList.length;
+        if (Math.abs(avgShift) > 0.01) {
           const n = nodeMap.get(id);
           if (n) {
-            n.x += shift;
-            shifted.add(id);
+            n.x += avgShift;
           }
         }
       }
@@ -598,7 +644,11 @@ export function recenterParents<T extends LayoutNode>(
           ((e.sourceId === p1.id && e.targetId === p2.id) || (e.sourceId === p2.id && e.targetId === p1.id))
       );
     }
-    const isInverted = coupleEdge?.inverted ?? false;
+    let isInverted = coupleEdge?.inverted;
+    if (isInverted === undefined) {
+      const adj = buildAdjacency(nodes, edges);
+      isInverted = evaluateCostAwareInversion(p1.id, p2.id, nodeMap, adj.parentsOf, adj.childrenOf);
+    }
 
     const sortedParents = [...parents].sort((a, b) => {
       if (isInverted) {
@@ -618,6 +668,8 @@ export function recenterParents<T extends LayoutNode>(
     const p1Anchored = sortedParents[1]!.pinned || excludeIds?.has(sortedParents[1]!.id) || p1HasParents;
 
     if (p0Anchored && p1Anchored) {
+      // Both parents are anchored (e.g., both have parents of their own or are pinned).
+      // We keep their current positions as-is, naturally preserving any existing horizontal inversion.
       parentTargets.set(sortedParents[0]!.id, sortedParents[0]!.x);
       parentTargets.set(sortedParents[1]!.id, sortedParents[1]!.x);
     } else if (p0Anchored && !p1Anchored) {
@@ -793,6 +845,10 @@ export function recenterAllChildren<T extends LayoutNode>(
   genIndexOf?: Map<string, number>,
   canvasWidth?: number,
 ): T[] {
+  // Guard: if any node has NaN/Infinite coordinates (e.g. corrupted IndexedDB state),
+  // bail out immediately so we don't propagate invalid values further.
+  if (nodes.some(n => !isFinite(n.x) || !isFinite(n.y))) return nodes;
+
   let currentNodes = [...nodes.map(n => ({ ...n }))];
   const adj = buildAdjacency(currentNodes, edges);
   let nodeMap = buildNodeMap(currentNodes);
@@ -867,13 +923,39 @@ export function recenterAllChildren<T extends LayoutNode>(
       const shift = parentMidpoint - childrenCenter;
       if (Math.abs(shift) < 0.1) continue;
 
-      // We shift the children and their subtrees
-      const shiftNodes = new Set<string>();
+      // We shift the children and their subtrees.
+      // Raw subtrees are collected first, then filtered so that a descendant is only
+      // included if ALL of its parents are already in the effective shift set.
+      // This prevents IV:* from being dragged when only one of their two parents
+      // (e.g. III:1 but not III:2) is being re-centred in this pass — which would
+      // pull the grandchildren off-centre before the grandparent-level pass can fix them.
+      const rawShiftNodes = new Set<string>();
       for (const child of children) {
         const subtree = collectSubtree(child.id, adj, undefined, { anchorMarriedIn: true });
         for (const id of subtree) {
           if (!excludeIds?.has(id)) {
+            rawShiftNodes.add(id);
+          }
+        }
+      }
+
+      // Parent-completeness filter: iterative fixpoint propagation.
+      // A node is included only if ALL its parents are in shiftNodes or are the
+      // current family's own parents (so the direct children always qualify).
+      const familyParentSet = new Set(f.parentIds);
+      const shiftNodes = new Set<string>();
+      let changed = true;
+      while (changed) {
+        changed = false;
+        for (const id of rawShiftNodes) {
+          if (shiftNodes.has(id)) continue;
+          const nodeParents = adj.parentsOf.get(id) ?? [];
+          const allParentsOk = nodeParents.every(
+            pid => familyParentSet.has(pid) || shiftNodes.has(pid)
+          );
+          if (allParentsOk) {
             shiftNodes.add(id);
+            changed = true;
           }
         }
       }
@@ -1228,13 +1310,17 @@ export function recenterAllFamilies<T extends LayoutNode>(
     initialOrderMap
   );
 
-  const bottomUpChanged = currentNodes.some((n, idx) => Math.abs(n.x - nodes[idx]!.x) > 0.1);
-  if (bottomUpChanged) {
-    currentNodes = recenterAllChildren(currentNodes, edges, excludeIds, nodeGap, genGrid, genIndexOf, canvasWidth);
-  }
-
-  // Even out sibling spacing for inner siblings
+  // Even out sibling spacing for inner siblings BEFORE centering children,
+  // so that any parent shifts from spacing (e.g. II:5 moving right) are
+  // already in place when recenterAllChildren calculates the parent midpoint.
   currentNodes = evenOutSiblingSpacing(currentNodes, edges, excludeIds, nodeGap, genGrid, genIndexOf, twinGapMono, twinGapDizygotic);
+
+  // Always run the bottom-up child centering pass so that children stay centred under
+  // their parents even when those parents were never moved by the top-down loop
+  // (e.g. Gen-III parents that are anchored via p0HasParents/p1HasParents and therefore
+  // left unchanged by recenterParents, causing Gen-IV siblings to remain off-centre).
+  // recenterAllChildren guards against NaN-infected inputs at its own entry point.
+  currentNodes = recenterAllChildren(currentNodes, edges, excludeIds, nodeGap, genGrid, genIndexOf, canvasWidth);
 
 
 
@@ -1318,6 +1404,7 @@ export function findInsertPosition(
 export function swapCouplePartners<T extends LayoutNode>(nodes: T[], edges: EdgeSubset[], nodeGap = NODE_GAP): T[] {
   const nodeMap = new Map(nodes.map(n => [n.id, n]));
   const result = nodes.map(n => ({ ...n }));
+  const adj = buildAdjacency(nodes, edges);
 
   const coupleCount = new Map<string, number>();
   for (const e of edges) {
@@ -1356,8 +1443,13 @@ export function swapCouplePartners<T extends LayoutNode>(nodes: T[], edges: Edge
         const leftNodeObj = result[leftIdx]!;
         const rightNodeObj = result[rightIdx]!;
         
-        const expectedLeft = e.inverted ? rightNodeObj : leftNodeObj;
-        const expectedRight = e.inverted ? leftNodeObj : rightNodeObj;
+        let isInverted = e.inverted;
+        if (isInverted === undefined) {
+          isInverted = evaluateCostAwareInversion(leftNode.id, rightNode.id, nodeMap, adj.parentsOf, adj.childrenOf);
+        }
+
+        const expectedLeft = isInverted ? rightNodeObj : leftNodeObj;
+        const expectedRight = isInverted ? leftNodeObj : rightNodeObj;
 
         // If expectedLeft is to the right of expectedRight, swap and clamp to nodeGap
         if (expectedLeft.x > expectedRight.x) {
@@ -1368,6 +1460,56 @@ export function swapCouplePartners<T extends LayoutNode>(nodes: T[], edges: Edge
       }
     }
   }
+
+  // Remarriages crossing-free middle sorting
+  const processedRemarriages = new Set<string>();
+  for (const node of nodes) {
+    if (processedRemarriages.has(node.id)) continue;
+    if ((coupleCount.get(node.id) ?? 0) === 2) {
+      const spouses: string[] = [];
+      for (const e of edges) {
+        if (e.type === "couple" || e.type === "consanguinity" || e.type === "divorced" || e.type === "separated") {
+          if (e.sourceId === node.id) spouses.push(e.targetId);
+          else if (e.targetId === node.id) spouses.push(e.sourceId);
+        }
+      }
+      
+      if (spouses.length === 2) {
+        const s1Id = spouses[0]!;
+        const s2Id = spouses[1]!;
+        const nIdx = result.findIndex(rn => rn.id === node.id);
+        const s1Idx = result.findIndex(rn => rn.id === s1Id);
+        const s2Idx = result.findIndex(rn => rn.id === s2Id);
+        
+        if (nIdx !== -1 && s1Idx !== -1 && s2Idx !== -1) {
+          processedRemarriages.add(node.id);
+          const nObj = result[nIdx]!;
+          const s1Obj = result[s1Idx]!;
+          const s2Obj = result[s2Idx]!;
+          
+          const minSpouseX = Math.min(s1Obj.x, s2Obj.x);
+          const maxSpouseX = Math.max(s1Obj.x, s2Obj.x);
+          
+          if (nObj.x < minSpouseX || nObj.x > maxSpouseX) {
+            const coords = [
+              { id: node.id, x: nObj.x, idx: nIdx },
+              { id: s1Id, x: s1Obj.x, idx: s1Idx },
+              { id: s2Id, x: s2Obj.x, idx: s2Idx }
+            ].sort((a, b) => a.x - b.x);
+            
+            if (coords[1]!.id !== node.id) {
+              const currentMid = coords[1]!;
+              const midNodeObj = result.find(rn => rn.id === currentMid.id)!;
+              const tempX = nObj.x;
+              nObj.x = midNodeObj.x;
+              midNodeObj.x = tempX;
+            }
+          }
+        }
+      }
+    }
+  }
+
   return result;
 }
 
@@ -1418,15 +1560,31 @@ export function resolveAndRecenter<T extends LayoutNode>(
   genIndexOf?: Map<string, number>,
   canvasWidth?: number,
   affectedNodeIds?: Set<string>,
+  nodeGap = NODE_GAP,
+  genGrid = GEN_GRID,
+  twinGapMono = NODE_SIZE * 0.55,
+  twinGapDizygotic = NODE_SIZE * 0.8,
+  crossingMinimizationSweeps = 15
 ): T[] {
+  // Sanitize any NaN/Infinite coordinates that may have been persisted to IndexedDB
+  // from previous layout bugs.  Replace bad values with rough fallbacks so the layout
+  // engine can recenter them — the subsequent passes will find their correct positions.
+  nodes = nodes.map((n, i) => {
+    const x = isFinite(n.x) ? n.x : (i + 1) * nodeGap;
+    const y = isFinite(n.y) ? n.y : genGrid;
+    return (x !== n.x || y !== n.y) ? { ...n, x, y } as T : n;
+  });
+
   let finalExcludeIds = excludeIds;
   if (affectedNodeIds && affectedNodeIds.size > 0) {
     const incrementalExclude = getIncrementalExcludeIds(nodes, edges, affectedNodeIds);
     finalExcludeIds = new Set([...(excludeIds ?? []), ...incrementalExclude]);
   }
-  const resolved = resolveAllCollisions(nodes, edges, finalExcludeIds, NODE_GAP, GEN_GRID, genIndexOf, canvasWidth);
-  const swapped = swapCouplePartners(resolved, edges);
-  return recenterAllFamilies(swapped, edges, finalExcludeIds, NODE_GAP, GEN_GRID, genIndexOf, canvasWidth);
+  const resolved = resolveAllCollisions(nodes, edges, finalExcludeIds, nodeGap, genGrid, genIndexOf, canvasWidth, twinGapMono, twinGapDizygotic);
+  const minimized = minimizeCrossings(resolved, edges, genIndexOf, finalExcludeIds, crossingMinimizationSweeps);
+  const resolved2 = resolveAllCollisions(minimized, edges, finalExcludeIds, nodeGap, genGrid, genIndexOf, canvasWidth, twinGapMono, twinGapDizygotic);
+  const swapped = swapCouplePartners(resolved2, edges, nodeGap);
+  return recenterAllFamilies(swapped, edges, finalExcludeIds, nodeGap, genGrid, genIndexOf, canvasWidth, twinGapMono, twinGapDizygotic);
 }
 
 // ── Smart-push insertion (bidirectional) ───────────────────────────────────

@@ -16,9 +16,12 @@ import {
   getRowTolerance,
   swapCouplePartners,
   buildGenerations,
+  PinnedBlockConflictError,
+  collectSubtree,
 } from "../lib/layout-engine";
 import { computeAutoLayout } from "../lib/auto-layout";
-import { evaluateLayoutQuality } from "../lib/layout-shared";
+import { evaluateLayoutQuality, evaluateCostAwareInversion } from "../lib/layout-shared";
+import { minimizeCrossings } from "../lib/crossing-minimization";
 import { PedigreeNode, PedigreeEdge, NODE_GAP, NODE_SIZE } from "@/features/pedigree-editor/canvas/types";
 import { computeSibshipGroupTrack } from "@/features/pedigree-editor/canvas/canvasUtils";
 import { computeFamilyChildYOffset } from "@/features/pedigree-editor/canvas/SibshipGroup";
@@ -1280,7 +1283,7 @@ describe("layout-engine", () => {
       expect(result).toHaveLength(5);
     });
 
-    it("B6: swapCouplePartners skips swapping for nodes with multiple spouses to preserve orderNodesForGen order", () => {
+    it("B6: swapCouplePartners sorts remarriage spouses so the remarried node is in the middle", () => {
       const nodes: any[] = [
         { id: "husband", x: 100, y: 120, type: "male", ...baseNode },
         { id: "wife1", x: 200, y: 120, type: "female", ...baseNode },
@@ -1295,8 +1298,8 @@ describe("layout-engine", () => {
       const newW1 = result.find(n => n.id === "wife1")!;
       const newW2 = result.find(n => n.id === "wife2")!;
 
-      expect(newH.x).toBe(100);
-      expect(newW1.x).toBe(200);
+      expect(newH.x).toBe(200);
+      expect(newW1.x).toBe(100);
       expect(newW2.x).toBe(300);
     });
 
@@ -1448,6 +1451,162 @@ describe("layout-engine", () => {
       const quality = evaluateLayoutQuality(result, edges);
       expect(quality.collisionCount).toBe(0);
       expect(quality.centeringDeviation).toBeCloseTo(55, 1);
+    });
+  });
+
+  describe("double-pinned conflicts & couple tearing", () => {
+    it("throws PinnedBlockConflictError when two pinned blocks collide", () => {
+      const nodes: any[] = [
+        { id: "A", x: 100, y: 120, pinned: true, ...baseNode },
+        { id: "B", x: 120, y: 120, pinned: true, ...baseNode },
+      ];
+      const edges: any[] = [];
+      
+      expect(() => {
+        resolveAllCollisions(nodes, edges, new Set(), 96.8, 120, new Map());
+      }).toThrow(PinnedBlockConflictError);
+    });
+
+    it("prevents couple tearing by keeping spouses glued recursively to pinned nodes", () => {
+      const nodes: any[] = [
+        { id: "A", x: 100, y: 120, pinned: true, ...baseNode },
+        { id: "B", x: 196.8, y: 120, ...baseNode }, // spouse of A (not pinned but glued)
+        { id: "C", x: 180, y: 120, ...baseNode }, // collides with B
+      ];
+      const edges: any[] = [
+        { id: "e1", sourceId: "A", targetId: "B", type: "couple" }
+      ];
+
+      const result = resolveAllCollisions(nodes, edges, new Set(), 96.8, 120, new Map());
+      const resA = result.find(n => n.id === "A")!;
+      const resB = result.find(n => n.id === "B")!;
+      const resC = result.find(n => n.id === "C")!;
+
+      // A & B should remain at their original positions
+      expect(resA.x).toBe(100);
+      expect(resB.x).toBe(196.8);
+      // C should be pushed to the right of B since A and B are glued and pinned
+      expect(resC.x).toBeCloseTo(293.6, 1);
+    });
+
+    it("collectSubtree with anchorMarriedIn includes spouses and descendants", () => {
+      const nodes: any[] = [
+        { id: "A" },
+        { id: "B" }, // spouse of A
+        { id: "C" }, // child of A/B
+      ];
+      const edges: any[] = [
+        { id: "e1", sourceId: "A", targetId: "B", type: "couple" },
+        { id: "e2", sourceId: "A", targetId: "C", type: "parent-child" },
+        { id: "e3", sourceId: "B", targetId: "C", type: "parent-child" },
+      ];
+      const adj = buildAdjacency(nodes, edges);
+      const subtree = collectSubtree("A", adj, undefined, { anchorMarriedIn: true });
+      
+      expect(subtree.has("A")).toBe(true);
+      expect(subtree.has("B")).toBe(true);
+      expect(subtree.has("C")).toBe(true);
+    });
+
+    it("minimizes crossings by adjacent-swapping sibling groups to resolve [A1,A2,B2,B1] crossing", () => {
+      const nodes: any[] = [
+        // Family B (left side parents, but initial children placed on the right)
+        { id: "B_father", x: 100, y: 0, type: "male", pinned: true, ...baseNode },
+        { id: "B_mother", x: 200, y: 0, type: "female", pinned: true, ...baseNode },
+        // Family A (right side parents, but initial children placed on the left)
+        { id: "A_father", x: 300, y: 0, type: "male", pinned: true, ...baseNode },
+        { id: "A_mother", x: 400, y: 0, type: "female", pinned: true, ...baseNode },
+
+        // Children of A (family A: parents at 350 center, initially at 100, 200)
+        { id: "A1", x: 100, y: 120, type: "male", ...baseNode },
+        { id: "A2", x: 200, y: 120, type: "female", ...baseNode },
+        // Children of B (family B: parents at 150 center, initially at 300, 400)
+        { id: "B1", x: 300, y: 120, type: "male", ...baseNode },
+        { id: "B2", x: 400, y: 120, type: "female", ...baseNode },
+      ];
+
+      const edges: any[] = [
+        { id: "eB", sourceId: "B_father", targetId: "B_mother", type: "couple" },
+        { id: "eB_c1", sourceId: "B_father", targetId: "B1", type: "parent-child" },
+        { id: "eB_c2", sourceId: "B_mother", targetId: "B1", type: "parent-child" },
+        { id: "eB_c3", sourceId: "B_father", targetId: "B2", type: "parent-child" },
+        { id: "eB_c4", sourceId: "B_mother", targetId: "B2", type: "parent-child" },
+
+        { id: "eA", sourceId: "A_father", targetId: "A_mother", type: "couple" },
+        { id: "eA_c1", sourceId: "A_father", targetId: "A1", type: "parent-child" },
+        { id: "eA_c2", sourceId: "A_mother", targetId: "A1", type: "parent-child" },
+        { id: "eA_c3", sourceId: "A_father", targetId: "A2", type: "parent-child" },
+        { id: "eA_c4", sourceId: "A_mother", targetId: "A2", type: "parent-child" },
+      ];
+
+      const genOf = new Map<string, number>([
+        ["B_father", 0], ["B_mother", 0],
+        ["A_father", 0], ["A_mother", 0],
+        ["A1", 1], ["A2", 1],
+        ["B1", 1], ["B2", 1]
+      ]);
+
+      const minimized = minimizeCrossings(nodes, edges, genOf);
+      const resB1 = minimized.find(n => n.id === "B1")!;
+      const resA1 = minimized.find(n => n.id === "A1")!;
+
+      // Cluster B [B1, B2] should be swapped to the left of Cluster A [A1, A2] to resolve crossings
+      expect(resB1.x).toBeLessThan(resA1.x);
+    });
+
+    it("verifies swapCouplePartners remarriage middle sorting does not conflict with minimizeCrossings", () => {
+      const nodes: any[] = [
+        { id: "husband", x: 100, y: 120, type: "male", ...baseNode },
+        { id: "wife1", x: 200, y: 120, type: "female", ...baseNode },
+        { id: "wife2", x: 300, y: 120, type: "female", ...baseNode },
+      ];
+      const edges: any[] = [
+        { id: "e1", sourceId: "husband", targetId: "wife1", type: "couple" },
+        { id: "e2", sourceId: "husband", targetId: "wife2", type: "couple" },
+      ];
+      
+      const genOf = new Map<string, number>([
+        ["husband", 1],
+        ["wife1", 1],
+        ["wife2", 1]
+      ]);
+
+      const swapped = swapCouplePartners(nodes, edges);
+      const resH = swapped.find(n => n.id === "husband")!;
+      expect(resH.x).toBe(200);
+
+      const minimized = minimizeCrossings(swapped, edges, genOf);
+      const finalH = minimized.find(n => n.id === "husband")!;
+      expect(finalH.x).toBe(200);
+    });
+
+    it("evaluates cost-aware inversion correctly based on parents' X coordinates", () => {
+      const nodes: any[] = [
+        { id: "father", type: "male", x: 150, y: 120, ...baseNode },
+        { id: "mother", type: "female", x: 250, y: 120, ...baseNode },
+        // father's parents on the right (avg X = 300)
+        { id: "f_gpf", x: 300, y: 0, ...baseNode },
+        // mother's parents on the left (avg X = 100)
+        { id: "m_gpf", x: 100, y: 0, ...baseNode },
+      ];
+      const parentsOf = new Map<string, string[]>([
+        ["father", ["f_gpf"]],
+        ["mother", ["m_gpf"]],
+      ]);
+      const childrenOf = new Map<string, string[]>();
+      const nodeMap = new Map<string, any>(nodes.map(n => [n.id, n]));
+
+      // Since father's parents are on the right (300) and mother's parents are on the left (100),
+      // we want the father (male) on the right and the mother (female) on the left to avoid crossings.
+      // So evaluateCostAwareInversion should return true (inverted).
+      const inverted = evaluateCostAwareInversion("father", "mother", nodeMap, parentsOf, childrenOf);
+      expect(inverted).toBe(true);
+
+      // If father's parents were on the left and mother's parents on the right, it should be normal (false)
+      nodeMap.get("f_gpf").x = 100;
+      nodeMap.get("m_gpf").x = 300;
+      const normal = evaluateCostAwareInversion("father", "mother", nodeMap, parentsOf, childrenOf);
+      expect(normal).toBe(false);
     });
   });
 });

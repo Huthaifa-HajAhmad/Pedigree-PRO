@@ -24,8 +24,9 @@ export type { LayoutNode, LayoutEdge };
 
 import { NODE_SIZE } from "@/features/pedigree-editor/canvas/types";
 import { resolveAllCollisions, recenterAllFamilies, swapCouplePartners, collectSubtree, detectRowCollisions } from "./layout-engine";
-import { buildAdjacency, buildGenerations, DEFAULT_LAYOUT_CONFIG } from "./layout-shared";
+import { buildAdjacency, buildGenerations, DEFAULT_LAYOUT_CONFIG, evaluateCostAwareInversion } from "./layout-shared";
 import type { LayoutConfig } from "./layout-shared";
+import { minimizeCrossings } from "./crossing-minimization";
 import { computeNodeStructuralHash, globalLayoutCache, setCacheEntry, checkAndClearCache } from "./layout-cache";
 
 function getTwinInfo(
@@ -56,6 +57,13 @@ export function computeAutoLayout<T extends LayoutNode>(
   const DEFAULT_LEFT_MARGIN = 120;
 
   if (nodes.length === 0) return nodes;
+  
+  // Sanitize any NaN/Infinite coordinates that may have been passed in or stored in cache
+  nodes = nodes.map((n, i) => {
+    const x = isFinite(n.x) ? n.x : (i + 1) * nodeGap;
+    const y = isFinite(n.y) ? n.y : genGrid;
+    return (x !== n.x || y !== n.y) ? { ...n, x, y } as T : n;
+  });
 
   const pinnedNodes = respectPinned ? nodes.filter(n => n.pinned) : [];
   let effectiveCenterX = cfg.canvasCenterX;
@@ -659,13 +667,15 @@ export function computeAutoLayout<T extends LayoutNode>(
 
   const optimizedNodes = applyBarycenterHeuristic(initialNodes, edges, genOf, adj, nodeGap, hSpacing, twinGapMono, twinGapDizygotic);
 
-  // ── Overlap resolution: use shared collision resolver for horizontal overlaps ──
   const pinnedIds = new Set(
     nodes.filter((n) => respectPinned && n.pinned).map((n) => n.id)
   );
-  
+
+  const minimizedNodes = minimizeCrossings(optimizedNodes, edges, genOf, pinnedIds);
+
+  // ── Overlap resolution: use shared collision resolver for horizontal overlaps ──
   const resolvedNodes = resolveAllCollisions(
-    optimizedNodes,
+    minimizedNodes,
     edges,
     pinnedIds,
     nodeGap,
@@ -779,7 +789,10 @@ function orderNodesForGen(
         
         const key = a < b ? `${a}|${b}` : `${b}|${a}`;
         const edge = coupleEdgeMap.get(key);
-        const isInverted = edge?.inverted ?? false;
+        let isInverted = edge?.inverted;
+        if (isInverted === undefined) {
+          isInverted = evaluateCostAwareInversion(a, b, nodeMap, parentsOf, childrenOf, knownPos);
+        }
         
         if (p1.type !== p2.type) {
           if (isInverted) {
@@ -960,19 +973,28 @@ function applyBarycenterHeuristic<T extends LayoutNode>(
 
       for (const n of genNodes) {
         if (visited.has(n.id)) continue;
+
+        const comp: T[] = [];
+        const queue = [n];
         visited.add(n.id);
+        let head = 0;
+        while (head < queue.length) {
+          const curr = queue[head]!;
+          head++;
+          comp.push(curr);
 
-        const partners = (adj.couplesOf.get(n.id) ?? []).filter(pId => {
-          const pNode = nodeMap.get(pId);
-          return pNode && genOf.get(pId) === gen;
-        });
+          const partners = adj.couplesOf.get(curr.id) ?? [];
+          const twins = adj.twinsOf.get(curr.id) ?? [];
+          const neighbors = [...partners, ...twins];
 
-        const comp = [n];
-        for (const pId of partners) {
-          if (!visited.has(pId)) {
-            visited.add(pId);
-            const pNode = nodeMap.get(pId)!;
-            comp.push(pNode);
+          for (const neighId of neighbors) {
+            if (!visited.has(neighId)) {
+              const neighNode = nodeMap.get(neighId);
+              if (neighNode && genOf.get(neighId) === gen) {
+                visited.add(neighId);
+                queue.push(neighNode as T);
+              }
+            }
           }
         }
         components.push(comp);
@@ -1040,7 +1062,14 @@ function applyBarycenterHeuristic<T extends LayoutNode>(
       });
 
       const clusterList = Array.from(clusters.entries()).map(([key, comps]) => {
-        comps.sort((a, b) => compInitialIndex.get(a)! - compInitialIndex.get(b)!);
+        comps.sort((a, b) => {
+          const ba = componentBarycenters.get(a)!;
+          const bb = componentBarycenters.get(b)!;
+          if (Math.abs(ba - bb) < 0.1) {
+            return compInitialIndex.get(a)! - compInitialIndex.get(b)!;
+          }
+          return ba - bb;
+        });
         const sumBary = comps.reduce((sum, comp) => sum + componentBarycenters.get(comp)!, 0);
         const avgBary = sumBary / comps.length;
         return { key, comps, barycenter: avgBary, minInitialIndex: compInitialIndex.get(comps[0]!)! };
@@ -1062,15 +1091,13 @@ function applyBarycenterHeuristic<T extends LayoutNode>(
         const node = newNodesOrder[i]!;
         if (i > 0) {
           const prev = newNodesOrder[i - 1]!;
-          const isCouple = (adj.couplesOf.get(node.id) ?? []).includes(prev.id);
           const twin1 = getTwinInfo(node.id, adj.twinGroupOf, adj.twinTypeOf);
           const twin2 = getTwinInfo(prev.id, adj.twinGroupOf, adj.twinTypeOf);
           const areTwins = twin1 && twin2 && twin1.group === twin2.group;
 
-          let gap = hSpacing;
-          if (isCouple) {
-            gap = nodeGap;
-          } else if (areTwins) {
+          const isCouple = (adj.couplesOf.get(node.id) ?? []).includes(prev.id);
+          let gap = isCouple ? nodeGap : hSpacing;
+          if (areTwins) {
             gap = twin1.type === "m" ? twinGapMono : twinGapDizygotic;
           }
           currentX += gap;

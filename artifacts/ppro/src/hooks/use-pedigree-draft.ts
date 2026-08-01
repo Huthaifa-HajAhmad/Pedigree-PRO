@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import type { CanvasData } from "@/features/pedigree-editor/canvas/types";
 import { encryptDraft, decryptDraft } from "@workspace/browser-backend";
+import { parseCanvas } from "@/features/pedigree-editor/utils/helpers";
 
 export interface UsePedigreeDraftParams {
   id: number;
@@ -45,7 +46,8 @@ export function usePedigreeDraft({ id, pedigreeData, canvasRef, draftKeyRef }: U
           const parsed = JSON.parse(decrypted) as { canvas: CanvasData; at: number };
           const serverAt = new Date((pedigreeData as unknown as { updatedAt: string }).updatedAt).getTime();
           if (parsed.at > serverAt + 3000 && parsed.canvas?.nodes?.length > 0) {
-            setDraftData(parsed.canvas);
+            const sanitized = parseCanvas(JSON.stringify(parsed.canvas));
+            setDraftData(sanitized);
             setShowDraftBanner(true);
             return;
           }
