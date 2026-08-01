@@ -57,17 +57,16 @@ export function autoDetectInvertedCouples(nodes: PedigreeNode[], edges: Pedigree
   const nodeMap = new Map(nodes.map(n => [n.id, n]));
   return edges.map((e) => {
     if (e.type === "couple" || e.type === "consanguinity" || e.type === "divorced" || e.type === "separated") {
-      if (e.inverted !== undefined) {
-        return e;
-      }
       const n1 = nodeMap.get(e.sourceId);
       const n2 = nodeMap.get(e.targetId);
       if (n1 && n2) {
         const male = n1.type === "male" ? n1 : n2.type === "male" ? n2 : null;
         const female = n1.type === "female" ? n1 : n2.type === "female" ? n2 : null;
         if (male && female && male.id !== female.id) {
-          const isInverted = male.x > female.x;
-          return { ...e, inverted: isInverted };
+          if (male.x !== 0 || female.x !== 0) {
+            const isInverted = male.x > female.x;
+            return { ...e, inverted: isInverted };
+          }
         }
       }
     }

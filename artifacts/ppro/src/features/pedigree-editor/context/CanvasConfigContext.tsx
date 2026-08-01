@@ -33,6 +33,12 @@ export interface CanvasConfig {
   ageFontSize?: number;
   showRelationshipLabels?: boolean;
   sibshipDropHeight?: number;
+  twinGapMono?: number;
+  twinGapDizygotic?: number;
+  coupleSpacing?: number;
+  hSpacing?: number;
+  crossingMinimizationSweeps?: number;
+  edgeArcRadius?: number;
 }
 
 export const DEFAULT_CANVAS_CONFIG: CanvasConfig = {
@@ -67,6 +73,12 @@ export const DEFAULT_CANVAS_CONFIG: CanvasConfig = {
   ageFontSize: 10,
   showRelationshipLabels: true,
   sibshipDropHeight: 30,
+  twinGapMono: DEFAULT_NODE_SIZE * 0.55,
+  twinGapDizygotic: DEFAULT_NODE_SIZE * 0.8,
+  coupleSpacing: DEFAULT_NODE_GAP,
+  hSpacing: Math.round(DEFAULT_NODE_GAP * 110 / 96.8),
+  crossingMinimizationSweeps: 15,
+  edgeArcRadius: 6,
 };
 
 const STORAGE_KEY = "ppro_canvas_config";
@@ -74,7 +86,24 @@ const STORAGE_KEY = "ppro_canvas_config";
 export function getStoredConfig(): Partial<CanvasConfig> {
   try {
     const v = localStorage.getItem(STORAGE_KEY);
-    if (v) return JSON.parse(v);
+    if (v) {
+      const parsed = JSON.parse(v);
+      if (parsed && typeof parsed === "object") {
+        for (const key of Object.keys(parsed)) {
+          const val = parsed[key];
+          const defaultVal = DEFAULT_CANVAS_CONFIG[key as keyof CanvasConfig];
+          if (typeof defaultVal === "number") {
+            const num = Number(val);
+            if (!isFinite(num) || val === null || val === undefined) {
+              delete parsed[key];
+            } else {
+              parsed[key] = num;
+            }
+          }
+        }
+        return parsed;
+      }
+    }
   } catch {}
   return {};
 }
@@ -154,7 +183,14 @@ export function CanvasConfigOverrideProvider({
   const parentCtx = useContext(CanvasConfigContext);
 
   const mergedConfig = useMemo(() => {
-    return { ...parentCtx.config, ...localConfig };
+    const merged = { ...parentCtx.config };
+    for (const key of Object.keys(localConfig)) {
+      const val = localConfig[key as keyof CanvasConfig];
+      if (val !== undefined && val !== null && (typeof val !== "number" || isFinite(val))) {
+        (merged as any)[key] = val;
+      }
+    }
+    return merged;
   }, [parentCtx.config, localConfig]);
 
   useEffect(() => {

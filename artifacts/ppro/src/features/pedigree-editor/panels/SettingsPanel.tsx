@@ -305,6 +305,220 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
               />
             </div>
 
+            {/* Twin Spacing Mono Slider */}
+            <div className="space-y-1">
+              <div className="flex items-center justify-between text-xs">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">Monozygotic Twin Gap</span>
+                  {(config.twinGapMono !== undefined && config.twinGapMono !== 22) && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        updateConfig({ twinGapMono: undefined });
+                        setTimeout(() => ops.runAutoLayout(false, false, false, true), 50);
+                      }}
+                      className="text-[9px] text-primary hover:text-primary-foreground hover:bg-primary/20 px-1 rounded transition-colors"
+                      title="Reset to default"
+                    >
+                      Reset
+                    </button>
+                  )}
+                </div>
+                <span className="font-mono text-foreground tabular-nums">{config.twinGapMono ?? 22}px</span>
+              </div>
+              <input
+                type="range"
+                min={10}
+                max={80}
+                step={2}
+                value={config.twinGapMono ?? 22}
+                onChange={(e) => {
+                  const val = Number(e.target.value);
+                  updateConfig({ twinGapMono: val });
+                  ops.runAutoLayout(false, false, false, true);
+                }}
+                className="w-full cursor-pointer border-none outline-none focus-visible:ring-1 focus-visible:ring-primary"
+              />
+            </div>
+
+            {/* Twin Spacing Dizygotic Slider */}
+            <div className="space-y-1">
+              <div className="flex items-center justify-between text-xs">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">Dizygotic Twin Gap</span>
+                  {(config.twinGapDizygotic !== undefined && config.twinGapDizygotic !== 32) && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        updateConfig({ twinGapDizygotic: undefined });
+                        setTimeout(() => ops.runAutoLayout(false, false, false, true), 50);
+                      }}
+                      className="text-[9px] text-primary hover:text-primary-foreground hover:bg-primary/20 px-1 rounded transition-colors"
+                      title="Reset to default"
+                    >
+                      Reset
+                    </button>
+                  )}
+                </div>
+                <span className="font-mono text-foreground tabular-nums">{config.twinGapDizygotic ?? 32}px</span>
+              </div>
+              <input
+                type="range"
+                min={15}
+                max={100}
+                step={2}
+                value={config.twinGapDizygotic ?? 32}
+                onChange={(e) => {
+                  const val = Number(e.target.value);
+                  updateConfig({ twinGapDizygotic: val });
+                  ops.runAutoLayout(false, false, false, true);
+                }}
+                className="w-full cursor-pointer border-none outline-none focus-visible:ring-1 focus-visible:ring-primary"
+              />
+            </div>
+
+            {/* Couple Spacing Slider */}
+            <div className="space-y-1">
+              <div className="flex items-center justify-between text-xs">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">Couple Spacing</span>
+                  {(config.coupleSpacing !== undefined && config.coupleSpacing !== 96.8) && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        updateConfig({ coupleSpacing: undefined });
+                        setTimeout(() => ops.runAutoLayout(false, false, false, true), 50);
+                      }}
+                      className="text-[9px] text-primary hover:text-primary-foreground hover:bg-primary/20 px-1 rounded transition-colors"
+                      title="Reset to default"
+                    >
+                      Reset
+                    </button>
+                  )}
+                </div>
+                <span className="font-mono text-foreground tabular-nums">{config.coupleSpacing ?? 96.8}px</span>
+              </div>
+              <input
+                type="range"
+                min={50}
+                max={200}
+                step={2}
+                value={config.coupleSpacing ?? 96.8}
+                onChange={(e) => {
+                  const val = Number(e.target.value);
+                  updateConfig({ coupleSpacing: val });
+                  ops.runAutoLayout(false, false, false, true);
+                }}
+                className="w-full cursor-pointer border-none outline-none focus-visible:ring-1 focus-visible:ring-primary"
+              />
+            </div>
+
+            {/* Horizontal Spacing Slider */}
+            <div className="space-y-1">
+              <div className="flex items-center justify-between text-xs">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">Horizontal Node Spacing</span>
+                  {(config.hSpacing !== undefined && config.hSpacing !== 110) && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        updateConfig({ hSpacing: undefined });
+                        setTimeout(() => ops.runAutoLayout(false, false, false, true), 50);
+                      }}
+                      className="text-[9px] text-primary hover:text-primary-foreground hover:bg-primary/20 px-1 rounded transition-colors"
+                      title="Reset to default"
+                    >
+                      Reset
+                    </button>
+                  )}
+                </div>
+                <span className="font-mono text-foreground tabular-nums">{config.hSpacing ?? 110}px</span>
+              </div>
+              <input
+                type="range"
+                min={60}
+                max={220}
+                step={2}
+                value={config.hSpacing ?? 110}
+                onChange={(e) => {
+                  const val = Number(e.target.value);
+                  updateConfig({ hSpacing: val });
+                  ops.runAutoLayout(false, false, false, true);
+                }}
+                className="w-full cursor-pointer border-none outline-none focus-visible:ring-1 focus-visible:ring-primary"
+              />
+            </div>
+
+            {/* Edge Bridge Arc Radius Slider */}
+            <div className="space-y-1">
+              <div className="flex items-center justify-between text-xs">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">Bridge Arc Radius</span>
+                  {(config.edgeArcRadius !== undefined && config.edgeArcRadius !== 6) && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        updateConfig({ edgeArcRadius: undefined });
+                      }}
+                      className="text-[9px] text-primary hover:text-primary-foreground hover:bg-primary/20 px-1 rounded transition-colors"
+                      title="Reset to default"
+                    >
+                      Reset
+                    </button>
+                  )}
+                </div>
+                <span className="font-mono text-foreground tabular-nums">{config.edgeArcRadius ?? 6}px</span>
+              </div>
+              <input
+                type="range"
+                min={2}
+                max={15}
+                step={1}
+                value={config.edgeArcRadius ?? 6}
+                onChange={(e) => {
+                  const val = Number(e.target.value);
+                  updateConfig({ edgeArcRadius: val });
+                }}
+                className="w-full cursor-pointer border-none outline-none focus-visible:ring-1 focus-visible:ring-primary"
+              />
+            </div>
+
+            {/* Crossing Minimization Sweeps Slider */}
+            <div className="space-y-1">
+              <div className="flex items-center justify-between text-xs">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">Minimization Sweeps</span>
+                  {(config.crossingMinimizationSweeps !== undefined && config.crossingMinimizationSweeps !== 15) && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        updateConfig({ crossingMinimizationSweeps: undefined });
+                        setTimeout(() => ops.runAutoLayout(false, false, false, true), 50);
+                      }}
+                      className="text-[9px] text-primary hover:text-primary-foreground hover:bg-primary/20 px-1 rounded transition-colors"
+                      title="Reset to default"
+                    >
+                      Reset
+                    </button>
+                  )}
+                </div>
+                <span className="font-mono text-foreground tabular-nums">{config.crossingMinimizationSweeps ?? 15}</span>
+              </div>
+              <input
+                type="range"
+                min={5}
+                max={40}
+                step={1}
+                value={config.crossingMinimizationSweeps ?? 15}
+                onChange={(e) => {
+                  const val = Number(e.target.value);
+                  updateConfig({ crossingMinimizationSweeps: val });
+                  ops.runAutoLayout(false, false, false, true);
+                }}
+                className="w-full cursor-pointer border-none outline-none focus-visible:ring-1 focus-visible:ring-primary"
+              />
+            </div>
+
             {/* Apply spacing settings button */}
             <button
               type="button"
@@ -547,7 +761,11 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
                       max={24}
                       step={1}
                       value={config.genotypeFontSize ?? 12}
-                      onChange={(e) => updateConfig({ genotypeFontSize: parseInt(e.target.value) })}
+                      onChange={(e) => {
+                        const val = parseInt(e.target.value);
+                        updateConfig({ genotypeFontSize: val });
+                        ops.runAutoLayout(false, false, false, true);
+                      }}
                       className="flex-1 cursor-pointer border-none outline-none focus-visible:ring-1 focus-visible:ring-primary"
                     />
                     <span className="text-[10px] text-muted-foreground">24px</span>
@@ -568,7 +786,11 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
                       max={12}
                       step={1}
                       value={config.genotypeOffset ?? 3}
-                      onChange={(e) => updateConfig({ genotypeOffset: parseInt(e.target.value) })}
+                      onChange={(e) => {
+                        const val = parseInt(e.target.value);
+                        updateConfig({ genotypeOffset: val });
+                        ops.runAutoLayout(false, false, false, true);
+                      }}
                       className="flex-1 cursor-pointer border-none outline-none focus-visible:ring-1 focus-visible:ring-primary"
                     />
                     <span className="text-[10px] text-muted-foreground">12px</span>
@@ -626,7 +848,10 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
                     {(config.nodeSize !== DEFAULT_CANVAS_CONFIG.nodeSize) && (
                       <button
                         type="button"
-                        onClick={() => updateConfig({ nodeSize: DEFAULT_CANVAS_CONFIG.nodeSize })}
+                        onClick={() => {
+                          updateConfig({ nodeSize: DEFAULT_CANVAS_CONFIG.nodeSize });
+                          setTimeout(() => ops.runAutoLayout(false, false, false, true), 50);
+                        }}
                         className="text-[9px] text-primary hover:text-primary-foreground hover:bg-primary/20 px-1 rounded transition-colors"
                         title={`Reset to ${DEFAULT_CANVAS_CONFIG.nodeSize}px`}
                       >
@@ -642,7 +867,11 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
                   max={64}
                   step={2}
                   value={config.nodeSize}
-                  onChange={(e) => updateConfig({ nodeSize: Number(e.target.value) })}
+                  onChange={(e) => {
+                    const val = Number(e.target.value);
+                    updateConfig({ nodeSize: val });
+                    ops.runAutoLayout(false, false, false, true);
+                  }}
                   className="w-full cursor-pointer border-none outline-none focus-visible:ring-1 focus-visible:ring-primary"
                 />
               </div>
@@ -801,7 +1030,10 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
                   <button
                     type="button"
                     key={s.v}
-                    onClick={() => updateConfig({ annFontSize: s.v })}
+                    onClick={() => {
+                      updateConfig({ annFontSize: s.v });
+                      ops.runAutoLayout(false, false, false, true);
+                    }}
                     className={`flex-1 py-1 rounded text-xs border transition-all ${
                       (config.annFontSize ?? 12) === s.v
                         ? "border-primary text-primary bg-primary/10"

@@ -50,7 +50,7 @@ export function PropertiesPanel({
   onUpdateAnnotation, onDeleteAnnotation, onSelectAnnotation,
   onReorderAnnotations,
   onAlignSelected, onMarkAsTwins, onUnmarkTwins, onRemoveEdges,
-  onUpdateEdgeType,
+  onUpdateEdgeType, onToggleCoupleInverted,
   onCreateCoupleEdge, onCreateConsanguinityEdge, onCreateCoupleAndChild,
   onCreateParentsForGroup,
 }: {
@@ -72,6 +72,7 @@ export function PropertiesPanel({
   onUnmarkTwins?: (nodeIds: string[]) => void;
   onRemoveEdges?: (edgeIds: string[]) => void;
   onUpdateEdgeType?: (edgeId: string, type: PedigreeEdge["type"]) => void;
+  onToggleCoupleInverted?: (edgeId: string) => void;
   onCreateCoupleEdge?: (sourceId: string, targetId: string) => void;
   onCreateConsanguinityEdge?: (sourceId: string, targetId: string) => void;
   onCreateCoupleAndChild?: (maleId: string, femaleId: string) => void;
@@ -585,6 +586,29 @@ export function PropertiesPanel({
               )}
             </PanelSection>
           )}
+
+          {/* Relationship / Flip Partner Order */}
+          {(() => {
+            if (selectedIds.size !== 2) return null;
+            const ids = Array.from(selectedIds);
+            const coupleEdge = canvasEdges.find(
+              (e) =>
+                (e.type === "couple" || e.type === "consanguinity" || e.type === "divorced" || e.type === "separated") &&
+                ((e.sourceId === ids[0] && e.targetId === ids[1]) || (e.sourceId === ids[1] && e.targetId === ids[0]))
+            );
+            if (!coupleEdge || !onToggleCoupleInverted) return null;
+            return (
+              <PanelSection title="Relationship" icon={<Heart className="w-3 h-3 text-rose-500" />}>
+                <button
+                  type="button"
+                  onClick={() => onToggleCoupleInverted(coupleEdge.id)}
+                  className="w-full py-1.5 text-xs border border-border/80 rounded-lg text-muted-foreground hover:bg-accent/30 hover:border-muted-foreground/30 hover:text-foreground transition-all duration-200 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                >
+                  Flip Partner Order
+                </button>
+              </PanelSection>
+            );
+          })()}
 
           {/* Bulk delete */}
           <button type="button" data-testid="button-bulk-delete" onClick={onDeleteSelected}

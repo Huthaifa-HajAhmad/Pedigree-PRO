@@ -196,6 +196,7 @@ export interface PedigreeEditorOps {
   unmarkTwins: (nodeIds: string[]) => void;
   removeEdges: (edgeIds: string[]) => void;
   updateEdgeType: (edgeId: string, type: PedigreeEdge["type"]) => void;
+  toggleCoupleInverted: (edgeId: string) => void;
   toggleTwinSelectMode: () => void;
   clearTwinCandidates: () => void;
   handleDeletePedigree: (tabId: number, tabTitle: string) => void;

@@ -172,5 +172,20 @@ describe("Version Preview Mode", () => {
     const updated = autoDetectInvertedCouples(nodes, edges);
     expect(updated[0]?.inverted).toBe(true);
   });
+
+  it("updates inverted couple edges bidirectionally when nodes are dragged", () => {
+    const nodes: PedigreeNode[] = [
+      { id: "II:5", type: "female", x: 100, y: 120, affected: false, carrier: false, deceased: false, proband: false, label: "II:5", age: "" },
+      { id: "II:6", type: "male", x: 200, y: 120, affected: false, carrier: false, deceased: false, proband: false, label: "II:6", age: "" },
+    ];
+    const edges: PedigreeEdge[] = [
+      { id: "e1", type: "couple", sourceId: "II:5", targetId: "II:6", inverted: true }
+    ];
+
+    // Drag male node back to the left of female node
+    nodes[1]!.x = 50; // male now at 50, female at 100 -> male.x < female.x -> inverted should become false
+    const updated = autoDetectInvertedCouples(nodes, edges);
+    expect(updated[0]?.inverted).toBe(false);
+  });
 });
 
