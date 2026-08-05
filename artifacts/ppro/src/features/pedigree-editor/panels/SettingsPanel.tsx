@@ -210,7 +210,9 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
                       type="button"
                       onClick={() => {
                         updateConfig({ nodeGap: 96.8 });
-                        setTimeout(() => ops.runAutoLayout(false, false, false, true, { nodeGap: 96.8 }), 50);
+                        if (state.liveLayout) {
+                          setTimeout(() => ops.runAutoLayout(false, false, false, true, { nodeGap: 96.8 }), 50);
+                        }
                       }}
                       className="text-[9px] text-primary hover:text-primary-foreground hover:bg-primary/20 px-1 rounded transition-colors"
                       title="Reset to 96.8"
@@ -230,7 +232,9 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
                 onChange={(e) => {
                   const val = Number(e.target.value);
                   updateConfig({ nodeGap: val });
-                  ops.runAutoLayout(false, false, false, true, { nodeGap: val });
+                  if (state.liveLayout) {
+                    ops.runAutoLayout(false, false, false, true, { nodeGap: val });
+                  }
                 }}
                 className="w-full cursor-pointer border-none outline-none focus-visible:ring-1 focus-visible:ring-primary"
               />
@@ -246,7 +250,9 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
                       type="button"
                       onClick={() => {
                         updateConfig({ genGrid: 120 });
-                        setTimeout(() => ops.runAutoLayout(false, false, false, true, { genGrid: 120 }), 50);
+                        if (state.liveLayout) {
+                          setTimeout(() => ops.runAutoLayout(false, false, false, true, { genGrid: 120 }), 50);
+                        }
                       }}
                       className="text-[9px] text-primary hover:text-primary-foreground hover:bg-primary/20 px-1 rounded transition-colors"
                       title="Reset to 120"
@@ -266,7 +272,9 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
                 onChange={(e) => {
                   const val = Number(e.target.value);
                   updateConfig({ genGrid: val });
-                  ops.runAutoLayout(false, false, false, true, { genGrid: val });
+                  if (state.liveLayout) {
+                    ops.runAutoLayout(false, false, false, true, { genGrid: val });
+                  }
                 }}
                 className="w-full cursor-pointer border-none outline-none focus-visible:ring-1 focus-visible:ring-primary"
               />
@@ -282,6 +290,9 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
                       type="button"
                       onClick={() => {
                         updateConfig({ sibshipDropHeight: 30 });
+                        if (state.liveLayout) {
+                          setTimeout(() => ops.runAutoLayout(false, false, false, true), 50);
+                        }
                       }}
                       className="text-[9px] text-primary hover:text-primary-foreground hover:bg-primary/20 px-1 rounded transition-colors"
                       title="Reset to 30"
@@ -299,7 +310,11 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
                 step={2}
                 value={config.sibshipDropHeight ?? 30}
                 onChange={(e) => {
-                  updateConfig({ sibshipDropHeight: Number(e.target.value) });
+                  const val = Number(e.target.value);
+                  updateConfig({ sibshipDropHeight: val });
+                  if (state.liveLayout) {
+                    ops.runAutoLayout(false, false, false, true);
+                  }
                 }}
                 className="w-full cursor-pointer border-none outline-none focus-visible:ring-1 focus-visible:ring-primary"
               />
@@ -315,7 +330,9 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
                       type="button"
                       onClick={() => {
                         updateConfig({ twinGapMono: undefined });
-                        setTimeout(() => ops.runAutoLayout(false, false, false, true), 50);
+                        if (state.liveLayout) {
+                          setTimeout(() => ops.runAutoLayout(false, false, false, true), 50);
+                        }
                       }}
                       className="text-[9px] text-primary hover:text-primary-foreground hover:bg-primary/20 px-1 rounded transition-colors"
                       title="Reset to default"
@@ -335,7 +352,9 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
                 onChange={(e) => {
                   const val = Number(e.target.value);
                   updateConfig({ twinGapMono: val });
-                  ops.runAutoLayout(false, false, false, true);
+                  if (state.liveLayout) {
+                    ops.runAutoLayout(false, false, false, true);
+                  }
                 }}
                 className="w-full cursor-pointer border-none outline-none focus-visible:ring-1 focus-visible:ring-primary"
               />
@@ -351,7 +370,9 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
                       type="button"
                       onClick={() => {
                         updateConfig({ twinGapDizygotic: undefined });
-                        setTimeout(() => ops.runAutoLayout(false, false, false, true), 50);
+                        if (state.liveLayout) {
+                          setTimeout(() => ops.runAutoLayout(false, false, false, true), 50);
+                        }
                       }}
                       className="text-[9px] text-primary hover:text-primary-foreground hover:bg-primary/20 px-1 rounded transition-colors"
                       title="Reset to default"
@@ -371,7 +392,9 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
                 onChange={(e) => {
                   const val = Number(e.target.value);
                   updateConfig({ twinGapDizygotic: val });
-                  ops.runAutoLayout(false, false, false, true);
+                  if (state.liveLayout) {
+                    ops.runAutoLayout(false, false, false, true);
+                  }
                 }}
                 className="w-full cursor-pointer border-none outline-none focus-visible:ring-1 focus-visible:ring-primary"
               />
@@ -387,7 +410,9 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
                       type="button"
                       onClick={() => {
                         updateConfig({ coupleSpacing: undefined });
-                        setTimeout(() => ops.runAutoLayout(false, false, false, true), 50);
+                        if (state.liveLayout) {
+                          setTimeout(() => ops.runAutoLayout(false, false, false, true), 50);
+                        }
                       }}
                       className="text-[9px] text-primary hover:text-primary-foreground hover:bg-primary/20 px-1 rounded transition-colors"
                       title="Reset to default"
@@ -407,7 +432,9 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
                 onChange={(e) => {
                   const val = Number(e.target.value);
                   updateConfig({ coupleSpacing: val });
-                  ops.runAutoLayout(false, false, false, true);
+                  if (state.liveLayout) {
+                    ops.runAutoLayout(false, false, false, true);
+                  }
                 }}
                 className="w-full cursor-pointer border-none outline-none focus-visible:ring-1 focus-visible:ring-primary"
               />
@@ -423,7 +450,9 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
                       type="button"
                       onClick={() => {
                         updateConfig({ hSpacing: undefined });
-                        setTimeout(() => ops.runAutoLayout(false, false, false, true), 50);
+                        if (state.liveLayout) {
+                          setTimeout(() => ops.runAutoLayout(false, false, false, true), 50);
+                        }
                       }}
                       className="text-[9px] text-primary hover:text-primary-foreground hover:bg-primary/20 px-1 rounded transition-colors"
                       title="Reset to default"
@@ -443,7 +472,9 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
                 onChange={(e) => {
                   const val = Number(e.target.value);
                   updateConfig({ hSpacing: val });
-                  ops.runAutoLayout(false, false, false, true);
+                  if (state.liveLayout) {
+                    ops.runAutoLayout(false, false, false, true);
+                  }
                 }}
                 className="w-full cursor-pointer border-none outline-none focus-visible:ring-1 focus-visible:ring-primary"
               />
@@ -483,6 +514,16 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
               />
             </div>
 
+            {/* Show Edge Bridges Toggle */}
+            <ToggleRow
+              label="Show Crossover Bridges"
+              description="Enable arched bridges at edge crossing points"
+              checked={config.showEdgeBridges !== false}
+              onChange={() => {
+                updateConfig({ showEdgeBridges: config.showEdgeBridges === false ? undefined : false });
+              }}
+            />
+
             {/* Crossing Minimization Sweeps Slider */}
             <div className="space-y-1">
               <div className="flex items-center justify-between text-xs">
@@ -493,7 +534,9 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
                       type="button"
                       onClick={() => {
                         updateConfig({ crossingMinimizationSweeps: undefined });
-                        setTimeout(() => ops.runAutoLayout(false, false, false, true), 50);
+                        if (state.liveLayout) {
+                          setTimeout(() => ops.runAutoLayout(false, false, false, true), 50);
+                        }
                       }}
                       className="text-[9px] text-primary hover:text-primary-foreground hover:bg-primary/20 px-1 rounded transition-colors"
                       title="Reset to default"
@@ -513,7 +556,9 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
                 onChange={(e) => {
                   const val = Number(e.target.value);
                   updateConfig({ crossingMinimizationSweeps: val });
-                  ops.runAutoLayout(false, false, false, true);
+                  if (state.liveLayout) {
+                    ops.runAutoLayout(false, false, false, true);
+                  }
                 }}
                 className="w-full cursor-pointer border-none outline-none focus-visible:ring-1 focus-visible:ring-primary"
               />
@@ -677,6 +722,29 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
               onChange={() => dispatch({ type: "SET_STATE", patch: { showGenerationRail: !state.showGenerationRail } })}
               icon={<Eye className="w-3.5 h-3.5" />}
             />
+            {state.showGenerationRail && (
+              <div className="pl-6 border-l border-border/40 space-y-2 mt-1 select-none">
+                <div className="space-y-1.5">
+                  <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">Rail Layout Mode</span>
+                  <div className="grid grid-cols-2 gap-1">
+                    {(["per-family", "global"] as const).map((mode) => (
+                      <button
+                        type="button"
+                        key={mode}
+                        onClick={() => dispatch({ type: "SET_STATE", patch: { generationRailMode: mode } })}
+                        className={`px-2 py-1.5 text-[10px] font-semibold rounded border transition-all ${
+                          state.generationRailMode === mode
+                            ? "border-primary bg-primary/10 text-primary"
+                            : "border-border bg-card hover:bg-accent/40 text-muted-foreground"
+                        }`}
+                      >
+                        {mode === "per-family" ? "Per Family" : "Global Canvas"}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
              <ToggleRow
               label="Live Layout"
               description="Auto-arrange canvas during drawing"
@@ -764,7 +832,9 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
                       onChange={(e) => {
                         const val = parseInt(e.target.value);
                         updateConfig({ genotypeFontSize: val });
-                        ops.runAutoLayout(false, false, false, true);
+                        if (state.liveLayout) {
+                          ops.runAutoLayout(false, false, false, true);
+                        }
                       }}
                       className="flex-1 cursor-pointer border-none outline-none focus-visible:ring-1 focus-visible:ring-primary"
                     />
@@ -789,7 +859,9 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
                       onChange={(e) => {
                         const val = parseInt(e.target.value);
                         updateConfig({ genotypeOffset: val });
-                        ops.runAutoLayout(false, false, false, true);
+                        if (state.liveLayout) {
+                          ops.runAutoLayout(false, false, false, true);
+                        }
                       }}
                       className="flex-1 cursor-pointer border-none outline-none focus-visible:ring-1 focus-visible:ring-primary"
                     />
@@ -850,7 +922,9 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
                         type="button"
                         onClick={() => {
                           updateConfig({ nodeSize: DEFAULT_CANVAS_CONFIG.nodeSize });
-                          setTimeout(() => ops.runAutoLayout(false, false, false, true), 50);
+                          if (state.liveLayout) {
+                            setTimeout(() => ops.runAutoLayout(false, false, false, true), 50);
+                          }
                         }}
                         className="text-[9px] text-primary hover:text-primary-foreground hover:bg-primary/20 px-1 rounded transition-colors"
                         title={`Reset to ${DEFAULT_CANVAS_CONFIG.nodeSize}px`}
@@ -870,7 +944,9 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
                   onChange={(e) => {
                     const val = Number(e.target.value);
                     updateConfig({ nodeSize: val });
-                    ops.runAutoLayout(false, false, false, true);
+                    if (state.liveLayout) {
+                      ops.runAutoLayout(false, false, false, true);
+                    }
                   }}
                   className="w-full cursor-pointer border-none outline-none focus-visible:ring-1 focus-visible:ring-primary"
                 />
@@ -1032,7 +1108,9 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
                     key={s.v}
                     onClick={() => {
                       updateConfig({ annFontSize: s.v });
-                      ops.runAutoLayout(false, false, false, true);
+                      if (state.liveLayout) {
+                        ops.runAutoLayout(false, false, false, true);
+                      }
                     }}
                     className={`flex-1 py-1 rounded text-xs border transition-all ${
                       (config.annFontSize ?? 12) === s.v

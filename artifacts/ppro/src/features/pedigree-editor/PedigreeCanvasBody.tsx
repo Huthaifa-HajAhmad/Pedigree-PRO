@@ -32,6 +32,7 @@ import { listProfilePrivateKeys } from "@workspace/browser-backend";
 import { parseCanvas } from "@/features/pedigree-editor/utils/helpers";
 import type { PedigreeNode, CanvasData } from "@/features/pedigree-editor/canvas/types";
 import { NODE_SIZE } from "@/features/pedigree-editor/canvas/types";
+import { groupFamiliesByParents } from "@/lib/layout-shared";
 
 
 
@@ -116,13 +117,9 @@ function SibshipLayer({ edges, nodes, invalidEdgeIds, annotations = [], showAuto
       if (!childParents.has(e.targetId)) childParents.set(e.targetId, []);
       childParents.get(e.targetId)!.push(e.sourceId);
     }
-    const families = new Map<string, { parentIds: string[]; childIds: string[] }>();
-    for (const [childId, pIds] of childParents) {
-      const key = [...pIds].sort().join("|");
-      if (!families.has(key)) families.set(key, { parentIds: [...pIds].sort(), childIds: [] });
-      families.get(key)!.childIds.push(childId);
-    }
-    return [...families.entries()].map(([key, { parentIds, childIds }]) => {
+    const familyList = groupFamiliesByParents(childParents);
+    return familyList.map(({ parentIds, childIds }) => {
+      const key = [...parentIds].sort().join("|");
       const allEdges = pcEdges.filter(
         (e) => parentIds.includes(e.sourceId) && childIds.includes(e.targetId)
       );
@@ -261,12 +258,13 @@ export function PedigreeCanvasBody() {
     twinSelectMode, twinCandidateIds,
     railX,
     showGenerationRail,
+    generationRailMode,
   } = state;
 
   const {
     updateCanvas, addAnnotation, addFreeAnnotation, updateAnnotation, deleteAnnotation,
     setNodeType, setNodeColor, toggleNodeProp, addContextNode, deleteSelected,
-    updateSelectedNode, bulkUpdate, alignSelected,
+    updateSelectedNode, bulkUpdate, alignSelected, distributeSelected,
     handleNodeClick, handleNodeDoubleClick, handleNodeContextMenu, handleDragStart,
     handleMouseMove, handleMouseUp, handleSVGMouseDown, handleWheel, updateEdgeType,
     toggleCoupleInverted,
@@ -466,21 +464,16 @@ const RAIL_MAX_X = 400;
       if (!childParents.has(e.targetId)) childParents.set(e.targetId, []);
       childParents.get(e.targetId)!.push(e.sourceId);
     }
-    const families = new Map<string, { parentIds: string[]; childIds: string[] }>();
-    for (const [childId, pIds] of childParents) {
-      const key = [...pIds].sort().join("|");
-      if (!families.has(key)) families.set(key, { parentIds: [...pIds].sort(), childIds: [] });
-      families.get(key)!.childIds.push(childId);
-    }
+    const familyList = groupFamiliesByParents(childParents);
     const nodeMap = new Map(canvas.nodes.map((n) => [n.id, n]));
-    const sortedFamilies = [...families.entries()].sort((a, b) => {
-      const aParent = a[1].parentIds[0] ? nodeMap.get(a[1].parentIds[0]) : null;
-      const bParent = b[1].parentIds[0] ? nodeMap.get(b[1].parentIds[0]) : null;
+    const sortedFamilies = familyList.sort((a, b) => {
+      const aParent = a.parentIds[0] ? nodeMap.get(a.parentIds[0]) : null;
+      const bParent = b.parentIds[0] ? nodeMap.get(b.parentIds[0]) : null;
       return (aParent?.y ?? 0) - (bParent?.y ?? 0);
     });
     // Group sorted families by parent Y coordinate
     const familiesByRow = new Map<number, { parentIds: string[]; childIds: string[] }[]>();
-    for (const [, fam] of sortedFamilies) {
+    for (const fam of sortedFamilies) {
       const parentNode = fam.parentIds[0] ? nodeMap.get(fam.parentIds[0]) : null;
       const py = parentNode?.y ?? 0;
       if (!familiesByRow.has(py)) familiesByRow.set(py, []);
@@ -712,32 +705,42 @@ const RAIL_MAX_X = 400;
             />
           ))}
 
-          {showGenerationRail && generationRailEntries.length > 0 && (() => {
+          {showGenerationRail && generationRailEntries.length > 0 && generationRailEntries.map((rail) => {
+            if (rail.entries.length === 0) return null;
+
             // Enforce minimum 24px vertical spacing between rail entries
-            const spacedEntries = generationRailEntries.reduce<{ roman: string; y: number }[]>((acc, entry) => {
+            const spacedEntries = rail.entries.reduce<{ roman: string; y: number }[]>((acc, entry) => {
               if (acc.length === 0) return [{ roman: entry.roman, y: entry.y }];
               const last = acc[acc.length - 1]!;
               const minGap = 24;
               acc.push({ roman: entry.roman, y: Math.max(entry.y, last.y + minGap) });
               return acc;
             }, []);
+
+            // Position at minX - 50 plus drag offset
+            const x = rail.minX - 50 + (railX - 44);
+            const ys = rail.entries.map(e => e.y);
+            const isGlobal = generationRailMode === "global";
+            const minY = isGlobal ? viewBox.y + 30 : Math.min(...ys) - 40;
+            const maxY = isGlobal ? viewBox.y + vbH - 30 : Math.max(...ys) + 40;
+
             return (
-              <g data-generation-rail="true">
+              <g key={rail.id} data-generation-rail="true">
                 <rect
-                  x={viewBox.x + railX - RAIL_HIT_W / 2} y={viewBox.y + 30}
-                  width={RAIL_HIT_W} height={vbH - 60}
+                  x={x - RAIL_HIT_W / 2} y={minY}
+                  width={RAIL_HIT_W} height={Math.max(40, maxY - minY)}
                   fill="transparent" style={{ cursor: "ew-resize" }}
                   onPointerDown={handleRailPointerDown}
                   onPointerMove={handleRailPointerMove}
                   onPointerUp={handleRailPointerUp}
                 />
                 <line
-                  x1={viewBox.x + railX} y1={viewBox.y + 30} x2={viewBox.x + railX} y2={viewBox.y + vbH - 30}
+                  x1={x} y1={minY} x2={x} y2={maxY}
                   stroke={"hsl(var(--primary))"} strokeWidth={0.75} opacity={0.12}
                   style={{ pointerEvents: "none" }}
                 />
                 {spacedEntries.map(({ roman, y }) => (
-                  <text key={roman} x={viewBox.x + railX - 34} y={y} fontSize={14} fontWeight="700"
+                  <text key={roman} x={x - 34} y={y} fontSize={14} fontWeight="700"
                     fontFamily="JetBrains Mono, monospace" fill="hsl(var(--foreground) / 0.35)"
                     dominantBaseline="central"
                     style={{ userSelect: "none", letterSpacing: "0.05em", pointerEvents: "none" }}
@@ -745,7 +748,7 @@ const RAIL_MAX_X = 400;
                 ))}
               </g>
             );
-          })()}
+          })}
 
           {alignGuides.length > 0 && (
             <g style={{ pointerEvents: "none" }}>
@@ -1044,6 +1047,7 @@ const RAIL_MAX_X = 400;
                 }}
                 onReorderAnnotations={handleReorderAnnotations}
                 onAlignSelected={alignSelected}
+                onDistributeSelected={distributeSelected}
                 onMarkAsTwins={markAsTwins}
                 onUnmarkTwins={unmarkTwins}
                 onRemoveEdges={ops.removeEdges}

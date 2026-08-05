@@ -49,7 +49,7 @@ export function PropertiesPanel({
   onBulkUpdate, onDeleteSelected, onAddAnnotation,
   onUpdateAnnotation, onDeleteAnnotation, onSelectAnnotation,
   onReorderAnnotations,
-  onAlignSelected, onMarkAsTwins, onUnmarkTwins, onRemoveEdges,
+  onAlignSelected, onDistributeSelected, onMarkAsTwins, onUnmarkTwins, onRemoveEdges,
   onUpdateEdgeType, onToggleCoupleInverted,
   onCreateCoupleEdge, onCreateConsanguinityEdge, onCreateCoupleAndChild,
   onCreateParentsForGroup,
@@ -68,6 +68,7 @@ export function PropertiesPanel({
   onSelectAnnotation: (annId: string | null) => void;
   onReorderAnnotations?: (annId: string, direction: "up" | "down") => void;
   onAlignSelected: (axis: "x" | "y") => void;
+  onDistributeSelected: (axis: "x" | "y") => void;
   onMarkAsTwins?: (nodeIds: string[], twinType: "m" | "d") => void;
   onUnmarkTwins?: (nodeIds: string[]) => void;
   onRemoveEdges?: (edgeIds: string[]) => void;
@@ -145,6 +146,7 @@ export function PropertiesPanel({
           {(() => {
             const selectedNodes = Array.from(selectedIds).map(id => canvasNodes.find(n => n.id === id)).filter(Boolean) as PedigreeNode[];
             const allDeceased = selectedNodes.length > 0 && selectedNodes.every(n => n.deceased);
+            const allStillbirth = selectedNodes.length > 0 && selectedNodes.every(n => n.stillbirth);
             const allProband = selectedNodes.length > 0 && selectedNodes.every(n => n.proband);
             const allPinned = selectedNodes.length > 0 && selectedNodes.every(n => n.pinned);
             
@@ -200,6 +202,7 @@ export function PropertiesPanel({
                       <div className="flex bg-muted/60 p-0.5 rounded-lg border border-border/60 items-stretch w-full">
                         {([
                           { key: "deceased", label: "Deceased", active: allDeceased },
+                          { key: "stillbirth", label: "Stillbirth", active: allStillbirth },
                           { key: "proband", label: "Proband", active: allProband },
                           { key: "pinned", label: "Pinned", active: allPinned }
                         ] as const).map((opt, idx) => {
@@ -208,7 +211,14 @@ export function PropertiesPanel({
                               {idx > 0 && <div className="w-[1px] h-3.5 bg-border/50 shrink-0 self-center" />}
                               <button
                                 type="button"
-                                onClick={() => onBulkUpdate({ [opt.key]: !opt.active })}
+                                onClick={() => {
+                                  const nextVal = !opt.active;
+                                  const updates: any = { [opt.key]: nextVal };
+                                  if (opt.key === "stillbirth" && nextVal) {
+                                    updates.deceased = true;
+                                  }
+                                  onBulkUpdate(updates);
+                                }}
                                 className={`flex-1 py-1 rounded-md text-[10px] font-medium transition-all border text-center ${
                                   opt.active
                                     ? "bg-card text-primary border-border/75 shadow-xs font-semibold"
@@ -225,13 +235,27 @@ export function PropertiesPanel({
                   </div>
                 </PanelSection>
 
-                {/* Alignment */}
-                <PanelSection title="Align" icon={<LayoutGrid className="w-3 h-3" />}>
-                  <div className="grid grid-cols-2 gap-1">
-                    <button type="button" onClick={() => onAlignSelected("y")} title="Snap all to same row"
-                      className="py-1.5 text-xs border border-border/80 rounded-lg text-muted-foreground hover:bg-accent/30 hover:border-muted-foreground/30 hover:text-foreground transition-all duration-200 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">Horizontal</button>
-                    <button type="button" onClick={() => onAlignSelected("x")} title="Stack all in same column"
-                      className="py-1.5 text-xs border border-border/80 rounded-lg text-muted-foreground hover:bg-accent/30 hover:border-muted-foreground/30 hover:text-foreground transition-all duration-200 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">Vertical</button>
+                {/* Alignment & Distribution */}
+                <PanelSection title="Align & Distribute" icon={<LayoutGrid className="w-3.5 h-3.5" />}>
+                  <div className="space-y-3">
+                    <div>
+                      <span className="text-[10px] text-muted-foreground uppercase tracking-wider block mb-1">Align</span>
+                      <div className="grid grid-cols-2 gap-1">
+                        <button type="button" onClick={() => onAlignSelected("y")} title="Align selected elements horizontally (same row)"
+                          className="py-1.5 text-xs border border-border/80 rounded-lg text-muted-foreground hover:bg-accent/30 hover:border-muted-foreground/30 hover:text-foreground transition-all duration-200 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">Horizontal</button>
+                        <button type="button" onClick={() => onAlignSelected("x")} title="Align selected elements vertically (same column)"
+                          className="py-1.5 text-xs border border-border/80 rounded-lg text-muted-foreground hover:bg-accent/30 hover:border-muted-foreground/30 hover:text-foreground transition-all duration-200 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">Vertical</button>
+                      </div>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-muted-foreground uppercase tracking-wider block mb-1">Distribute (3+ nodes)</span>
+                      <div className="grid grid-cols-2 gap-1">
+                        <button type="button" onClick={() => onDistributeSelected("x")} disabled={selectedIds.size < 3} title="Distribute selected elements horizontally"
+                          className="py-1.5 text-xs border border-border/80 rounded-lg text-muted-foreground hover:bg-accent/30 hover:border-muted-foreground/30 hover:text-foreground transition-all duration-200 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:opacity-40 disabled:cursor-not-allowed">Horizontal</button>
+                        <button type="button" onClick={() => onDistributeSelected("y")} disabled={selectedIds.size < 3} title="Distribute selected elements vertically"
+                          className="py-1.5 text-xs border border-border/80 rounded-lg text-muted-foreground hover:bg-accent/30 hover:border-muted-foreground/30 hover:text-foreground transition-all duration-200 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:opacity-40 disabled:cursor-not-allowed">Vertical</button>
+                      </div>
+                    </div>
                   </div>
                 </PanelSection>
 
@@ -730,11 +754,13 @@ export function PropertiesPanel({
                   {/* Row 2: independent toggles */}
                   <div className="flex bg-muted/60 p-0.5 rounded-lg border border-border/60 items-stretch w-full">
                     {([
-                      { key: "deceased", label: "Deceased" },
-                      { key: "proband", label: "Proband" },
-                      { key: "pinned", label: "Pinned" }
+                      { key: "deceased", label: "Deceased", disabled: false },
+                      { key: "stillbirth", label: "Stillbirth", disabled: singleSelected.type === "pregnancy" || singleSelected.type === "sab" },
+                      { key: "proband", label: "Proband", disabled: false },
+                      { key: "pinned", label: "Pinned", disabled: false }
                     ] as const).map((opt, idx) => {
                       const isActive = !!singleSelected[opt.key];
+                      const disabled = opt.disabled;
                       return (
                         <React.Fragment key={opt.key}>
                           {idx > 0 && <div className="w-[1px] h-3.5 bg-border/50 shrink-0 self-center" />}
@@ -742,9 +768,19 @@ export function PropertiesPanel({
                             type="button"
                             key={opt.key}
                             data-testid={`toggle-${opt.key}`}
-                            onClick={() => onUpdateSelectedNode({ [opt.key]: !singleSelected[opt.key] })}
+                            onClick={() => {
+                              if (disabled) return;
+                              const nextVal = !singleSelected[opt.key];
+                              const updates: any = { [opt.key]: nextVal };
+                              if (opt.key === "stillbirth" && nextVal) {
+                                updates.deceased = true;
+                              }
+                              onUpdateSelectedNode(updates);
+                            }}
                             className={`flex-1 py-1 rounded-md text-[10px] font-medium transition-all border text-center ${
-                              isActive
+                              disabled
+                                ? "opacity-40 cursor-not-allowed border-transparent text-muted-foreground"
+                                : isActive
                                 ? "bg-card text-primary border-border/75 shadow-xs font-semibold"
                                 : "border-transparent text-muted-foreground hover:text-foreground hover:bg-card/25"
                             }`}

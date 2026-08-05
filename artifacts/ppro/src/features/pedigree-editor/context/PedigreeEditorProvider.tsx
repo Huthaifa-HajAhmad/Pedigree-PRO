@@ -8,7 +8,8 @@ import {
 import { getDefaultAnnotationColor } from "@/lib/theme";
 import { validatePedigree } from "@/lib/validate-pedigree";
 import { computeAutoLayout } from "@/lib/auto-layout";
-import { resolveAllCollisions, resolveAndRecenter, recenterAllFamilies, makeSpaceAtX, ROW_TOLERANCE, buildGenerations } from "@/lib/layout-engine";
+import { resolveAllCollisions, resolveAndRecenter, recenterAllFamilies, makeSpaceAtX, ROW_TOLERANCE, buildGenerations, collectSubtree } from "@/lib/layout-engine";
+import { buildAdjacency } from "@/lib/layout-shared";
 import { computeAutoLabels, romanToInt } from "@/lib/pedigree-labels";
 import { generateThumbnail } from "@/lib/generate-thumbnail";
 import { toast } from "@/hooks/use-toast";
@@ -58,6 +59,7 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
   const lassoRectRef = useRef<SVGRectElement>(null);
   const spaceHeldRef = useRef(false);
   const rafRef = useRef<number | null>(null);
+  const mouseCoordsRef = useRef<{ x: number; y: number } | null>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const pendingAnnDragRef = useRef<{ annId: string; startSVG: { x: number; y: number }; initOffset: { x: number; y: number }; labelBelowHeight: number; stackIndex: number } | null>(null);
   const draftKeyRef = useRef(`ppro_draft_${id}`);
@@ -166,18 +168,109 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
 
   const generationRailEntries = useMemo(() => {
     if (!state.showAutoLabels || state.canvas.nodes.length === 0) return [];
-    const groups = new Map<string, number[]>();
-    for (const n of state.canvas.nodes) {
-      const l = autoLabels.get(n.id); if (!l) continue;
-      const r = l.split(":")[0]; if (!r) continue;
-      if (!groups.has(r)) groups.set(r, []);
-      groups.get(r)!.push(n.y);
+
+    if (state.generationRailMode === "global") {
+      const groups: Array<{ roman: string; y: number; genIdx: number }> = [];
+
+      for (const n of state.canvas.nodes) {
+        const l = autoLabels.get(n.id); if (!l) continue;
+        const r = l.split(":")[0]; if (!r) continue;
+        const y = n.y;
+
+        let found = false;
+        for (const g of groups) {
+          if (Math.abs(g.y - y) < 10) {
+            found = true;
+            break;
+          }
+        }
+        if (!found) {
+          groups.push({
+            roman: r,
+            y,
+            genIdx: romanToInt(r)
+          });
+        }
+      }
+
+      groups.sort((a, b) => a.y - b.y);
+
+      return [{
+        id: "rail_global",
+        minX: state.viewBox.x + 94,
+        entries: groups
+      }];
     }
-    return [...groups.entries()].map(([r, ys]) => {
-      const sorted = [...ys].sort((a, b) => a - b);
-      return { roman: r, y: sorted[Math.floor(ys.length / 2)] ?? 0, genIdx: romanToInt(r) };
-    }).sort((a, b) => a.genIdx - b.genIdx);
-  }, [state.canvas.nodes, autoLabels, state.showAutoLabels]);
+
+    const adj = new Map<string, string[]>();
+    for (const n of state.canvas.nodes) {
+      adj.set(n.id, []);
+    }
+    for (const e of state.canvas.edges) {
+      if (adj.has(e.sourceId) && adj.has(e.targetId)) {
+        adj.get(e.sourceId)!.push(e.targetId);
+        adj.get(e.targetId)!.push(e.sourceId);
+      }
+    }
+
+    const visited = new Set<string>();
+    const components: PedigreeNode[][] = [];
+    for (const n of state.canvas.nodes) {
+      if (!visited.has(n.id)) {
+        const comp: PedigreeNode[] = [];
+        const queue = [n.id];
+        visited.add(n.id);
+        let head = 0;
+        while (head < queue.length) {
+          const curr = queue[head]!;
+          head++;
+          const currNode = state.canvas.nodes.find(node => node.id === curr);
+          if (currNode) comp.push(currNode);
+
+          for (const neighbor of adj.get(curr) || []) {
+            if (!visited.has(neighbor)) {
+              visited.add(neighbor);
+              queue.push(neighbor);
+            }
+          }
+        }
+        components.push(comp);
+      }
+    }
+
+    // Sort components left-to-right by their min X
+    const componentsWithMinX = components.map(comp => {
+      const minX = Math.min(...comp.map(n => n.x));
+      return { comp, minX };
+    });
+    componentsWithMinX.sort((a, b) => a.minX - b.minX);
+
+    return componentsWithMinX.map(({ comp, minX }, idx) => {
+      const groups = new Map<string, number[]>();
+
+      for (const n of comp) {
+        const l = autoLabels.get(n.id); if (!l) continue;
+        const r = l.split(":")[0]; if (!r) continue;
+        if (!groups.has(r)) groups.set(r, []);
+        groups.get(r)!.push(n.y);
+      }
+
+      const entries = [...groups.entries()].map(([r, ys]) => {
+        const sorted = [...ys].sort((a, b) => a - b);
+        return {
+          roman: r,
+          y: sorted[Math.floor(ys.length / 2)] ?? 0,
+          genIdx: romanToInt(r)
+        };
+      }).sort((a, b) => a.genIdx - b.genIdx);
+
+      return {
+        id: `rail_${idx}`,
+        minX,
+        entries
+      };
+    });
+  }, [state.canvas.nodes, state.canvas.edges, autoLabels, state.showAutoLabels, state.generationRailMode, state.viewBox.x]);
 
   const legendEntries = useMemo(() => {
     const e: Array<{ key: string; label: string }> = [];
@@ -361,10 +454,13 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
       const s = p.nodes.find((n) => n.id === sid); if (!s) return p;
       if ((rel === "child" || rel === "partner") && s.type === "unknown") return p;
       const localConfig = p.settings?.config;
-      const cfgNodeGap = localConfig?.nodeGap ?? configRef.current.nodeGap ?? NODE_GAP;
+      const annFs = localConfig?.annFontSize ?? configRef.current.annFontSize ?? 12;
+      const genoFs = localConfig?.genotypeFontSize ?? configRef.current.genotypeFontSize ?? 12;
+      const fontScale = 1.0 + Math.max(0, Math.max(annFs, genoFs) - 12) * 0.05;
+      const cfgNodeGap = (localConfig?.nodeGap ?? configRef.current.nodeGap ?? NODE_GAP) * fontScale;
       const cfgGenGrid = localConfig?.genGrid ?? configRef.current.genGrid ?? GEN_GRID;
-      const cfgTwinGapMono = localConfig?.twinGapMono ?? configRef.current.twinGapMono;
-      const cfgTwinGapDizygotic = localConfig?.twinGapDizygotic ?? configRef.current.twinGapDizygotic;
+      const cfgTwinGapMono = (localConfig?.twinGapMono ?? configRef.current.twinGapMono ?? (NODE_SIZE * 0.55)) * fontScale;
+      const cfgTwinGapDizygotic = (localConfig?.twinGapDizygotic ?? configRef.current.twinGapDizygotic ?? (NODE_SIZE * 0.8)) * fontScale;
       const SY = cfgGenGrid;
       const nd = { affected: false, carrier: false, deceased: false, proband: false, label: "", age: "" };
       let nx: number, ny: number, nt: PedigreeNode["type"]; const ne: PedigreeEdge[] = [];
@@ -513,7 +609,8 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
         const allNodes = [...p.nodes, ...newParents];
         const allEdges = [...p.edges, ...newEdges];
         const genIndexOf = buildGenerations(allNodes, allEdges);
-        let final = resolveAndRecenter(allNodes, allEdges, undefined, genIndexOf, undefined, undefined, cfgNodeGap, cfgGenGrid, cfgTwinGapMono, cfgTwinGapDizygotic, configRef.current.crossingMinimizationSweeps);
+        const exclude = new Set(p.nodes.map(n => n.id));
+        let final = resolveAndRecenter(allNodes, allEdges, exclude, genIndexOf, undefined, undefined, cfgNodeGap, cfgGenGrid, cfgTwinGapMono, cfgTwinGapDizygotic, configRef.current.crossingMinimizationSweeps);
 
         const minY = final.reduce((min, n) => Math.min(min, n.y), Infinity);
         if (minY < cfgGenGrid) {
@@ -529,7 +626,7 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
     dispatch({ type: "SET_STATE", patch: { selectedIds: new Set([nid]) } });
   }, []);
 
-  const toggleNodeProp = useCallback((nid: string, prop: "affected" | "carrier" | "deceased" | "proband") => {
+  const toggleNodeProp = useCallback((nid: string, prop: "affected" | "carrier" | "deceased" | "proband" | "stillbirth") => {
     const selected = stateRef.current.selectedIds;
     const targets = selected.has(nid) ? selected : new Set([nid]);
     dispatch({
@@ -540,11 +637,141 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
         const nextVal = !clicked[prop];
         return {
           ...p,
-          nodes: p.nodes.map((n) => targets.has(n.id) ? { ...n, [prop]: nextVal } : n)
+          nodes: p.nodes.map((n) => {
+            if (!targets.has(n.id)) return n;
+            const updated = { ...n, [prop]: nextVal };
+            if (prop === "stillbirth" && nextVal) {
+              updated.deceased = true;
+            }
+            return updated;
+          })
         };
       }
     });
     dispatch({ type: "SET_STATE", patch: { contextMenu: null } });
+  }, []);
+
+  const copySelectedNodes = useCallback(() => {
+    const selected = stateRef.current.selectedIds;
+    if (selected.size === 0) return;
+    const nodesToCopy = stateRef.current.canvas.nodes.filter(n => selected.has(n.id));
+    const edgesToCopy = stateRef.current.canvas.edges.filter(
+      e => selected.has(e.sourceId) && selected.has(e.targetId)
+    );
+    const annotationsToCopy = stateRef.current.canvas.annotations?.filter(
+      a => selected.has(a.nodeId)
+    ) ?? [];
+
+    const clipboardData = {
+      nodes: nodesToCopy,
+      edges: edgesToCopy,
+      annotations: annotationsToCopy
+    };
+
+    try {
+      localStorage.setItem("ppro_node_clipboard", JSON.stringify(clipboardData));
+      const copiedCount = nodesToCopy.length;
+      toast({
+        title: "Copied to Clipboard",
+        description: `Copied ${copiedCount} node${copiedCount !== 1 ? "s" : ""} to clipboard.`,
+      });
+    } catch (err) {
+      console.error("Failed to copy nodes to localStorage", err);
+    }
+  }, []);
+
+  const pasteNodes = useCallback(() => {
+    let clipboardData: { nodes: PedigreeNode[]; edges: PedigreeEdge[]; annotations?: PedigreeAnnotation[] } | null = null;
+    try {
+      const stored = localStorage.getItem("ppro_node_clipboard");
+      if (stored) {
+        clipboardData = JSON.parse(stored);
+      }
+    } catch (err) {
+      console.error("Failed to read clipboard from localStorage", err);
+      return;
+    }
+
+    if (!clipboardData || !clipboardData.nodes || clipboardData.nodes.length === 0) return;
+    const { nodes, edges, annotations = [] } = clipboardData;
+
+    const idMap = new Map<string, string>();
+    const newIds: string[] = [];
+
+    // Calculate centroid of copied nodes
+    const xs = nodes.map((n) => n.x);
+    const ys = nodes.map((n) => n.y);
+    const minX = Math.min(...xs);
+    const minY = Math.min(...ys);
+    const maxX = Math.max(...xs);
+    const maxY = Math.max(...ys);
+    const centerX = (minX + maxX) / 2;
+    const centerY = (minY + maxY) / 2;
+
+    const dx = mouseCoordsRef.current ? mouseCoordsRef.current.x - centerX : 40;
+    const dy = mouseCoordsRef.current ? mouseCoordsRef.current.y - centerY : 40;
+
+    dispatch({
+      type: "UPDATE_CANVAS",
+      updater: (p) => {
+        const newNodes: PedigreeNode[] = [];
+        nodes.forEach((n) => {
+          const newId = `n_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+          idMap.set(n.id, newId);
+          newIds.push(newId);
+          newNodes.push({
+            ...n,
+            id: newId,
+            x: n.x + dx,
+            y: n.y + dy,
+          });
+        });
+
+        const newEdges: PedigreeEdge[] = [];
+        edges.forEach((e) => {
+          const sourceId = idMap.get(e.sourceId);
+          const targetId = idMap.get(e.targetId);
+          if (sourceId && targetId) {
+            newEdges.push({
+              ...e,
+              id: `e_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+              sourceId,
+              targetId,
+            });
+          }
+        });
+
+        const newAnnotations: PedigreeAnnotation[] = [];
+        annotations.forEach((a) => {
+          const newNodeId = idMap.get(a.nodeId);
+          if (newNodeId) {
+            newAnnotations.push({
+              ...a,
+              id: `a_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+              nodeId: newNodeId,
+              ...(a.x !== undefined ? { x: a.x + dx } : {}),
+              ...(a.y !== undefined ? { y: a.y + dy } : {}),
+            });
+          }
+        });
+
+        return {
+          ...p,
+          nodes: [...p.nodes, ...newNodes],
+          edges: [...p.edges, ...newEdges],
+          annotations: [...(p.annotations || []), ...newAnnotations],
+        };
+      }
+    });
+
+    if (newIds.length > 0) {
+      dispatch({ type: "SET_STATE", patch: { selectedIds: new Set(newIds) } });
+    }
+    const pastedCount = nodes.length;
+    toast({
+      title: "Pasted from Clipboard",
+      description: `Pasted ${pastedCount} node${pastedCount !== 1 ? "s" : ""} onto the canvas.`,
+    });
   }, []);
 
   const setNodeType = useCallback((nid: string, type: PedigreeNode["type"]) => {
@@ -634,9 +861,270 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
   const alignSelected = useCallback((axis: "x" | "y") => {
     const ids = stateRef.current.selectedIds; if (ids.size < 2) return;
     dispatch({ type: "UPDATE_CANVAS", updater: (p) => {
-      const s = p.nodes.filter((n) => ids.has(n.id));
-      const avg = s.reduce((a, n) => a + n[axis], 0) / s.length;
-      return { ...p, nodes: p.nodes.map((n) => ids.has(n.id) ? { ...n, [axis]: avg } : n) };
+      const selectedNodes = p.nodes.filter((n) => ids.has(n.id));
+      const avg = selectedNodes.reduce((sum, n) => sum + n[axis], 0) / selectedNodes.length;
+
+      // 1. Build adjacency list to find families (connected components)
+      const adj = new Map<string, string[]>();
+      for (const n of p.nodes) adj.set(n.id, []);
+      for (const e of p.edges) {
+        if (adj.has(e.sourceId) && adj.has(e.targetId)) {
+          adj.get(e.sourceId)!.push(e.targetId);
+          adj.get(e.targetId)!.push(e.sourceId);
+        }
+      }
+
+      // Find components
+      const visited = new Set<string>();
+      const nodeToComponent = new Map<string, string[]>();
+      for (const n of p.nodes) {
+        if (!visited.has(n.id)) {
+          const comp: string[] = [];
+          const queue = [n.id];
+          visited.add(n.id);
+          let head = 0;
+          while (head < queue.length) {
+            const curr = queue[head]!;
+            head++;
+            comp.push(curr);
+            for (const neighbor of adj.get(curr) || []) {
+              if (!visited.has(neighbor)) {
+                visited.add(neighbor);
+                queue.push(neighbor);
+              }
+            }
+          }
+          comp.forEach(id => nodeToComponent.set(id, comp));
+        }
+      }
+
+      // 2. Group selection by component
+      const componentToSelected = new Map<string[], PedigreeNode[]>();
+      selectedNodes.forEach(node => {
+        const comp = nodeToComponent.get(node.id) || [node.id];
+        if (!componentToSelected.has(comp)) componentToSelected.set(comp, []);
+        componentToSelected.get(comp)!.push(node);
+      });
+
+      if (componentToSelected.size > 1) {
+        // Multi-family alignment: shift the WHOLE families so their selected centroids align
+        const newNodes = p.nodes.map(n => ({ ...n }));
+        const newAnnotations = p.annotations?.map(a => ({ ...a })) || [];
+
+        for (const [comp, selNodes] of componentToSelected.entries()) {
+          const compAvg = selNodes.reduce((sum, n) => sum + n[axis], 0) / selNodes.length;
+          const delta = avg - compAvg;
+
+          const compSet = new Set(comp);
+          newNodes.forEach(n => {
+            if (compSet.has(n.id)) {
+              n[axis] += delta;
+            }
+          });
+          newAnnotations.forEach(a => {
+            if (a.nodeId && compSet.has(a.nodeId)) {
+              if (axis === "x" && a.x !== undefined) a.x += delta;
+              if (axis === "y" && a.y !== undefined) a.y += delta;
+            }
+          });
+        }
+        return { ...p, nodes: newNodes, annotations: newAnnotations };
+      } else {
+        // Single-family alignment: snap individual selected nodes to avg (old behavior)
+        return {
+          ...p,
+          nodes: p.nodes.map((n) => ids.has(n.id) ? { ...n, [axis]: avg } : n)
+        };
+      }
+    } });
+  }, []);
+
+  const distributeSelected = useCallback((axis: "x" | "y") => {
+    const ids = stateRef.current.selectedIds; if (ids.size < 3) return;
+    dispatch({ type: "UPDATE_CANVAS", updater: (p) => {
+      const selectedNodes = p.nodes.filter((n) => ids.has(n.id));
+
+      // 1. Find connected components
+      const adj = new Map<string, string[]>();
+      for (const n of p.nodes) adj.set(n.id, []);
+      for (const e of p.edges) {
+        if (adj.has(e.sourceId) && adj.has(e.targetId)) {
+          adj.get(e.sourceId)!.push(e.targetId);
+          adj.get(e.targetId)!.push(e.sourceId);
+        }
+      }
+
+      const visited = new Set<string>();
+      const nodeToComponent = new Map<string, string[]>();
+      for (const n of p.nodes) {
+        if (!visited.has(n.id)) {
+          const comp: string[] = [];
+          const queue = [n.id];
+          visited.add(n.id);
+          let head = 0;
+          while (head < queue.length) {
+            const curr = queue[head]!;
+            head++;
+            comp.push(curr);
+            for (const neighbor of adj.get(curr) || []) {
+              if (!visited.has(neighbor)) {
+                visited.add(neighbor);
+                queue.push(neighbor);
+              }
+            }
+          }
+          comp.forEach(id => nodeToComponent.set(id, comp));
+        }
+      }
+
+      const componentToSelected = new Map<string[], PedigreeNode[]>();
+      selectedNodes.forEach(node => {
+        const comp = nodeToComponent.get(node.id) || [node.id];
+        if (!componentToSelected.has(comp)) componentToSelected.set(comp, []);
+        componentToSelected.get(comp)!.push(node);
+      });
+
+      if (componentToSelected.size > 1) {
+        // Multi-family distribution: distribute the WHOLE families based on equal gaps
+        const families = [...componentToSelected.keys()].map((comp) => {
+          const compNodes = p.nodes.filter(n => comp.includes(n.id));
+          const minVal = Math.min(...compNodes.map(n => n[axis]));
+          const maxVal = Math.max(...compNodes.map(n => n[axis]));
+          return {
+            comp,
+            minVal,
+            maxVal,
+            width: maxVal - minVal,
+            center: (minVal + maxVal) / 2
+          };
+        });
+
+        // Sort by center coordinate
+        families.sort((a, b) => a.center - b.center);
+
+        const m = families.length;
+        if (m < 2) return p;
+
+        const first = families[0]!;
+        const last = families[m - 1]!;
+        const totalWidth = last.maxVal - first.minVal;
+        
+        // Sum of widths of all families
+        const sumSpans = families.reduce((sum, f) => sum + f.width, 0);
+        const totalGapsSpace = totalWidth - sumSpans;
+        const gap = totalGapsSpace / (m - 1);
+
+        const newNodes = p.nodes.map(n => ({ ...n }));
+        const newAnnotations = p.annotations?.map(a => ({ ...a })) || [];
+
+        // Track targetMax of previous family
+        let prevTargetMax = first.maxVal;
+
+        for (let i = 1; i < m - 1; i++) {
+          const fam = families[i]!;
+          const targetMin = prevTargetMax + gap;
+          const delta = targetMin - fam.minVal;
+
+          const compSet = new Set(fam.comp);
+          newNodes.forEach(n => {
+            if (compSet.has(n.id)) {
+              n[axis] += delta;
+            }
+          });
+          newAnnotations.forEach(a => {
+            if (a.nodeId && compSet.has(a.nodeId)) {
+              if (axis === "x" && a.x !== undefined) a.x += delta;
+              if (axis === "y" && a.y !== undefined) a.y += delta;
+            }
+          });
+
+          // Update prevTargetMax for next iteration
+          prevTargetMax = targetMin + fam.width;
+        }
+
+        return { ...p, nodes: newNodes, annotations: newAnnotations };
+      } else {
+        // Single-family distribution: group selected nodes into coordinate bands along the distribute axis
+        const adj = buildAdjacency(p.nodes, p.edges);
+        const sortedNodes = [...selectedNodes].sort((a, b) => a[axis] - b[axis]);
+
+        const tolerance = axis === "y" ? 60 : 50;
+        const bands: PedigreeNode[][] = [];
+
+        for (const n of sortedNodes) {
+          let foundBand = false;
+          for (const b of bands) {
+            const representative = b[0]!;
+            if (Math.abs(representative[axis] - n[axis]) < tolerance) {
+              b.push(n);
+              foundBand = true;
+              break;
+            }
+          }
+          if (!foundBand) {
+            bands.push([n]);
+          }
+        }
+
+        const m = bands.length;
+        if (m < 3) return p; // Need at least 3 bands to distribute
+
+        const firstBand = bands[0]!;
+        const lastBand = bands[m - 1]!;
+
+        // Representative coordinates (average of the band nodes' coordinates)
+        const getBandCoord = (b: PedigreeNode[]) => b.reduce((sum, n) => sum + n[axis], 0) / b.length;
+
+        const firstCoord = getBandCoord(firstBand);
+        const lastCoord = getBandCoord(lastBand);
+        const totalSpan = lastCoord - firstCoord;
+        if (Math.abs(totalSpan) < 1) return p;
+
+        const interval = totalSpan / (m - 1);
+        const newNodes = p.nodes.map(n => ({ ...n }));
+        const newAnnotations = p.annotations?.map(a => ({ ...a })) || [];
+
+        // Distribute each band
+        for (let i = 0; i < m; i++) {
+          const band = bands[i]!;
+          const bandCoord = getBandCoord(band);
+          const targetCoord = firstCoord + i * interval;
+          const delta = targetCoord - bandCoord;
+
+          // For each node in the band, shift its subtree
+          // We initialize visited set with all selected nodes NOT in this band, so subtree collection doesn't cross into them
+          const visited = new Set<string>();
+          for (let j = 0; j < m; j++) {
+            if (i !== j) {
+              bands[j]!.forEach(node => visited.add(node.id));
+            }
+          }
+
+          band.forEach(node => {
+            const localVisited = new Set(visited);
+            const subtree = collectSubtree(node.id, adj, localVisited, { anchorMarriedIn: true });
+
+            // Filter out the original visited elements from the subtree
+            for (const item of visited) {
+              subtree.delete(item);
+            }
+
+            newNodes.forEach(n => {
+              if (subtree.has(n.id)) {
+                n[axis] += delta;
+              }
+            });
+            newAnnotations.forEach(a => {
+              if (a.nodeId && subtree.has(a.nodeId)) {
+                if (axis === "x" && a.x !== undefined) a.x += delta;
+                if (axis === "y" && a.y !== undefined) a.y += delta;
+              }
+            });
+          });
+        }
+
+        return { ...p, nodes: newNodes, annotations: newAnnotations };
+      }
     } });
   }, []);
 
@@ -691,10 +1179,13 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
         if (s.linkMode === "consanguinity") dispatch({ type: "UPDATE_CANVAS", updater: (p) => ({ ...p, edges: [...p.edges.filter((ed) => !(ed.type === "couple" && ((ed.sourceId === s.linkSource && ed.targetId === nid) || (ed.sourceId === nid && ed.targetId === s.linkSource)))), { id: `e${Date.now()}`, type: "consanguinity", sourceId: s.linkSource!, targetId: nid }] }) });
         else if (s.linkMode === "parent-child") dispatch({ type: "UPDATE_CANVAS", updater: (p) => {
           const localConfig = p.settings?.config;
-          const cfgNodeGap = localConfig?.nodeGap ?? configRef.current.nodeGap ?? NODE_GAP;
+          const annFs = localConfig?.annFontSize ?? configRef.current.annFontSize ?? 12;
+          const genoFs = localConfig?.genotypeFontSize ?? configRef.current.genotypeFontSize ?? 12;
+          const fontScale = 1.0 + Math.max(0, Math.max(annFs, genoFs) - 12) * 0.05;
+          const cfgNodeGap = (localConfig?.nodeGap ?? configRef.current.nodeGap ?? NODE_GAP) * fontScale;
           const cfgGenGrid = localConfig?.genGrid ?? configRef.current.genGrid ?? GEN_GRID;
-          const cfgTwinGapMono = localConfig?.twinGapMono ?? configRef.current.twinGapMono;
-          const cfgTwinGapDizygotic = localConfig?.twinGapDizygotic ?? configRef.current.twinGapDizygotic;
+          const cfgTwinGapMono = (localConfig?.twinGapMono ?? configRef.current.twinGapMono ?? (NODE_SIZE * 0.55)) * fontScale;
+          const cfgTwinGapDizygotic = (localConfig?.twinGapDizygotic ?? configRef.current.twinGapDizygotic ?? (NODE_SIZE * 0.8)) * fontScale;
 
           const pn = p.nodes.find((n) => n.id === s.linkSource); if (!pn) return p;
           if (p.edges.some((ed) => (ed.type === "couple" || ed.type === "consanguinity") && (ed.sourceId === s.linkSource || ed.targetId === s.linkSource))) {
@@ -759,7 +1250,7 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
     isManual = false,
     selectedOnly = false,
     skipFit = false,
-    spacingOverrides?: { nodeGap?: number; genGrid?: number }
+    spacingOverrides?: { nodeGap?: number; genGrid?: number; coupleSpacing?: number; hSpacing?: number }
   ) => {
     if (isManual) {
       backgroundSaveVersion("Auto-saved before Layout Alignment", stateRef.current.canvas);
@@ -776,8 +1267,16 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
     }
 
     const localConfig = stateRef.current.canvas.settings?.config;
-    const resolvedNodeGap = spacingOverrides?.nodeGap ?? localConfig?.nodeGap ?? configRef.current.nodeGap;
+    const annFs = localConfig?.annFontSize ?? configRef.current.annFontSize ?? 12;
+    const genoFs = localConfig?.genotypeFontSize ?? configRef.current.genotypeFontSize ?? 12;
+    const fontScale = 1.0 + Math.max(0, Math.max(annFs, genoFs) - 12) * 0.05;
+
+    const resolvedNodeGap = (spacingOverrides?.nodeGap ?? localConfig?.nodeGap ?? configRef.current.nodeGap) * fontScale;
     const resolvedGenGrid = spacingOverrides?.genGrid ?? localConfig?.genGrid ?? configRef.current.genGrid;
+    const resolvedHSpacing = (spacingOverrides?.hSpacing ?? localConfig?.hSpacing ?? configRef.current.hSpacing ?? Math.round(configRef.current.nodeGap * 110 / 96.8)) * fontScale;
+    const resolvedCoupleSpacing = (spacingOverrides?.coupleSpacing ?? localConfig?.coupleSpacing ?? configRef.current.coupleSpacing ?? configRef.current.nodeGap) * fontScale;
+    const resolvedTwinGapMono = (localConfig?.twinGapMono ?? configRef.current.twinGapMono ?? (NODE_SIZE * 0.55)) * fontScale;
+    const resolvedTwinGapDizygotic = (localConfig?.twinGapDizygotic ?? configRef.current.twinGapDizygotic ?? (NODE_SIZE * 0.8)) * fontScale;
 
     const arranged = computeAutoLayout(
       nodesToProcess,
@@ -786,6 +1285,10 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
       {
         nodeGap: resolvedNodeGap,
         genGrid: resolvedGenGrid,
+        hSpacing: resolvedHSpacing,
+        coupleSpacing: resolvedCoupleSpacing,
+        twinGapMono: resolvedTwinGapMono,
+        twinGapDizygotic: resolvedTwinGapDizygotic,
         enableCache: false,   // explicit Auto Layout always computes fresh — no stale cache influence
       }
     );
@@ -931,10 +1434,13 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
     dispatch({ type: "UPDATE_CANVAS", updater: (p) => {
       if (nodeIds.length === 0) return p;
       const localConfig = p.settings?.config;
-      const cfgNodeGap = localConfig?.nodeGap ?? configRef.current.nodeGap ?? NODE_GAP;
+      const annFs = localConfig?.annFontSize ?? configRef.current.annFontSize ?? 12;
+      const genoFs = localConfig?.genotypeFontSize ?? configRef.current.genotypeFontSize ?? 12;
+      const fontScale = 1.0 + Math.max(0, Math.max(annFs, genoFs) - 12) * 0.05;
+      const cfgNodeGap = (localConfig?.nodeGap ?? configRef.current.nodeGap ?? NODE_GAP) * fontScale;
       const cfgGenGrid = localConfig?.genGrid ?? configRef.current.genGrid ?? GEN_GRID;
-      const cfgTwinGapMono = localConfig?.twinGapMono ?? configRef.current.twinGapMono;
-      const cfgTwinGapDizygotic = localConfig?.twinGapDizygotic ?? configRef.current.twinGapDizygotic;
+      const cfgTwinGapMono = (localConfig?.twinGapMono ?? configRef.current.twinGapMono ?? (NODE_SIZE * 0.55)) * fontScale;
+      const cfgTwinGapDizygotic = (localConfig?.twinGapDizygotic ?? configRef.current.twinGapDizygotic ?? (NODE_SIZE * 0.8)) * fontScale;
       const SY = cfgGenGrid;
       const now = Date.now();
       const nd = { affected: false, carrier: false, deceased: false, proband: false, label: "", age: "" };
@@ -985,7 +1491,8 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
       const allNodes = [...p.nodes, ...newParents];
       const allEdges = [...p.edges, ...newEdges];
       const genIndexOf = buildGenerations(allNodes, allEdges);
-      let final = resolveAndRecenter(allNodes, allEdges, undefined, genIndexOf, undefined, undefined, cfgNodeGap, cfgGenGrid, cfgTwinGapMono, cfgTwinGapDizygotic, configRef.current.crossingMinimizationSweeps);
+      const exclude = new Set(p.nodes.map(n => n.id));
+      let final = resolveAndRecenter(allNodes, allEdges, exclude, genIndexOf, undefined, undefined, cfgNodeGap, cfgGenGrid, cfgTwinGapMono, cfgTwinGapDizygotic, configRef.current.crossingMinimizationSweeps);
 
       const minY = final.reduce((min, n) => Math.min(min, n.y), Infinity);
       if (minY < cfgGenGrid) {
@@ -1000,10 +1507,13 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
   const createCoupleAndChild = useCallback((maleId: string, femaleId: string) => {
     dispatch({ type: "UPDATE_CANVAS", updater: (p) => {
       const localConfig = p.settings?.config;
-      const cfgNodeGap = localConfig?.nodeGap ?? configRef.current.nodeGap ?? NODE_GAP;
+      const annFs = localConfig?.annFontSize ?? configRef.current.annFontSize ?? 12;
+      const genoFs = localConfig?.genotypeFontSize ?? configRef.current.genotypeFontSize ?? 12;
+      const fontScale = 1.0 + Math.max(0, Math.max(annFs, genoFs) - 12) * 0.05;
+      const cfgNodeGap = (localConfig?.nodeGap ?? configRef.current.nodeGap ?? NODE_GAP) * fontScale;
       const cfgGenGrid = localConfig?.genGrid ?? configRef.current.genGrid ?? GEN_GRID;
-      const cfgTwinGapMono = localConfig?.twinGapMono ?? configRef.current.twinGapMono;
-      const cfgTwinGapDizygotic = localConfig?.twinGapDizygotic ?? configRef.current.twinGapDizygotic;
+      const cfgTwinGapMono = (localConfig?.twinGapMono ?? configRef.current.twinGapMono ?? (NODE_SIZE * 0.55)) * fontScale;
+      const cfgTwinGapDizygotic = (localConfig?.twinGapDizygotic ?? configRef.current.twinGapDizygotic ?? (NODE_SIZE * 0.8)) * fontScale;
 
       const male = p.nodes.find(n => n.id === maleId);
       const female = p.nodes.find(n => n.id === femaleId);
@@ -1062,10 +1572,13 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
     addSiblingsBlockedRef.current = false;
     dispatch({ type: "UPDATE_CANVAS", updater: (p) => {
       const localConfig = p.settings?.config;
-      const cfgNodeGap = localConfig?.nodeGap ?? configRef.current.nodeGap ?? NODE_GAP;
+      const annFs = localConfig?.annFontSize ?? configRef.current.annFontSize ?? 12;
+      const genoFs = localConfig?.genotypeFontSize ?? configRef.current.genotypeFontSize ?? 12;
+      const fontScale = 1.0 + Math.max(0, Math.max(annFs, genoFs) - 12) * 0.05;
+      const cfgNodeGap = (localConfig?.nodeGap ?? configRef.current.nodeGap ?? NODE_GAP) * fontScale;
       const cfgGenGrid = localConfig?.genGrid ?? configRef.current.genGrid ?? GEN_GRID;
-      const cfgTwinGapMono = localConfig?.twinGapMono ?? configRef.current.twinGapMono;
-      const cfgTwinGapDizygotic = localConfig?.twinGapDizygotic ?? configRef.current.twinGapDizygotic;
+      const cfgTwinGapMono = (localConfig?.twinGapMono ?? configRef.current.twinGapMono ?? (NODE_SIZE * 0.55)) * fontScale;
+      const cfgTwinGapDizygotic = (localConfig?.twinGapDizygotic ?? configRef.current.twinGapDizygotic ?? (NODE_SIZE * 0.8)) * fontScale;
 
       const s = p.nodes.find((n) => n.id === sourceId); if (!s) return p;
       const SY = cfgGenGrid;
@@ -1345,10 +1858,13 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
     dispatch({ type: "UPDATE_CANVAS", updater: (p) => {
       const nextEdges = p.edges.map((e) => e.id === edgeId ? { ...e, inverted: !(e.inverted ?? false) } : e);
       const localConfig = p.settings?.config;
-      const cfgNodeGap = localConfig?.nodeGap ?? configRef.current.nodeGap ?? NODE_GAP;
+      const annFs = localConfig?.annFontSize ?? configRef.current.annFontSize ?? 12;
+      const genoFs = localConfig?.genotypeFontSize ?? configRef.current.genotypeFontSize ?? 12;
+      const fontScale = 1.0 + Math.max(0, Math.max(annFs, genoFs) - 12) * 0.05;
+      const cfgNodeGap = (localConfig?.nodeGap ?? configRef.current.nodeGap ?? NODE_GAP) * fontScale;
       const cfgGenGrid = localConfig?.genGrid ?? configRef.current.genGrid ?? GEN_GRID;
-      const cfgTwinGapMono = localConfig?.twinGapMono ?? configRef.current.twinGapMono;
-      const cfgTwinGapDizygotic = localConfig?.twinGapDizygotic ?? configRef.current.twinGapDizygotic;
+      const cfgTwinGapMono = (localConfig?.twinGapMono ?? configRef.current.twinGapMono ?? (NODE_SIZE * 0.55)) * fontScale;
+      const cfgTwinGapDizygotic = (localConfig?.twinGapDizygotic ?? configRef.current.twinGapDizygotic ?? (NODE_SIZE * 0.8)) * fontScale;
 
       const genIndexOf = buildGenerations(p.nodes, nextEdges);
       const resolved = resolveAndRecenter(p.nodes, nextEdges, undefined, genIndexOf, undefined, undefined, cfgNodeGap, cfgGenGrid, cfgTwinGapMono, cfgTwinGapDizygotic, configRef.current.crossingMinimizationSweeps);
@@ -1397,6 +1913,14 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
     justCtrlSelectedNodeIdRef,
   });
 
+  const handleMouseMoveWithCoords = useCallback((e: React.MouseEvent) => {
+    const coords = getSVGCoords(e);
+    if (coords) {
+      mouseCoordsRef.current = coords;
+    }
+    handleMouseMove(e);
+  }, [getSVGCoords, handleMouseMove]);
+
   const setShowSearch: Dispatch<SetStateAction<boolean>> = useCallback((v) => { const nv = typeof v === "function" ? v(stateRef.current.showSearch) : v; dispatch({ type: "SET_STATE", patch: { showSearch: nv } }); }, []);
   const setSearchQuery: Dispatch<SetStateAction<string>> = useCallback((q) => { const nq = typeof q === "function" ? q(stateRef.current.searchQuery) : q; dispatch({ type: "SET_STATE", patch: { searchQuery: nq } }); }, []);
   const setSelectedIds: Dispatch<SetStateAction<Set<string>>> = useCallback((ids) => { const n = typeof ids === "function" ? ids(stateRef.current.selectedIds) : ids; dispatch({ type: "SET_STATE", patch: { selectedIds: n } }); }, []);
@@ -1406,7 +1930,7 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
   const setViewBox: Dispatch<SetStateAction<{ x: number; y: number; zoom: number }>> = useCallback((vb) => { const nv = typeof vb === "function" ? vb(stateRef.current.viewBox) : vb; dispatch({ type: "SET_STATE", patch: { viewBox: nv } }); }, []);
   const setSpaceHeld: Dispatch<SetStateAction<boolean>> = useCallback((v) => { const nv = typeof v === "function" ? v(stateRef.current.spaceHeld) : v; dispatch({ type: "SET_STATE", patch: { spaceHeld: nv } }); }, []);
 
-  usePedigreeKeyboard({ deleteSelected, deleteAnnotation, selectedAnnotationId: state.selectedAnnotationId, selectedNode: state.selectedIds.size === 1 ? state.canvas.nodes.find((n) => state.selectedIds.has(n.id)) ?? null : null, updateSelectedNode, addNode, addContextNode, undo, redo, navigateArrow, showSearch: state.showSearch, fitToScreen, runAutoLayout: (rp: boolean, isManual?: boolean) => runAutoLayout(rp, isManual), setShowSearch, setSearchQuery, setSelectedIds, setLinkMode, setLinkSource, setSelectedAnnotationId, setViewBox, spaceHeldRef, setSpaceHeld, searchInputRef, twinSelectMode: state.twinSelectMode, setTwinSelectMode: (v) => { const nv = typeof v === "function" ? v(stateRef.current.twinSelectMode) : v; dispatch({ type: "SET_STATE", patch: { twinSelectMode: nv, twinCandidateIds: nv ? stateRef.current.twinCandidateIds : new Set<string>() } }); }, clearTwinCandidates, selectedIds: state.selectedIds, canvasNodes: state.canvas.nodes, createCoupleAndChild, createCoupleEdge, createConsanguinityEdge, W, H, isPreviewMode: state.isPreviewMode });
+  usePedigreeKeyboard({ deleteSelected, deleteAnnotation, selectedAnnotationId: state.selectedAnnotationId, selectedNode: state.selectedIds.size === 1 ? state.canvas.nodes.find((n) => state.selectedIds.has(n.id)) ?? null : null, updateSelectedNode, addNode, addContextNode, undo, redo, navigateArrow, showSearch: state.showSearch, fitToScreen, runAutoLayout: (rp: boolean, isManual?: boolean) => runAutoLayout(rp, isManual), setShowSearch, setSearchQuery, setSelectedIds, setLinkMode, setLinkSource, setSelectedAnnotationId, setViewBox, spaceHeldRef, setSpaceHeld, searchInputRef, twinSelectMode: state.twinSelectMode, setTwinSelectMode: (v) => { const nv = typeof v === "function" ? v(stateRef.current.twinSelectMode) : v; dispatch({ type: "SET_STATE", patch: { twinSelectMode: nv, twinCandidateIds: nv ? stateRef.current.twinCandidateIds : new Set<string>() } }); }, clearTwinCandidates, selectedIds: state.selectedIds, canvasNodes: state.canvas.nodes, createCoupleAndChild, createCoupleEdge, createConsanguinityEdge, W, H, isPreviewMode: state.isPreviewMode, copySelectedNodes, pasteNodes });
 
   const handleSaveVersion = () => dispatch({ type: "SET_STATE", patch: { sessionLabel: `Session \u00b7 ${state.canvas.nodes.length} node${state.canvas.nodes.length !== 1 ? "s" : ""} \u00b7 ${new Date().toLocaleDateString()}`, showSaveModal: true } });
   const commitSaveVersion = async () => { const t = generateThumbnail(state.canvas); const canvasData = JSON.stringify(state.canvas); const canvasHash = cryptoComputeHash(canvasData); const keys = await listProfilePrivateKeys(); const activeKey = keys.length > 0 ? keys[0] : null; const saverKey = activeKey ? await getPublicKeyFromPrivate(activeKey.privateKey) : ""; const saverSignature = activeKey ? await signData(canvasHash, activeKey.privateKey) : null; saveVersionMutation.mutate({ pedigreeId: id, input: { canvas_data: canvasData, canvas_hash: canvasHash, label: state.sessionLabel || null, thumbnail: t, saver_key: saverKey, saver_signature: saverSignature } }, { onSuccess: () => { queryClient.invalidateQueries({ queryKey: queryKeys.versions(id) }); dispatch({ type: "SET_STATE", patch: { showSaveModal: false, sessionLabel: "" } }); } }); };
@@ -1424,11 +1948,11 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
 
   const value = useMemo<PedigreeEditorContextValue>(() => ({
     state, dispatch,
-    ops: { updateCanvas, undo, redo, addNode, addContextNode, toggleNodeProp, setNodeType, setNodeColor, handleNodeContextMenu, handleNodeDoubleClick, handleNodeClick, deleteSelected, updateSelectedNode, bulkUpdate, alignSelected, addAnnotation, addFreeAnnotation, updateAnnotation, deleteAnnotation, runAutoLayout, bakeEmptyLabels, bakeAllLabels, openConfirm, navigateArrow, handleCloseTab, openTab, reorderTabs, renameTab, fitToScreen, getSVGCoords, handleDragStart, handleMouseMove, handleMouseUp, handleSVGMouseDown, handleWheel, handleSaveVersion, commitSaveVersion, handleDeleteVersion, handleRestoreVersion, createConsanguinityEdge, createCoupleEdge, createCoupleAndChild, createParentsForGroup, addSiblings, markAsTwins, unmarkTwins, removeEdges, updateEdgeType, toggleCoupleInverted, toggleTwinSelectMode, clearTwinCandidates, handleDeletePedigree, backgroundSaveVersion },
+    ops: { updateCanvas, undo, redo, addNode, addContextNode, toggleNodeProp, setNodeType, setNodeColor, handleNodeContextMenu, handleNodeDoubleClick, handleNodeClick, deleteSelected, updateSelectedNode, bulkUpdate, alignSelected, distributeSelected, addAnnotation, addFreeAnnotation, updateAnnotation, deleteAnnotation, runAutoLayout, bakeEmptyLabels, bakeAllLabels, openConfirm, navigateArrow, handleCloseTab, openTab, reorderTabs, renameTab, fitToScreen, getSVGCoords, handleDragStart, handleMouseMove: handleMouseMoveWithCoords, handleMouseUp, handleSVGMouseDown, handleWheel, handleSaveVersion, commitSaveVersion, handleDeleteVersion, handleRestoreVersion, createConsanguinityEdge, createCoupleEdge, createCoupleAndChild, createParentsForGroup, addSiblings, markAsTwins, unmarkTwins, removeEdges, updateEdgeType, toggleCoupleInverted, toggleTwinSelectMode, clearTwinCandidates, handleDeletePedigree, backgroundSaveVersion, copySelectedNodes, pasteNodes },
     memo: { autoLabels, validation, searchMatches, generationRailEntries, legendEntries, visibleGenRows, vbW, vbH, MM_W, MM_H, singleSelected: state.selectedIds.size === 1 ? state.canvas.nodes.find((n) => state.selectedIds.has(n.id)) ?? null : null, anySelected: state.selectedIds.size > 0, tabItems },
     refs: { svgRef, canvasRef, preDragCanvasRef, lassoRef, isLassoingRef, lassoRectRef, spaceHeldRef, rafRef, searchInputRef, draftKeyRef, draftEnabledRef, pendingAnnDragRef },
     pedigree, versions, versionsLoading, profiles, saveVersionPending: saveVersionMutation.isPending, showDraftBanner, onRestoreDraft, handleDismissDraft,
-  }), [state, updateCanvas, undo, redo, addNode, addContextNode, toggleNodeProp, setNodeType, setNodeColor, handleNodeContextMenu, handleNodeDoubleClick, handleNodeClick, deleteSelected, updateSelectedNode, bulkUpdate, alignSelected, addAnnotation, addFreeAnnotation, updateAnnotation, deleteAnnotation, runAutoLayout, bakeEmptyLabels, bakeAllLabels, openConfirm, navigateArrow, openTab, reorderTabs, renameTab, fitToScreen, getSVGCoords, handleDragStart, handleMouseMove, handleMouseUp, handleSVGMouseDown, handleWheel, commitSaveVersion, handleDeleteVersion, handleRestoreVersion, createConsanguinityEdge, createCoupleEdge, createCoupleAndChild, createParentsForGroup, addSiblings, markAsTwins, unmarkTwins, removeEdges, updateEdgeType, toggleCoupleInverted, toggleTwinSelectMode, clearTwinCandidates, handleDeletePedigree, backgroundSaveVersion, autoLabels, validation, searchMatches, generationRailEntries, legendEntries, visibleGenRows, vbW, vbH, MM_W, MM_H, tabItems, saveVersionMutation.isPending, deleteVersionMutation.isPending]);
+  }), [state, updateCanvas, undo, redo, addNode, addContextNode, toggleNodeProp, setNodeType, setNodeColor, handleNodeContextMenu, handleNodeDoubleClick, handleNodeClick, deleteSelected, updateSelectedNode, bulkUpdate, alignSelected, distributeSelected, addAnnotation, addFreeAnnotation, updateAnnotation, deleteAnnotation, runAutoLayout, bakeEmptyLabels, bakeAllLabels, openConfirm, navigateArrow, openTab, reorderTabs, renameTab, fitToScreen, getSVGCoords, handleDragStart, handleMouseMoveWithCoords, handleMouseUp, handleSVGMouseDown, handleWheel, commitSaveVersion, handleDeleteVersion, handleRestoreVersion, createConsanguinityEdge, createCoupleEdge, createCoupleAndChild, createParentsForGroup, addSiblings, markAsTwins, unmarkTwins, removeEdges, updateEdgeType, toggleCoupleInverted, toggleTwinSelectMode, clearTwinCandidates, handleDeletePedigree, backgroundSaveVersion, autoLabels, validation, searchMatches, generationRailEntries, legendEntries, visibleGenRows, vbW, vbH, MM_W, MM_H, tabItems, saveVersionMutation.isPending, deleteVersionMutation.isPending, copySelectedNodes, pasteNodes]);
 
   return <PedigreeEditorContext.Provider value={value}>{children}</PedigreeEditorContext.Provider>;
 }

@@ -67,6 +67,7 @@ export interface PedigreeEditorState {
   alignGuides: Array<{ axis: "x" | "y"; pos: number; strength: "near" | "snap" }>;
   railX: number;
   showGenerationRail: boolean;
+  generationRailMode: "per-family" | "global";
 }
 
 export const INITIAL_STATE: PedigreeEditorState = {
@@ -133,6 +134,7 @@ export const INITIAL_STATE: PedigreeEditorState = {
   alignGuides: [],
   railX: 44,
   showGenerationRail: true,
+  generationRailMode: "per-family",
 };
 
 export type PedigreeEditorAction =
@@ -153,7 +155,7 @@ export interface PedigreeEditorOps {
   redo: () => void;
   addNode: (type: PedigreeNode["type"]) => void;
   addContextNode: (rel: "child" | "sibling" | "partner" | "parents") => void;
-  toggleNodeProp: (nodeId: string, prop: "affected" | "carrier" | "deceased" | "proband") => void;
+  toggleNodeProp: (nodeId: string, prop: "stillbirth" | "affected" | "carrier" | "deceased" | "proband") => void;
   setNodeType: (nodeId: string, type: PedigreeNode["type"]) => void;
   setNodeColor: (nodeId: string, color: string | undefined) => void;
   handleNodeContextMenu: (nodeId: string, e: React.MouseEvent) => void;
@@ -163,6 +165,7 @@ export interface PedigreeEditorOps {
   updateSelectedNode: (updates: Partial<PedigreeNode>) => void;
   bulkUpdate: (updates: Partial<PedigreeNode> | ((node: PedigreeNode) => Partial<PedigreeNode>)) => void;
   alignSelected: (axis: "x" | "y") => void;
+  distributeSelected: (axis: "x" | "y") => void;
   addAnnotation: (nodeId: string) => void;
   addFreeAnnotation: (x: number, y: number) => void;
   updateAnnotation: (annId: string, updates: Partial<PedigreeAnnotation>) => void;
@@ -207,7 +210,11 @@ export interface PedigreeEditorMemo {
   autoLabels: Map<string, string>;
   validation: ValidationResult;
   searchMatches: string[];
-  generationRailEntries: Array<{ roman: string; y: number }>;
+  generationRailEntries: Array<{
+    id: string;
+    minX: number;
+    entries: Array<{ roman: string; y: number; genIdx: number }>;
+  }>;
   legendEntries: Array<{ key: string; label: string }>;
   visibleGenRows: number[];
   vbW: number;

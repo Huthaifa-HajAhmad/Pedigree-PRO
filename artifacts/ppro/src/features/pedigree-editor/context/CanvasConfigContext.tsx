@@ -39,6 +39,7 @@ export interface CanvasConfig {
   hSpacing?: number;
   crossingMinimizationSweeps?: number;
   edgeArcRadius?: number;
+  showEdgeBridges?: boolean;
 }
 
 export const DEFAULT_CANVAS_CONFIG: CanvasConfig = {
@@ -79,6 +80,7 @@ export const DEFAULT_CANVAS_CONFIG: CanvasConfig = {
   hSpacing: Math.round(DEFAULT_NODE_GAP * 110 / 96.8),
   crossingMinimizationSweeps: 15,
   edgeArcRadius: 6,
+  showEdgeBridges: true,
 };
 
 const STORAGE_KEY = "ppro_canvas_config";

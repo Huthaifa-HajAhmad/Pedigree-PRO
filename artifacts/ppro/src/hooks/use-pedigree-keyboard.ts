@@ -36,6 +36,8 @@ export interface UsePedigreeKeyboardParams {
   W: number;
   H: number;
   isPreviewMode?: boolean;
+  copySelectedNodes?: () => void;
+  pasteNodes?: () => void;
 }
 
 export function usePedigreeKeyboard(params: UsePedigreeKeyboardParams) {
@@ -79,6 +81,16 @@ export function usePedigreeKeyboard(params: UsePedigreeKeyboardParams) {
 
       if (e.metaKey || e.ctrlKey) {
         const keyLower = e.key.toLowerCase();
+        if (keyLower === "c") {
+          e.preventDefault();
+          k.copySelectedNodes?.();
+          return;
+        }
+        if (keyLower === "v") {
+          e.preventDefault();
+          k.pasteNodes?.();
+          return;
+        }
         if (keyLower === "z" && !e.shiftKey) { e.preventDefault(); k.undo(); return; }
         if ((keyLower === "z" && e.shiftKey) || keyLower === "y") { e.preventDefault(); k.redo(); return; }
         if (e.key === "=" || e.key === "+") { e.preventDefault(); k.setViewBox((v) => ({ ...v, zoom: Math.max(0.25, v.zoom * 0.85) })); return; }
