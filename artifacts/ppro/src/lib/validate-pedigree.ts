@@ -342,36 +342,39 @@ export function validatePedigree(canvas: CanvasData): ValidationResult {
       const srcNode = nodes.find((n) => n.id === edge.sourceId);
       const tgtNode = nodes.find((n) => n.id === edge.targetId);
       if (edge.type === "parent-child") {
-        if (srcNode && (srcNode.type === "pregnancy" || srcNode.type === "sab" || srcNode.type === "unknown")) {
+        if (srcNode && (srcNode.type === "pregnancy" || srcNode.type === "sab" || srcNode.type === "unknown" || srcNode.stillbirth)) {
+          const typeStr = srcNode.stillbirth ? "stillbirth" : srcNode.type;
           issues.push({
             id: `invalid-parent-${edge.id}`,
             type: "invalid_parent_type",
             severity: "error",
             message: "Invalid parent type",
-            detail: `"${srcNode.label || srcNode.id}" is a ${srcNode.type} but is marked as a parent of "${tgtNode?.label || edge.targetId}". Pregnancies, stillbirths (SABs), and individuals of unknown sex cannot be biological parents.`,
+            detail: `"${srcNode.label || srcNode.id}" is a ${typeStr} but is marked as a parent of "${tgtNode?.label || edge.targetId}". Pregnancies, stillbirths, spontaneous abortions (SABs), and individuals of unknown sex cannot be biological parents.`,
             nodeIds: [edge.sourceId],
             edgeIds: [edge.id],
           });
         }
       } else if (edge.type === "couple" || edge.type === "consanguinity" || edge.type === "divorced" || edge.type === "separated") {
-        if (srcNode && (srcNode.type === "pregnancy" || srcNode.type === "sab")) {
+        if (srcNode && (srcNode.type === "pregnancy" || srcNode.type === "sab" || srcNode.stillbirth)) {
+          const typeStr = srcNode.stillbirth ? "stillbirth" : srcNode.type;
           issues.push({
             id: `invalid-partner-${edge.id}-${srcNode.id}`,
             type: "invalid_partner_type",
             severity: "error",
             message: "Invalid partner type",
-            detail: `"${srcNode.label || srcNode.id}" is a ${srcNode.type} and cannot have partner or marriage connections.`,
+            detail: `"${srcNode.label || srcNode.id}" is a ${typeStr} and cannot have partner or marriage connections.`,
             nodeIds: [srcNode.id],
             edgeIds: [edge.id],
           });
         }
-        if (tgtNode && (tgtNode.type === "pregnancy" || tgtNode.type === "sab")) {
+        if (tgtNode && (tgtNode.type === "pregnancy" || tgtNode.type === "sab" || tgtNode.stillbirth)) {
+          const typeStr = tgtNode.stillbirth ? "stillbirth" : tgtNode.type;
           issues.push({
             id: `invalid-partner-${edge.id}-${tgtNode.id}`,
             type: "invalid_partner_type",
             severity: "error",
             message: "Invalid partner type",
-            detail: `"${tgtNode.label || tgtNode.id}" is a ${tgtNode.type} and cannot have partner or marriage connections.`,
+            detail: `"${tgtNode.label || tgtNode.id}" is a ${typeStr} and cannot have partner or marriage connections.`,
             nodeIds: [tgtNode.id],
             edgeIds: [edge.id],
           });

@@ -71,7 +71,7 @@ export function NodeGroup({
             </button>
             <button type="button" onClick={() => { addNode("sab"); setShowMoreNodes(false); }} className="w-full flex items-center gap-2.5 px-3 py-2 text-xs hover:bg-accent transition-colors text-left border-t border-border">
               <NodeIcon type="sab" />
-              <div><div className="font-medium">SAB / Stillbirth</div><div className="text-xs text-muted-foreground">Shortcut: S</div></div>
+              <div><div className="font-medium">Spontaneous Abortion (SAB)</div><div className="text-xs text-muted-foreground">Shortcut: S</div></div>
             </button>
             <button
               type="button"

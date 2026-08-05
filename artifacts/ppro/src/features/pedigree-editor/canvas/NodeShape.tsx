@@ -80,7 +80,9 @@ export const NodeShape = memo(function NodeShape({
     : node.carrier
     ? "hsl(var(--primary) / 0.08)"
     : "hsl(var(--card))";
-  const S = cfg.config.nodeSize;
+  const isStillbirth = !!node.stillbirth;
+  const scale = isStillbirth ? 0.65 : 1.0;
+  const S = cfg.config.nodeSize * scale;
   const strokeWidth = selected || isLinkSource || invalid || diffStatus ? cfg.config.edgeWidthSelected : cfg.config.edgeWidthNormal;
   const carrierR = cfg.config.carrierDotRadius;
   const glow = invalid
@@ -179,9 +181,9 @@ export const NodeShape = memo(function NodeShape({
       )}
       {node.type === "sab" && (
         <>
-          <polygon points={`0,${S * 0.36} ${-S * 0.38},${-S * 0.26} ${S * 0.38},${-S * 0.26}`} fill={fill} style={{ ...glow, color: fillShadingColor }} />
+          <polygon points={`0,${-S * 0.36} ${-S * 0.38},${S * 0.26} ${S * 0.38},${S * 0.26}`} fill={fill} style={{ ...glow, color: fillShadingColor }} />
           {renderShadingOverlay()}
-          <polygon points={`0,${S * 0.36} ${-S * 0.38},${-S * 0.26} ${S * 0.38},${-S * 0.26}`} fill="none" stroke={stroke} strokeWidth={strokeWidth} strokeDasharray={strokeDash} style={glow} />
+          <polygon points={`0,${-S * 0.36} ${-S * 0.38},${S * 0.26} ${S * 0.38},${S * 0.26}`} fill="none" stroke={stroke} strokeWidth={strokeWidth} strokeDasharray={strokeDash} style={glow} />
         </>
       )}
       {node.insideText && (
@@ -190,8 +192,16 @@ export const NodeShape = memo(function NodeShape({
         </text>
       )}
       {node.carrier && !node.affected && <circle cx={0} cy={0} r={carrierR} fill={"hsl(var(--primary))"} opacity={0.85} />}
-      {node.deceased && (
+      {node.deceased && !isStillbirth && (
         <line x1={-S / 2 - 8} y1={S / 2 + 8} x2={S / 2 + 8} y2={-S / 2 - 8} stroke="hsl(var(--foreground) / 0.6)" strokeWidth={1.5} />
+      )}
+      {isStillbirth && (
+        <>
+          <line x1={-S / 2 - 4} y1={S / 2 + 4} x2={S / 2 + 4} y2={-S / 2 - 4} stroke={stroke} strokeWidth={1.5} />
+          <text x={S / 2 + 3} y={S / 2 + 4} textAnchor="start" fontSize={10} fill={stroke} style={{ userSelect: "none", fontFamily: "Inter, sans-serif", fontWeight: 600 }}>
+            SB
+          </text>
+        </>
       )}
       {node.proband && (
         <g>

@@ -259,4 +259,34 @@ describe("validatePedigree", () => {
     const incestUnion = result.issues.find((i) => i.type === "incest_union");
     expect(incestUnion).toBeFalsy();
   });
+
+  it("flags stillbirths as invalid parents", () => {
+    const nodes = [
+      makeNode("n1", { type: "male", stillbirth: true }),
+      makeNode("n2", { type: "female" }),
+    ];
+    const edges = [
+      makeEdge("e1", "n1", "n2", "parent-child"),
+    ];
+    const result = validatePedigree({ nodes, edges });
+    const issue = result.issues.find((i) => i.type === "invalid_parent_type");
+    expect(issue).toBeTruthy();
+    expect(issue?.severity).toBe("error");
+    expect(issue?.detail).toContain("stillbirth");
+  });
+
+  it("flags stillbirths as invalid partners", () => {
+    const nodes = [
+      makeNode("n1", { type: "female", stillbirth: true }),
+      makeNode("n2", { type: "male" }),
+    ];
+    const edges = [
+      makeEdge("e1", "n1", "n2", "couple"),
+    ];
+    const result = validatePedigree({ nodes, edges });
+    const issue = result.issues.find((i) => i.type === "invalid_partner_type");
+    expect(issue).toBeTruthy();
+    expect(issue?.severity).toBe("error");
+    expect(issue?.detail).toContain("stillbirth");
+  });
 });

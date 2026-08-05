@@ -42,7 +42,7 @@ export function ContextMenu({
   position: { x: number; y: number };
   onClose: () => void;
   onSetNodeType: (nodeId: string, type: PedigreeNode["type"]) => void;
-  onToggleNodeProp: (nodeId: string, prop: "affected" | "carrier" | "deceased" | "proband") => void;
+  onToggleNodeProp: (nodeId: string, prop: "affected" | "carrier" | "deceased" | "proband" | "stillbirth") => void;
   onAddContextNode: (relationship: "child" | "sibling" | "partner" | "parents") => void;
   onDeleteSelected: () => void;
   onSetLinkMode: (mode: "couple" | "parent-child" | "consanguinity", sourceId: string) => void;
@@ -279,7 +279,7 @@ export function ContextMenu({
     { key: "female", label: "Female", icon: <Circle className={ICON_CLS} />, disabled: ctxNode.type === "female" },
     { key: "unknown", label: "Unknown sex", icon: <Diamond className={ICON_CLS} />, disabled: ctxNode.type === "unknown" || hasChildren, title: hasChildren ? "Nodes with children cannot be unknown sex" : undefined },
     { key: "pregnancy", label: "Pregnancy", icon: <Baby className={ICON_CLS} />, disabled: isMale || isSab || hasChildren || ctxNode.type === "pregnancy", title: isMale ? "Males cannot carry a pregnancy" : hasChildren ? "Nodes with children cannot be pregnancy" : undefined },
-    { key: "sab", label: isPregnancy ? "Mark as Loss (SAB)" : "SAB / Stillbirth", icon: <AlertTriangle className={ICON_CLS} />, disabled: (ctxNode.type === "sab" && !isPregnancy) || hasChildren, title: hasChildren ? "Nodes with children cannot be SAB" : isPregnancy ? undefined : "Already SAB" },
+    { key: "sab", label: isPregnancy ? "Mark as Loss (SAB)" : "Spontaneous Abortion (SAB)", icon: <AlertTriangle className={ICON_CLS} />, disabled: (ctxNode.type === "sab" && !isPregnancy) || hasChildren, title: hasChildren ? "Nodes with children cannot be SAB" : isPregnancy ? undefined : "Already SAB" },
   ];
 
   return (
@@ -454,6 +454,14 @@ export function ContextMenu({
             <button type="button" role="menuitem" aria-disabled className={mbtn} title={isPregnancy ? "Deceased pregnancy should be SAB" : "SAB implies deceased"}>
               <X className={ICON_CLS} />Deceased
               <span className="ml-auto text-xs">{isPregnancy ? "→ use SAB" : "implicit"}</span>
+            </button>
+          )}
+          {!(isPregnancy || isSab) && (
+            <button type="button" role="menuitem" className={ctxNode.stillbirth ? abtn : btn} onClick={() => { onToggleNodeProp(ctxNode.id, "stillbirth"); onClose(); }}>
+              {ctxNode.stillbirth ? <CheckCircle2 className={`${ICON_CLS} text-primary`} /> : <Circle className={ICON_CLS} />}
+              {isMultiSelect
+                ? (ctxNode.stillbirth ? "Unmark Selected Stillbirth" : "Mark Selected Stillbirth")
+                : (ctxNode.stillbirth ? "Unmark Stillbirth" : "Mark Stillbirth")}
             </button>
           )}
           {!isSab && !isMultiSelect && (

@@ -119,7 +119,7 @@ function SexSelect({ value, onChange }: SexSelectProps) {
     { value: "female" as const, label: "Female", icon: <Circle className="w-3.5 h-3.5 text-pink-500 stroke-[2.5px]" /> },
     { value: "unknown" as const, label: "Unknown", icon: <Diamond className="w-3.5 h-3.5 text-slate-500 stroke-[2.5px]" /> },
     { value: "pregnancy" as const, label: "Pregnancy", icon: <Baby className="w-3.5 h-3.5 text-emerald-500 stroke-[2px]" /> },
-    { value: "sab" as const, label: "SAB / Stillbirth", icon: <Triangle className="w-3.5 h-3.5 text-amber-500 stroke-[2px]" /> },
+    { value: "sab" as const, label: "Spontaneous Abortion (SAB)", icon: <Triangle className="w-3.5 h-3.5 text-amber-500 stroke-[2px]" /> },
   ];
 
   const selected = options.find((opt) => opt.value === value) || options[2]!;

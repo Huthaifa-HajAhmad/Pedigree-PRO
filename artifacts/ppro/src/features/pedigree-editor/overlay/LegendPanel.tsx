@@ -28,8 +28,14 @@ function LegendSymbol({ k, isPublication }: { k: string; isPublication?: boolean
   );
   if (k === "sab") return (
     <svg width={14} height={14} viewBox="-7 -7 14 14">
-      <polygon points="0,5.5 -5.5,-3 5.5,-3" fill="none" stroke={W} strokeWidth={1.5} />
-      <line x1={-4.5} y1={-3} x2={4.5} y2={5} stroke={W} strokeWidth={1.2} />
+      <polygon points="0,-5.5 -5.5,3 5.5,3" fill="none" stroke={W} strokeWidth={1.5} />
+    </svg>
+  );
+  if (k === "stillbirth") return (
+    <svg width={14} height={14} viewBox="-7 -7 14 14">
+      <rect x={-3.5} y={-3.5} width={7} height={7} fill="none" stroke={W} strokeWidth={1.2} />
+      <line x1={-4.5} y1={4.5} x2={4.5} y2={-4.5} stroke={W} strokeWidth={1.0} />
+      <text x={2} y={3.5} fontSize={5} fill={W} style={{ fontWeight: "bold", fontFamily: "sans-serif" }}>SB</text>
     </svg>
   );
   if (k === "affected") return (
@@ -152,7 +158,7 @@ export function LegendPanel({ entries, expanded: controlledExpanded, onToggle, c
   if (entries.length === 0) return null;
 
   const categories = {
-    shapes: entries.filter(e => ["male", "female", "unknown", "pregnancy", "sab"].includes(e.key)),
+    shapes: entries.filter(e => ["male", "female", "unknown", "pregnancy", "sab", "stillbirth"].includes(e.key)),
     status: entries.filter(e => ["affected", "carrier", "deceased", "proband"].includes(e.key)),
     shading: entries.filter(e => e.key.startsWith("shading-")),
     relations: entries.filter(e => ["couple", "consanguinity"].includes(e.key)),

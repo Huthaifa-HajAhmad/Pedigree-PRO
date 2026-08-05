@@ -63,6 +63,9 @@ function svgTriangle(x: number, y: number, s: number, down: boolean, fill: strin
   return `<polygon points="${pts}" fill="${fill}" stroke="${stroke}" stroke-width="${sw}"/>`;
 }
 
+// ---------------------------------------------------------------------------
+// Main thumbnail generator — returns a data-URL string (SVG)
+// ---------------------------------------------------------------------------
 function svgDiamond(x: number, y: number, s: number, fill: string, stroke: string, sw = 0.8) {
   const pts = `${x.toFixed(1)},${(y - s).toFixed(1)} ${(x + s).toFixed(1)},${y.toFixed(1)} ${x.toFixed(1)},${(y + s).toFixed(1)} ${(x - s).toFixed(1)},${y.toFixed(1)}`;
   return `<polygon points="${pts}" fill="${fill}" stroke="${stroke}" stroke-width="${sw}"/>`;
@@ -120,31 +123,32 @@ export function generateThumbnail(canvas: Canvas): string {
     const fill   = node.affected ? NEON : node.type === "sab" ? "#e2e8f0" : NODE_FILL;
     const stroke = node.affected ? NEON : node.deceased ? "#9ca3af" : NODE_STROKE;
 
+    const nodeS = node.stillbirth ? s * 0.65 : s;
     if (node.type === "male") {
-      parts.push(svgRect(x, y, s, fill, stroke));
+      parts.push(svgRect(x, y, nodeS, fill, stroke));
     } else if (node.type === "female") {
-      parts.push(svgCircle(x, y, s, fill, stroke));
+      parts.push(svgCircle(x, y, nodeS, fill, stroke));
     } else if (node.type === "pregnancy") {
-      parts.push(svgDiamond(x, y, s, fill, stroke));
+      parts.push(svgDiamond(x, y, nodeS, fill, stroke));
     } else if (node.type === "sab") {
-      parts.push(svgTriangle(x, y, s, true, fill, stroke));
+      parts.push(svgTriangle(x, y, nodeS, false, fill, stroke));
     } else {
-      parts.push(svgDiamond(x, y, s, fill, stroke));
+      parts.push(svgDiamond(x, y, nodeS, fill, stroke));
     }
 
     // Carrier dot
     if (node.carrier && !node.affected) {
-      parts.push(svgCircle(x, y, s * 0.28, NEON, "none"));
+      parts.push(svgCircle(x, y, nodeS * 0.28, NEON, "none"));
     }
 
     // Deceased slash
-    if (node.deceased) {
-      parts.push(svgLine(x - s - 1 * scale, y + s + 1 * scale, x + s + 1 * scale, y - s - 1 * scale, "#9ca3af", 0.7));
+    if (node.deceased || node.stillbirth) {
+      parts.push(svgLine(x - nodeS - 1 * scale, y + nodeS + 1 * scale, x + nodeS + 1 * scale, y - nodeS - 1 * scale, "#9ca3af", 0.7));
     }
 
     // Proband arrow
     if (node.proband) {
-      parts.push(`<text x="${(x - s - 3 * scale).toFixed(1)}" y="${(y + 3 * scale).toFixed(1)}" font-family="monospace" font-size="${Math.max(4, 8 * scale)}" fill="${NEON}" text-anchor="end">→</text>`);
+      parts.push(`<text x="${(x - nodeS - 3 * scale).toFixed(1)}" y="${(y + 3 * scale).toFixed(1)}" font-family="monospace" font-size="${Math.max(4, 8 * scale)}" fill="${NEON}" text-anchor="end">→</text>`);
     }
   }
 

@@ -29,6 +29,7 @@ export interface PedigreeNode {
   shading?: string;
   genotype2?: string;
   additionalGenotypes?: string[];
+  stillbirth?: boolean;
 }
 
 export interface PedigreeEdge {

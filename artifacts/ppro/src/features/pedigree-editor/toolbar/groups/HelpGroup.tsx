@@ -41,7 +41,7 @@ const SHORTCUTS = [
     { key: "F", desc: "Female" },
     { key: "U", desc: "Unknown" },
     { key: "P", desc: "Pregnancy" },
-    { key: "S", desc: "Stillbirth" },
+    { key: "S", desc: "Spontaneous Abortion (SAB)" },
   ]},
   { section: "Edit", rows: [
     { key: "Del", desc: "Delete selected" },
@@ -83,7 +83,8 @@ const MANUAL_SECTIONS = [
       { term: "Affected Individual", desc: "Indicated by a fully colored/shaded symbol (solid fill)." },
       { term: "Deceased Individual", desc: "Indicated by a diagonal line (/) running through the symbol." },
       { term: "Asymptomatic Carrier", desc: "Indicated by a small dot inside the symbol." },
-      { term: "Spontaneous Abortion / Stillbirth", desc: "Represented by a small triangle (△). Can be marked via the context menu or pressing 'S'." },
+      { term: "Spontaneous Abortion (SAB)", desc: "Represented by a small triangle (△). Can be marked via the context menu or pressing 'S'." },
+      { term: "Stillbirth (SB)", desc: "Represented by a smaller sex-specific symbol with a diagonal slash and 'SB' label. Can be toggled in properties or context menu." },
       { term: "Adopted Status", desc: "Represented by brackets [ ] enclosing the symbol. Can be toggled in the node properties panel." },
     ]
   },
