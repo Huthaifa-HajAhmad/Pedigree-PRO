@@ -54,39 +54,82 @@ export function computeAutoLabels(
 ): Map<string, string> {
   if (nodes.length === 0) return new Map();
 
-  // 1. Group nodes into y-coordinate bands (using a tolerance of ROW_TOLERANCE = 60px)
-  const TOLERANCE = 60;
-  const bands: number[] = [];
-  
-  // Sort nodes by y first to build bands top-to-bottom
-  const sortedByY = [...nodes].sort((a, b) => a.y - b.y);
-  
-  for (const n of sortedByY) {
-    if (!bands.some(y => Math.abs(y - n.y) < TOLERANCE)) {
-      bands.push(n.y);
+  // 1. Build adjacency list of the graph (ignoring edge types/direction, treating as undirected)
+  const adj = new Map<string, string[]>();
+  for (const n of nodes) {
+    adj.set(n.id, []);
+  }
+  for (const e of edges) {
+    if (adj.has(e.sourceId) && adj.has(e.targetId)) {
+      adj.get(e.sourceId)!.push(e.targetId);
+      adj.get(e.targetId)!.push(e.sourceId);
     }
   }
-  
-  // Sort bands ascending (top to bottom)
-  bands.sort((a, b) => a - b);
 
-  // 2. Group nodes by normalised generation (band index), sort each group left-to-right by x
-  const groups = new Map<number, LabelNode[]>();
-  for (const node of nodes) {
-    const normGen = bands.findIndex(y => Math.abs(y - node.y) < TOLERANCE);
-    const genKey = normGen < 0 ? 0 : normGen;
-    (groups.get(genKey) ?? (groups.set(genKey, []), groups.get(genKey)!)).push(node);
+  // 2. Find connected components (families)
+  const visited = new Set<string>();
+  const components: LabelNode[][] = [];
+
+  for (const n of nodes) {
+    if (!visited.has(n.id)) {
+      const comp: LabelNode[] = [];
+      const queue = [n.id];
+      visited.add(n.id);
+      let head = 0;
+      while (head < queue.length) {
+        const curr = queue[head]!;
+        head++;
+        const currNode = nodes.find(node => node.id === curr);
+        if (currNode) comp.push(currNode);
+
+        for (const neighbor of adj.get(curr) || []) {
+          if (!visited.has(neighbor)) {
+            visited.add(neighbor);
+            queue.push(neighbor);
+          }
+        }
+      }
+      components.push(comp);
+    }
   }
 
-  for (const group of groups.values()) {
-    group.sort((a, b) => a.x - b.x);
-  }
+  // 3. Sort components by their leftmost node's X coordinate
+  components.sort((a, b) => {
+    const minA = Math.min(...a.map(n => n.x));
+    const minB = Math.min(...b.map(n => n.x));
+    return minA - minB;
+  });
 
-  // 3. Emit labels "I:1", "II:3", "III:1" etc.
   const labels = new Map<string, string>();
-  for (const [normGen, group] of groups) {
-    const roman = toRoman(normGen + 1);
-    group.forEach((node, idx) => labels.set(node.id, `${roman}:${idx + 1}`));
+  const TOLERANCE = 60;
+
+  // 4. For each component (family), calculate Y-bands and assign labels locally
+  for (const comp of components) {
+    const bands: number[] = [];
+    const sortedByY = [...comp].sort((a, b) => a.y - b.y);
+    for (const n of sortedByY) {
+      if (!bands.some(y => Math.abs(y - n.y) < TOLERANCE)) {
+        bands.push(n.y);
+      }
+    }
+    bands.sort((a, b) => a - b);
+
+    const groups = new Map<number, LabelNode[]>();
+    for (const node of comp) {
+      const normGen = bands.findIndex(y => Math.abs(y - node.y) < TOLERANCE);
+      const genKey = normGen < 0 ? 0 : normGen;
+      (groups.get(genKey) ?? (groups.set(genKey, []), groups.get(genKey)!)).push(node);
+    }
+
+    for (const group of groups.values()) {
+      group.sort((a, b) => a.x - b.x);
+    }
+
+    for (const [normGen, group] of groups) {
+      const roman = toRoman(normGen + 1);
+      group.forEach((node, idx) => labels.set(node.id, `${roman}:${idx + 1}`));
+    }
   }
+
   return labels;
 }

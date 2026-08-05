@@ -13,6 +13,7 @@ export interface ExportNode {
   proband: boolean;
   adopted?: boolean;
   label: string;
+  stillbirth?: boolean;
   age: string;
   dob?: string;
   condition?: string;
@@ -72,7 +73,8 @@ function computeLegendItems(canvas: ExportCanvas): LegendItem[] {
   if (nt.has("female"))     items.push({ shape: "circle",     label: "Female" });
   if (nt.has("unknown"))    items.push({ shape: "diamond",    label: "Unknown sex" });
   if (nt.has("pregnancy"))  items.push({ shape: "pregnancy",  label: "Pregnancy" });
-  if (nt.has("sab"))        items.push({ shape: "sab",        label: "SAB / Stillbirth" });
+  if (nt.has("sab"))        items.push({ shape: "sab",        label: "Spontaneous Abortion (SAB)" });
+  if (canvas.nodes.some(n => n.stillbirth)) items.push({ shape: "stillbirth", label: "Stillbirth (SB)" });
   
   if (canvas.nodes.some((n) => n.affected && (!n.shading || n.shading === "solid") && !n.condition)) {
     items.push({ shape: "filled",  label: "Affected" });
@@ -260,19 +262,17 @@ function prepareSvgForExport(
   const minX = validNodes.length > 0 ? Math.min(...validNodes.map((n) => n.x)) : null;
 
   if (minX !== null) {
-    const railGroup = clone.querySelector('g[data-generation-rail="true"]');
-    if (railGroup) {
+    const railGroups = clone.querySelectorAll('g[data-generation-rail="true"]');
+    railGroups.forEach((railGroup) => {
       // Remove interactive editor-only helper elements (hit rect and line)
       railGroup.querySelector("rect")?.remove();
       railGroup.querySelector("line")?.remove();
 
-      // Align generation roman numerals closely to the left of the pedigree nodes
-      railGroup.querySelectorAll("text").forEach((textEl) => {
-        textEl.setAttribute("x", String(minX - 50));
-      });
-    }
+      // Align generation roman numerals closely to the left
+      // For per-family rails, we can keep their horizontal offsets relative to their respective families
+    });
   } else {
-    clone.querySelector('g[data-generation-rail="true"]')?.remove();
+    clone.querySelectorAll('g[data-generation-rail="true"]').forEach((g) => g.remove());
   }
 
   // Compute viewBox from actual rendered bounding box (includes text, arrows,
@@ -591,7 +591,16 @@ export async function exportPDF(info: ExportInfo, canvas: ExportCanvas) {
       doc.setFillColor(100, 116, 139);
       const tx = lx + LS / 2;
       const ty = LYc + LS / 6;
-      doc.triangle(tx, ty + LS / 2, tx - LS / 2, ty - LS / 3, tx + LS / 2, ty - LS / 3, "FD");
+      doc.triangle(tx, ty - LS / 2, tx - LS / 2, ty + LS / 3, tx + LS / 2, ty + LS / 3, "FD");
+    } else if (item.shape === "stillbirth") {
+      const scaleLS = LS * 0.65;
+      const offset = (LS - scaleLS) / 2;
+      const lxScaled = lx + offset;
+      const lycScaled = LYc;
+      doc.rect(lxScaled, lycScaled - scaleLS / 2, scaleLS, scaleLS, "FD");
+      doc.line(lxScaled - 1, lycScaled + scaleLS / 2 + 1, lxScaled + scaleLS + 1, lycScaled - scaleLS / 2 - 1);
+      doc.setFontSize(4);
+      doc.text("SB", lxScaled + scaleLS + 1, lycScaled + scaleLS / 2);
     } else if (item.shape === "filled") {
       doc.setFillColor(225, 29, 72); // Crimson
       doc.circle(lx + LS / 2, LYc, LS / 2, "FD");
@@ -782,12 +791,13 @@ export async function exportPPTX(info: ExportInfo, canvas: ExportCanvas) {
     nodePosMap.set(n.id, { px, py });
 
     // Draw main node shape
+    const nodeS = n.stillbirth ? nodeSize * 0.65 : nodeSize;
     let shapeType = pptx.ShapeType.rect;
     let shapeOpts: any = {
-      x: px - nodeSize / 2,
-      y: py - nodeSize / 2,
-      w: nodeSize,
-      h: nodeSize,
+      x: px - nodeS / 2,
+      y: py - nodeS / 2,
+      w: nodeS,
+      h: nodeS,
       fill: { color: n.affected ? "0F172A" : "FFFFFF" },
       line: { color: "0F172A", width: 1.5 }
     };
@@ -798,7 +808,6 @@ export async function exportPPTX(info: ExportInfo, canvas: ExportCanvas) {
       shapeType = pptx.ShapeType.diamond;
     } else if (n.type === "sab") {
       shapeType = pptx.ShapeType.triangle;
-      shapeOpts.rotate = 180;
       shapeOpts.fill = { color: "64748B" };
       shapeOpts.line = { color: "64748B", width: 1 };
     }
@@ -807,7 +816,7 @@ export async function exportPPTX(info: ExportInfo, canvas: ExportCanvas) {
 
     // Carrier indicator
     if (n.carrier && !n.affected) {
-      const dotSize = nodeSize * 0.28;
+      const dotSize = nodeS * 0.28;
       slide.addShape(pptx.ShapeType.ellipse, {
         x: px - dotSize / 2,
         y: py - dotSize / 2,
@@ -818,24 +827,37 @@ export async function exportPPTX(info: ExportInfo, canvas: ExportCanvas) {
       });
     }
 
-    // Deceased indicator
-    if (n.deceased) {
+    // Deceased / Stillbirth indicator
+    if (n.deceased || n.stillbirth) {
       slide.addShape(pptx.ShapeType.line, {
-        x: px - nodeSize * 0.85,
+        x: px - nodeS * 0.85,
         y: py,
-        w: nodeSize * 1.7,
+        w: nodeS * 1.7,
         h: 0,
         rotate: -45,
         line: { color: "0F172A", width: 2 }
       });
     }
 
+    // Stillbirth SB label
+    if (n.stillbirth) {
+      slide.addText("SB", {
+        x: px + nodeS / 2,
+        y: py + nodeS / 2 - 0.05,
+        w: 0.2,
+        h: 0.15,
+        fontSize: 8,
+        color: "0F172A",
+        bold: true
+      });
+    }
+
     // Proband indicator
     if (n.proband) {
       slide.addShape(pptx.ShapeType.line, {
-        x: px - nodeSize * 1.203,
-        y: py + nodeSize * 0.85,
-        w: nodeSize * 0.707,
+        x: px - nodeS * 1.203,
+        y: py + nodeS * 0.85,
+        w: nodeS * 0.707,
         h: 0,
         rotate: -45,
         line: { color: "0F172A", width: 2, endArrowType: "triangle" }
@@ -1440,7 +1462,17 @@ export async function exportClinicalReport(info: ExportInfo, canvas: ExportCanva
       doc.setFillColor(100, 116, 139);
       const tx = lx + LS / 2;
       const ty = LYc + LS / 6;
-      doc.triangle(tx, ty + LS / 2, tx - LS / 2, ty - LS / 3, tx + LS / 2, ty - LS / 3, "FD");
+      doc.triangle(tx, ty - LS / 2, tx - LS / 2, ty + LS / 3, tx + LS / 2, ty + LS / 3, "FD");
+    }
+    else if (item.shape === "stillbirth") {
+      const scaleLS = LS * 0.65;
+      const offset = (LS - scaleLS) / 2;
+      const lxScaled = lx + offset;
+      const lycScaled = LYc;
+      doc.rect(lxScaled, lycScaled - scaleLS / 2, scaleLS, scaleLS, "FD");
+      doc.line(lxScaled - 1, lycScaled + scaleLS / 2 + 1, lxScaled + scaleLS + 1, lycScaled - scaleLS / 2 - 1);
+      doc.setFontSize(4);
+      doc.text("SB", lxScaled + scaleLS + 1, lycScaled + scaleLS / 2);
     }
     else if (item.shape === "filled") {
       doc.setFillColor(225, 29, 72); // Crimson fill
