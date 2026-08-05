@@ -1,5 +1,5 @@
-﻿import { describe, it, expect, beforeEach } from "vitest";
-import { globalLayoutCache, clearLayoutCache, setCacheEntry } from "../lib/layout-cache";
+import { describe, it, expect, beforeEach } from "vitest";
+import { globalLayoutCache, clearLayoutCache, setCacheEntry, getCacheEntry } from "../lib/layout-cache";
 import { computeAutoLayout } from "../lib/auto-layout";
 import { PedigreeNode, PedigreeEdge } from "../features/pedigree-editor/canvas/types";
 
@@ -26,14 +26,25 @@ describe("layout-caching utilities and config integration", () => {
       expect(globalLayoutCache.size).toBe(0);
     });
 
-    it("should clear the cache if the size limit of 1000 is reached", () => {
+    it("should evict only the oldest entry when size limit of 1000 is reached (LRU)", () => {
       for (let i = 0; i < 1000; i++) {
         setCacheEntry(`node-${i}`, { x: i, y: i, hash: `hash-${i}` });
       }
       expect(globalLayoutCache.size).toBe(1000);
+      
+      // Access node-0 to update its recency
+      getCacheEntry("node-0");
+
       setCacheEntry("node-overflow", { x: 9999, y: 9999, hash: "overflow" });
-      // Cache clears when size reaches >= 1000 and a new entry is set
-      expect(globalLayoutCache.size).toBe(1);
+      
+      // Size should remain at 1000
+      expect(globalLayoutCache.size).toBe(1000);
+      
+      // node-1 (oldest non-accessed) should be evicted
+      expect(globalLayoutCache.has("node-1")).toBe(false);
+      
+      // node-0 (accessed) should still be in the cache
+      expect(globalLayoutCache.has("node-0")).toBe(true);
       expect(globalLayoutCache.get("node-overflow")?.x).toBe(9999);
     });
   });

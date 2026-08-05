@@ -1,5 +1,9 @@
 import { NODE_GAP, NODE_SIZE, GEN_GRID } from "@/features/pedigree-editor/canvas/types";
 
+export const EPSILON = 0.05;
+export const ROW_JITTER_THRESHOLD = 20;
+export const FLOAT_TOLERANCE = 0.01;
+
 export interface LayoutConfig {
   nodeSize: number;
   nodeGap: number;
@@ -140,6 +144,70 @@ export function buildAdjacency(nodes: Array<{ id: string }>, edges: EdgeSubset[]
   return { childrenOf, parentsOf, couplesOf, twinsOf, twinTypeOf, twinGroupOf };
 }
 
+export interface FamilyGroup {
+  parentIds: string[];
+  childIds: string[];
+}
+
+/**
+ * Standardized family grouping helper to avoid duplication.
+ */
+export function groupFamiliesByParents(parentsMap: Map<string, string[]>): FamilyGroup[] {
+  const families = new Map<string, { parentIds: string[]; childIds: string[] }>();
+  for (const [childId, pIds] of parentsMap.entries()) {
+    if (pIds.length === 0) continue;
+    const key = [...pIds].sort().join("_");
+    if (!families.has(key)) {
+      families.set(key, { parentIds: [...pIds].sort(), childIds: [] });
+    }
+    families.get(key)!.childIds.push(childId);
+  }
+  return Array.from(families.values());
+}
+
+/**
+ * Precomputes descendant node ID sets for all nodes using memoized DFS with cycle detection.
+ * This runs in O(N + E) time and is built once at the entry of layout functions.
+ */
+export function buildDescendantsMap(adj: AdjacencyMaps): Map<string, Set<string>> {
+  const map = new Map<string, Set<string>>();
+  const visiting = new Set<string>();
+
+  function getDescendants(nodeId: string): Set<string> {
+    if (map.has(nodeId)) {
+      return map.get(nodeId)!;
+    }
+    if (visiting.has(nodeId)) {
+      return new Set(); // Prevent infinite recursion on malformed cyclic data
+    }
+    visiting.add(nodeId);
+    
+    const set = new Set<string>();
+    const children = adj.childrenOf.get(nodeId) ?? [];
+    for (const childId of children) {
+      set.add(childId);
+      const childDesc = getDescendants(childId);
+      for (const d of childDesc) {
+        set.add(d);
+      }
+    }
+    
+    visiting.delete(nodeId);
+    map.set(nodeId, set);
+    return set;
+  }
+
+  const allNodes = new Set([
+    ...adj.childrenOf.keys(),
+    ...adj.parentsOf.keys(),
+    ...adj.couplesOf.keys()
+  ]);
+  for (const nodeId of allNodes) {
+    getDescendants(nodeId);
+  }
+  return map;
+}
+
 /**
  * Builds node-to-generation maps using BFS & generation propagation with cyclic bounds checking.
  */
@@ -224,26 +292,57 @@ export function buildGenerations(nodes: Array<{ id: string }>, edges: EdgeSubset
   }
 
   let head = 0;
-  let processedCount = 0;
   const topoOrder: string[] = [];
-  while (head < queue.length) {
-    const u = queue[head]!;
-    head++;
-    processedCount++;
-    topoOrder.push(u);
-    const uGen = compGen.get(u)!;
 
-    for (const v of compChildren.get(u) ?? []) {
-      const nextGen = uGen + 1;
-      if (nextGen > compGen.get(v)!) {
-        compGen.set(v, nextGen);
-      }
-      const newInDegree = compInDegree.get(v)! - 1;
-      compInDegree.set(v, newInDegree);
-      if (newInDegree === 0) {
-        queue.push(v);
+  while (true) {
+    while (head < queue.length) {
+      const u = queue[head]!;
+      head++;
+      topoOrder.push(u);
+      const uGen = compGen.get(u)!;
+
+      for (const v of compChildren.get(u) ?? []) {
+        const nextGen = uGen + 1;
+        if (nextGen > compGen.get(v)!) {
+          compGen.set(v, nextGen);
+        }
+        const newInDegree = compInDegree.get(v)! - 1;
+        compInDegree.set(v, newInDegree);
+        if (newInDegree === 0) {
+          queue.push(v);
+        }
       }
     }
+
+    if (topoOrder.length === componentMembers.size) {
+      break;
+    }
+
+    // We have a cycle. Find an unprocessed component to break the cycle.
+    // We pick the one with the minimum remaining in-degree > 0.
+    let bestCompId: string | null = null;
+    let minRemainingInDegree = Infinity;
+    for (const [compId, inDegree] of compInDegree.entries()) {
+      if (inDegree > 0 && inDegree < minRemainingInDegree) {
+        minRemainingInDegree = inDegree;
+        bestCompId = compId;
+      }
+    }
+
+    if (!bestCompId) {
+      break;
+    }
+
+    // Break the cycle at bestCompId:
+    let maxParentGen = -1;
+    for (const parentCompId of compParents.get(bestCompId) ?? []) {
+      if (topoOrder.includes(parentCompId)) {
+        maxParentGen = Math.max(maxParentGen, compGen.get(parentCompId)!);
+      }
+    }
+    compGen.set(bestCompId, maxParentGen !== -1 ? maxParentGen + 1 : 0);
+    compInDegree.set(bestCompId, 0);
+    queue.push(bestCompId);
   }
 
   // Upward propagation pass to ensure parentGen >= childGen - 1
@@ -254,17 +353,6 @@ export function buildGenerations(nodes: Array<{ id: string }>, edges: EdgeSubset
       const minParentGen = uGen - 1;
       if (compGen.get(p)! < minParentGen) {
         compGen.set(p, minParentGen);
-      }
-    }
-  }
-
-  // Guard: if there is a cycle (processedCount !== componentMembers.size),
-  // clamp only unprocessed components to at most 3
-  if (processedCount < componentMembers.size) {
-    const processed = new Set(topoOrder);
-    for (const compId of componentMembers.keys()) {
-      if (!processed.has(compId)) {
-        compGen.set(compId, Math.min(compGen.get(compId) ?? 0, 3));
       }
     }
   }

@@ -49,11 +49,25 @@ export function clearLayoutCache(): void {
 }
 
 /**
- * Adds or updates an entry in the cache, enforcing a maximum size of 1000 to prevent memory leaks.
+ * Adds or updates an entry in the cache, enforcing a maximum size of 1000 to prevent memory leaks via LRU eviction.
  */
+export function getCacheEntry(nodeId: string): CacheEntry | undefined {
+  const entry = globalLayoutCache.get(nodeId);
+  if (entry) {
+    globalLayoutCache.delete(nodeId);
+    globalLayoutCache.set(nodeId, entry);
+  }
+  return entry;
+}
+
 export function setCacheEntry(nodeId: string, entry: CacheEntry): void {
-  if (globalLayoutCache.size >= 1000) {
-    globalLayoutCache.clear();
+  if (globalLayoutCache.has(nodeId)) {
+    globalLayoutCache.delete(nodeId);
+  } else if (globalLayoutCache.size >= 1000) {
+    const oldestKey = globalLayoutCache.keys().next().value;
+    if (oldestKey !== undefined) {
+      globalLayoutCache.delete(oldestKey);
+    }
   }
   globalLayoutCache.set(nodeId, entry);
 }

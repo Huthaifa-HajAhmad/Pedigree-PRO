@@ -27,7 +27,7 @@ import { resolveAllCollisions, recenterAllFamilies, swapCouplePartners, collectS
 import { buildAdjacency, buildGenerations, DEFAULT_LAYOUT_CONFIG, evaluateCostAwareInversion } from "./layout-shared";
 import type { LayoutConfig } from "./layout-shared";
 import { minimizeCrossings } from "./crossing-minimization";
-import { computeNodeStructuralHash, globalLayoutCache, setCacheEntry, checkAndClearCache } from "./layout-cache";
+import { computeNodeStructuralHash, getCacheEntry, setCacheEntry, checkAndClearCache } from "./layout-cache";
 
 function getTwinInfo(
   nodeId: string,
@@ -520,6 +520,19 @@ export function computeAutoLayout<T extends LayoutNode>(
             shiftSet.add(sId);
           }
         }
+        const rowMap = new Map<number, { id: string; x: number }[]>();
+        for (const [otherId, otherPos] of knownPos.entries()) {
+          if (shiftSet.has(otherId)) continue;
+          const yKey = Math.round(otherPos.y);
+          if (!rowMap.has(yKey)) {
+            rowMap.set(yKey, []);
+          }
+          rowMap.get(yKey)!.push({ id: otherId, x: otherPos.x });
+        }
+        for (const row of rowMap.values()) {
+          row.sort((a, b) => a.x - b.x);
+        }
+
         let maxPossibleLeftShift = shortfall;
         
         for (const id of shiftSet) {
@@ -531,15 +544,27 @@ export function computeAutoLayout<T extends LayoutNode>(
             maxPossibleLeftShift = pos.x - DEFAULT_LEFT_MARGIN;
           }
           
-          for (const [otherId, otherPos] of knownPos) {
-            if (shiftSet.has(otherId)) continue;
-            if (Math.abs(otherPos.y - pos.y) > 1) continue;
-            
-            if (otherPos.x < pos.x) {
-              const minAllowedX = otherPos.x + nodeGap;
-              if (pos.x - maxPossibleLeftShift < minAllowedX) {
-                maxPossibleLeftShift = pos.x - minAllowedX;
-              }
+          const yKey = Math.round(pos.y);
+          const rowNodes = rowMap.get(yKey) ?? [];
+          
+          // Binary search for closest left node
+          let closestLeftNode: { id: string; x: number } | null = null;
+          let low = 0;
+          let high = rowNodes.length - 1;
+          while (low <= high) {
+            const mid = (low + high) >> 1;
+            if (rowNodes[mid]!.x < pos.x) {
+              closestLeftNode = rowNodes[mid]!;
+              low = mid + 1;
+            } else {
+              high = mid - 1;
+            }
+          }
+          
+          if (closestLeftNode) {
+            const minAllowedX = closestLeftNode.x + nodeGap;
+            if (pos.x - maxPossibleLeftShift < minAllowedX) {
+              maxPossibleLeftShift = pos.x - minAllowedX;
             }
           }
         }
@@ -634,7 +659,7 @@ export function computeAutoLayout<T extends LayoutNode>(
   const unpinnedNodes = nodes.filter(n => !(respectPinned && n.pinned));
   for (const n of unpinnedNodes) {
     const currentHash = computeNodeStructuralHash(n.id, adj);
-    const cached = cfg.enableCache !== false ? globalLayoutCache.get(n.id) : undefined;
+    const cached = cfg.enableCache !== false ? getCacheEntry(n.id) : undefined;
     if (cached && cached.hash === currentHash) {
       knownPos.set(n.id, { x: cached.x, y: cached.y });
     } else if (!knownPos.has(n.id)) {

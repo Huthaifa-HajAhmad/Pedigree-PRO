@@ -4,6 +4,7 @@ import { EdgeLine } from "./EdgeLine";
 import { SibshipGroup, computeFamilyChildYOffset } from "./SibshipGroup";
 import type { CanvasData, PedigreeNode } from "./types";
 import { NODE_SIZE } from "./types";
+import { groupFamiliesByParents } from "@/lib/layout-shared";
 import { useCanvasConfig } from "@/features/pedigree-editor/context/CanvasConfigContext";
 import { getAnnotationBaseOffset } from "./AnnotationShape";
 
@@ -130,13 +131,9 @@ function SibshipLayer({ edges, nodes, annotations = [], showAutoLabels = false, 
       if (!childParents.has(e.targetId)) childParents.set(e.targetId, []);
       childParents.get(e.targetId)!.push(e.sourceId);
     }
-    const families = new Map<string, { parentIds: string[]; childIds: string[] }>();
-    for (const [childId, pIds] of childParents) {
-      const key = [...pIds].sort().join("|");
-      if (!families.has(key)) families.set(key, { parentIds: [...pIds].sort(), childIds: [] });
-      families.get(key)!.childIds.push(childId);
-    }
-    return [...families.entries()].map(([key, { parentIds, childIds }]) => {
+    const familyList = groupFamiliesByParents(childParents);
+    return familyList.map(({ parentIds, childIds }) => {
+      const key = [...parentIds].sort().join("|");
       const coupleEdge = edges.find(
         (e) => (e.type === "couple" || e.type === "consanguinity" || e.type === "divorced" || e.type === "separated") &&
           parentIds.includes(e.sourceId) && parentIds.includes(e.targetId)
@@ -191,21 +188,16 @@ export function ReadOnlyCanvas({ canvas, showGrid = false, showAutoLabels = fals
       if (!childParents.has(e.targetId)) childParents.set(e.targetId, []);
       childParents.get(e.targetId)!.push(e.sourceId);
     }
-    const families = new Map<string, { parentIds: string[]; childIds: string[] }>();
-    for (const [childId, pIds] of childParents) {
-      const key = [...pIds].sort().join("|");
-      if (!families.has(key)) families.set(key, { parentIds: [...pIds].sort(), childIds: [] });
-      families.get(key)!.childIds.push(childId);
-    }
+    const familyList = groupFamiliesByParents(childParents);
     const nodeMap = new Map(canvas.nodes.map((n) => [n.id, n]));
-    const sortedFamilies = [...families.entries()].sort((a, b) => {
-      const aParent = a[1].parentIds[0] ? nodeMap.get(a[1].parentIds[0]) : null;
-      const bParent = b[1].parentIds[0] ? nodeMap.get(b[1].parentIds[0]) : null;
+    const sortedFamilies = familyList.sort((a, b) => {
+      const aParent = a.parentIds[0] ? nodeMap.get(a.parentIds[0]) : null;
+      const bParent = b.parentIds[0] ? nodeMap.get(b.parentIds[0]) : null;
       return (aParent?.y ?? 0) - (bParent?.y ?? 0);
     });
     // Group sorted families by parent Y coordinate
     const familiesByRow = new Map<number, { parentIds: string[]; childIds: string[] }[]>();
-    for (const [, fam] of sortedFamilies) {
+    for (const fam of sortedFamilies) {
       const parentNode = fam.parentIds[0] ? nodeMap.get(fam.parentIds[0]) : null;
       const py = parentNode?.y ?? 0;
       if (!familiesByRow.has(py)) familiesByRow.set(py, []);

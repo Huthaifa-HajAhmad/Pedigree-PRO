@@ -18,7 +18,7 @@
 
 import { NODE_SIZE, NODE_GAP, GEN_GRID } from "@/features/pedigree-editor/canvas/types";
 import type { PedigreeNode, PedigreeEdge, CanvasData } from "@/features/pedigree-editor/canvas/types";
-import { buildAdjacency, buildGenerations, buildNodeMap, evaluateCostAwareInversion } from "./layout-shared";
+import { buildAdjacency, buildGenerations, buildNodeMap, evaluateCostAwareInversion, buildDescendantsMap, groupFamiliesByParents } from "./layout-shared";
 import type { AdjacencyMaps, LayoutNode, EdgeSubset } from "./layout-shared";
 import { minimizeCrossings } from "./crossing-minimization";
 export { buildGenerations };
@@ -208,8 +208,9 @@ export function collectSubtree(
   adj: AdjacencyMaps,
   visited?: Set<string>,
   options?: { anchorMarriedIn?: boolean },
+  descendantsMap?: Map<string, Set<string>>,
 ): Set<string> {
-  const descendants = collectDescendants(nodeId, adj);
+  const descendants = descendantsMap?.get(nodeId) ?? collectDescendants(nodeId, adj);
   const v = visited ?? new Set<string>();
 
   const stack = [nodeId];
@@ -285,7 +286,14 @@ export function resolveAllCollisions<T extends LayoutNode>(
   twinGapDizygotic = NODE_SIZE * 0.8,
   initialOrderMap?: Map<number, string[]>
 ): T[] {
-  let currentNodes = [...nodes.map(n => ({ ...n }))]; // deep clone positions
+  // Sanitize any NaN/Infinite coordinates
+  const sanitizedNodes = nodes.map((n, i) => {
+    const x = isFinite(n.x) ? n.x : (i + 1) * nodeGap;
+    const y = isFinite(n.y) ? n.y : genGrid;
+    return (x !== n.x || y !== n.y) ? { ...n, x, y } as T : n;
+  });
+
+  let currentNodes = [...sanitizedNodes.map(n => ({ ...n }))]; // deep clone positions
   const adj = buildAdjacency(currentNodes, edges);
   const nodeMap = buildNodeMap(currentNodes);
   const pinnedIds = new Set(excludeIds ?? []);
@@ -300,6 +308,8 @@ export function resolveAllCollisions<T extends LayoutNode>(
   }
   const sortedRows = [...rowMap.keys()].sort((a, b) => a - b);
 
+  const descendantsMap = buildDescendantsMap(adj);
+
   function getBlockDesiredX(b: { nodes: T[]; offsets: number[] }): number {
     let sum = 0;
     for (let i = 0; i < b.nodes.length; i++) {
@@ -308,269 +318,289 @@ export function resolveAllCollisions<T extends LayoutNode>(
     return sum / b.nodes.length;
   }
 
-  // 1D VPSC Solver over 2 sweep passes (top-to-bottom) to handle constraints & propagation
-  for (let sweep = 0; sweep < 2; sweep++) {
-    for (const rowY of sortedRows) {
-      const rowNodes = rowMap.get(rowY) ?? [];
-      if (rowNodes.length <= 1) continue;
+  try {
+    // 1D VPSC Solver over 2 sweep passes (top-to-bottom) to handle constraints & propagation
+    for (let sweep = 0; sweep < 2; sweep++) {
+      for (const rowY of sortedRows) {
+        const rowNodes = rowMap.get(rowY) ?? [];
+        if (rowNodes.length <= 1) continue;
 
-      const order = initialOrderMap?.get(rowY);
-      const orderMap = order ? new Map(order.map((id, idx) => [id, idx])) : null;
+        const order = initialOrderMap?.get(rowY);
+        const orderMap = order ? new Map(order.map((id, idx) => [id, idx])) : null;
 
-      // Group and sort rowNodes to ensure couple partners and twins are contiguous
-      const visitedForSort = new Set<string>();
-      const coupleGroups: T[][] = [];
+        // Group and sort rowNodes to ensure couple partners and twins are contiguous
+        const visitedForSort = new Set<string>();
+        const coupleGroups: T[][] = [];
 
-      for (const n of rowNodes) {
-        if (visitedForSort.has(n.id)) continue;
+        for (const n of rowNodes) {
+          if (visitedForSort.has(n.id)) continue;
 
-        const group: T[] = [];
-        const queue = [n];
-        const groupSet = new Set<string>([n.id]);
-        let head = 0;
-        while (head < queue.length) {
-          const curr = queue[head]!;
-          head++;
-          group.push(curr);
-          visitedForSort.add(curr.id);
+          const group: T[] = [];
+          const queue = [n];
+          const groupSet = new Set<string>([n.id]);
+          let head = 0;
+          while (head < queue.length) {
+            const curr = queue[head]!;
+            head++;
+            group.push(curr);
+            visitedForSort.add(curr.id);
 
-          const couples = adj.couplesOf.get(curr.id) ?? [];
-          const twins = adj.twinsOf.get(curr.id) ?? [];
-          const neighbors = [...couples, ...twins];
+            const couples = adj.couplesOf.get(curr.id) ?? [];
+            const twins = adj.twinsOf.get(curr.id) ?? [];
+            const neighbors = [...couples, ...twins];
 
-          for (const neighId of neighbors) {
-            if (!groupSet.has(neighId)) {
-              const neighNode = nodeMap.get(neighId);
-              if (neighNode) {
-                const sameRow = genIndexOf
-                  ? (genIndexOf.get(neighId) === genIndexOf.get(n.id))
-                  : (Math.abs(neighNode.y - n.y) < tolerance);
-                if (sameRow) {
-                  groupSet.add(neighId);
-                  queue.push(neighNode as T);
+            for (const neighId of neighbors) {
+              if (!groupSet.has(neighId)) {
+                const neighNode = nodeMap.get(neighId);
+                if (neighNode) {
+                  const sameRow = genIndexOf
+                    ? (genIndexOf.get(neighId) === genIndexOf.get(n.id))
+                    : (Math.abs(neighNode.y - n.y) < tolerance);
+                  if (sameRow) {
+                    groupSet.add(neighId);
+                    queue.push(neighNode as T);
+                  }
                 }
               }
             }
           }
+
+          if (orderMap) {
+            group.sort((a, b) => (orderMap.get(a.id) ?? 0) - (orderMap.get(b.id) ?? 0));
+          } else {
+            group.sort((a, b) => a.x - b.x);
+          }
+          coupleGroups.push(group);
         }
 
         if (orderMap) {
-          group.sort((a, b) => (orderMap.get(a.id) ?? 0) - (orderMap.get(b.id) ?? 0));
+          coupleGroups.sort((a, b) => {
+            const minA = Math.min(...a.map(node => orderMap.get(node.id) ?? 0));
+            const minB = Math.min(...b.map(node => orderMap.get(node.id) ?? 0));
+            return minA - minB;
+          });
         } else {
-          group.sort((a, b) => a.x - b.x);
+          coupleGroups.sort((a, b) => {
+            const avgA = a.reduce((sum, node) => sum + node.x, 0) / a.length;
+            const avgB = b.reduce((sum, node) => sum + node.x, 0) / b.length;
+            return avgA - avgB;
+          });
         }
-        coupleGroups.push(group);
-      }
 
-      if (orderMap) {
-        coupleGroups.sort((a, b) => {
-          const minA = Math.min(...a.map(node => orderMap.get(node.id) ?? 0));
-          const minB = Math.min(...b.map(node => orderMap.get(node.id) ?? 0));
-          return minA - minB;
-        });
-      } else {
-        coupleGroups.sort((a, b) => {
-          const avgA = a.reduce((sum, node) => sum + node.x, 0) / a.length;
-          const avgB = b.reduce((sum, node) => sum + node.x, 0) / b.length;
-          return avgA - avgB;
-        });
-      }
+        const sortedRowNodes = coupleGroups.flat();
 
-      const sortedRowNodes = coupleGroups.flat();
-
-      interface Block {
-        nodes: T[];
-        offsets: number[];
-        pinnedX: number | null;
-      }
-
-      // Build initial blocks where adjacent couples and twins are merged rigidly
-      const blocks: Block[] = [];
-      let currentBlock: Block = {
-        nodes: [sortedRowNodes[0]!],
-        offsets: [0],
-        pinnedX: pinnedIds.has(sortedRowNodes[0]!.id) || sortedRowNodes[0]!.pinned ? sortedRowNodes[0]!.x : null
-      };
-
-      for (let i = 1; i < sortedRowNodes.length; i++) {
-        const prev = sortedRowNodes[i - 1]!;
-        const curr = sortedRowNodes[i]!;
-
-        const isCouple = (adj.couplesOf.get(prev.id) ?? []).includes(curr.id);
-        const twinsList = adj.twinsOf.get(prev.id);
-        const areTwins = twinsList && twinsList.includes(curr.id);
-
-        if (isCouple || areTwins) {
-          currentBlock.nodes.push(curr);
-          
-          let gap = nodeGap;
-          if (isCouple) {
-            gap = Math.max(nodeGap, Math.abs(curr.x - prev.x));
-          } else if (areTwins) {
-            gap = adj.twinTypeOf.get(prev.id) === "m" ? twinGapMono : twinGapDizygotic;
-          }
-          
-          const newOffset = currentBlock.offsets[currentBlock.offsets.length - 1]! + gap;
-          currentBlock.offsets.push(newOffset);
-          
-          if (pinnedIds.has(curr.id) || curr.pinned) {
-            if (currentBlock.pinnedX === null) {
-              currentBlock.pinnedX = curr.x - newOffset;
-            }
-          }
-        } else {
-          blocks.push(currentBlock);
-          currentBlock = {
-            nodes: [curr],
-            offsets: [0],
-            pinnedX: pinnedIds.has(curr.id) || curr.pinned ? curr.x : null
-          };
+        interface Block {
+          nodes: T[];
+          offsets: number[];
+          pinnedX: number | null;
         }
-      }
-      blocks.push(currentBlock);
 
-      let merged = true;
-      while (merged) {
-        merged = false;
-        for (let i = 0; i < blocks.length - 1; i++) {
-          const b1 = blocks[i]!;
-          const b2 = blocks[i + 1]!;
+        // Build initial blocks where adjacent couples and twins are merged rigidly
+        const blocks: Block[] = [];
+        let currentBlock: Block = {
+          nodes: [sortedRowNodes[0]!],
+          offsets: [0],
+          pinnedX: pinnedIds.has(sortedRowNodes[0]!.id) || sortedRowNodes[0]!.pinned ? sortedRowNodes[0]!.x : null
+        };
 
-          const n1 = b1.nodes[b1.nodes.length - 1]!;
-          const x1 = (b1.pinnedX !== null ? b1.pinnedX : getBlockDesiredX(b1)) + b1.offsets[b1.offsets.length - 1]!;
+        for (let i = 1; i < sortedRowNodes.length; i++) {
+          const prev = sortedRowNodes[i - 1]!;
+          const curr = sortedRowNodes[i]!;
 
-          const n2 = b2.nodes[0]!;
-          const x2 = (b2.pinnedX !== null ? b2.pinnedX : getBlockDesiredX(b2)) + b2.offsets[0]!;
+          const isCouple = (adj.couplesOf.get(prev.id) ?? []).includes(curr.id);
+          const twinsList = adj.twinsOf.get(prev.id);
+          const areTwins = twinsList && twinsList.includes(curr.id);
 
-          const twins = adj.twinsOf.get(n1.id);
-          const areTwins = twins && twins.includes(n2.id);
-          const minAllowedGap = areTwins
-            ? (adj.twinTypeOf.get(n1.id) === "m" ? twinGapMono : twinGapDizygotic)
-            : nodeGap;
-
-          if (x2 < x1 + minAllowedGap - 0.05) {
-            const b1BaseOffset = b1.offsets[b1.offsets.length - 1]! + minAllowedGap;
-            const newNodes = [...b1.nodes, ...b2.nodes];
-            const newOffsets = [
-              ...b1.offsets,
-              ...b2.offsets.map(o => b1BaseOffset + o - b2.offsets[0]!)
-            ];
-
-            if (b1.pinnedX !== null && b2.pinnedX !== null) {
-              throw new PinnedBlockConflictError("Could not place nodes without moving pinned nodes.");
+          if (isCouple || areTwins) {
+            currentBlock.nodes.push(curr);
+            
+            let gap = nodeGap;
+            if (isCouple) {
+              gap = Math.max(nodeGap, Math.abs(curr.x - prev.x));
+            } else if (areTwins) {
+              gap = adj.twinTypeOf.get(prev.id) === "m" ? twinGapMono : twinGapDizygotic;
             }
-
-            let newPinnedX = b1.pinnedX;
-            if (b2.pinnedX !== null) {
-              if (newPinnedX === null) {
-                newPinnedX = b2.pinnedX - newOffsets[b1.nodes.length]!;
+            
+            const newOffset = currentBlock.offsets[currentBlock.offsets.length - 1]! + gap;
+            currentBlock.offsets.push(newOffset);
+            
+            if (pinnedIds.has(curr.id) || curr.pinned) {
+              if (currentBlock.pinnedX === null) {
+                currentBlock.pinnedX = curr.x - newOffset;
               }
             }
-
-            blocks[i] = {
-              nodes: newNodes,
-              offsets: newOffsets,
-              pinnedX: newPinnedX
+          } else {
+            blocks.push(currentBlock);
+            currentBlock = {
+              nodes: [curr],
+              offsets: [0],
+              pinnedX: pinnedIds.has(curr.id) || curr.pinned ? curr.x : null
             };
-            blocks.splice(i + 1, 1);
-            merged = true;
-            break;
           }
         }
-      }
+        blocks.push(currentBlock);
 
-      // Compute shifts
-      const shifts = new Map<string, number>();
-      for (const b of blocks) {
-        const blockX = b.pinnedX !== null ? b.pinnedX : getBlockDesiredX(b);
-        for (let i = 0; i < b.nodes.length; i++) {
-          const node = b.nodes[i]!;
-          const targetX = blockX + b.offsets[i]!;
-          const shift = targetX - node.x;
-          if (Math.abs(shift) > 0.01) {
-            shifts.set(node.id, shift);
-          }
-        }
-      }
+        let merged = true;
+        while (merged) {
+          merged = false;
+          for (let i = 0; i < blocks.length - 1; i++) {
+            const b1 = blocks[i]!;
+            const b2 = blocks[i + 1]!;
 
-      // Apply shifts and propagate to subtrees using average of all ancestral shifts
-      const nodeShiftsMap = new Map<string, number[]>();
-      for (const [nodeId, shift] of shifts) {
-        const subtree = collectSubtree(nodeId, adj, undefined, { anchorMarriedIn: true });
-        
-        // Find all pinned nodes in the subtree
-        const doNotShift = new Set<string>();
-        for (const id of subtree) {
-          const n = nodeMap.get(id);
-          if (pinnedIds.has(id) || (n && n.pinned)) {
-            doNotShift.add(id);
+            const n1 = b1.nodes[b1.nodes.length - 1]!;
+            const x1 = (b1.pinnedX !== null ? b1.pinnedX : getBlockDesiredX(b1)) + b1.offsets[b1.offsets.length - 1]!;
+
+            const n2 = b2.nodes[0]!;
+            const x2 = (b2.pinnedX !== null ? b2.pinnedX : getBlockDesiredX(b2)) + b2.offsets[0]!;
+
+            const twins = adj.twinsOf.get(n1.id);
+            const areTwins = twins && twins.includes(n2.id);
+            const minAllowedGap = areTwins
+              ? (adj.twinTypeOf.get(n1.id) === "m" ? twinGapMono : twinGapDizygotic)
+              : nodeGap;
+
+            if (x2 < x1 + minAllowedGap - 0.05) {
+              const b1BaseOffset = b1.offsets[b1.offsets.length - 1]! + minAllowedGap;
+              const newNodes = [...b1.nodes, ...b2.nodes];
+              const newOffsets = [
+                ...b1.offsets,
+                ...b2.offsets.map(o => b1BaseOffset + o - b2.offsets[0]!)
+              ];
+
+              if (b1.pinnedX !== null && b2.pinnedX !== null) {
+                throw new PinnedBlockConflictError("Could not place nodes without moving pinned nodes.");
+              }
+
+              let newPinnedX = b1.pinnedX;
+              if (b2.pinnedX !== null) {
+                if (newPinnedX === null) {
+                  newPinnedX = b2.pinnedX - newOffsets[b1.nodes.length]!;
+                }
+              }
+
+              blocks[i] = {
+                nodes: newNodes,
+                offsets: newOffsets,
+                pinnedX: newPinnedX
+              };
+              blocks.splice(i + 1, 1);
+              merged = true;
+              break;
+            }
           }
         }
-        
-        // Propagate doNotShift state to spouses recursively
-        let added = true;
-        while (added) {
-          added = false;
+
+        // Compute shifts
+        const shifts = new Map<string, number>();
+        for (const b of blocks) {
+          const blockX = b.pinnedX !== null ? b.pinnedX : getBlockDesiredX(b);
+          for (let i = 0; i < b.nodes.length; i++) {
+            const node = b.nodes[i]!;
+            const targetX = blockX + b.offsets[i]!;
+            const shift = targetX - node.x;
+            if (Math.abs(shift) > 0.01) {
+              shifts.set(node.id, shift);
+            }
+          }
+        }
+
+        // Apply shifts and propagate to subtrees using maximum absolute ancestral shift to prevent cancellation
+        const nodeShiftsMap = new Map<string, number[]>();
+        for (const [nodeId, shift] of shifts) {
+          const subtree = collectSubtree(nodeId, adj, undefined, { anchorMarriedIn: true }, descendantsMap);
+          
+          // Find all pinned nodes in the subtree
+          const doNotShift = new Set<string>();
           for (const id of subtree) {
-            if (doNotShift.has(id)) {
-              const spouses = adj.couplesOf.get(id) ?? [];
-              for (const sId of spouses) {
-                if (subtree.has(sId) && !doNotShift.has(sId)) {
-                  doNotShift.add(sId);
-                  added = true;
+            const n = nodeMap.get(id);
+            if (pinnedIds.has(id) || (n && n.pinned)) {
+              doNotShift.add(id);
+            }
+          }
+          
+          // Propagate doNotShift state to spouses recursively
+          let added = true;
+          while (added) {
+            added = false;
+            for (const id of subtree) {
+              if (doNotShift.has(id)) {
+                const spouses = adj.couplesOf.get(id) ?? [];
+                for (const sId of spouses) {
+                  if (subtree.has(sId) && !doNotShift.has(sId)) {
+                    doNotShift.add(sId);
+                    added = true;
+                  }
                 }
               }
             }
           }
-        }
 
-        for (const id of subtree) {
-          if (doNotShift.has(id)) continue;
-          if (!nodeShiftsMap.has(id)) {
-            nodeShiftsMap.set(id, []);
+          for (const id of subtree) {
+            if (doNotShift.has(id)) continue;
+            if (!nodeShiftsMap.has(id)) {
+              nodeShiftsMap.set(id, []);
+            }
+            nodeShiftsMap.get(id)!.push(shift);
           }
-          nodeShiftsMap.get(id)!.push(shift);
         }
-      }
 
-      for (const [id, shiftList] of nodeShiftsMap.entries()) {
-        const avgShift = shiftList.reduce((sum, s) => sum + s, 0) / shiftList.length;
-        if (Math.abs(avgShift) > 0.01) {
-          const n = nodeMap.get(id);
-          if (n) {
-            n.x += avgShift;
+        for (const [id, shiftList] of nodeShiftsMap.entries()) {
+          let finalShift = 0;
+          if (shiftList.length === 1) {
+            finalShift = shiftList[0]!;
+          } else {
+            let maxAbs = 0;
+            let chosen = 0;
+            for (const s of shiftList) {
+              if (Math.abs(s) > maxAbs) {
+                maxAbs = Math.abs(s);
+                chosen = s;
+              }
+            }
+            finalShift = chosen;
+          }
+          if (Math.abs(finalShift) > 0.01) {
+            const n = nodeMap.get(id);
+            if (n) {
+              n.x += finalShift;
+            }
           }
         }
       }
     }
-  }
 
-  // Shift all unpinned nodes right if minX < genGrid
-  const unpinnedNodes = currentNodes.filter(n => !pinnedIds.has(n.id) && !n.pinned);
-  const minX = unpinnedNodes.reduce((min, n) => Math.min(min, n.x), Infinity);
-  let adjust = 0;
-  if (minX < genGrid) {
-    adjust = genGrid - minX;
-    for (const n of currentNodes) {
-      if (!pinnedIds.has(n.id) && !n.pinned) {
-        n.x += adjust;
+    // Shift all unpinned nodes right if minX < genGrid
+    const unpinnedNodes = currentNodes.filter(n => !pinnedIds.has(n.id) && !n.pinned);
+    const minX = unpinnedNodes.reduce((min, n) => Math.min(min, n.x), Infinity);
+    let adjust = 0;
+    if (minX < genGrid) {
+      adjust = genGrid - minX;
+      for (const n of currentNodes) {
+        if (!pinnedIds.has(n.id) && !n.pinned) {
+          n.x += adjust;
+        }
       }
     }
-  }
 
-  // Final snap to remove topological deltas (0.01) and clamp within bounds
-  return currentNodes.map(n => {
-    if (pinnedIds.has(n.id) || n.pinned) return n;
-    const snappedX = Math.max(genGrid, Math.round(n.x * 10) / 10);
-    const maxW = canvasWidth !== undefined ? canvasWidth : 50 * genGrid;
-    const clampedX = Math.min(snappedX, maxW - genGrid);
-    const snappedY = genIndexOf ? n.y : Math.round(n.y / genGrid) * genGrid;
-    return {
-      ...n,
-      x: clampedX,
-      y: snappedY,
-    };
-  });
+    // Final snap to remove topological deltas (0.01) and clamp within bounds
+    return currentNodes.map(n => {
+      if (pinnedIds.has(n.id) || n.pinned) return n;
+      const snappedX = Math.max(genGrid, Math.round(n.x * 10) / 10);
+      const clampedX = canvasWidth !== undefined ? Math.min(snappedX, canvasWidth - genGrid) : snappedX;
+      const snappedY = genIndexOf ? n.y : Math.round(n.y / genGrid) * genGrid;
+      return {
+        ...n,
+        x: clampedX,
+        y: snappedY,
+      };
+    });
+  } catch (err) {
+    if (err instanceof PinnedBlockConflictError) {
+      console.warn("resolveAllCollisions: PinnedBlockConflictError caught. Degrading gracefully by returning un-resolved node positions.");
+      return currentNodes;
+    }
+    throw err;
+  }
 }
 
 
@@ -593,6 +623,7 @@ export function recenterParents<T extends LayoutNode>(
   genIndexOf?: Map<string, number>,
   canvasWidth?: number,
   coupleEdgeMap?: Map<string, EdgeSubset>,
+  descendantsMap?: Map<string, Set<string>>,
 ): T[] {
   const nodeMap = buildNodeMap(nodes);
   const parents = parentIds.map(id => nodeMap.get(id)).filter((n): n is T => !!n);
@@ -635,7 +666,7 @@ export function recenterParents<T extends LayoutNode>(
     const p2 = parents[1]!;
     let coupleEdge: EdgeSubset | undefined;
     if (coupleEdgeMap) {
-      const key = p1.id < p2.id ? `${p1.id}|${p2.id}` : `${p2.id}|${p1.id}`;
+      const key = p1.id < p2.id ? (p1.id + "|" + p2.id) : (p2.id + "|" + p1.id);
       coupleEdge = coupleEdgeMap.get(key);
     } else {
       coupleEdge = edges.find(
@@ -714,7 +745,7 @@ export function recenterParents<T extends LayoutNode>(
   
   const allExclude = new Set(excludeIds ?? []);
   for (const childId of childIds) {
-    const childSubtree = collectSubtree(childId, adj, undefined, { anchorMarriedIn: true });
+    const childSubtree = collectSubtree(childId, adj, undefined, { anchorMarriedIn: true }, descendantsMap);
     for (const id of childSubtree) {
       allExclude.add(id);
     }
@@ -728,7 +759,7 @@ export function recenterParents<T extends LayoutNode>(
     const s = tx - nodeInCurrent.x;
     if (Math.abs(s) < 0.01) continue;
 
-    const subtree = collectSubtree(p.id, adj, undefined, { anchorMarriedIn: true });
+    const subtree = collectSubtree(p.id, adj, undefined, { anchorMarriedIn: true }, descendantsMap);
     for (const n of currentNodes) {
       if (allExclude.has(n.id)) continue;
       if (parentIdSet.has(n.id) && n.id !== p.id) continue;
@@ -747,7 +778,7 @@ export function recenterParents<T extends LayoutNode>(
     
     if (nextNode.x < currNode.x + nodeGap - 0.05) {
       const push = (currNode.x + nodeGap) - nextNode.x;
-      const subtree = collectSubtree(nextId, adj, undefined, { anchorMarriedIn: true });
+      const subtree = collectSubtree(nextId, adj, undefined, { anchorMarriedIn: true }, descendantsMap);
       for (const n of currentNodes) {
         if (allExclude.has(n.id)) continue;
         if (parentIdSet.has(n.id) && n.id !== nextId) continue;
@@ -767,7 +798,7 @@ export function recenterParents<T extends LayoutNode>(
 
     if (prevNode.x > currNode.x - nodeGap + 0.05) {
       const push = (currNode.x - nodeGap) - prevNode.x;
-      const subtree = collectSubtree(prevId, adj, undefined, { anchorMarriedIn: true });
+      const subtree = collectSubtree(prevId, adj, undefined, { anchorMarriedIn: true }, descendantsMap);
       for (const n of currentNodes) {
         if (allExclude.has(n.id)) continue;
         if (parentIdSet.has(n.id) && n.id !== prevId) continue;
@@ -790,14 +821,16 @@ export function recenterParents<T extends LayoutNode>(
     }
   }
 
-  const maxW = canvasWidth !== undefined ? canvasWidth : 50 * genGrid;
-  for (const n of currentNodes) {
-    if (n.pinned || allExclude.has(n.id)) continue;
-    const isParentRow = parentGen !== undefined && genIndexOf
-      ? genIndexOf.get(n.id) === parentGen
-      : Math.abs(n.y - parentY) < tol;
-    if (isParentRow) {
-      n.x = Math.min(n.x, maxW - genGrid);
+  if (canvasWidth !== undefined) {
+    const maxW = canvasWidth;
+    for (const n of currentNodes) {
+      if (n.pinned || allExclude.has(n.id)) continue;
+      const isParentRow = parentGen !== undefined && genIndexOf
+        ? genIndexOf.get(n.id) === parentGen
+        : Math.abs(n.y - parentY) < tol;
+      if (isParentRow) {
+        n.x = Math.min(n.x, maxW - genGrid);
+      }
     }
   }
 
@@ -1171,12 +1204,13 @@ export function recenterAllFamilies<T extends LayoutNode>(
   const coupleEdgeMap = new Map<string, EdgeSubset>();
   for (const e of edges) {
     if (e.type === "couple" || e.type === "consanguinity" || e.type === "divorced" || e.type === "separated") {
-      const key = e.sourceId < e.targetId ? `${e.sourceId}|${e.targetId}` : `${e.targetId}|${e.sourceId}`;
+      const key = e.sourceId < e.targetId ? (e.sourceId + "|" + e.targetId) : (e.targetId + "|" + e.sourceId);
       coupleEdgeMap.set(key, e);
     }
   }
 
   const initialNodeMap = buildNodeMap(currentNodes);
+  const descendantsMap = buildDescendantsMap(adj);
 
   // Record initial sorted order of nodes on each row to preserve layout ordering after shifts
   const initialOrderMap = new Map<number, string[]>();
@@ -1191,14 +1225,7 @@ export function recenterAllFamilies<T extends LayoutNode>(
     initialOrderMap.set(rowKey, rowNodes.map(n => n.id));
   }
 
-  const families = new Map<string, { parentIds: string[]; childIds: string[] }>();
-  for (const [childId, pIds] of adj.parentsOf.entries()) {
-    if (pIds.length === 0) continue;
-    const key = [...pIds].sort().join("_");
-    if (!families.has(key)) families.set(key, { parentIds: pIds, childIds: [] });
-    families.get(key)!.childIds.push(childId);
-  }
-  const familyList = Array.from(families.values());
+  const familyList = groupFamiliesByParents(adj.parentsOf);
 
   if (familyList.length === 0) return currentNodes;
 
@@ -1220,6 +1247,7 @@ export function recenterAllFamilies<T extends LayoutNode>(
   const tol = getRowTolerance(currentNodes, genGrid);
 
   const history = new Set<string>();
+  const sortedNodeIds = currentNodes.map(n => n.id).sort();
   let changed = true;
   let safety = 0;
   const safetyLimit = Math.max(15, Math.ceil(Math.sqrt(nodes.length) * 3));
@@ -1227,10 +1255,13 @@ export function recenterAllFamilies<T extends LayoutNode>(
     changed = false;
     const prevXs = currentNodes.map(n => n.x);
 
-    // T2.4: Oscillation / limit cycle check using string-based state hash
-    const stateHash = currentNodes
-      .map(n => `${n.id}:${n.x.toFixed(2)}`)
-      .sort()
+    // T2.4: Oscillation / limit cycle check using string-based state hash in O(N)
+    const nodeMap = buildNodeMap(currentNodes);
+    const stateHash = sortedNodeIds
+      .map(id => {
+        const n = nodeMap.get(id)!;
+        return n.id + ":" + n.x.toFixed(2);
+      })
       .join("|");
     if (history.has(stateHash)) {
       break;
@@ -1238,7 +1269,6 @@ export function recenterAllFamilies<T extends LayoutNode>(
     history.add(stateHash);
 
     let anyParentRowResolved = false;
-    const nodeMap = buildNodeMap(currentNodes);
 
     for (const rowY of sortedRows) {
       const rowFamilies = familyList.filter(f => {
@@ -1267,7 +1297,7 @@ export function recenterAllFamilies<T extends LayoutNode>(
       ]);
 
       for (const f of rowFamilies) {
-        const nextNodes = recenterParents(currentNodes, edges, f.parentIds, f.childIds, rowExcludeIds, nodeGap, genGrid, genIndexOf, canvasWidth, coupleEdgeMap);
+        const nextNodes = recenterParents(currentNodes, edges, f.parentIds, f.childIds, rowExcludeIds, nodeGap, genGrid, genIndexOf, canvasWidth, coupleEdgeMap, descendantsMap);
         if (nextNodes !== currentNodes) {
           currentNodes = nextNodes;
           anyParentRowResolved = true;
@@ -1322,14 +1352,11 @@ export function recenterAllFamilies<T extends LayoutNode>(
   // recenterAllChildren guards against NaN-infected inputs at its own entry point.
   currentNodes = recenterAllChildren(currentNodes, edges, excludeIds, nodeGap, genGrid, genIndexOf, canvasWidth);
 
-
-
   // Final snap to remove topological deltas (0.01) and clamp within bounds
   return currentNodes.map(n => {
     if (n.pinned) return n;
     const snappedX = Math.max(genGrid, Math.round(n.x * 10) / 10);
-    const maxW = canvasWidth !== undefined ? canvasWidth : 50 * genGrid;
-    const clampedX = Math.min(snappedX, maxW - genGrid);
+    const clampedX = canvasWidth !== undefined ? Math.min(snappedX, canvasWidth - genGrid) : snappedX;
     const snappedY = genIndexOf ? n.y : Math.round(n.y / genGrid) * genGrid;
     return {
       ...n,

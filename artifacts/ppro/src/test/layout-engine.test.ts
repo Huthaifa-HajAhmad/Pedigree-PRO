@@ -1455,16 +1455,19 @@ describe("layout-engine", () => {
   });
 
   describe("double-pinned conflicts & couple tearing", () => {
-    it("throws PinnedBlockConflictError when two pinned blocks collide", () => {
+    it("does not throw PinnedBlockConflictError when two pinned blocks collide, but degrades gracefully", () => {
       const nodes: any[] = [
         { id: "A", x: 100, y: 120, pinned: true, ...baseNode },
         { id: "B", x: 120, y: 120, pinned: true, ...baseNode },
       ];
       const edges: any[] = [];
       
+      let result: any[] = [];
       expect(() => {
-        resolveAllCollisions(nodes, edges, new Set(), 96.8, 120, new Map());
-      }).toThrow(PinnedBlockConflictError);
+        result = resolveAllCollisions(nodes, edges, new Set(), 96.8, 120, new Map());
+      }).not.toThrow();
+      expect(result.find(n => n.id === "A")!.x).toBe(100);
+      expect(result.find(n => n.id === "B")!.x).toBe(120);
     });
 
     it("prevents couple tearing by keeping spouses glued recursively to pinned nodes", () => {
@@ -1607,6 +1610,65 @@ describe("layout-engine", () => {
       nodeMap.get("m_gpf").x = 300;
       const normal = evaluateCostAwareInversion("father", "mother", nodeMap, parentsOf, childrenOf);
       expect(normal).toBe(false);
+    });
+    it("degrades gracefully and does not throw PinnedBlockConflictError during pinned node conflicts", () => {
+      const nodes: PedigreeNode[] = [
+        { id: "n1", x: 100, y: 120, type: "male", pinned: true, ...baseNode },
+        { id: "n2", x: 120, y: 120, type: "female", pinned: true, ...baseNode },
+      ];
+      const edges: PedigreeEdge[] = [];
+      
+      // With a nodeGap of 96.8, n1 (100) and n2 (120) are in collision but both are pinned.
+      // resolveAllCollisions would throw PinnedBlockConflictError if uncaught.
+      // It should now catch it and degrade gracefully by returning the nodes array.
+      let result: any[] = [];
+      expect(() => {
+        result = resolveAllCollisions(nodes, edges, new Set(["n1", "n2"]));
+      }).not.toThrow();
+      
+      expect(result).toHaveLength(2);
+      expect(result.find(n => n.id === "n1")!.x).toBe(100);
+      expect(result.find(n => n.id === "n2")!.x).toBe(120);
+    });
+
+    it("sanitizes NaN and Infinite coordinates prior to snapping", () => {
+      const nodes: PedigreeNode[] = [
+        { id: "n1", x: NaN, y: 120, type: "male", ...baseNode },
+        { id: "n2", x: 100, y: Infinity, type: "female", ...baseNode },
+      ];
+      const edges: PedigreeEdge[] = [];
+      
+      const result = resolveAllCollisions(nodes, edges);
+      expect(result).toHaveLength(2);
+      expect(isFinite(result[0]!.x)).toBe(true);
+      expect(isFinite(result[0]!.y)).toBe(true);
+      expect(isFinite(result[1]!.x)).toBe(true);
+      expect(isFinite(result[1]!.y)).toBe(true);
+    });
+
+    it("breaks dependency cycles in buildGenerations without crashing or defaulting to arbitrary clamp", () => {
+      const nodes: PedigreeNode[] = [
+        { id: "n1", x: 100, y: 120, type: "male", ...baseNode },
+        { id: "n2", x: 200, y: 120, type: "female", ...baseNode },
+        { id: "n3", x: 300, y: 120, type: "female", ...baseNode },
+      ];
+      
+      // Cycle: n1 -> n2 -> n3 -> n1
+      const edges: PedigreeEdge[] = [
+        { id: "e1", sourceId: "n1", targetId: "n2", type: "parent-child" },
+        { id: "e2", sourceId: "n2", targetId: "n3", type: "parent-child" },
+        { id: "e3", sourceId: "n3", targetId: "n1", type: "parent-child" },
+      ];
+      
+      let genMap: Map<string, number> = new Map();
+      expect(() => {
+        genMap = buildGenerations(nodes, edges);
+      }).not.toThrow();
+      
+      expect(genMap.size).toBe(3);
+      expect(genMap.get("n1")).toBeDefined();
+      expect(genMap.get("n2")).toBeDefined();
+      expect(genMap.get("n3")).toBeDefined();
     });
   });
 });

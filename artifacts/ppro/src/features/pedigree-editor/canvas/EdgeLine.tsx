@@ -36,7 +36,8 @@ export const EdgeLine = memo(function EdgeLine({ edge, nodes, invalid, renderOff
   const trackIndex = hasIntermediate ? computeEdgeLoopTrack(edge.id, edges, nodes, renderOffsets) : 0;
   const yDrop = baseDropY + trackIndex * 8;
 
-  const crossings = hasIntermediate
+  const showBridges = cfg.config.showEdgeBridges !== false;
+  const crossings = hasIntermediate && showBridges
     ? computeCrossingXCoordinates(edge, yDrop, leftX, rightX, edges, nodes, renderOffsets, S, showAutoLabels, autoLabels, cfg.config)
     : [];
 

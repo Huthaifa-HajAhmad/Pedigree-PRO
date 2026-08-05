@@ -1,6 +1,7 @@
 import { getModuleCanvasConfig } from "@/features/pedigree-editor/context/CanvasConfigContext";
 import type { PedigreeNode, PedigreeAnnotation, PedigreeEdge } from "./types";
 import { ROW_TOLERANCE, buildAdjacency } from "@/lib/layout-engine";
+import { groupFamiliesByParents } from "@/lib/layout-shared";
 
 /**
  * ARC CROSSING DRAWING CONVENTION:
@@ -351,14 +352,9 @@ export function computeCrossingXCoordinates(
     if (!childParents.has(e.targetId)) childParents.set(e.targetId, []);
     childParents.get(e.targetId)!.push(e.sourceId);
   }
-  const families = new Map<string, { parentIds: string[]; childIds: string[] }>();
-  for (const [childId, pIds] of childParents) {
-    const key = [...pIds].sort().join("|");
-    if (!families.has(key)) families.set(key, { parentIds: [...pIds].sort(), childIds: [] });
-    families.get(key)!.childIds.push(childId);
-  }
+  const familyList = groupFamiliesByParents(childParents);
 
-  for (const [, { parentIds, childIds }] of families) {
+  for (const { parentIds, childIds } of familyList) {
     const parents = parentIds.map((id) => nodeMap.get(id)).filter((n): n is PedigreeNode => !!n);
     const children = childIds.map((id) => nodeMap.get(id)).filter((n): n is PedigreeNode => !!n);
     if (parents.length === 0 || children.length === 0) continue;
@@ -507,20 +503,7 @@ export function computeVerticalCrossingYCoordinates(
     childParents.get(e.targetId)!.push(e.sourceId);
   }
 
-  const families: Array<{ parentIds: string[]; childIds: string[] }> = [];
-  const groupedKeys = new Set<string>();
-  for (const pIds of childParents.values()) {
-    const key = [...pIds].sort().join("|");
-    if (groupedKeys.has(key)) continue;
-    groupedKeys.add(key);
-    
-    // Find all children belonging to this same key/parents
-    const siblings = Array.from(childParents.entries())
-      .filter(([_, parentList]) => [...parentList].sort().join("|") === key)
-      .map(([childId]) => childId);
-    
-    families.push({ parentIds: [...pIds].sort(), childIds: siblings });
-  }
+  const families = groupFamiliesByParents(childParents);
 
   for (const f of families) {
     const familyParents = f.parentIds.map(id => nodeMap.get(id)).filter((n): n is PedigreeNode => !!n);
@@ -674,23 +657,22 @@ export function computeSibshipGroupTrackAndMax(
 
   // 1. Group all parent-child edges into families on the same generation row
   const pcEdges = allEdges.filter((e) => e.type === "parent-child");
-  const childParents = new Map<string, string[]>();
+  const childParentsRow = new Map<string, string[]>();
   for (const e of pcEdges) {
-    if (!childParents.has(e.targetId)) childParents.set(e.targetId, []);
-    childParents.get(e.targetId)!.push(e.sourceId);
-  }
-
-  const families = new Map<string, { parentIds: string[]; childIds: string[] }>();
-  for (const [cId, pIds] of childParents) {
-    const cNode = nodeMap.get(cId);
+    const cNode = nodeMap.get(e.targetId);
     if (!cNode) continue;
-    const cy = cNode.y + (childOffsets?.get(cId) ?? 0);
+    const cy = cNode.y + (childOffsets?.get(e.targetId) ?? 0);
     if (Math.abs(cy - childY) > ROW_TOLERANCE) continue;
 
-    const key = [...pIds].sort().join("|");
-    if (!families.has(key)) families.set(key, { parentIds: [...pIds].sort(), childIds: [] });
-    families.get(key)!.childIds.push(cId);
+    if (!childParentsRow.has(e.targetId)) childParentsRow.set(e.targetId, []);
+    childParentsRow.get(e.targetId)!.push(e.sourceId);
   }
+
+  const familyList = groupFamiliesByParents(childParentsRow);
+  const families = new Map(familyList.map(fam => {
+    const key = [...fam.parentIds].sort().join("|");
+    return [key, fam];
+  }));
 
   if (families.size <= 1) return { track: 0, maxTrack: 0 };
 

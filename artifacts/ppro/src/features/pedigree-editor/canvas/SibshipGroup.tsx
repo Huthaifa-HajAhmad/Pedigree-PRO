@@ -124,6 +124,7 @@ export function SibshipGroup({ parentIds, childIds, nodes, edges = [], invalid, 
   const cfg = useCanvasConfig();
   const S = cfg.config.nodeSize;
   const edgeArcRadius = cfg.config.edgeArcRadius ?? 6;
+  const showBridges = cfg.config.showEdgeBridges !== false;
   const stroke = invalid ? "hsl(var(--destructive))" : (cfg.config.edgeColor || "#000000").startsWith("hsl(") ? "hsl(var(--foreground) / 0.5)" : (cfg.config.edgeColor || "#000000");
   const sw = invalid ? 2 : cfg.config.edgeWidthNormal;
   const dash = invalid ? "5 3" : undefined;
@@ -242,12 +243,19 @@ export function SibshipGroup({ parentIds, childIds, nodes, edges = [], invalid, 
         const verticalCrossings = computeVerticalCrossingYCoordinates(
           p.x, coupleY, cy(c), edges, nodes, parentOffsets, S, showAutoLabels, autoLabels, undefined, annotations
         );
-        paths.push(buildVerticalPathWithBridges(p.x, coupleY, cy(c), verticalCrossings, edgeArcRadius));
+        paths.push(buildVerticalPathWithBridges(p.x, coupleY, cy(c), showBridges ? verticalCrossings : [], edgeArcRadius));
       } else {
         const verticalCrossings = computeVerticalCrossingYCoordinates(
           p.x, coupleY, barY, edges, nodes, parentOffsets, S, showAutoLabels, autoLabels, undefined, annotations
         );
-        paths.push(buildVerticalPathWithBridges(p.x, coupleY, barY, verticalCrossings, edgeArcRadius), `M ${p.x} ${barY} L ${c.x} ${barY} L ${c.x} ${cy(c)}`);
+        const childCrossings = computeVerticalCrossingYCoordinates(
+          c.x, barY, cy(c), edges, nodes, parentOffsets, S, showAutoLabels, autoLabels, undefined, annotations
+        );
+        paths.push(
+          buildVerticalPathWithBridges(p.x, coupleY, barY, showBridges ? verticalCrossings : [], edgeArcRadius),
+          `M ${p.x} ${barY} L ${c.x} ${barY}`,
+          buildVerticalPathWithBridges(c.x, barY, cy(c), showBridges ? childCrossings : [], edgeArcRadius)
+        );
       }
     } else {
       // C6 fix: bar spans non-twin children + twin drop midpoints (not twin node positions)
@@ -273,7 +281,7 @@ export function SibshipGroup({ parentIds, childIds, nodes, edges = [], invalid, 
           parentX, coupleY, stepY, edges, nodes, parentOffsets, S, showAutoLabels, autoLabels, undefined, annotations
         );
         paths.push(
-          buildVerticalPathWithBridges(parentX, coupleY, stepY, verticalCrossings, edgeArcRadius),
+          buildVerticalPathWithBridges(parentX, coupleY, stepY, showBridges ? verticalCrossings : [], edgeArcRadius),
           `M ${parentX} ${stepY} L ${childCenter} ${stepY} L ${childCenter} ${barY}`,
           `M ${barLeft} ${barY} L ${barRight} ${barY}`
         );
@@ -282,7 +290,7 @@ export function SibshipGroup({ parentIds, childIds, nodes, edges = [], invalid, 
           parentX, coupleY, barY, edges, nodes, parentOffsets, S, showAutoLabels, autoLabels, undefined, annotations
         );
         paths.push(
-          buildVerticalPathWithBridges(parentX, coupleY, barY, verticalCrossings, edgeArcRadius),
+          buildVerticalPathWithBridges(parentX, coupleY, barY, showBridges ? verticalCrossings : [], edgeArcRadius),
           `M ${barLeft} ${barY} L ${barRight} ${barY}`
         );
       }
@@ -296,7 +304,7 @@ export function SibshipGroup({ parentIds, childIds, nodes, edges = [], invalid, 
         const verticalCrossings = computeVerticalCrossingYCoordinates(
           midX, barY, dropY, edges, nodes, parentOffsets, S, showAutoLabels, autoLabels, undefined, annotations
         );
-        paths.push(buildVerticalPathWithBridges(midX, barY, dropY, verticalCrossings, edgeArcRadius));
+        paths.push(buildVerticalPathWithBridges(midX, barY, dropY, showBridges ? verticalCrossings : [], edgeArcRadius));
         for (const m of members) {
           paths.push(`M ${midX} ${dropY} L ${m.x} ${cy(m)}`);
         }
@@ -315,7 +323,7 @@ export function SibshipGroup({ parentIds, childIds, nodes, edges = [], invalid, 
           const verticalCrossings = computeVerticalCrossingYCoordinates(
             c.x, barY, cy(c), edges, nodes, parentOffsets, S, showAutoLabels, autoLabels, undefined, annotations
           );
-          paths.push(buildVerticalPathWithBridges(c.x, barY, cy(c), verticalCrossings, edgeArcRadius));
+          paths.push(buildVerticalPathWithBridges(c.x, barY, cy(c), showBridges ? verticalCrossings : [], edgeArcRadius));
         }
       }
     }
@@ -363,7 +371,7 @@ export function SibshipGroup({ parentIds, childIds, nodes, edges = [], invalid, 
       const verticalCrossings = computeVerticalCrossingYCoordinates(
         midX, startY, cy(c), edges, nodes, parentOffsets, S, showAutoLabels, autoLabels, coupleEdge?.id, annotations
       );
-      paths.push(buildVerticalPathWithBridges(midX, startY, cy(c), verticalCrossings, edgeArcRadius));
+      paths.push(buildVerticalPathWithBridges(midX, startY, cy(c), showBridges ? verticalCrossings : [], edgeArcRadius));
     } else {
       // C6 fix: bar spans non-twin children + twin drop midpoints (not twin node positions)
       const nonTwinXs = children.filter((c) => !twinChildIds.has(c.id)).map((c) => c.x);
@@ -387,7 +395,7 @@ export function SibshipGroup({ parentIds, childIds, nodes, edges = [], invalid, 
           midX, startY, stepY, edges, nodes, parentOffsets, S, showAutoLabels, autoLabels, coupleEdge?.id, annotations
         );
         paths.push(
-          buildVerticalPathWithBridges(midX, startY, stepY, verticalCrossings, edgeArcRadius),
+          buildVerticalPathWithBridges(midX, startY, stepY, showBridges ? verticalCrossings : [], edgeArcRadius),
           `M ${midX} ${stepY} L ${childCenter} ${stepY} L ${childCenter} ${barY}`,
           `M ${barLeft} ${barY} L ${barRight} ${barY}`
         );
@@ -396,7 +404,7 @@ export function SibshipGroup({ parentIds, childIds, nodes, edges = [], invalid, 
           midX, startY, barY, edges, nodes, parentOffsets, S, showAutoLabels, autoLabels, coupleEdge?.id, annotations
         );
         paths.push(
-          buildVerticalPathWithBridges(midX, startY, barY, verticalCrossings, edgeArcRadius),
+          buildVerticalPathWithBridges(midX, startY, barY, showBridges ? verticalCrossings : [], edgeArcRadius),
           `M ${barLeft} ${barY} L ${barRight} ${barY}`
         );
       }
@@ -410,7 +418,7 @@ export function SibshipGroup({ parentIds, childIds, nodes, edges = [], invalid, 
         const verticalCrossings = computeVerticalCrossingYCoordinates(
           twinMidX, barY, dropY, edges, nodes, parentOffsets, S, showAutoLabels, autoLabels, undefined, annotations
         );
-        paths.push(buildVerticalPathWithBridges(twinMidX, barY, dropY, verticalCrossings, edgeArcRadius));
+        paths.push(buildVerticalPathWithBridges(twinMidX, barY, dropY, showBridges ? verticalCrossings : [], edgeArcRadius));
         for (const m of members) {
           paths.push(`M ${twinMidX} ${dropY} L ${m.x} ${cy(m)}`);
         }
@@ -429,7 +437,7 @@ export function SibshipGroup({ parentIds, childIds, nodes, edges = [], invalid, 
           const verticalCrossings = computeVerticalCrossingYCoordinates(
             c.x, barY, cy(c), edges, nodes, parentOffsets, S, showAutoLabels, autoLabels, undefined, annotations
           );
-          paths.push(buildVerticalPathWithBridges(c.x, barY, cy(c), verticalCrossings, edgeArcRadius));
+          paths.push(buildVerticalPathWithBridges(c.x, barY, cy(c), showBridges ? verticalCrossings : [], edgeArcRadius));
         }
       }
     }
