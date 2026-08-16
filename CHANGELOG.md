@@ -2,6 +2,39 @@
 
 All notable changes to the Pedigree PRO project.
 
+## [1.4.0] — 2026-08-16
+
+### Added
+- **Line Crossing Bridges ("Line Hopping")**: Orthogonal intersection detection between vertical sibling drop lines and relationship lines, rendering arc jump bridges to eliminate visual ambiguity.
+- **Clinical Nomenclature (SAB & Stillbirth)**: Corrected Spontaneous Abortion (SAB) representation to a clinical triangle shape ($\triangle$) and implemented sex-specific Stillbirth (SB) symbols with diagonal slashes and validation.
+- **Multi-Family Generation Rails**: Connected-component decomposition for multi-family workspaces with independent Roman numeral generation rails (`I`, `II`, `III`) per family.
+- **Cross-Tab Copy & Paste**: Clipboard support for copying pedigree subtrees or selected individuals across different tabs and projects.
+- **Subtree Alignment & Equal-Gap Distribution**: Family-aware vertical/horizontal alignment guides and equal-gap horizontal spacing for sibling groups and founders.
+- **Apache 2.0 Open-Source Governance**: Standardized open-source licensing, zero-knowledge encrypted relay links, and comprehensive community documentation.
+
+---
+
+## [1.3.5] — 2026-07-25
+
+### Added
+- **Dynamic Layout Spacing Controls**: Added sliders for "Between Gen Gap" and "Sibship Drop Height" with smooth live canvas updates.
+- **Topological Layout Optimization**: Upgraded auto-layout engine with Kahn's topological sort, longest-path layering, and LRU layout caching.
+- **Visual Quadrant Shading Editor**: Redesigned quadrant customization with an interactive 2x2 grid selector and secondary color picking.
+- **Infant Age in Months**: Custom age suffixes (`4m`) and automatic DOB calculation in months for infants under 1 year.
+- **Inbreeding Clinical Guidance Modal**: Evidence validation dialog citing Wright (1922) and Bennett et al. (2021).
+
+---
+
+## [1.3.0] — 2026-07-10
+
+### Added
+- **Coefficient of Inbreeding ($F$)**: Dynamic calculation of Wright's inbreeding path coefficients across multi-generation pedigrees.
+- **Linkage / GATK PED File Support**: Bi-directional import and export for standard `.ped` files.
+- **Pedigree Templates Gallery**: Save and manage local pedigree structure templates.
+- **Trackpad Pinch-to-Zoom Fix**: Resolved Windows trackpad gesture consumption in desktop Tauri builds.
+
+---
+
 ## [1.2.5] — 2026-06-15
 
 ### Added
