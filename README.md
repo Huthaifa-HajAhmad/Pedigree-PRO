@@ -14,9 +14,44 @@ A privacy-first pedigree drawing tool for clinical geneticists and researchers. 
 
 <br />
 
+<table align="center" width="100%">
+  <tr>
+    <th width="50%" align="center">
+      🎨 Interactive Canvas Editor
+    </th>
+    <th width="50%" align="center">
+      📊 Clinical Dashboard & Records
+    </th>
+  </tr>
+  <tr>
+    <td width="50%" align="center" valign="top">
+      <a href="assets/screen1.jpg"><img src="assets/screen1.jpg" alt="Pedigree PRO Interactive Canvas Editor" width="100%" /></a>
+      <br />
+      <sub><i>Auto-layout, consanguinity bridges, smart genotypes & minimap</i></sub>
+    </td>
+    <td width="50%" align="center" valign="top">
+      <a href="assets/screen2.jpg"><img src="assets/screen2.jpg" alt="Pedigree PRO Clinical Dashboard" width="100%" /></a>
+      <br />
+      <sub><i>Patient registry, pedigree version timeline, and audit logging</i></sub>
+    </td>
+  </tr>
+</table>
+
+<details>
+<summary><b>🔍 Expand for full-width high-resolution views</b></summary>
+<br />
+
 <p align="center">
+  <b>Pedigree Canvas Editor</b><br /><br />
   <img src="assets/screen1.jpg" alt="Pedigree PRO Interactive Pedigree Editor Canvas" width="100%" />
 </p>
+
+<p align="center">
+  <b>Clinical Dashboard</b><br /><br />
+  <img src="assets/screen2.jpg" alt="Pedigree PRO Clinical Dashboard" width="100%" />
+</p>
+
+</details>
 
 </div>
 
@@ -47,10 +82,6 @@ A privacy-first pedigree drawing tool for clinical geneticists and researchers. 
 - Local-first patient records and pedigree version timeline
 - Multi-profile clinician management with cryptographic key isolation
 - Comprehensive mutation audit trail for clinical governance
-
-<p align="center">
-  <img src="assets/screen2.jpg" alt="Pedigree PRO Clinical Dashboard" width="100%" />
-</p>
 
 ### Privacy & Compliance
 - **Zero-server architecture** — no cloud, no accounts, no telemetry
