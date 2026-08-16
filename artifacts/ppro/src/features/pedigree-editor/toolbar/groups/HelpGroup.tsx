@@ -3,7 +3,7 @@ import {
   LifeBuoy, Keyboard, Lightbulb, Grid3x3,
   Stethoscope, Clock,
   AlertCircle, Wand2, Shield,
-  Share2, Wifi, GitMerge, FileDown, Search,
+  Share2, GitMerge, FileDown, Search,
   BookOpen
 } from "lucide-react";
 import { Dialog, DialogTrigger, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
@@ -70,7 +70,7 @@ const TIPS = [
   { title: "Add Siblings Quickly", body: "Select a node and click the '+' sibling handle to add multiple siblings at once. They will be ordered by date of birth automatically." },
   { title: "Change Relationship Lines", body: "Click on the horizontal line connecting a couple to mark it as consanguineous (double line), divorced (slashed line), or dissolved." },
   { title: "Twin group alignment", body: "Select sibling nodes, open the context menu, and click 'Mark as Twins'. You can toggle between monozygotic (identical) and dizygotic (fraternal) layouts." },
-  { title: "Local network sharing", body: "Use WebRTC LAN sharing for instant real-time synchronization with colleagues on the same network without saving to the cloud." }
+  { title: "Encrypted Relay Sharing", body: "Use zero-knowledge encrypted relay links or compressed URLs to securely share pedigrees with colleagues without saving to the cloud." }
 ];
 
 const MANUAL_SECTIONS = [
@@ -123,18 +123,17 @@ const COLLABORATE_SECTIONS = [
       "Generate a secure link via the unified Collaborate modal.",
       "Select view-only or full editor access permissions.",
       "Paste a recipient's Ed25519 public key to encrypt the database blob.",
-      "Links expire automatically after 7 days.",
+      "Relay links expire automatically after 7 days.",
     ],
   },
   {
-    icon: Wifi,
-    title: "LAN Collaboration (P2P)",
+    icon: GitMerge,
+    title: "Self-Contained Encrypted URLs",
     items: [
-      "Direct peer-to-peer WebRTC transfer over your local network.",
-      "Host creates a session and copies the signaling offer code.",
-      "Guest pastes the offer and returns the signaling answer code.",
-      "Completely serverless: data stays inside your local network.",
-      "Supports optional E2E encryption with recipient public keys.",
+      "Compressed base64url links containing the complete encrypted dataset.",
+      "Requires zero server infrastructure or external relay connectivity.",
+      "Protected by ephemeral Ed25519 + AES-256-GCM sealed envelopes.",
+      "Recipient decrypts directly within their local browser or desktop app.",
     ],
   },
   {
@@ -428,7 +427,7 @@ export function HelpGroup({ labelHidden = false, children }: HelpGroupProps) {
                     {tab === "features" && "Discover the powerful clinical tools built directly into the pedigree canvas."}
                     {tab === "shortcuts" && "Optimize your workflow with keyboard hotkeys for rapid pedigree construction."}
                     {tab === "tips" && "Useful best practices, styling tips, and Canvas operations."}
-                    {tab === "collaborate" && "Learn how serverless links, WebRTC LAN, imports, and formats work."}
+                    {tab === "collaborate" && "Learn how serverless links, encrypted relays, imports, and formats work."}
                     {tab === "manual" && "Nomenclature standards, pedigree conventions, and step-by-step drawing instructions."}
                   </p>
                 </div>

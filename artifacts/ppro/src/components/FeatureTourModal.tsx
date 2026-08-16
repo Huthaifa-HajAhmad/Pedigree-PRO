@@ -93,7 +93,7 @@ export function FeatureTourModal({ open, onClose }: FeatureTourModalProps) {
       features: [
         { title: "Validation Panel", desc: "Check real-time clinical errors (e.g. gender conflicts, generational cycles) and focus directly on problem nodes." },
         { title: "Risk Calculator", desc: "Select any node as an index patient to compute Autosomal Dominant or Recessive inheritance risk probabilities." },
-        { title: "Secure Sharing", desc: "Hybrid-encrypt pedigrees for direct peer WebRTC sharing or export reports in PDF, PPTX, PNG, and JSON." }
+        { title: "Secure Sharing", desc: "Hybrid-encrypt pedigrees via zero-knowledge relay links or export reports in PDF, PPTX, PNG, and native formats." }
       ]
     }
   ];

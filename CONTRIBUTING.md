@@ -38,7 +38,7 @@ The pedigree auto-layout engine (`artifacts/ppro/src/lib/layout-engine.ts`) hand
 ## Development Setup
 
 ### Prerequisites
-* **Node.js** (v20 or v22 LTS recommended)
+* **Node.js** (v22+ LTS recommended)
 * **pnpm** (`npm install -g pnpm`)
 * **Rust toolchain** (required only for Tauri desktop builds)
 * **Windows Desktop Builds Only:** [Strawberry Perl](https://strawberryperl.com/) (required to compile vendored OpenSSL statically from source: `choco install strawberryperl -y`).

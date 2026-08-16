@@ -1,4 +1,4 @@
-import { Server, Radio, Lock, Database, Fingerprint, Wifi, Hash, Code, Heart, Globe, GitBranch, CloudOff, Dna } from "lucide-react";
+import { Server, Lock, Database, Fingerprint, Wifi, Hash, Code, Heart, Globe, GitBranch, CloudOff, Dna } from "lucide-react";
 import { PanelSection } from "@/components/shared/panels/PanelSection";
 import { getAppVersion } from "@/lib/version";
 
@@ -49,14 +49,14 @@ export default function AboutPage() {
             </div>
           </PanelSection>
 
-          <PanelSection title="Networking" icon={<Wifi className="w-3.5 h-3.5" />}>
+          <PanelSection title="Networking & Sharing" icon={<Wifi className="w-3.5 h-3.5" />}>
             <div className="grid gap-3">
               <div className="flex items-start gap-3 p-3 rounded-lg border border-border bg-card">
-                <Radio className="w-4 h-4 text-primary flex-shrink-0 mt-0.5" />
+                <Globe className="w-4 h-4 text-primary flex-shrink-0 mt-0.5" />
                 <div>
-                  <div className="text-sm font-medium">WebRTC peer-to-peer</div>
+                  <div className="text-sm font-medium">Self-contained encrypted links</div>
                   <p className="text-xs text-muted-foreground mt-0.5">
-                    Share pedigrees directly over your local network. No signaling server, no data leaves the LAN.
+                    Share pedigrees directly via compressed base64url links containing the encrypted dataset. Requires zero server infrastructure.
                   </p>
                 </div>
               </div>
@@ -65,7 +65,7 @@ export default function AboutPage() {
                 <div>
                   <div className="text-sm font-medium">Zero-knowledge relay</div>
                   <p className="text-xs text-muted-foreground mt-0.5">
-                    Optional encrypted link sharing via a relay that stores only encrypted blobs for 7 days. The relay never accesses plaintext. LAN sharing bypasses the relay entirely.
+                    Encrypted link sharing via an ephemeral relay storing encrypted blobs with auto-expiration. The relay operator never accesses plaintext.
                   </p>
                 </div>
               </div>
@@ -74,7 +74,7 @@ export default function AboutPage() {
                 <div>
                   <div className="text-sm font-medium">Hybrid encryption</div>
                   <p className="text-xs text-muted-foreground mt-0.5">
-                    Ed25519 keypairs with AES-GCM envelopes. Each recipient decrypts with their own stored private key.
+                    Ed25519 keypairs with AES-256-GCM envelopes. Only designated recipients holding the corresponding private key can decrypt the data.
                   </p>
                 </div>
               </div>

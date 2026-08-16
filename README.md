@@ -12,6 +12,12 @@ A privacy-first pedigree drawing tool for clinical geneticists and researchers. 
 
 [Download](#installation) · [Features](#features) · [Architecture](#architecture) · [Contributing](CONTRIBUTING.md) · [Security](SECURITY.md) · [Roadmap](ROADMAP.md)
 
+<br />
+
+<p align="center">
+  <img src="assets/screen1.jpg" alt="Pedigree PRO Interactive Pedigree Editor Canvas" width="100%" />
+</p>
+
 </div>
 
 > **Statutory Notice & Clinical Disclaimer:** Pedigree PRO is an open-source software suite designed for academic research, genetic data visualization, and pedigree drawing. It is **not** an FDA-cleared, CE-marked, or certified medical device and is not intended for direct clinical diagnostic or therapeutic decision-making without independent professional verification.
@@ -30,12 +36,21 @@ A privacy-first pedigree drawing tool for clinical geneticists and researchers. 
 - **Interactive onboarding tour** — guided walkthrough modal for first-time users
 - **Smart genotype rendering** — dynamic rendering of genotype strings beneath pedigree nodes with custom colors, font sizes, and offsets
 
-### Clinical Annotations
+### Clinical Annotations & Risk
 - HPO terms, OMIM IDs, variant HGVS notation per node
 - Phenotype tracking with inheritance mode
 - Affected/carrier/unaffected status indicators via segmented panel controls
 - Genotype input fields with quick selector presets (`+/-`, `+/+`, `-/-`, `+/Y`, `-/Y`)
-- Risk calculator panel
+- Risk calculator panel with evidence details
+
+### Clinical Dashboard & Records
+- Local-first patient records and pedigree version timeline
+- Multi-profile clinician management with cryptographic key isolation
+- Comprehensive mutation audit trail for clinical governance
+
+<p align="center">
+  <img src="assets/screen2.jpg" alt="Pedigree PRO Clinical Dashboard" width="100%" />
+</p>
 
 ### Privacy & Compliance
 - **Zero-server architecture** — no cloud, no accounts, no telemetry
@@ -44,9 +59,9 @@ A privacy-first pedigree drawing tool for clinical geneticists and researchers. 
 - Self-hosted fonts — no Google Fonts CDN calls (IP leak prevention)
 
 ### Sharing & Collaboration
-- **WebRTC peer-to-peer** — share pedigrees directly over your LAN, no signaling server
-- **Hybrid encryption** — Ed25519 keypairs + AES-GCM envelopes per recipient
-- **Relay share** — encrypted blob relay for out-of-network sharing (tokens auto-expire)
+- **Zero-knowledge relay** — encrypted blob relay for secure asynchronous sharing (tokens auto-expire)
+- **Self-contained encrypted links** — compressed base64url share URLs requiring zero server infrastructure
+- **Hybrid encryption** — Ed25519 keypairs + AES-256-GCM envelopes per recipient
 - Share log for HIPAA audit trail
 
 ### Export
@@ -124,7 +139,7 @@ pnpm --filter @workspace/ppro run dev
 
 ### Prerequisites
 
-- **Node.js** 18+ and **pnpm**
+- **Node.js** 22+ (LTS) and **pnpm**
 - **Rust toolchain** (Tauri desktop builds only)
 - **VS Build Tools 2022** + **OpenSSL** (Windows, Tauri builds only)
 
@@ -161,14 +176,6 @@ cd artifacts/ppro
 pnpm tauri build
 ```
 
----
-
-## AI-Assisted Development
-
-This project was developed with the assistance of agentic AI coding models (specifically Google DeepMind's Antigravity) to enable rapid auditing, automated testing, and secure cross-platform execution.
-
----
-
 ### Frontend-Only Build
 
 ```bash
@@ -204,7 +211,13 @@ npx vite build --config artifacts/ppro/vite.config.ts
 
 ### Data Privacy
 - No server. No cloud sync. All data stays on the local device.
-- WebRTC LAN sharing is direct peer-to-peer; no signaling server, no data leaves the local network.
+- Relay sharing uses zero-knowledge hybrid encryption; the relay operator never accesses plaintext data.
+
+---
+
+## AI-Assisted Development
+
+This project was developed with the assistance of agentic AI coding models (specifically Google DeepMind's Antigravity) to enable rapid auditing, automated testing, and secure cross-platform execution.
 
 ---
 
@@ -212,4 +225,5 @@ npx vite build --config artifacts/ppro/vite.config.ts
 
 Pedigree PRO is licensed under the [Apache License, Version 2.0](LICENSE).  
 Copyright © 2026 Huthaifa HajAhmad.
+
 
