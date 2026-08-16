@@ -1,0 +1,46 @@
+name: Clinical & Genetics Feedback
+description: Provide expert domain feedback from genetic counselors, clinical geneticists, and researchers.
+title: "[Clinical Feedback]: "
+labels: ["clinical-feedback", "domain-expert"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        We deeply value insights from practicing medical geneticists, genetic counselors, dysmorphologists, and researchers.
+
+  - type: input
+    id: role
+    attributes:
+      label: Professional Role / Specialization (Optional)
+      description: E.g., Genetic Counselor, Clinical Geneticist, Clinical Laboratory Director, Researcher.
+      placeholder: "Clinical Geneticist"
+
+  - type: dropdown
+    id: topic
+    attributes:
+      label: Feedback Area
+      options:
+        - "Nomenclature & Standard Symbols (NSGC / Bennett Guidelines)"
+        - "Inbreeding / Consanguinity Calculation Accuracy"
+        - "Variant HGVS / HPO / OMIM Annotation Workflow"
+        - "EMR Integration & Clinical Export Quality"
+        - "Patient Privacy & Offline Security"
+        - "Other"
+    validations:
+      required: true
+
+  - type: textarea
+    id: feedback
+    attributes:
+      label: Feedback & Clinical Rationale
+      description: Detailed clinical rationale, published guidelines, or recommendations.
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: deidentified
+    attributes:
+      label: PHI Sanitization
+      options:
+        - label: "I confirm that NO patient identifiable health information (PHI) is included in this feedback."
+          required: true

@@ -48,7 +48,7 @@ type BrowserCommandName =
   | "import_pedigree_native" | "import_pedigree_legacy"
   | "export_pedigree_ppro"
   | "backup_database" | "restore_database" | "rotate_key"
-  | "relay_share" | "relay_receive";
+  | "relay_share" | "relay_receive" | "relay_revoke";
 
 /** All valid command names (browser + Tauri-only). */
 type CommandName = BrowserCommandName | "import_pedigree_from_json";
@@ -97,6 +97,7 @@ type CommandMap = {
   rotate_key: () => Promise<void>;
   relay_share: (args: { ciphertext: string; encrypted_key: string; ttl_hours?: number }) => Promise<import("@workspace/browser-backend").ShareResult>;
   relay_receive: (args: { share_token: string }) => Promise<{ ciphertext: string; encrypted_key: string }>;
+  relay_revoke: (args: { share_token: string }) => Promise<void>;
 };
 
 // =============================================================================

@@ -192,3 +192,39 @@ pub async fn fetch_shared_payload(
     let result = relay_receive(share_token).await?;
     Ok((result.ciphertext, result.encrypted_key))
 }
+
+/// Revokes a shared payload on the relay by deleting its token.
+pub async fn revoke_shared_payload(
+    share_token: &str,
+) -> Result<(), String> {
+    let base_url = relay_base_url();
+    let url = format!("{}/api/relay/revoke", base_url);
+
+    let request_body = RelayReceiveRequest {
+        share_token: share_token.to_string(),
+    };
+
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(15))
+        .build()
+        .map_err(|e| format!("Failed to build reqwest client: {}", e))?;
+    let response = client
+        .post(&url)
+        .json(&request_body)
+        .send()
+        .await
+        .map_err(|e| format!("Failed to connect to relay: {}", e))?;
+
+    let status = response.status();
+
+    if status.is_success() || status.as_u16() == 204 {
+        Ok(())
+    } else {
+        let error = response
+            .json::<RelayErrorResponse>()
+            .await
+            .map(|e| e.error)
+            .unwrap_or_else(|_| format!("HTTP {}", status));
+        Err(format!("Relay error: {}", error))
+    }
+}

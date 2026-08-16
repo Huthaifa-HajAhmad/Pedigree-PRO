@@ -3,8 +3,7 @@ import { useMemo, useCallback, useEffect, useRef, useState } from "react";
 const EMPTY_SET: Set<string> = new Set();
 import { NodeShape } from "@/features/pedigree-editor/canvas/NodeShape";
 import { EdgeLine } from "@/features/pedigree-editor/canvas/EdgeLine";
-import { SibshipGroup, computeFamilyChildYOffset } from "@/features/pedigree-editor/canvas/SibshipGroup";
-import { AnnotationShape } from "@/features/pedigree-editor/canvas/AnnotationShape";
+import { computeFamilyChildYOffset } from "@/features/pedigree-editor/canvas/SibshipGroup";
 import { computeLabelBelowHeight } from "@/features/pedigree-editor/canvas/canvasUtils";
 import { CanvasOverlayManager } from "@/features/pedigree-editor/overlay/CanvasOverlayManager";
 import { FindBar } from "@/features/pedigree-editor/overlay/FindBar";
@@ -14,11 +13,6 @@ import { AnnotationQuickEditPopover } from "@/features/pedigree-editor/overlay/A
 import { ContextMenu } from "@/features/pedigree-editor/overlay/ContextMenu";
 import { NodeColorPicker } from "@/features/pedigree-editor/overlay/NodeColorPicker";
 import { AddSiblingDialog } from "@/features/pedigree-editor/overlay/AddSiblingDialog";
-import { PropertiesPanel } from "@/features/pedigree-editor/panels/PropertiesPanel";
-import { RiskPanelSidebar } from "@/features/pedigree-editor/panels/RiskCalculatorPanel";
-import { VersionHistoryPanel } from "@/features/pedigree-editor/panels/VersionHistoryPanel";
-import { ValidationPanelWrapper } from "@/features/pedigree-editor/panels/ValidationPanelWrapper";
-import { SettingsPanel } from "@/features/pedigree-editor/panels/SettingsPanel";
 import { useToast } from "@/hooks/use-toast";
 import { TabBar } from "@/features/pedigree-editor/panels/TabBar";
 import { useLocation } from "wouter";
@@ -29,136 +23,13 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useCreatePedigree, queryKeys } from "@workspace/api-client-react";
 import { computeHash } from "@workspace/crypto";
 import { listProfilePrivateKeys } from "@workspace/browser-backend";
-import { parseCanvas } from "@/features/pedigree-editor/utils/helpers";
-import type { PedigreeNode, CanvasData } from "@/features/pedigree-editor/canvas/types";
 import { NODE_SIZE } from "@/features/pedigree-editor/canvas/types";
 import { groupFamiliesByParents } from "@/lib/layout-shared";
 
-
-
-function AnnotationLayer({
-  annotations, nodes, selectedAnnotationId, canvas,
-  onAnnotationClick, onAnnotationDragStart, onAnnotationDoubleClick, autoLabels, showAutoLabels, familyYOffsetMap,
-}: {
-  annotations: CanvasData["annotations"];
-  nodes: PedigreeNode[];
-  selectedAnnotationId: string | null;
-  canvas: CanvasData;
-  onAnnotationClick: (annId: string, nodeId: string) => void;
-  onAnnotationDragStart: (annId: string, e: React.MouseEvent) => void;
-  onAnnotationDoubleClick?: (annId: string) => void;
-  autoLabels: Map<string, string>;
-  showAutoLabels: boolean;
-  familyYOffsetMap: Map<string, number>;
-}) {
-  const { config } = useCanvasConfig();
-  const nodeById = useMemo(() => {
-    const map = new Map<string, PedigreeNode>();
-    for (const n of nodes) map.set(n.id, n);
-    return map;
-  }, [nodes]);
-
-  const stackIndexById = useMemo(() => {
-    const map = new Map<string, number>();
-    const grouped = new Map<string, string[]>();
-    for (const a of annotations) {
-      if (!a.nodeId) continue;
-      const key = `${a.nodeId}|${a.position}`;
-      if (!grouped.has(key)) grouped.set(key, []);
-      grouped.get(key)!.push(a.id);
-    }
-    for (const ids of grouped.values()) {
-      ids.forEach((id, idx) => map.set(id, idx));
-    }
-    return map;
-  }, [annotations]);
-
-  return (
-    <g>
-      {annotations.map((ann) => {
-         const isFree = !ann.nodeId;
-         const node = isFree ? null : nodeById.get(ann.nodeId);
-         if (!isFree && !node) return null;
-         const stackIndex = isFree ? 0 : (stackIndexById.get(ann.id) ?? 0);
-         const autoLabel = (node && showAutoLabels) ? autoLabels.get(node.id) : undefined;
-         const labelBelowHeight = node ? computeLabelBelowHeight(node, autoLabel, config) : 0;
-         const offsetY = node ? (familyYOffsetMap.get(ann.nodeId) ?? 0) : 0;
-         const nodeX = node ? node.x : (ann.x ?? 0);
-         const nodeY = node ? node.y + offsetY : (ann.y ?? 0);
-         return (
-           <AnnotationShape key={ann.id} ann={ann}
-             nodeX={nodeX} nodeY={nodeY} stackIndex={stackIndex}
-             isSelected={selectedAnnotationId === ann.id}
-             onClick={() => onAnnotationClick(ann.id, ann.nodeId)}
-             onDragStart={(e) => onAnnotationDragStart(ann.id, e)}
-             onDoubleClick={() => onAnnotationDoubleClick?.(ann.id)}
-             labelBelowHeight={labelBelowHeight}
-           />
-         );
-      })}
-    </g>
-  );
-}
-
-function SibshipLayer({ edges, nodes, invalidEdgeIds, annotations = [], showAutoLabels, autoLabels, familyOffsets }: {
-  edges: CanvasData["edges"];
-  nodes: PedigreeNode[];
-  invalidEdgeIds: Set<string>;
-  annotations?: CanvasData["annotations"];
-  showAutoLabels?: boolean;
-  autoLabels?: Map<string, string>;
-  familyOffsets?: Map<string, number>;
-  childOffsets?: Map<string, number>;
-}) {
-  const groups = useMemo(() => {
-    const pcEdges = edges.filter((e) => e.type === "parent-child");
-    const childParents = new Map<string, string[]>();
-    for (const e of pcEdges) {
-      if (!childParents.has(e.targetId)) childParents.set(e.targetId, []);
-      childParents.get(e.targetId)!.push(e.sourceId);
-    }
-    const familyList = groupFamiliesByParents(childParents);
-    return familyList.map(({ parentIds, childIds }) => {
-      const key = [...parentIds].sort().join("|");
-      const allEdges = pcEdges.filter(
-        (e) => parentIds.includes(e.sourceId) && childIds.includes(e.targetId)
-      );
-      const coupleEdge = edges.find(
-        (e) => (e.type === "couple" || e.type === "consanguinity" || e.type === "divorced" || e.type === "separated") &&
-          parentIds.includes(e.sourceId) && parentIds.includes(e.targetId)
-      );
-      return {
-        key: `family-${key}`,
-        parentIds,
-        childIds,
-        nodes,
-        invalid: allEdges.some((e) => invalidEdgeIds.has(e.id)),
-        edgeType: (coupleEdge?.type as "couple" | "consanguinity" | "divorced" | "separated") ?? "couple",
-      };
-    });
-  }, [edges, nodes, invalidEdgeIds]);
-
-  return (
-    <g>
-      {groups.map((g) => (
-        <SibshipGroup
-          key={g.key}
-          parentIds={g.parentIds}
-          childIds={g.childIds}
-          nodes={g.nodes}
-          edges={edges}
-          invalid={g.invalid}
-          edgeType={g.edgeType}
-          annotations={annotations}
-          showAutoLabels={showAutoLabels}
-          autoLabels={autoLabels}
-          parentOffsets={familyOffsets}
-          childOffsets={familyOffsets}
-        />
-      ))}
-    </g>
-  );
-}
+import { AnnotationLayer } from "./canvas-body/AnnotationLayer";
+import { SibshipLayer } from "./canvas-body/SibshipLayer";
+import { DevModeOverlay } from "./canvas-body/DevModeOverlay";
+import { SidePanelDrawer } from "./canvas-body/SidePanelDrawer";
 
 export function PedigreeCanvasBody() {
   const ctx = usePedigreeEditor();
@@ -325,7 +196,6 @@ export function PedigreeCanvasBody() {
       if (!currentAnn) return prev;
       const nodeId = currentAnn.nodeId;
 
-      // Find the indices of annotations that belong to the SAME node
       const nodeAnnIndices = anns
         .map((a, i) => ({ a, i }))
         .filter((item) => item.a.nodeId === nodeId)
@@ -357,15 +227,13 @@ export function PedigreeCanvasBody() {
     });
   }, [updateCanvas]);
 
-
-  // ── Generation rail drag state ──────────────────────────────────
   const railDraggingRef = useRef(false);
   const railDragStartXRef = useRef(0);
   const railDragStartRailXRef = useRef(44);
 
-const RAIL_HIT_W = 30;
-const RAIL_MIN_X = -400;
-const RAIL_MAX_X = 400;
+  const RAIL_HIT_W = 30;
+  const RAIL_MIN_X = -400;
+  const RAIL_MAX_X = 400;
 
   const handleRailPointerDown = useCallback((e: React.PointerEvent) => {
     e.stopPropagation();
@@ -471,7 +339,7 @@ const RAIL_MAX_X = 400;
       const bParent = b.parentIds[0] ? nodeMap.get(b.parentIds[0]) : null;
       return (aParent?.y ?? 0) - (bParent?.y ?? 0);
     });
-    // Group sorted families by parent Y coordinate
+
     const familiesByRow = new Map<number, { parentIds: string[]; childIds: string[] }[]>();
     for (const fam of sortedFamilies) {
       const parentNode = fam.parentIds[0] ? nodeMap.get(fam.parentIds[0]) : null;
@@ -499,7 +367,6 @@ const RAIL_MAX_X = 400;
         for (const [nid, delta] of familyMap) offsets.set(nid, delta);
       }
 
-      // Align couple offsets on the child generation row
       const coupleEdges = canvas.edges.filter(
         (e) => e.type === "couple" || e.type === "consanguinity" || e.type === "divorced" || e.type === "separated"
       );
@@ -699,16 +566,11 @@ const RAIL_MAX_X = 400;
               {showGrid && (
                 <rect x={viewBox.x} y={viewBox.y} width={vbW} height={vbH} fill="url(#grid-pattern)" pointerEvents="none" data-grid-rect="true" />
               )}
-          {visibleGenRows.map((row) => (
-            <line key={row} x1={viewBox.x} y1={row} x2={viewBox.x + vbW} y2={row}
-              stroke={"hsl(var(--primary) / 0.5)"} strokeWidth={0.8} strokeDasharray="8 5" opacity={0.4}
-            />
-          ))}
+
 
           {showGenerationRail && generationRailEntries.length > 0 && generationRailEntries.map((rail) => {
             if (rail.entries.length === 0) return null;
 
-            // Enforce minimum 24px vertical spacing between rail entries
             const spacedEntries = rail.entries.reduce<{ roman: string; y: number }[]>((acc, entry) => {
               if (acc.length === 0) return [{ roman: entry.roman, y: entry.y }];
               const last = acc[acc.length - 1]!;
@@ -717,7 +579,6 @@ const RAIL_MAX_X = 400;
               return acc;
             }, []);
 
-            // Position at minX - 50 plus drag offset
             const x = rail.minX - 50 + (railX - 44);
             const ys = rail.entries.map(e => e.y);
             const isGlobal = generationRailMode === "global";
@@ -864,58 +725,13 @@ const RAIL_MAX_X = 400;
           />
 
           {config.devMode && (
-            <g id="dev-mode-overlay" style={{ pointerEvents: "none" }}>
-              {/* Generation Row Y Guides */}
-              {visibleGenRows.map((rowY) => (
-                <g key={`dev-row-${rowY}`}>
-                  <line
-                    x1={viewBox.x} y1={rowY}
-                    x2={viewBox.x + vbW} y2={rowY}
-                    stroke="#EF4444" strokeWidth={1} strokeDasharray="3 3" opacity={0.65}
-                  />
-                  <rect
-                    x={viewBox.x + 10} y={rowY - 18}
-                    width={90} height={16} rx={3}
-                    fill="#EF4444" opacity={0.8}
-                  />
-                  <text
-                    x={viewBox.x + 15} y={rowY - 6}
-                    fill="#FFFFFF" fontSize={10} fontWeight="bold"
-                    fontFamily="JetBrains Mono, monospace"
-                  >
-                    Row Y: {rowY}
-                  </text>
-                </g>
-              ))}
-
-              {/* Node Bounds, Coordinates & ID overlays */}
-              {canvas.nodes.map((node) => {
-                const nodeGapRadius = (config.nodeGap ?? 96.8) / 2;
-                return (
-                  <g key={`dev-node-${node.id}`}>
-                    {/* Dashed outer collision boundary of radius NODE_GAP / 2 */}
-                    <circle
-                      cx={node.x} cy={node.y} r={nodeGapRadius}
-                      fill="none" stroke="#10B981" strokeWidth={1.5}
-                      strokeDasharray="4 4" opacity={0.7}
-                    />
-                    {/* Diagnostic text label displaying coordinates and ID */}
-                    <rect
-                      x={node.x - 70} y={node.y - 48}
-                      width={140} height={20} rx={4}
-                      fill="#1F2937" opacity={0.85}
-                    />
-                    <text
-                      x={node.x} y={node.y - 35}
-                      textAnchor="middle" fill="#10B981" fontSize={9} fontWeight="bold"
-                      fontFamily="JetBrains Mono, monospace"
-                    >
-                      {node.id} ({Math.round(node.x)}, {Math.round(node.y)})
-                    </text>
-                  </g>
-                );
-              })}
-            </g>
+            <DevModeOverlay
+              visibleGenRows={visibleGenRows}
+              viewBox={viewBox}
+              vbW={vbW}
+              nodes={canvas.nodes}
+              nodeGap={config.nodeGap}
+            />
           )}
 
           {canvas.nodes.length === 0 && (
@@ -959,7 +775,6 @@ const RAIL_MAX_X = 400;
           panelOpen={isSidePanelOpen}
           sidePanelWidth={sidePanelWidth}
         />
-
 
         {editAnnotationId && (() => {
           const editAnn = canvas.annotations.find((a) => a.id === editAnnotationId);
@@ -1012,112 +827,78 @@ const RAIL_MAX_X = 400;
       </div>
 
       {isSidePanelOpen && (
-        <div
-          className="absolute right-0 top-0 bottom-0 z-30 flex h-full select-none"
-          style={{ width: `${sidePanelWidth}px` }}
-        >
-          {/* Resize Handler / Drag Handle */}
-          <div
-            className="w-1.5 h-full cursor-col-resize hover:bg-primary/20 active:bg-primary/40 transition-colors flex items-center justify-center flex-shrink-0 relative group"
-            onMouseDown={handleResizeMouseDown}
-          >
-            <div className="w-[2px] h-8 rounded bg-border group-hover:bg-primary/50 group-active:bg-primary" />
-          </div>
-
-          {/* Panel Container */}
-          <div className="flex-1 h-full overflow-hidden bg-background shadow-[-4px_0_12px_rgba(0,0,0,0.08),0_4px_12px_rgba(0,0,0,0.08)] rounded-l-lg select-text flex flex-col">
-            {(anySelected || selectedAnnotationId !== null) && !showRiskPanel && !showValidation && !showVersions && !showSettings && !editModalNodeId && (
-              <PropertiesPanel
-                selectedIds={selectedIds}
-                canvasNodes={canvas.nodes} canvasEdges={canvas.edges}
-                canvasAnnotations={canvas.annotations}
-                selectedAnnotationId={selectedAnnotationId}
-                onUpdateSelectedNode={updateSelectedNode} onBulkUpdate={bulkUpdate}
-                onDeleteSelected={deleteSelected}
-                onAddAnnotation={addAnnotation} onUpdateAnnotation={updateAnnotation}
-                onDeleteAnnotation={deleteAnnotation}
-                onSelectAnnotation={(annId: string | null) => {
-                  dispatch({
-                    type: "SET_STATE",
-                    patch: {
-                      selectedAnnotationId: annId,
-                      editAnnotationId: annId,
-                    },
-                  });
-                }}
-                onReorderAnnotations={handleReorderAnnotations}
-                onAlignSelected={alignSelected}
-                onDistributeSelected={distributeSelected}
-                onMarkAsTwins={markAsTwins}
-                onUnmarkTwins={unmarkTwins}
-                onRemoveEdges={ops.removeEdges}
-                onUpdateEdgeType={updateEdgeType}
-                onToggleCoupleInverted={toggleCoupleInverted}
-                onCreateCoupleEdge={ops.createCoupleEdge}
-                onCreateConsanguinityEdge={ops.createConsanguinityEdge}
-                onCreateCoupleAndChild={ops.createCoupleAndChild}
-                onCreateParentsForGroup={ops.createParentsForGroup}
-              />
-            )}
-
-            {showSettings && (
-              <SettingsPanel
-                onClose={() => dispatch({ type: "SET_STATE", patch: { showSettings: false } })}
-              />
-            )}
-
-            {showRiskPanel && (
-              <RiskPanelSidebar canvas={canvas} mode={riskMode}
-                onModeChange={(m) => dispatch({ type: "SET_STATE", patch: { riskMode: m } })}
-                onClose={() => dispatch({ type: "SET_STATE", patch: { showRiskPanel: false } })}
-                width="w-full"
-              />
-            )}
-
-            {showValidation && (
-              <ValidationPanelWrapper
-                validation={validation} expandedIssueId={expandedIssueId}
-                onToggleIssue={(id) => dispatch({ type: "SET_STATE", patch: { expandedIssueId: expandedIssueId === id ? null : id } })}
-                onFocusIssue={(nodeIds) => {
-                  if (nodeIds.length > 0) {
-                    dispatch({
-                      type: "SET_STATE",
-                      patch: {
-                        selectedIds: new Set(nodeIds),
-                        showValidation: true,
-                        showRiskPanel: false,
-                        showVersions: false,
-                      },
-                    });
-                  }
-                }}
-                nodes={canvas.nodes}
-                onClose={() => dispatch({ type: "SET_STATE", patch: { showValidation: false } })}
-              />
-            )}
-
-            {showVersions && (
-              <VersionHistoryPanel
-                onClose={() => dispatch({ type: "SET_STATE", patch: { showVersions: false } })}
-              />
-            )}
-          </div>
-        </div>
+        <SidePanelDrawer
+          sidePanelWidth={sidePanelWidth}
+          onResizeMouseDown={handleResizeMouseDown}
+          isPropertiesPanelOpen={isPropertiesPanelOpen}
+          showSettings={showSettings}
+          showRiskPanel={showRiskPanel}
+          showValidation={showValidation}
+          showVersions={showVersions}
+          selectedIds={selectedIds}
+          canvasNodes={canvas.nodes}
+          canvasEdges={canvas.edges}
+          canvasAnnotations={canvas.annotations}
+          selectedAnnotationId={selectedAnnotationId}
+          onUpdateSelectedNode={updateSelectedNode}
+          onBulkUpdate={bulkUpdate}
+          onDeleteSelected={deleteSelected}
+          onAddAnnotation={addAnnotation}
+          onUpdateAnnotation={updateAnnotation}
+          onDeleteAnnotation={deleteAnnotation}
+          onSelectAnnotation={(annId: string | null) => {
+            dispatch({
+              type: "SET_STATE",
+              patch: {
+                selectedAnnotationId: annId,
+                editAnnotationId: annId,
+              },
+            });
+          }}
+          onReorderAnnotations={handleReorderAnnotations}
+          onAlignSelected={alignSelected}
+          onDistributeSelected={distributeSelected}
+          onMarkAsTwins={markAsTwins}
+          onUnmarkTwins={unmarkTwins}
+          onRemoveEdges={ops.removeEdges}
+          onUpdateEdgeType={updateEdgeType}
+          onToggleCoupleInverted={toggleCoupleInverted}
+          onCreateCoupleEdge={ops.createCoupleEdge}
+          onCreateConsanguinityEdge={ops.createConsanguinityEdge}
+          onCreateCoupleAndChild={ops.createCoupleAndChild}
+          onCreateParentsForGroup={ops.createParentsForGroup}
+          onCloseSettings={() => dispatch({ type: "SET_STATE", patch: { showSettings: false } })}
+          canvas={canvas}
+          riskMode={riskMode}
+          onRiskModeChange={(m) => dispatch({ type: "SET_STATE", patch: { riskMode: m } })}
+          onCloseRiskPanel={() => dispatch({ type: "SET_STATE", patch: { showRiskPanel: false } })}
+          validation={validation}
+          expandedIssueId={expandedIssueId}
+          onToggleIssue={(id) => dispatch({ type: "SET_STATE", patch: { expandedIssueId: expandedIssueId === id ? null : id } })}
+          onFocusIssue={(nodeIds) => {
+            if (nodeIds.length > 0) {
+              dispatch({
+                type: "SET_STATE",
+                patch: {
+                  selectedIds: new Set(nodeIds),
+                  showValidation: true,
+                  showRiskPanel: false,
+                  showVersions: false,
+                },
+              });
+            }
+          }}
+          onCloseValidation={() => dispatch({ type: "SET_STATE", patch: { showValidation: false } })}
+          onCloseVersions={() => dispatch({ type: "SET_STATE", patch: { showVersions: false } })}
+        />
       )}
 
       {showShareModal && pedigree && (
         <ShareModal
           pedigreeId={pedigree.id}
           pedigreeTitle={pedigree.title}
-          pedigreeData={JSON.stringify(canvas)}
           canvasNodes={canvas.nodes}
           canvasEdges={canvas.edges}
-          onPedigreeReceived={async (data) => {
-            if (ops.backgroundSaveVersion) {
-              await ops.backgroundSaveVersion("Auto-saved before Data Merge");
-            }
-            dispatch({ type: "SET_CANVAS", canvas: typeof data === 'string' ? parseCanvas(data) : data as CanvasData });
-          }}
           onClose={() => dispatch({ type: "SET_STATE", patch: { showShareModal: false } })}
           backgroundSaveVersion={ops.backgroundSaveVersion}
         />

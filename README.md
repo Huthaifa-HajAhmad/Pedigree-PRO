@@ -4,14 +4,17 @@
 
 **Local-first clinical pedigree editor**
 
-[![Release](https://img.shields.io/badge/release-v1.2.5--beta-blue)](https://github.com/Huthaifa-HajAhmad/Pedigree-PRO/releases)
-[![License](https://img.shields.io/badge/license-Proprietary-blue)](LICENSE)
+[![Release](https://img.shields.io/badge/release-v1.3.5-blue)](https://github.com/Huthaifa-HajAhmad/Pedigree-PRO/releases)
+[![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
+[![Security: Local-First](https://img.shields.io/badge/Security-Zero--Server-emerald.svg)](docs/COMPLIANCE-HIPAA.md)
 
-A privacy-first pedigree drawing tool for clinical geneticists. No cloud. No accounts. No data leaves your device.
+A privacy-first pedigree drawing tool for clinical geneticists and researchers. No cloud. No accounts. No data leaves your device.
 
-[Download Beta](#installation) · [Features](#features) · [Architecture](#architecture) · [Development](#development)
+[Download](#installation) · [Features](#features) · [Architecture](#architecture) · [Contributing](CONTRIBUTING.md) · [Security](SECURITY.md) · [Roadmap](ROADMAP.md)
 
 </div>
+
+> **Statutory Notice & Clinical Disclaimer:** Pedigree PRO is an open-source software suite designed for academic research, genetic data visualization, and pedigree drawing. It is **not** an FDA-cleared, CE-marked, or certified medical device and is not intended for direct clinical diagnostic or therapeutic decision-making without independent professional verification.
 
 ---
 
@@ -207,4 +210,6 @@ npx vite build --config artifacts/ppro/vite.config.ts
 
 ## License
 
-Proprietary. All rights reserved.
+Pedigree PRO is licensed under the [Apache License, Version 2.0](LICENSE).  
+Copyright © 2026 Huthaifa HajAhmad.
+

@@ -318,6 +318,10 @@ export function relayReceive(shareToken: string): Promise<RelayPayload> {
   return apiCall<RelayPayload>("relay_receive", { share_token: shareToken });
 }
 
+export function relayRevoke(shareToken: string): Promise<void> {
+  return apiCall<void>("relay_revoke", { share_token: shareToken });
+}
+
 export function exportPedigreePpro(pedigreeId: number, exporterKey: string): Promise<string> {
   return apiCall<string>("export_pedigree_ppro", { pedigree_id: pedigreeId, exporter_key: exporterKey });
 }

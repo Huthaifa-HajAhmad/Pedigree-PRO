@@ -103,6 +103,7 @@ pub fn run() {
             commands::share_pedigree,
             commands::relay_share,
             commands::relay_receive,
+            commands::relay_revoke,
             commands::import_shared,
             // ─── Dashboard ────────────────────────────────────
             commands::get_dashboard_stats,

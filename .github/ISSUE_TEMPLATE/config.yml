@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security Vulnerability Reporting
+    url: https://github.com/Huthaifa-HajAhmad/Pedigree-PRO/security/advisories/new
+    about: Report potential security or cryptographic vulnerabilities privately.
+  - name: Community Discussions
+    url: https://github.com/Huthaifa-HajAhmad/Pedigree-PRO/discussions
+    about: Ask questions, share pedigree workflows, and discuss with other clinicians and developers.

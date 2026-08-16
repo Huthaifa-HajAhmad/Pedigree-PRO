@@ -1,9 +1,9 @@
 import { useParams, Link, useLocation } from "wouter";
-import { useEffect, useState, useCallback } from "react";
+import { useState, useCallback } from "react";
 import { useGetSharedPedigree, useImportShared } from "@workspace/api-client-react";
 import { ReadOnlyCanvas } from "@/features/pedigree-editor/canvas/ReadOnlyCanvas";
 import type { CanvasData } from "@/features/pedigree-editor/canvas/types";
-import { ShieldAlert, KeyRound, Loader2, RefreshCw } from "lucide-react";
+import { ShieldAlert, KeyRound, Loader2, RefreshCw, Download } from "lucide-react";
 
 function parseCanvas(raw: string | null | undefined): CanvasData {
   if (!raw) return { nodes: [], edges: [], annotations: [] };
@@ -17,19 +17,9 @@ function parseCanvas(raw: string | null | undefined): CanvasData {
   }
 }
 
-function useAccessMode(): "view" | "edit" {
-  try {
-    const m = new URLSearchParams(window.location.search).get("access");
-    return m === "edit" ? "edit" : "view";
-  } catch {
-    return "view";
-  }
-}
-
 export default function PedigreeShare() {
   const { token } = useParams<{ token: string }>();
   const [, navigate] = useLocation();
-  const accessMode = useAccessMode();
   const importMutation = useImportShared();
   const [importAttempted, setImportAttempted] = useState(false);
   const [retryKey, setRetryKey] = useState(0);
@@ -57,25 +47,12 @@ export default function PedigreeShare() {
     return true;
   }, [token, navigate, importMutation, importAttempted]);
 
-  useEffect(() => {
-    if (
-      accessMode === "edit" &&
-      pedigree &&
-      !isLoading &&
-      !isError &&
-      !pedigree.encrypted &&
-      !pedigree.decryptError
-    ) {
-      importAndEdit();
-    }
-  }, [accessMode, pedigree, isLoading, isError, importAndEdit]);
-
-  if (isLoading || (accessMode === "edit" && importMutation.isPending)) {
+  if (isLoading) {
     return (
       <div className="flex flex-col items-center justify-center h-dvh gap-3 bg-background">
         <Loader2 className="w-6 h-6 text-primary animate-spin" />
         <div className="text-primary tracking-widest text-sm font-mono">
-          {importMutation.isPending ? "Importing pedigree into editor..." : "Loading..."}
+          Loading...
         </div>
       </div>
     );
@@ -141,6 +118,24 @@ export default function PedigreeShare() {
           <span className="px-1.5 py-0.5 rounded text-xs font-mono border text-primary border-primary/25 bg-primary/10">
             READ-ONLY
           </span>
+          <button
+            type="button"
+            onClick={importAndEdit}
+            disabled={importMutation.isPending}
+            className="flex items-center gap-1.5 px-3 py-1 h-7 rounded border border-teal-500/30 bg-teal-500/10 text-teal-600 dark:text-teal-400 hover:bg-teal-500/20 text-xs font-bold transition-all disabled:opacity-50 disabled:pointer-events-none"
+          >
+            {importMutation.isPending ? (
+              <>
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                Importing...
+              </>
+            ) : (
+              <>
+                <Download className="w-3.5 h-3.5" />
+                Save to My Pedigrees
+              </>
+            )}
+          </button>
         </div>
         <div className="text-xs text-muted-foreground">
           Shared {new Date(pedigree.updated_at).toLocaleDateString()}

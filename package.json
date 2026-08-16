@@ -1,7 +1,7 @@
 {
   "name": "workspace",
   "version": "0.0.0",
-  "license": "MIT",
+  "license": "Apache-2.0",
   "scripts": {
     "preinstall": "node ./scripts/preinstall.js",
     "build": "pnpm run typecheck && pnpm -r --if-present run build",

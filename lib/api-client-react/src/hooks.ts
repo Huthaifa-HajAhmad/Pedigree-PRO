@@ -44,7 +44,6 @@ import {
   importShared,
   importPedigreeFromJson,
   relayShare,
-  relayReceive,
   exportPedigreePpro,
   importPedigreeNative,
   importPedigreeLegacy,
@@ -425,6 +424,63 @@ export function useSharePedigree() {
   });
 }
 
+async function decryptRelayPayload(
+  ciphertext: string
+): Promise<{ raw: string; encrypted: boolean; decryptError?: string }> {
+  const stdBase64 = ciphertext.replace(/-/g, "+").replace(/_/g, "/");
+  const padded = stdBase64 + "=".repeat((4 - stdBase64.length % 4) % 4);
+  const rawBytes = Uint8Array.from(atob(padded), (c) => c.charCodeAt(0));
+
+  // Decompress if gzip-compressed
+  let raw: string;
+  const { isGzipCompressed, decompressBytes } = await import("@workspace/browser-backend");
+  if (isGzipCompressed(rawBytes)) {
+    raw = await decompressBytes(rawBytes);
+  } else {
+    raw = new TextDecoder().decode(rawBytes);
+  }
+
+  // Try encrypted decryption first (libsodium sealed box)
+  const { sodiumOpenSealedBox } = await import("@workspace/crypto");
+  const { listProfilePrivateKeys } = await import("@workspace/browser-backend");
+
+  const privateKeys = await listProfilePrivateKeys();
+  if (privateKeys.length === 0) {
+    try {
+      JSON.parse(raw);
+      return { raw, encrypted: false };
+    } catch {
+      return {
+        raw: "",
+        encrypted: true,
+        decryptError: "This share is encrypted for a specific recipient. You need a profile with the matching private key to view it. Create a profile and ask the sender to encrypt for your public key."
+      };
+    }
+  }
+
+  let lastError: Error | null = null;
+  for (const { privateKey } of privateKeys) {
+    try {
+      const decrypted = await sodiumOpenSealedBox(raw, privateKey);
+      return { raw: decrypted, encrypted: false };
+    } catch (e) {
+      lastError = e instanceof Error ? e : new Error(String(e));
+    }
+  }
+
+  // Fallback: try to parse as unencrypted .ppro JSON
+  try {
+    JSON.parse(raw);
+    return { raw, encrypted: false };
+  } catch { /* not JSON */ }
+
+  return {
+    raw: "",
+    encrypted: true,
+    decryptError: lastError?.message ?? "This share is encrypted for a specific recipient. None of your stored private keys can decrypt it."
+  };
+}
+
 export function useImportShared() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -445,7 +501,6 @@ export function useImportShared() {
         const backend = await import("@workspace/browser-backend");
         await backend.initDb();
 
-        // Read fallback full token from hash fragment (#token) for cross-browser support
         let fallbackToken: string | undefined;
         try {
           const hash = window.location.hash;
@@ -461,60 +516,19 @@ export function useImportShared() {
         });
       }
 
-      // Tauri mode: fetch payload from relay, decompress, try decryption, then import
+      // Tauri mode: fetch payload from relay, decrypt/decompress, then import
       const payload = await importShared(shareToken, importerKey);
-      const stdBase64 = payload.ciphertext.replace(/-/g, "+").replace(/_/g, "/");
-      const padded = stdBase64 + "=".repeat((4 - stdBase64.length % 4) % 4);
-      const rawBytes = Uint8Array.from(atob(padded), (c) => c.charCodeAt(0));
-
-      // Decompress if gzip-compressed
-      let raw: string;
-      const { isGzipCompressed, decompressBytes } = await import("@workspace/browser-backend");
-      if (isGzipCompressed(rawBytes)) {
-        raw = await decompressBytes(rawBytes);
-      } else {
-        raw = new TextDecoder().decode(rawBytes);
+      const decrypted = await decryptRelayPayload(payload.ciphertext);
+      if (decrypted.decryptError) {
+        throw new Error(decrypted.decryptError);
       }
-
-      // Try encrypted decryption first (libsodium sealed box)
-      const { sodiumOpenSealedBox } = await import("@workspace/crypto");
-      const { listProfilePrivateKeys } = await import("@workspace/browser-backend");
-
-      let lastError: Error | null = null;
-      for (const { privateKey } of await listProfilePrivateKeys()) {
-        try {
-          const decrypted = await sodiumOpenSealedBox(raw, privateKey);
-          return importPedigreeFromJson(decrypted, importerKey ?? "imported");
-        } catch (e) {
-          lastError = e instanceof Error ? e : new Error(String(e));
-        }
-      }
-
-      // Fallback: try to parse as unencrypted .ppro JSON
-      try {
-        return importPedigreeFromJson(raw, importerKey ?? "imported");
-      } catch { /* not parseable */ }
-
-      throw lastError ?? new Error("No matching private key found");
+      return importPedigreeFromJson(decrypted.raw, importerKey ?? "imported");
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.pedigrees });
       queryClient.invalidateQueries({ queryKey: queryKeys.dashboardStats });
       queryClient.invalidateQueries({ queryKey: queryKeys.recentActivity });
     },
-  });
-}
-
-export function useRelayShare() {
-  return useMutation({
-    mutationFn: ({ ciphertext, encryptedKey, ttlHours }: { ciphertext: string; encryptedKey: string; ttlHours?: number }) =>
-      relayShare(ciphertext, encryptedKey, ttlHours),
-  });
-}
-
-export function useRelayReceive() {
-  return useMutation({
-    mutationFn: (shareToken: string) => relayReceive(shareToken),
   });
 }
 
@@ -600,10 +614,6 @@ export function useGetSharedPedigree(token: string) {
         const backend = await import("@workspace/browser-backend");
         await backend.initDb();
 
-        // Read fallback full token from hash fragment (#token).
-        // The short code in the URL path only resolves in the same browser
-        // (same IndexedDB). The hash fragment carries the full token so
-        // the share works cross-browser without a server.
         let fallbackToken: string | undefined;
         try {
           const hash = window.location.hash;
@@ -618,47 +628,22 @@ export function useGetSharedPedigree(token: string) {
         });
       }
 
-      // Tauri mode: fetch payload from relay, decompress, try decryption, then return view
+      // Tauri mode: fetch payload from relay, decrypt/decompress, then return view
       const payload = await importShared(token);
-      const stdBase64 = payload.ciphertext.replace(/-/g, "+").replace(/_/g, "/");
-      const padded = stdBase64 + "=".repeat((4 - stdBase64.length % 4) % 4);
-      const rawBytes = Uint8Array.from(atob(padded), (c) => c.charCodeAt(0));
-
-      // Decompress if gzip-compressed
-      let raw: string;
-      const { isGzipCompressed, decompressBytes } = await import("@workspace/browser-backend");
-      if (isGzipCompressed(rawBytes)) {
-        raw = await decompressBytes(rawBytes);
-      } else {
-        raw = new TextDecoder().decode(rawBytes);
+      const decrypted = await decryptRelayPayload(payload.ciphertext);
+      if (decrypted.decryptError) {
+        return {
+          title: "",
+          canvas_data: null,
+          notes: null,
+          updated_at: new Date().toISOString(),
+          encrypted: true,
+          decryptError: decrypted.decryptError,
+        } satisfies SharedPedigreeView;
       }
 
-      // Try encrypted decryption first (libsodium sealed box)
-      const { sodiumOpenSealedBox } = await import("@workspace/crypto");
-      const { listProfilePrivateKeys } = await import("@workspace/browser-backend");
-
-      let lastError: Error | null = null;
-      for (const { privateKey } of await listProfilePrivateKeys()) {
-        try {
-          const decrypted = await sodiumOpenSealedBox(raw, privateKey);
-          const data = JSON.parse(decrypted);
-          if (data?.pedigree) {
-            return {
-              title: data.pedigree.title ?? "",
-              canvas_data: data.pedigree.canvas_data ? JSON.stringify(data.pedigree.canvas_data) : null,
-              notes: data.pedigree.notes ?? null,
-              updated_at: data.provenance?.exported_at ?? new Date().toISOString(),
-              encrypted: false,
-            } satisfies SharedPedigreeView;
-          }
-        } catch (e) {
-          lastError = e instanceof Error ? e : new Error(String(e));
-        }
-      }
-
-      // Fallback: try to parse as unencrypted .ppro JSON
       try {
-        const data = JSON.parse(raw);
+        const data = JSON.parse(decrypted.raw);
         if (data?.pedigree) {
           return {
             title: data.pedigree.title ?? "",
@@ -675,8 +660,8 @@ export function useGetSharedPedigree(token: string) {
         canvas_data: null,
         notes: null,
         updated_at: new Date().toISOString(),
-        encrypted: true,
-        decryptError: lastError?.message ?? "No matching private key found",
+        encrypted: false,
+        decryptError: "Invalid share data format",
       } satisfies SharedPedigreeView;
     },
     enabled: !!token,

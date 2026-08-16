@@ -5,6 +5,7 @@ description = "Pedigree PRO — Secure Clinical Pedigree Platform"
 authors = ["Pedigree PRO Contributors"]
 edition = "2021"
 rust-version = "1.77"
+license = "Apache-2.0"
 
 [lib]
 name = "pedigree_pro_lib"

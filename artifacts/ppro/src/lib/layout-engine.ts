@@ -207,7 +207,7 @@ export function collectSubtree(
   nodeId: string,
   adj: AdjacencyMaps,
   visited?: Set<string>,
-  options?: { anchorMarriedIn?: boolean },
+  options?: { anchorMarriedIn?: boolean; ignoreAnchorForIds?: Set<string> },
   descendantsMap?: Map<string, Set<string>>,
 ): Set<string> {
   const descendants = descendantsMap?.get(nodeId) ?? collectDescendants(nodeId, adj);
@@ -225,7 +225,8 @@ export function collectSubtree(
         if (options?.anchorMarriedIn) {
           const partnerParents = adj.parentsOf.get(partnerId) ?? [];
           const hasExternalParents = partnerParents.some(pId => !descendants.has(pId));
-          if (hasExternalParents) {
+          const shouldIgnore = options.ignoreAnchorForIds?.has(partnerId);
+          if (hasExternalParents && !shouldIgnore) {
             continue;
           }
         }
@@ -504,43 +505,61 @@ export function resolveAllCollisions<T extends LayoutNode>(
           }
         }
 
-        // Apply shifts and propagate to subtrees using maximum absolute ancestral shift to prevent cancellation
-        const nodeShiftsMap = new Map<string, number[]>();
+        // Group shifts by shift value (with a 0.01 tolerance) to process concurrent shift units together
+        const shiftsByValue = new Map<number, string[]>();
         for (const [nodeId, shift] of shifts) {
-          const subtree = collectSubtree(nodeId, adj, undefined, { anchorMarriedIn: true }, descendantsMap);
-          
-          // Find all pinned nodes in the subtree
-          const doNotShift = new Set<string>();
-          for (const id of subtree) {
-            const n = nodeMap.get(id);
-            if (pinnedIds.has(id) || (n && n.pinned)) {
-              doNotShift.add(id);
+          let foundKey = shift;
+          for (const k of shiftsByValue.keys()) {
+            if (Math.abs(k - shift) < 0.01) {
+              foundKey = k;
+              break;
             }
           }
-          
-          // Propagate doNotShift state to spouses recursively
-          let added = true;
-          while (added) {
-            added = false;
+          if (!shiftsByValue.has(foundKey)) {
+            shiftsByValue.set(foundKey, []);
+          }
+          shiftsByValue.get(foundKey)!.push(nodeId);
+        }
+
+        const nodeShiftsMap = new Map<string, number[]>();
+        for (const [shift, nodeIds] of shiftsByValue.entries()) {
+          const ignoreAnchorForIds = new Set(nodeIds);
+          for (const nodeId of nodeIds) {
+            const subtree = collectSubtree(nodeId, adj, undefined, { anchorMarriedIn: true, ignoreAnchorForIds }, descendantsMap);
+            
+            // Find all pinned nodes in the subtree
+            const doNotShift = new Set<string>();
             for (const id of subtree) {
-              if (doNotShift.has(id)) {
-                const spouses = adj.couplesOf.get(id) ?? [];
-                for (const sId of spouses) {
-                  if (subtree.has(sId) && !doNotShift.has(sId)) {
-                    doNotShift.add(sId);
-                    added = true;
+              const n = nodeMap.get(id);
+              if (pinnedIds.has(id) || (n && n.pinned)) {
+                doNotShift.add(id);
+              }
+            }
+            
+            // Propagate doNotShift state to spouses recursively
+            let added = true;
+            while (added) {
+              added = false;
+              for (const id of subtree) {
+                if (doNotShift.has(id)) {
+                  const spouses = adj.couplesOf.get(id) ?? [];
+                  for (const sId of spouses) {
+                    if (subtree.has(sId) && !doNotShift.has(sId)) {
+                      doNotShift.add(sId);
+                      added = true;
+                    }
                   }
                 }
               }
             }
-          }
 
-          for (const id of subtree) {
-            if (doNotShift.has(id)) continue;
-            if (!nodeShiftsMap.has(id)) {
-              nodeShiftsMap.set(id, []);
+            for (const id of subtree) {
+              if (doNotShift.has(id)) continue;
+              if (!nodeShiftsMap.has(id)) {
+                nodeShiftsMap.set(id, []);
+              }
+              nodeShiftsMap.get(id)!.push(shift);
             }
-            nodeShiftsMap.get(id)!.push(shift);
           }
         }
 
@@ -1352,6 +1371,9 @@ export function recenterAllFamilies<T extends LayoutNode>(
   // recenterAllChildren guards against NaN-infected inputs at its own entry point.
   currentNodes = recenterAllChildren(currentNodes, edges, excludeIds, nodeGap, genGrid, genIndexOf, canvasWidth);
 
+  // Run the post-pass optimizer to straighten any remaining kinks in parent-child lines
+  currentNodes = optimizeKinks(currentNodes, edges, excludeIds, nodeGap, genGrid, genIndexOf, canvasWidth);
+
   // Final snap to remove topological deltas (0.01) and clamp within bounds
   return currentNodes.map(n => {
     if (n.pinned) return n;
@@ -1364,6 +1386,151 @@ export function recenterAllFamilies<T extends LayoutNode>(
       y: snappedY,
     };
   });
+}
+
+function collectUpstreamSubtree(
+  startNodeIds: Set<string>,
+  adj: AdjacencyMaps,
+): Set<string> {
+  const visited = new Set<string>();
+  const queue = [...startNodeIds];
+  for (const id of startNodeIds) {
+    visited.add(id);
+  }
+  let head = 0;
+  while (head < queue.length) {
+    const curr = queue[head]!;
+    head++;
+    
+    // Parents
+    const parents = adj.parentsOf.get(curr) ?? [];
+    for (const pId of parents) {
+      if (!visited.has(pId)) {
+        visited.add(pId);
+        queue.push(pId);
+      }
+    }
+    
+    // Couples
+    const couples = adj.couplesOf.get(curr) ?? [];
+    for (const cId of couples) {
+      if (!visited.has(cId)) {
+        visited.add(cId);
+        queue.push(cId);
+      }
+    }
+  }
+  return visited;
+}
+
+export function optimizeKinks<T extends LayoutNode>(
+  nodes: T[],
+  edges: EdgeSubset[],
+  excludeIds?: Set<string>,
+  nodeGap = NODE_GAP,
+  genGrid = GEN_GRID,
+  genIndexOf?: Map<string, number>,
+  canvasWidth?: number,
+): T[] {
+  let currentNodes = nodes.map(n => ({ ...n }));
+  const adj = buildAdjacency(currentNodes, edges);
+  const nodeMap = buildNodeMap(currentNodes);
+  const pinnedIds = new Set(excludeIds ?? []);
+  const tolerance = getRowTolerance(currentNodes, genGrid);
+
+  // Group by parents to find all families
+  const families = new Map<string, { parentIds: string[]; childIds: string[] }>();
+  for (const [childId, pIds] of adj.parentsOf.entries()) {
+    if (pIds.length === 0) continue;
+    const key = [...pIds].sort().join("_");
+    if (!families.has(key)) families.set(key, { parentIds: pIds, childIds: [] });
+    families.get(key)!.childIds.push(childId);
+  }
+
+  for (const f of families.values()) {
+    const parents = f.parentIds.map(id => nodeMap.get(id)).filter((n): n is T => !!n);
+    const children = f.childIds.map(id => nodeMap.get(id)).filter((n): n is T => !!n);
+    if (parents.length === 0 || children.length === 0) continue;
+
+    // Calculate current children center
+    const cx = children.reduce((sum, c) => sum + c.x, 0) / children.length;
+    // Calculate current parent midpoint
+    const px = parents.reduce((sum, p) => sum + p.x, 0) / parents.length;
+
+    const delta = cx - px;
+    if (Math.abs(delta) < 1.0) continue;
+
+    // Build the shift set: start with the parents
+    const startNodeIds = new Set(f.parentIds);
+    const parentsShiftSet = collectUpstreamSubtree(startNodeIds, adj);
+
+    // If the shift set contains any children of this couple, remove them so they don't shift!
+    for (const c of children) {
+      parentsShiftSet.delete(c.id);
+    }
+
+    // Verify constraints:
+    // 1. None of the shifting nodes can be pinned
+    let canShift = true;
+    for (const id of parentsShiftSet) {
+      const n = nodeMap.get(id);
+      if (pinnedIds.has(id) || (n && n.pinned)) {
+        canShift = false;
+        break;
+      }
+    }
+    if (!canShift) continue;
+
+    // 2. Dry-run and check boundaries & collisions on each affected row
+    for (const id of parentsShiftSet) {
+      const n = nodeMap.get(id);
+      if (!n) continue;
+      const targetX = n.x + delta;
+
+      // Canvas boundary limits
+      if (targetX < genGrid) {
+        canShift = false;
+        break;
+      }
+      if (canvasWidth !== undefined && targetX > canvasWidth - genGrid) {
+        canShift = false;
+        break;
+      }
+
+      // Check collision with other nodes on the same row that are NOT in parentsShiftSet
+      const rowNodes = genIndexOf
+        ? currentNodes.filter(other => genIndexOf.get(other.id) === genIndexOf.get(id))
+        : currentNodes.filter(other => Math.abs(other.y - n.y) < tolerance);
+
+      for (const other of rowNodes) {
+        if (parentsShiftSet.has(other.id)) continue;
+        if (Math.abs(targetX - other.x) < nodeGap - 0.05) {
+          canShift = false;
+          break;
+        }
+      }
+      if (!canShift) break;
+    }
+
+    // If all checks passed, apply the shift to the parent upstream set!
+    if (canShift) {
+      for (const id of parentsShiftSet) {
+        const n = nodeMap.get(id);
+        if (n) {
+          n.x += delta;
+        }
+      }
+      // Re-initialize nodeMap coordinate values for subsequent families in the loop
+      for (const n of currentNodes) {
+        const mapped = nodeMap.get(n.id);
+        if (mapped) {
+          n.x = mapped.x;
+        }
+      }
+    }
+  }
+
+  return currentNodes;
 }
 
 /**

@@ -1,0 +1,78 @@
+name: Bug Report
+description: Report a defect, layout failure, or unexpected error in Pedigree PRO.
+title: "[Bug]: "
+labels: ["bug", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for reporting an issue! Please check if a similar bug has already been reported before submitting.
+
+  - type: dropdown
+    id: environment
+    attributes:
+      label: Operating Environment
+      description: Where are you running Pedigree PRO?
+      options:
+        - "Desktop App (Windows - MSI/NSIS)"
+        - "Desktop App (macOS - DMG)"
+        - "Desktop App (Linux - AppImage/deb/rpm)"
+        - "Browser Mode (Chrome / Edge / Chromium)"
+        - "Browser Mode (Firefox)"
+        - "Browser Mode (Safari)"
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Pedigree PRO Version
+      description: E.g., v1.3.5 or commit SHA (found in the About dialog).
+      placeholder: "v1.3.5"
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Bug Description
+      description: A clear and concise description of what the bug is.
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to Reproduce
+      description: Step-by-step instructions to reproduce the behavior.
+      placeholder: |
+        1. Open canvas
+        2. Add parents and 3 siblings
+        3. Connect consanguineous relationship between...
+        4. Observe layout overlap...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected Behavior
+      description: What you expected to happen according to clinical genetics / layout standards.
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Console Logs / Error Messages
+      description: Paste any error messages from the DevTools console or terminal.
+      render: shell
+
+  - type: checkboxes
+    id: sanitization
+    attributes:
+      label: PHI Sanitization Confirmation
+      description: Confirmation of patient data safety.
+      options:
+        - label: "I confirm that any attached logs, screenshots, or pedigree data files are 100% de-identified and contain NO real Protected Health Information (PHI)."
+          required: true

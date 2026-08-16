@@ -1028,6 +1028,13 @@ pub async fn relay_receive(
 }
 
 #[tauri::command]
+pub async fn relay_revoke(
+    share_token: String,
+) -> Result<(), String> {
+    crate::relay::revoke_shared_payload(&share_token).await
+}
+
+#[tauri::command]
 pub async fn import_shared(
     share_token: String,
     _importer_key: Option<String>,

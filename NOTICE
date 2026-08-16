@@ -1,0 +1,65 @@
+Pedigree PRO
+Copyright 2026 Huthaifa HajAhmad
+
+This product includes software developed as part of the Pedigree PRO project
+(https://github.com/Huthaifa-HajAhmad/Pedigree-PRO).
+
+================================================================================
+Third-Party Software and Attributions
+================================================================================
+
+This project bundles or depends on third-party software components licensed under
+permissive open-source licenses:
+
+1. SQLCipher
+   Copyright (c) 2008-2024, ZETETIC LLC
+   Licensed under the BSD-style License.
+   https://www.zetetic.net/sqlcipher/
+
+2. OpenSSL Toolkit
+   Copyright (c) 1998-2024 The OpenSSL Project.
+   Copyright (c) 1995-1998 Eric A. Young, Tim J. Hudson.
+   Licensed under the Apache License 2.0 / OpenSSL License.
+   https://www.openssl.org/
+
+3. sql.js (SQLite compiled to WebAssembly)
+   Copyright (c) 2021 Alon Zakai, sql.js contributors.
+   Licensed under the MIT License.
+   https://github.com/sql-js/sql.js
+
+4. @noble Cryptography Primitives (@noble/ed25519, @noble/curves, @noble/hashes)
+   Copyright (c) 2019 Paul Miller (https://paulmillr.com)
+   Licensed under the MIT License.
+   https://github.com/paulmillr/noble-ed25519
+
+5. Tauri Framework
+   Copyright (c) 2019-2024 Tauri Programme within The Commons Conservancy.
+   Licensed under the MIT License and Apache License 2.0.
+   https://tauri.app/
+
+6. Drizzle ORM
+   Copyright (c) 2023 Drizzle Team.
+   Licensed under the Apache License 2.0.
+   https://orm.drizzle.team/
+
+7. Radix UI Primitives
+   Copyright (c) 2022 WorkOS.
+   Licensed under the MIT License.
+   https://www.radix-ui.com/
+
+8. Lucide Icons
+   Copyright (c) 2022 Lucide Contributors.
+   Licensed under the ISC License.
+   https://lucide.dev/
+
+9. jsPDF & pptxgenjs
+   jsPDF: Copyright (c) 2010-2024 James Hall, Parvez Khokhar, and contributors. (MIT)
+   pptxgenjs: Copyright (c) 2015-2024 Brent Ely. (MIT)
+
+================================================================================
+Clinical & Statutory Notice
+================================================================================
+
+Pedigree PRO is provided strictly for academic research, genetic data
+visualization, and educational purposes. It is NOT an FDA-cleared, CE-marked,
+or certified medical device. See DISCLAIMER in README.md for full details.
