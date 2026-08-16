@@ -27,8 +27,8 @@ body:
     id: version
     attributes:
       label: Pedigree PRO Version
-      description: E.g., v1.3.5 or commit SHA (found in the About dialog).
-      placeholder: "v1.3.5"
+      description: E.g., v1.4.0 or commit SHA (found in the About dialog).
+      placeholder: "v1.4.0"
     validations:
       required: true
 

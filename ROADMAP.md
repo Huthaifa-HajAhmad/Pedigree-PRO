@@ -4,7 +4,7 @@ This document outlines the strategic priorities, upcoming milestones, and long-t
 
 ---
 
-## Current Release: v1.3.5 (Stable / Apache 2.0 Open-Source Release)
+## Current Release: v1.4.0 (Stable / Apache 2.0 Open-Source Release)
 
 * :white_check_mark: Zero-server local-first architecture (Tauri Rust + Browser WASM).
 * :white_check_mark: Topological auto-layout engine with consanguinity collision resolution and crossing minimization.

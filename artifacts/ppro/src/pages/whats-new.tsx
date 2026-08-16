@@ -17,14 +17,51 @@ export default function WhatsNewPage() {
           </div>
 
           <div className="relative border-l border-border pl-6 ml-3 space-y-8 my-2">
-            {/* Version 1.3.5 */}
+            {/* Version 1.4.0 */}
             <div className="relative">
               <div className="absolute -left-[31px] top-1 w-3.5 h-3.5 rounded-full border border-primary bg-background flex items-center justify-center">
                 <span className="w-1.5 h-1.5 rounded-full bg-primary" />
               </div>
               <div className="flex items-center gap-2">
-                <span className="text-sm font-semibold text-foreground">Version 1.3.5</span>
+                <span className="text-sm font-semibold text-foreground">Version 1.4.0</span>
                 <span className="bg-primary/10 text-primary text-[10px] px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">Latest</span>
+              </div>
+              <p className="text-[10px] text-muted-foreground mt-0.5">August 2026</p>
+              <ul className="mt-3 space-y-2 text-xs text-muted-foreground leading-relaxed">
+                <li className="flex items-start gap-2">
+                  <span className="text-primary font-bold select-none mt-0.5">•</span>
+                  <span><strong>Line Crossing Bridges (Line Hopping):</strong> Added automatic intersection detection between vertical sibling drop lines and relationship lines, rendering clear visual arc jump bridges to prevent ambiguity.</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-primary font-bold select-none mt-0.5">•</span>
+                  <span><strong>Clinical Symbols (SAB & Stillbirth):</strong> Standardized Spontaneous Abortion (SAB) to a clinical triangle shape (&Delta;) and implemented sex-specific Stillbirth (SB) symbols with diagonal slashes and validation.</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-primary font-bold select-none mt-0.5">•</span>
+                  <span><strong>Multi-Family Generation Rails:</strong> Independent connected-component Roman numeral generation rails (<code className="text-primary">I</code>, <code className="text-primary">II</code>, <code className="text-primary">III</code>) for workspaces containing multiple discrete families.</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-primary font-bold select-none mt-0.5">•</span>
+                  <span><strong>Cross-Tab Copy & Paste:</strong> Seamlessly copy pedigree branches, subtrees, or individuals from one tab or project and paste into another while preserving relationships and clinical data.</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-primary font-bold select-none mt-0.5">•</span>
+                  <span><strong>Subtree Alignment & Spacing:</strong> Added family-aware alignment guides and one-click equal horizontal distribution tools for sibling groups and founders.</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-primary font-bold select-none mt-0.5">•</span>
+                  <span><strong>Apache 2.0 Open-Source Release:</strong> Full transition to open-source governance with zero-knowledge encrypted relay sharing, updated security disclosures, and HIPAA compliance mapping.</span>
+                </li>
+              </ul>
+            </div>
+
+            {/* Version 1.3.5 */}
+            <div className="relative">
+              <div className="absolute -left-[31px] top-1 w-3.5 h-3.5 rounded-full border border-border bg-background flex items-center justify-center">
+                <span className="w-1.5 h-1.5 rounded-full bg-primary/60" />
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-semibold text-foreground">Version 1.3.5</span>
               </div>
               <p className="text-[10px] text-muted-foreground mt-0.5">July 2026</p>
               <ul className="mt-3 space-y-2 text-xs text-muted-foreground leading-relaxed">

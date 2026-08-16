@@ -4,7 +4,7 @@
 
 **Local-first clinical pedigree editor**
 
-[![Release](https://img.shields.io/badge/release-v1.3.5-blue)](https://github.com/Huthaifa-HajAhmad/Pedigree-PRO/releases)
+[![Release](https://img.shields.io/badge/release-v1.4.0-blue)](https://github.com/Huthaifa-HajAhmad/Pedigree-PRO/releases)
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 [![Security: Local-First](https://img.shields.io/badge/Security-Zero--Server-emerald.svg)](docs/COMPLIANCE-HIPAA.md)
 
