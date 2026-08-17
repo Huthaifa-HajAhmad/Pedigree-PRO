@@ -65,8 +65,13 @@ export function PedigreeCanvasBody() {
       navigate(`/pedigrees/${pedigreeObj.id}`);
     } catch (err) {
       console.error("Failed to create pedigree:", err);
+      toast({
+        title: "Failed to Create Pedigree",
+        description: "Unable to create a new pedigree. Please check local database storage and try again.",
+        variant: "destructive",
+      });
     }
-  }, [createPedigree, queryClient, ops, navigate]);
+  }, [createPedigree, queryClient, ops, navigate, toast]);
 
   const [sidePanelWidth, setSidePanelWidth] = useState(320);
   const isResizingRef = useRef(false);

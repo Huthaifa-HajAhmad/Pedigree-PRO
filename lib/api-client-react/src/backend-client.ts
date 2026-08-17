@@ -189,6 +189,8 @@ export interface PedigreeVersion {
   thumbnail: string | null;
   saver_key: string | null;
   saver_signature: string | null;
+  nodes_count?: number | null;
+  couple_count?: number | null;
   created_at: string;
 }
 

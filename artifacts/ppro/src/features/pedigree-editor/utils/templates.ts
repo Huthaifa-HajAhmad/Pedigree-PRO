@@ -36,39 +36,99 @@ export interface CustomTemplate {
   canvasData: CanvasData;
 }
 
-export function getCustomTemplates(): CustomTemplate[] {
-  if (typeof window === "undefined") return [];
+let cachedCustomTemplates: CustomTemplate[] = [];
+let templatesInitialized = false;
+
+async function persistCustomTemplatesEncrypted(): Promise<void> {
+  if (typeof window === "undefined") return;
+  try {
+    const { encryptDraft } = await import("@workspace/browser-backend");
+    const encrypted = await encryptDraft(JSON.stringify(cachedCustomTemplates));
+    localStorage.setItem("pedigree-pro-custom-templates", encrypted);
+  } catch (err) {
+    console.error("Failed to encrypt custom templates", err);
+  }
+}
+
+export async function initCustomTemplates(): Promise<void> {
+  if (typeof window === "undefined" || templatesInitialized) return;
+  templatesInitialized = true;
   try {
     const stored = localStorage.getItem("pedigree-pro-custom-templates");
-    return stored ? JSON.parse(stored) : [];
+    if (!stored) return;
+    try {
+      const { decryptDraft } = await import("@workspace/browser-backend");
+      const decrypted = await decryptDraft(stored);
+      cachedCustomTemplates = JSON.parse(decrypted);
+    } catch {
+      // Check for legacy plaintext migration
+      const maybePlain = JSON.parse(stored);
+      if (Array.isArray(maybePlain)) {
+        cachedCustomTemplates = maybePlain;
+        // Re-encrypt immediately
+        await persistCustomTemplatesEncrypted();
+      }
+    }
   } catch {
-    return [];
+    cachedCustomTemplates = [];
   }
+}
+
+// Auto-trigger init in browser environment
+if (typeof window !== "undefined") {
+  initCustomTemplates().catch(() => {});
+}
+
+export function getCustomTemplates(): CustomTemplate[] {
+  return cachedCustomTemplates;
 }
 
 export function saveCustomTemplate(name: string, desc: string, canvasData: CanvasData): void {
   if (typeof window === "undefined") return;
-  const templates = getCustomTemplates();
   const newTpl: CustomTemplate = {
     key: `custom_${Date.now()}`,
     name,
     desc,
     category: "custom",
     canvasData: {
-      nodes: canvasData.nodes.map(n => ({ ...n, pinned: undefined })),
+      nodes: canvasData.nodes.map(n => ({
+        id: n.id,
+        type: n.type,
+        x: n.x,
+        y: n.y,
+        affected: n.affected,
+        affectedLevel: n.affectedLevel,
+        carrier: n.carrier,
+        deceased: n.deceased,
+        proband: n.proband,
+        adopted: n.adopted,
+        label: n.label,
+        age: n.age,
+        color: n.color,
+        color2: n.color2,
+        colorQ1: n.colorQ1,
+        colorQ2: n.colorQ2,
+        colorQ3: n.colorQ3,
+        colorQ4: n.colorQ4,
+        genotype: n.genotype,
+        genotype2: n.genotype2,
+        additionalGenotypes: n.additionalGenotypes,
+        shading: n.shading,
+        stillbirth: n.stillbirth,
+        insideText: n.insideText,
+      })),
       edges: canvasData.edges.map(e => ({ ...e })),
       annotations: canvasData.annotations ? canvasData.annotations.map(a => ({ ...a })) : []
     }
   };
-  templates.push(newTpl);
-  localStorage.setItem("pedigree-pro-custom-templates", JSON.stringify(templates));
+  cachedCustomTemplates = [...cachedCustomTemplates, newTpl];
+  persistCustomTemplatesEncrypted().catch(() => {});
 }
 
 export function deleteCustomTemplate(key: string): void {
   if (typeof window === "undefined") return;
-  let templates = getCustomTemplates();
-  templates = templates.filter(t => t.key !== key);
-  localStorage.setItem("pedigree-pro-custom-templates", JSON.stringify(templates));
+  cachedCustomTemplates = cachedCustomTemplates.filter(t => t.key !== key);
+  persistCustomTemplatesEncrypted().catch(() => {});
 }
 
 export function getTemplateOptions(): readonly TemplateOption[] {

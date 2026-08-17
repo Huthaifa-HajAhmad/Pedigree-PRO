@@ -114,6 +114,55 @@ export function cleanupExpiredShareLinks(): void {
   exec("DELETE FROM share_links WHERE created_at < datetime('now', '-7 days')", []);
 }
 
+function extractKeyFromLocationOrFallback(fallbackToken?: string): string | undefined {
+  if (typeof window !== "undefined" && window.location.hash) {
+    const hash = window.location.hash.slice(1);
+    const params = new URLSearchParams(hash);
+    const k = params.get("key");
+    if (k) return k;
+    if (hash.startsWith("key=")) return hash.slice(4);
+  }
+  if (fallbackToken) {
+    try {
+      const params = new URLSearchParams(fallbackToken);
+      const k = params.get("key");
+      if (k) return k;
+    } catch {}
+  }
+  return undefined;
+}
+
+async function decryptSharedRaw(raw: string, symKeyBase64url?: string): Promise<string> {
+  if (symKeyBase64url) {
+    try {
+      const parsedEnvelope = JSON.parse(raw);
+      if (parsedEnvelope?.v === "symmetric-gcm" && parsedEnvelope.ciphertext && parsedEnvelope.nonce) {
+        const { decryptAesGcm, base64urlToBytes } = await import("@workspace/crypto");
+        return await decryptAesGcm(parsedEnvelope.ciphertext, parsedEnvelope.nonce, base64urlToBytes(symKeyBase64url));
+      }
+    } catch {}
+  }
+
+  const { sodiumOpenSealedBox } = await import("@workspace/crypto");
+  const privateKeys = await listProfilePrivateKeys();
+  let lastError: Error | null = null;
+
+  for (const { privateKey } of privateKeys) {
+    try {
+      return await sodiumOpenSealedBox(raw, privateKey);
+    } catch (e) {
+      lastError = e instanceof Error ? e : new Error(String(e));
+    }
+  }
+
+  try {
+    JSON.parse(raw);
+    return raw;
+  } catch {}
+
+  throw lastError ?? new Error("This share is encrypted. Decryption key or matching profile private key not found.");
+}
+
 export async function share_pedigree(args: {
   pedigree_id: number;
   recipient_key: string;
@@ -128,24 +177,29 @@ export async function share_pedigree(args: {
   const hasKey = args.recipient_key && args.recipient_key !== "anonymous";
 
   let payload: string;
+  let keyFragment = "";
   if (hasKey) {
     const { sodiumSealBox } = await import("@workspace/crypto");
     payload = await sodiumSealBox(pproJson, args.recipient_key);
   } else {
-    payload = pproJson;
+    const { generateSymmetricKey, encryptAesGcm, bytesToBase64url } = await import("@workspace/crypto");
+    const symKey = generateSymmetricKey();
+    const { ciphertext, nonce } = await encryptAesGcm(pproJson, symKey);
+    payload = JSON.stringify({ v: "symmetric-gcm", nonce, ciphertext });
+    keyFragment = `#key=${bytesToBase64url(symKey)}`;
   }
 
   const compressed = await compressString(payload);
   const compressedBase64 = toBase64url(bytesToBase64(compressed));
 
   try {
-    const relayResult = await relay_share({ ciphertext: compressedBase64, encrypted_key: "" });
+    const relayResult = await relay_share({ ciphertext: compressedBase64, encrypted_key: "", ttl_hours: 168 });
     const appBaseUrl = typeof window !== "undefined" && ("__TAURI_INTERNALS__" in window || "__TAURI__" in window)
       ? "https://pedigree-pro.pages.dev"
       : window.location.origin;
     return {
       share_token: relayResult.share_token,
-      share_url: `${appBaseUrl}/share/${relayResult.share_token}`,
+      share_url: `${appBaseUrl}/share/${relayResult.share_token}${keyFragment}`,
     };
   } catch {
     // Relay offline fallback
@@ -167,12 +221,13 @@ export async function share_pedigree(args: {
 
   return {
     share_token: token,
-    share_url: `${shareBaseUrl}/share/${shortCode}#${encodeURIComponent(token)}`,
+    share_url: `${shareBaseUrl}/share/${shortCode}#token=${encodeURIComponent(token)}${keyFragment ? `&${keyFragment.slice(1)}` : ""}`,
   };
 }
 
 export async function import_shared(args: { share_token: string; importer_key?: string; fallback_token?: string }): Promise<Pedigree> {
   let token = args.share_token;
+  const symKey = extractKeyFromLocationOrFallback(args.fallback_token);
 
   if (isShortCode(token)) {
     const resolved = resolveShortCode(token);
@@ -190,29 +245,11 @@ export async function import_shared(args: { share_token: string; importer_key?: 
       const relayData = await relay_receive({ share_token: token });
       const compressedBytes = base64ToBytes(fromBase64urlToBase64(relayData.ciphertext));
       const raw = await decompressBytes(compressedBytes);
-
-      const { sodiumOpenSealedBox } = await import("@workspace/crypto");
-      const privateKeys = await listProfilePrivateKeys();
-      let lastError: Error | null = null;
-
-      for (const { privateKey } of privateKeys) {
-        try {
-          const decrypted = await sodiumOpenSealedBox(raw, privateKey);
-          return import_pedigree_native({ path: decrypted, importer_key: args.importer_key ?? "imported" });
-        } catch (e) {
-          lastError = e instanceof Error ? e : new Error(String(e));
-        }
-      }
-
-      try {
-        return import_pedigree_native({ path: raw, importer_key: args.importer_key ?? "imported" });
-      } catch {
-        // Not valid JSON
-      }
-
-      throw lastError ?? new Error("Invalid share token: no matching private key found");
-    } catch {
-      // Relay failed or token not found
+      const decrypted = await decryptSharedRaw(raw, symKey);
+      return import_pedigree_native({ path: decrypted, importer_key: args.importer_key ?? "imported" });
+    } catch (e) {
+      if (e instanceof Error && e.message.includes("Invalid share link")) throw e;
+      // Continue to local decode fallback
     }
   }
 
@@ -229,26 +266,8 @@ export async function import_shared(args: { share_token: string; importer_key?: 
     throw new Error("Invalid share token: unable to decode");
   }
 
-  const { sodiumOpenSealedBox } = await import("@workspace/crypto");
-  const privateKeys = await listProfilePrivateKeys();
-  let lastError: Error | null = null;
-
-  for (const { privateKey } of privateKeys) {
-    try {
-      const decrypted = await sodiumOpenSealedBox(raw, privateKey);
-      return import_pedigree_native({ path: decrypted, importer_key: args.importer_key ?? "imported" });
-    } catch (e) {
-      lastError = e instanceof Error ? e : new Error(String(e));
-    }
-  }
-
-  try {
-    return import_pedigree_native({ path: raw, importer_key: args.importer_key ?? "imported" });
-  } catch {
-    // Not valid JSON
-  }
-
-  throw lastError ?? new Error("Invalid share token: no matching private key found");
+  const decrypted = await decryptSharedRaw(raw, symKey);
+  return import_pedigree_native({ path: decrypted, importer_key: args.importer_key ?? "imported" });
 }
 
 function parsePproForView(raw: string): Omit<SharedPedigreeView, "encrypted" | "decryptError"> | null {
@@ -275,6 +294,7 @@ export async function decode_shared_pedigree(args: {
   fallback_token?: string;
 }): Promise<SharedPedigreeView> {
   let token = args.share_token;
+  const symKey = extractKeyFromLocationOrFallback(args.fallback_token);
 
   if (isShortCode(token)) {
     const resolved = resolveShortCode(token);
@@ -300,43 +320,20 @@ export async function decode_shared_pedigree(args: {
       const compressedBytes = base64ToBytes(fromBase64urlToBase64(relayData.ciphertext));
       const raw = await decompressBytes(compressedBytes);
 
-      const { sodiumOpenSealedBox } = await import("@workspace/crypto");
-      const privateKeys = await listProfilePrivateKeys();
-
-      for (const { privateKey } of privateKeys) {
-        try {
-          const decrypted = await sodiumOpenSealedBox(raw, privateKey);
-          const view = parsePproForView(decrypted);
-          if (view) return { ...view, encrypted: false };
-        } catch {
-          // Key mismatch
-        }
-      }
-
-      const unencryptedView = parsePproForView(raw);
-      if (unencryptedView) {
-        return { ...unencryptedView, encrypted: false };
-      }
-
-      if (privateKeys.length > 0) {
+      try {
+        const decrypted = await decryptSharedRaw(raw, symKey);
+        const view = parsePproForView(decrypted);
+        if (view) return { ...view, encrypted: false };
+      } catch (err) {
         return {
           title: "",
           canvas_data: null,
           notes: null,
           updated_at: new Date().toISOString(),
           encrypted: true,
-          decryptError: "This share is encrypted for a specific recipient. None of your stored private keys can decrypt it. Ask the sender to share with your public key, or generate an unencrypted share link.",
+          decryptError: err instanceof Error ? err.message : "Unable to decrypt share",
         };
       }
-
-      return {
-        title: "",
-        canvas_data: null,
-        notes: null,
-        updated_at: new Date().toISOString(),
-        encrypted: true,
-        decryptError: "This share is encrypted for a specific recipient. You need a profile with the matching private key to view it. Create a profile and ask the sender to encrypt for your public key.",
-      };
     } catch {
       // Relay failed
     }
@@ -362,32 +359,18 @@ export async function decode_shared_pedigree(args: {
     };
   }
 
-  const { sodiumOpenSealedBox } = await import("@workspace/crypto");
-  const privateKeys = await listProfilePrivateKeys();
-
-  for (const { privateKey } of privateKeys) {
-    try {
-      const decrypted = await sodiumOpenSealedBox(raw, privateKey);
-      const view = parsePproForView(decrypted);
-      if (view) return { ...view, encrypted: false };
-    } catch {
-      // Key mismatch
-    }
-  }
-
-  const unencryptedView = parsePproForView(raw);
-  if (unencryptedView) {
-    return { ...unencryptedView, encrypted: false };
-  }
-
-  if (privateKeys.length > 0) {
+  try {
+    const decrypted = await decryptSharedRaw(raw, symKey);
+    const view = parsePproForView(decrypted);
+    if (view) return { ...view, encrypted: false };
+  } catch (err) {
     return {
       title: "",
       canvas_data: null,
       notes: null,
       updated_at: new Date().toISOString(),
       encrypted: true,
-      decryptError: "This share is encrypted for a specific recipient. None of your stored private keys can decrypt it. Ask the sender to share with your public key, or generate an unencrypted share link.",
+      decryptError: err instanceof Error ? err.message : "Unable to decrypt share",
     };
   }
 
@@ -397,7 +380,7 @@ export async function decode_shared_pedigree(args: {
     notes: null,
     updated_at: new Date().toISOString(),
     encrypted: true,
-    decryptError: "This share is encrypted for a specific recipient. You need a profile with the matching private key to view it. Create a profile and ask the sender to encrypt for your public key.",
+    decryptError: "This share is encrypted. Decryption key or matching profile private key not found.",
   };
 }
 
@@ -412,7 +395,7 @@ export async function relay_share(args: {
     body: JSON.stringify({
       ciphertext: args.ciphertext,
       encrypted_key: args.encrypted_key,
-      ttl_hours: args.ttl_hours ?? null,
+      ttl_hours: args.ttl_hours ?? 168,
     }),
   });
 

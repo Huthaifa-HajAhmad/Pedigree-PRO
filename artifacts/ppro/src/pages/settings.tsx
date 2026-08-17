@@ -1,9 +1,10 @@
 import { useState } from "react";
-import { Palette, Type, Ruler, Check, RotateCcw, PanelTop, ShieldCheck, Lock, Info } from "lucide-react";
+import { Palette, Type, Ruler, Check, RotateCcw, PanelTop, ShieldCheck, Lock, Info, Trash2 } from "lucide-react";
 import { THEMES, COLOR_PALETTES, useTheme, applyTheme } from "@/lib/theme";
 import { FONT_OPTIONS, useFont } from "@/lib/font";
 import { PanelSection } from "@/components/shared/panels/PanelSection";
 import { useCanvasConfig, DEFAULT_CANVAS_CONFIG } from "@/features/pedigree-editor/context/CanvasConfigContext";
+import { secureDisposalWithConfirmation } from "@/lib/secure-disposal";
 
 const TABS = [
   { id: "appearance", label: "Appearance", icon: Palette },
@@ -428,24 +429,40 @@ function SecurityTab() {
         </div>
       </PanelSection>
 
-      <PanelSection title="Key Protection & Access Control" icon={<ShieldCheck className="w-3.5 h-3.5" />}>
+      <PanelSection title="Key Protection & Storage Architecture" icon={<ShieldCheck className="w-3.5 h-3.5" />}>
         <div className="space-y-4">
           <div className="flex gap-3 p-3.5 rounded-lg border border-warning/20 bg-warning/5 text-warning-foreground">
             <Info className="w-4.5 h-4.5 text-warning flex-shrink-0 mt-0.5" />
             <div className="space-y-1">
-              <span className="text-xs font-semibold block text-amber-500">Security Disclosure</span>
+              <span className="text-xs font-semibold block text-amber-500">Security Architecture Note</span>
               <p className="text-[11px] text-muted-foreground leading-relaxed">
-                By default, browser mode stores wrapping keys within the local IndexedDB partition to enable passwordless startup. While this protects against unauthorized remote extraction, anyone with physical access to your device profile and browser tools can retrieve the database.
+                In browser standalone mode, database blobs, autosaved drafts, and exported backups are encrypted with AES-256-GCM within your local browser storage partition. To enable seamless single-session workflows without a login server, wrapping keys are stored in IndexedDB.
               </p>
             </div>
           </div>
 
           <div className="p-4 rounded-lg border border-primary/20 bg-primary/5 flex flex-col space-y-2">
-            <span className="text-xs font-semibold text-primary">Multi-User & Shared Computers Recommendation</span>
+            <span className="text-xs font-semibold text-primary">Clinical Workstations & HIPAA Compliance Recommendation</span>
             <p className="text-[11px] text-muted-foreground leading-relaxed">
-              For shared workstations and clinical compliance, it is highly recommended to protect your profile with a strong master passphrase. This derives your database keys on-the-fly using <strong>PBKDF2-HMAC-SHA512</strong> (256k iterations), ensuring that your records cannot be decrypted without your password.
+              For clinical environments and multi-user workstations, we recommend running the native <strong>Pedigree PRO Desktop App</strong> (Tauri), which leverages native SQLCipher database encryption paired with your operating system's hardware-backed credential keychain (Windows Credential Manager / macOS Keychain / Linux Secret Service).
             </p>
           </div>
+        </div>
+      </PanelSection>
+
+      <PanelSection title="Data Erasure & Right-to-Erasure (GDPR / HIPAA)" icon={<Trash2 className="w-3.5 h-3.5 text-destructive" />}>
+        <div className="space-y-3">
+          <p className="text-xs text-muted-foreground leading-relaxed">
+            Permanently destroy all clinical records, patients, pedigrees, saved templates, and cryptographic profile keys stored on this device.
+          </p>
+          <button
+            type="button"
+            onClick={() => secureDisposalWithConfirmation()}
+            className="px-3.5 py-2 text-xs font-medium text-destructive-foreground bg-destructive hover:bg-destructive/90 rounded-md transition-colors flex items-center gap-2"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+            Erase All Local Data
+          </button>
         </div>
       </PanelSection>
     </div>

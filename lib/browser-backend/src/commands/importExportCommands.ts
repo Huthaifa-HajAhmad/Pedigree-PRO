@@ -244,10 +244,10 @@ export function validatePproExport(raw: unknown): PproExport {
   };
 }
 
-export function import_pedigree_native(args: {
+export async function import_pedigree_native(args: {
   path: string;
-  importer_key: string;
-}): Pedigree {
+  importer_key?: string;
+}): Promise<Pedigree> {
   let parsedJson: unknown;
   try {
     parsedJson = JSON.parse(args.path);
@@ -267,6 +267,15 @@ export function import_pedigree_native(args: {
     );
     if (existing) {
       return get_pedigree({ id: existing.id });
+    }
+
+    // Verify creator provenance signature if present
+    if (data.provenance?.creator_signature && data.provenance?.creator_key) {
+      const { verifySignature } = await import("@workspace/crypto");
+      const valid = await verifySignature(hash, data.provenance.creator_signature, data.provenance.creator_key);
+      if (!valid) {
+        throw new Error("Export signature verification failed: the .ppro file may have been tampered with");
+      }
     }
   }
 
@@ -341,24 +350,45 @@ export function import_pedigree_legacy(args: { path: string }): LegacyImportSumm
 
 export async function backup_database(): Promise<string> {
   const { exportDb } = await import("../db");
+  const { getOrCreateDbKey, encryptDbBlob } = await import("../crypto-store");
+  const { bytesToBase64 } = await import("./sharingCommands");
   const data = await exportDb();
-  let binary = "";
-  const chunkSize = 0x8000;
-  for (let i = 0; i < data.length; i += chunkSize) {
-    binary += String.fromCharCode(...data.subarray(i, i + chunkSize));
-  }
-  return btoa(binary);
+  const key = await getOrCreateDbKey();
+  const { ciphertext, iv } = await encryptDbBlob(data, key);
+  return JSON.stringify({
+    v: "ppro-encrypted-backup-v1",
+    iv: bytesToBase64(iv),
+    ciphertext: bytesToBase64(ciphertext),
+  });
 }
 
 export async function restore_database(args: { backup_data: string }): Promise<void> {
-  const raw = atob(args.backup_data);
-  if (raw.length < 16 || !raw.startsWith("SQLite format 3\0")) {
-    throw new Error("Invalid backup file: not a valid SQLite database");
+  let dbBytes: Uint8Array;
+  
+  try {
+    const parsed = JSON.parse(args.backup_data);
+    if (parsed?.v === "ppro-encrypted-backup-v1" && parsed.ciphertext && parsed.iv) {
+      const { getOrCreateDbKey, decryptDbBlob } = await import("../crypto-store");
+      const { base64ToBytes } = await import("./sharingCommands");
+      const key = await getOrCreateDbKey();
+      const iv = base64ToBytes(parsed.iv);
+      const ciphertext = base64ToBytes(parsed.ciphertext);
+      dbBytes = await decryptDbBlob(ciphertext, iv, key);
+    } else {
+      throw new Error("Unknown backup payload format");
+    }
+  } catch {
+    // Fallback: legacy unencrypted SQLite binary dump
+    const raw = atob(args.backup_data);
+    if (raw.length < 16 || !raw.startsWith("SQLite format 3\0")) {
+      throw new Error("Invalid backup file: not a valid encrypted backup or SQLite database");
+    }
+    dbBytes = new Uint8Array(raw.length);
+    for (let i = 0; i < raw.length; i++) dbBytes[i] = raw.charCodeAt(i);
   }
-  const bytes = new Uint8Array(raw.length);
-  for (let i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i);
+
   const { importDb } = await import("../db");
-  await importDb(bytes);
+  await importDb(dbBytes);
 }
 
 export async function rotate_key(): Promise<void> {

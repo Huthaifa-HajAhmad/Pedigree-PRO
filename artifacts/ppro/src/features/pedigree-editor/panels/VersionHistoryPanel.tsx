@@ -1,3 +1,5 @@
+import { useMemo, useRef } from "react";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import { Save, RotateCcw, Trash2, Clock, Calendar } from "lucide-react";
 import { PanelShell } from "@/components/shared/panels/PanelShell";
 import { usePedigreeEditor } from "@/features/pedigree-editor/context";
@@ -6,6 +8,62 @@ import { parseCanvas } from "@/features/pedigree-editor/utils/helpers";
 
 export function VersionHistoryPanel({ onClose }: { onClose: () => void }) {
   const { state, dispatch, ops, versions, versionsLoading, profiles } = usePedigreeEditor();
+  const parentRef = useRef<HTMLDivElement>(null);
+
+  const versionItems = useMemo(() => {
+    if (!versions) return [];
+    return versions.map((v) => {
+      let nodesCount = v.nodes_count ?? 0;
+      let coupleCount = v.couple_count ?? 0;
+      if (v.nodes_count === undefined || v.nodes_count === null) {
+        try {
+          const parsed = JSON.parse(v.canvas_data);
+          nodesCount = parsed.nodes?.length ?? 0;
+          coupleCount = (parsed.edges || []).filter((e: any) =>
+            e.type === "couple" || e.type === "consanguinity" || e.type === "divorced" || e.type === "separated"
+          ).length;
+        } catch {}
+      }
+
+      const dateText = (() => {
+        try {
+          return new Date(v.created_at).toLocaleDateString("en-US", {
+            month: "short",
+            day: "numeric",
+            year: "2-digit",
+          });
+        } catch {
+          return "—";
+        }
+      })();
+
+      const timeText = (() => {
+        try {
+          return new Date(v.created_at).toLocaleTimeString([], {
+            hour: "2-digit",
+            minute: "2-digit",
+          });
+        } catch {
+          return "—";
+        }
+      })();
+
+      return {
+        ...v,
+        nodesCount,
+        coupleCount,
+        dateText,
+        timeText,
+      };
+    });
+  }, [versions]);
+
+  const rowVirtualizer = useVirtualizer({
+    count: versionItems.length,
+    getScrollElement: () => parentRef.current,
+    estimateSize: () => 92,
+    overscan: 5,
+  });
 
   return (
     <PanelShell
@@ -28,12 +86,14 @@ export function VersionHistoryPanel({ onClose }: { onClose: () => void }) {
     >
       <div className="flex flex-col h-full overflow-hidden min-h-0">
         <p className="text-xs text-muted-foreground flex-shrink-0 mb-3">Select any snapshot below to preview changes</p>
-        <div className="flex-1 overflow-y-auto space-y-2 pr-1 min-h-0">
+        <div ref={parentRef} className="flex-1 overflow-y-auto pr-1 min-h-0 relative">
           {versionsLoading ? (
-            Array.from({ length: 3 }, (_, i) => (
-              <div key={i} className="p-3 animate-pulse h-16 bg-muted/20 rounded-lg border border-border/50" />
-            ))
-          ) : versions?.length === 0 ? (
+            <div className="space-y-2">
+              {Array.from({ length: 3 }, (_, i) => (
+                <div key={i} className="p-3 animate-pulse h-16 bg-muted/20 rounded-lg border border-border/50" />
+              ))}
+            </div>
+          ) : versionItems.length === 0 ? (
             <div className="p-6 text-center">
               <Clock className="w-6 h-6 mx-auto mb-2 text-muted-foreground/40" />
               <div className="text-xs text-muted-foreground">No sessions saved yet.</div>
@@ -42,137 +102,127 @@ export function VersionHistoryPanel({ onClose }: { onClose: () => void }) {
               </div>
             </div>
           ) : (
-            versions?.map((v) => {
-              const isSelected = state.isPreviewMode && state.previewVersionId === v.id;
-              
-              let nodesCount = 0;
-              let coupleCount = 0;
-              try {
-                const parsed = JSON.parse(v.canvas_data);
-                nodesCount = parsed.nodes?.length ?? 0;
-                coupleCount = (parsed.edges || []).filter((e: any) =>
-                  e.type === "couple" || e.type === "consanguinity" || e.type === "divorced" || e.type === "separated"
-                ).length;
-              } catch {}
+            <div
+              style={{
+                height: `${rowVirtualizer.getTotalSize()}px`,
+                width: "100%",
+                position: "relative",
+              }}
+            >
+              {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+                const v = versionItems[virtualRow.index];
+                if (!v) return null;
+                const isSelected = state.isPreviewMode && state.previewVersionId === v.id;
+                const { nodesCount, coupleCount, dateText, timeText } = v;
 
-              const dateText = (() => {
-                try {
-                  return new Date(v.created_at).toLocaleDateString("en-US", {
-                    month: "short",
-                    day: "numeric",
-                    year: "2-digit",
-                  });
-                } catch {
-                  return "—";
-                }
-              })();
-              const timeText = (() => {
-                try {
-                  return new Date(v.created_at).toLocaleTimeString([], {
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  });
-                } catch {
-                  return "—";
-                }
-              })();
-
-              return (
-                <div
-                  key={v.id}
-                  data-testid={`version-${v.id}`}
-                  onClick={() => {
-                    if (isSelected) {
-                      dispatch({ type: "EXIT_PREVIEW" });
-                    } else {
-                      dispatch({ type: "ENTER_PREVIEW", canvas: parseCanvas(v.canvas_data), versionId: v.id });
-                    }
-                  }}
-                  className={`p-2.5 rounded-lg border transition-all cursor-pointer group flex gap-2.5 items-start ${
-                    isSelected
-                      ? "border-primary bg-primary/5 ring-1 ring-primary/20"
-                      : "border-border/60 bg-card/50 hover:border-muted-foreground/30 hover:bg-accent/30"
-                  }`}
-                >
-                  {/* Thumbnail */}
-                  <div className="flex-shrink-0 w-16 h-10 rounded border border-border overflow-hidden bg-muted/20 relative flex items-center justify-center">
-                    {v.thumbnail ? (
-                      <img
-                        src={v.thumbnail}
-                        alt={`Session v${v.version_number} preview`}
-                        className="w-full h-full object-contain"
-                        loading="lazy"
-                        decoding="async"
-                        draggable={false}
-                      />
-                    ) : (
-                      <Clock className="w-3.5 h-3.5 text-muted-foreground/40" />
-                    )}
-                  </div>
-
-                  {/* Info */}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-start justify-between gap-1">
-                      <div className="text-xs font-semibold text-foreground leading-tight break-words pr-4">
-                        {v.label ?? `Session v${v.version_number}`}
+                return (
+                  <div
+                    key={v.id}
+                    data-testid={`version-${v.id}`}
+                    style={{
+                      position: "absolute",
+                      top: 0,
+                      left: 0,
+                      width: "100%",
+                      transform: `translateY(${virtualRow.start}px)`,
+                      paddingBottom: "8px",
+                    }}
+                  >
+                    <div
+                      onClick={() => {
+                        if (isSelected) {
+                          dispatch({ type: "EXIT_PREVIEW" });
+                        } else {
+                          dispatch({ type: "ENTER_PREVIEW", canvas: parseCanvas(v.canvas_data), versionId: v.id });
+                        }
+                      }}
+                      className={`p-2.5 rounded-lg border transition-all cursor-pointer group flex gap-2.5 items-start ${
+                        isSelected
+                          ? "border-primary bg-primary/5 ring-1 ring-primary/20"
+                          : "border-border/60 bg-card/50 hover:border-muted-foreground/30 hover:bg-accent/30"
+                      }`}
+                    >
+                      {/* Thumbnail */}
+                      <div className="flex-shrink-0 w-16 h-10 rounded border border-border overflow-hidden bg-muted/20 relative flex items-center justify-center">
+                        {v.thumbnail ? (
+                          <img
+                            src={v.thumbnail}
+                            alt={`Session v${v.version_number} preview`}
+                            className="w-full h-full object-contain"
+                            loading="lazy"
+                            decoding="async"
+                            draggable={false}
+                          />
+                        ) : (
+                          <Clock className="w-3.5 h-3.5 text-muted-foreground/40" />
+                        )}
                       </div>
-                      <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-all flex-shrink-0">
-                        <button
-                          type="button"
-                          aria-label="Restore this session"
-                          data-testid={`button-restore-${v.id}`}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            ops.handleRestoreVersion(v.id);
-                          }}
-                          className="p-1 rounded text-muted-foreground hover:text-primary hover:bg-primary/10"
-                          title="Restore this session"
-                        >
-                          <RotateCcw className="w-3.5 h-3.5" />
-                        </button>
-                        <button
-                          type="button"
-                          aria-label="Delete this session"
-                          data-testid={`button-delete-version-${v.id}`}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            ops.handleDeleteVersion(v.id);
-                          }}
-                          className="p-1 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-                          title="Delete this session"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    </div>
 
-                    <div className="text-[10px] text-muted-foreground mt-0.5 flex items-center gap-1">
-                      <span className="font-medium">v{v.version_number}</span>
-                      <span className="opacity-30">·</span>
-                      <span className="flex items-center gap-0.5 font-mono">
-                        <Calendar className="w-2.5 h-2.5 opacity-60" />
-                        {dateText} {timeText}
-                      </span>
-                    </div>
-
-                    {v.saver_key && (() => {
-                      const matched = profiles?.find((p) => p.public_key === v.saver_key);
-                      return (
-                        <div className="text-[9px] text-primary/75 truncate font-mono mt-0.5" title={v.saver_key}>
-                          by {matched ? matched.display_name : v.saver_key.slice(0, 8)}
+                      {/* Info */}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-start justify-between gap-1">
+                          <div className="text-xs font-semibold text-foreground leading-tight break-words pr-4">
+                            {v.label ?? `Session v${v.version_number}`}
+                          </div>
+                          <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-all flex-shrink-0">
+                            <button
+                              type="button"
+                              aria-label="Restore this session"
+                              data-testid={`button-restore-${v.id}`}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                ops.handleRestoreVersion(v.id);
+                              }}
+                              className="p-1 rounded text-muted-foreground hover:text-primary hover:bg-primary/10"
+                              title="Restore this session"
+                            >
+                              <RotateCcw className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              aria-label="Delete this session"
+                              data-testid={`button-delete-version-${v.id}`}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                ops.handleDeleteVersion(v.id);
+                              }}
+                              className="p-1 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                              title="Delete this session"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
                         </div>
-                      );
-                    })()}
 
-                    <div className="mt-1.5 flex flex-wrap gap-1">
-                      <span className="px-1.5 py-0.5 rounded bg-primary/5 border border-primary/10 text-primary/80 text-[10px] font-medium leading-normal">
-                        Family tree: {nodesCount} member{nodesCount !== 1 ? "s" : ""}{coupleCount > 0 ? `, ${coupleCount} nuclear famil${coupleCount !== 1 ? "ies" : "y"}` : ""}
-                      </span>
+                        <div className="text-[10px] text-muted-foreground mt-0.5 flex items-center gap-1">
+                          <span className="font-medium">v{v.version_number}</span>
+                          <span className="opacity-30">·</span>
+                          <span className="flex items-center gap-0.5 font-mono">
+                            <Calendar className="w-2.5 h-2.5 opacity-60" />
+                            {dateText} {timeText}
+                          </span>
+                        </div>
+
+                        {v.saver_key && (() => {
+                          const matched = profiles?.find((p) => p.public_key === v.saver_key);
+                          return (
+                            <div className="text-[9px] text-primary/75 truncate font-mono mt-0.5" title={v.saver_key}>
+                              by {matched ? matched.display_name : v.saver_key.slice(0, 8)}
+                            </div>
+                          );
+                        })()}
+
+                        <div className="mt-1.5 flex flex-wrap gap-1">
+                          <span className="px-1.5 py-0.5 rounded bg-primary/5 border border-primary/10 text-primary/80 text-[10px] font-medium leading-normal">
+                            Family tree: {nodesCount} member{nodesCount !== 1 ? "s" : ""}{coupleCount > 0 ? `, ${coupleCount} nuclear famil${coupleCount !== 1 ? "ies" : "y"}` : ""}
+                          </span>
+                        </div>
+                      </div>
                     </div>
                   </div>
-                </div>
-              );
-            })
+                );
+              })}
+            </div>
           )}
         </div>
 

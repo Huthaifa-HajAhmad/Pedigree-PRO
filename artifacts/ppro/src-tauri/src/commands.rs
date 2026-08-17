@@ -124,6 +124,8 @@ pub struct PedigreeVersion {
     pub thumbnail: Option<String>,
     pub saver_key: Option<String>,
     pub saver_signature: Option<String>,
+    pub nodes_count: Option<i64>,
+    pub couple_count: Option<i64>,
     pub created_at: String,
 }
 
@@ -593,6 +595,9 @@ pub fn create_pedigree(
     state: State<AppState>,
     input: PedigreeInput,
 ) -> Result<Pedigree, String> {
+    if input.canvas_data.as_ref().map_or(0, |d| d.len()) > 15 * 1024 * 1024 {
+        return Err("Canvas data exceeds maximum permitted payload size of 15MB".to_string());
+    }
     let mut db = state.db.lock().map_err(|e| e.to_string())?;
     let tx = db.transaction().map_err(|e| e.to_string())?;
 
@@ -636,6 +641,9 @@ pub fn update_pedigree(
     id: i64,
     input: PedigreeInput,
 ) -> Result<Pedigree, String> {
+    if input.canvas_data.as_ref().map_or(0, |d| d.len()) > 15 * 1024 * 1024 {
+        return Err("Canvas data exceeds maximum permitted payload size of 15MB".to_string());
+    }
     let mut db = state.db.lock().map_err(|e| e.to_string())?;
     let tx = db.transaction().map_err(|e| e.to_string())?;
 
@@ -735,6 +743,8 @@ pub fn list_versions(state: State<AppState>, pedigree_id: i64) -> Result<Vec<Ped
                 thumbnail: row.get(6)?,
                 saver_key: row.get(7)?,
                 saver_signature: row.get(8)?,
+                nodes_count: None,
+                couple_count: None,
                 created_at: row.get(9)?,
             })
         })
@@ -751,6 +761,9 @@ pub fn save_version(
     pedigree_id: i64,
     input: VersionInput,
 ) -> Result<PedigreeVersion, String> {
+    if input.canvas_data.len() > 15 * 1024 * 1024 {
+        return Err("Canvas data exceeds maximum permitted payload size of 15MB".to_string());
+    }
     let db = state.db.lock().map_err(|e| e.to_string())?;
 
     let last_version: Option<i64> = db
@@ -800,6 +813,8 @@ pub fn save_version(
                 thumbnail: row.get(6)?,
                 saver_key: row.get(7)?,
                 saver_signature: row.get(8)?,
+                nodes_count: None,
+                couple_count: None,
                 created_at: row.get(9)?,
             })
         },
@@ -905,7 +920,7 @@ pub fn get_recent_activity(
     limit: Option<i64>,
 ) -> Result<Vec<ActivityItem>, String> {
     let db = state.db.lock().map_err(|e| e.to_string())?;
-    let limit = limit.unwrap_or(20);
+    let limit = limit.unwrap_or(20).clamp(1, 100);
 
     let mut stmt = db
         .prepare(
@@ -1113,6 +1128,9 @@ pub fn import_pedigree_from_json(
     json_content: String,
     importer_key: String,
 ) -> Result<Pedigree, String> {
+    if json_content.len() > 15 * 1024 * 1024 {
+        return Err("Import content exceeds maximum permitted size of 15MB".to_string());
+    }
     let new_id =
         crate::import_native::import_pedigree_ppro(&state.db, &json_content, &importer_key)?;
     get_pedigree(state, new_id)
@@ -1139,22 +1157,24 @@ pub fn import_pedigree_legacy(
 // Path Validation
 // =============================================================================
 
-fn validate_import_path(app: &tauri::AppHandle, path: &str) -> Result<(), String> {
+pub(crate) fn validate_import_path(app: &tauri::AppHandle, path: &str) -> Result<(), String> {
     use std::path::PathBuf;
     let canonical = PathBuf::from(path).canonicalize()
         .map_err(|e| format!("Invalid path '{}': {}", path, e))?;
     let app_data = app.path().app_data_dir()
         .map_err(|e| format!("Cannot resolve app data dir: {}", e))?;
-    let home_dir = dirs::home_dir().unwrap_or_else(|| {
-        #[cfg(target_os = "windows")]
-        { PathBuf::from(std::env::var("USERPROFILE").unwrap_or_else(|_| "C:\\".into())) }
-        #[cfg(not(target_os = "windows"))]
-        { PathBuf::from("/") }
-    });
-    let allowed_dirs = vec![
-        app_data.clone(),
-        home_dir,
-    ];
+
+    let mut allowed_dirs = vec![app_data];
+    if let Some(doc) = dirs::document_dir() {
+        allowed_dirs.push(doc);
+    }
+    if let Some(dl) = dirs::download_dir() {
+        allowed_dirs.push(dl);
+    }
+    if let Some(desk) = dirs::desktop_dir() {
+        allowed_dirs.push(desk);
+    }
+
     let is_allowed = allowed_dirs.iter().any(|dir| {
         if let Ok(dir_canonical) = dir.canonicalize() {
             canonical.starts_with(&dir_canonical)

@@ -69,7 +69,6 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
   useEffect(() => { draftKeyRef.current = `ppro_draft_${id}`; }, [id]);
   const initialSyncDoneRef = useRef(false);
   useEffect(() => { initialSyncDoneRef.current = false; }, [id]);
-  const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastNodesLengthRef = useRef(state.canvas.nodes.length);
   const lastEdgesLengthRef = useRef(state.canvas.edges.length);
   const skipLiveLayoutRef = useRef(false);
@@ -87,7 +86,7 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
     rawDispatch(action);
   }, []);
 
-  const { showDraftBanner, draftEnabledRef, handleRestoreDraft, handleDismissDraft } = usePedigreeDraft({
+  const { showDraftBanner, draftEnabledRef, clearDraft, handleRestoreDraft, handleDismissDraft } = usePedigreeDraft({
     id, pedigreeData: pedigree ?? null, canvasRef, draftKeyRef,
   });
 
@@ -112,11 +111,12 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
           saver_signature: saverSignature
         }
       });
+      clearDraft();
       queryClient.invalidateQueries({ queryKey: queryKeys.versions(id) });
     } catch (e) {
       console.error("Auto-checkpoint save failed", e);
     }
-  }, [id, queryClient, saveVersionMutation]);
+  }, [id, queryClient, saveVersionMutation, clearDraft]);
 
   useEffect(() => {
     if (pedigree?.canvas_data !== undefined && !initialSyncDoneRef.current) {
@@ -290,28 +290,6 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
     return Array.from(set).sort((a, b) => a - b);
   }, [state.canvas.nodes]);
 
-  const autoSave = useCallback((newCanvas: CanvasData) => {
-    if (!draftEnabledRef.current) return;
-    if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
-    autoSaveTimerRef.current = setTimeout(() => {
-      try {
-        const key = draftKeyRef.current;
-        const existingRaw = localStorage.getItem(key);
-        if (existingRaw) {
-          const existing = JSON.parse(existingRaw);
-          if (existing.timestamp && Date.now() - existing.timestamp < 300) return;
-        }
-        localStorage.setItem(key, JSON.stringify({
-          canvas: newCanvas,
-          history: stateRef.current.history,
-          future: stateRef.current.future,
-          timestamp: Date.now(),
-        }));
-      } catch (err) {
-        console.error("Auto-save draft failed", err);
-      }
-    }, 1000);
-  }, [draftEnabledRef]);
 
   const runAutoLayout = useCallback((preservePositions: boolean, isManual = false) => {
     const layoutConfig = stateRef.current.canvas.settings?.config ?? configRef.current;
@@ -387,8 +365,6 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
     const curNodesLen = state.canvas.nodes.length;
     const curEdgesLen = state.canvas.edges.length;
 
-    autoSave(state.canvas);
-
     if (skipLiveLayoutRef.current) {
       skipLiveLayoutRef.current = false;
       lastNodesLengthRef.current = curNodesLen;
@@ -398,7 +374,7 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
 
     lastNodesLengthRef.current = curNodesLen;
     lastEdgesLengthRef.current = curEdgesLen;
-  }, [state.canvas, autoSave]);
+  }, [state.canvas]);
 
   const updateCanvas = useCallback((updater: (prev: CanvasData) => CanvasData, opts?: { skipHistory?: boolean }) => {
     dispatch({ type: "UPDATE_CANVAS", updater, pushHistory: !opts?.skipHistory });
@@ -686,7 +662,7 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
   usePedigreeKeyboard({ deleteSelected, deleteAnnotation, selectedAnnotationId: state.selectedAnnotationId, selectedNode: state.selectedIds.size === 1 ? state.canvas.nodes.find((n) => state.selectedIds.has(n.id)) ?? null : null, updateSelectedNode, addNode, addContextNode, undo, redo, navigateArrow, showSearch: state.showSearch, fitToScreen, runAutoLayout: (rp: boolean, isManual?: boolean) => runAutoLayout(rp, isManual), setShowSearch, setSearchQuery, setSelectedIds, setLinkMode, setLinkSource, setSelectedAnnotationId, setViewBox, spaceHeldRef, setSpaceHeld, searchInputRef, twinSelectMode: state.twinSelectMode, setTwinSelectMode: (v) => { const nv = typeof v === "function" ? v(stateRef.current.twinSelectMode) : v; dispatch({ type: "SET_STATE", patch: { twinSelectMode: nv, twinCandidateIds: nv ? stateRef.current.twinCandidateIds : new Set<string>() } }); }, clearTwinCandidates, selectedIds: state.selectedIds, canvasNodes: state.canvas.nodes, createCoupleAndChild, createCoupleEdge, createConsanguinityEdge, W, H, isPreviewMode: state.isPreviewMode, copySelectedNodes, pasteNodes });
 
   const handleSaveVersion = () => dispatch({ type: "SET_STATE", patch: { sessionLabel: `Session \u00b7 ${state.canvas.nodes.length} node${state.canvas.nodes.length !== 1 ? "s" : ""} \u00b7 ${new Date().toLocaleDateString()}`, showSaveModal: true } });
-  const commitSaveVersion = async () => { const t = generateThumbnail(state.canvas); const canvasData = JSON.stringify(state.canvas); const canvasHash = cryptoComputeHash(canvasData); const keys = await listProfilePrivateKeys(); const activeKey = keys.length > 0 ? keys[0] : null; const saverKey = activeKey ? await getPublicKeyFromPrivate(activeKey.privateKey) : ""; const saverSignature = activeKey ? await signData(canvasHash, activeKey.privateKey) : null; saveVersionMutation.mutate({ pedigreeId: id, input: { canvas_data: canvasData, canvas_hash: canvasHash, label: state.sessionLabel || null, thumbnail: t, saver_key: saverKey, saver_signature: saverSignature } }, { onSuccess: () => { queryClient.invalidateQueries({ queryKey: queryKeys.versions(id) }); dispatch({ type: "SET_STATE", patch: { showSaveModal: false, sessionLabel: "" } }); } }); };
+  const commitSaveVersion = async () => { const t = generateThumbnail(state.canvas); const canvasData = JSON.stringify(state.canvas); const canvasHash = cryptoComputeHash(canvasData); const keys = await listProfilePrivateKeys(); const activeKey = keys.length > 0 ? keys[0] : null; const saverKey = activeKey ? await getPublicKeyFromPrivate(activeKey.privateKey) : ""; const saverSignature = activeKey ? await signData(canvasHash, activeKey.privateKey) : null; saveVersionMutation.mutate({ pedigreeId: id, input: { canvas_data: canvasData, canvas_hash: canvasHash, label: state.sessionLabel || null, thumbnail: t, saver_key: saverKey, saver_signature: saverSignature } }, { onSuccess: () => { clearDraft(); queryClient.invalidateQueries({ queryKey: queryKeys.versions(id) }); dispatch({ type: "SET_STATE", patch: { showSaveModal: false, sessionLabel: "" } }); } }); };
   const handleDeleteVersion = (versionId: number) => { openConfirm("Delete Version", "Delete this saved session? This cannot be undone.", () => { deleteVersionMutation.mutate({ pedigreeId: id, versionId }, { onSuccess: () => { queryClient.invalidateQueries({ queryKey: queryKeys.versions(id) }); } }); }, "destructive"); };
   const handleRestoreVersion = (vid: number) => { openConfirm("Restore Version", "Restore this version? Current canvas will be replaced.", () => { restoreVersionMutation.mutate({ pedigreeId: id, versionId: vid }, { onSuccess: (d) => { const cd = (d as { canvas_data?: string | null }).canvas_data; if (cd) { skipLiveLayoutRef.current = true; dispatch({ type: "SET_CANVAS", canvas: parseCanvas(cd) }); } initialSyncDoneRef.current = true; queryClient.setQueryData(queryKeys.pedigree(id), d); dispatch({ type: "SET_STATE", patch: { showVersions: false, isPreviewMode: false, liveCanvasCache: null, showVisualDiff: false, previewVersionId: null } }); } }); }); };
 

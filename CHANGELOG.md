@@ -12,6 +12,13 @@ All notable changes to the Pedigree PRO project.
 - **Subtree Alignment & Equal-Gap Distribution**: Family-aware vertical/horizontal alignment guides and equal-gap horizontal spacing for sibling groups and founders.
 - **Apache 2.0 Open-Source Governance**: Standardized open-source licensing, zero-knowledge encrypted relay links, and comprehensive community documentation.
 
+### Security & Hardening
+- **Desktop Data Protection**: Prevented silent database recreation on key mismatch with automatic quarantine-to-backup; synced OS keychain during master key rotation.
+- **Zero-Knowledge Link Sharing**: Implemented client-side ephemeral symmetric key encryption (AES-256-GCM) with key embedded solely in URL hash fragments and 7-day cloud relay TTL.
+- **Encrypted Local Drafts & Backups**: Enforced fail-closed draft encryption with backward-compatible schema migration, sanitized localStorage templates, and AES-256-GCM encrypted database backups in browser mode.
+- **Dual-Mode Provenance Verification**: Added Ed25519 signature checks to browser-side pedigree import to match native desktop parity.
+- **Web & CI Security Headers**: Configured strict CSP, HSTS, and frame protection on Cloudflare Pages; hardened GitHub Actions workflow with scoped permissions and strict test gating.
+
 ---
 
 ## [1.3.5] — 2026-07-25

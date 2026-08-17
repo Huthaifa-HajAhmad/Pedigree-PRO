@@ -87,9 +87,9 @@ type CommandMap = {
   clear_activity_log: () => Promise<void>;
   get_preferences: () => import("@workspace/browser-backend").Preferences;
   save_preferences: (args: { theme: string }) => import("@workspace/browser-backend").Preferences;
-  share_pedigree: (args: { pedigree_id: number; recipient_key: string }) => import("@workspace/browser-backend").ShareResult;
-  import_shared: (args: { share_token: string; importer_key?: string }) => import("@workspace/browser-backend").Pedigree;
-  import_pedigree_native: (args: { path: string; importer_key: string }) => import("@workspace/browser-backend").Pedigree;
+  share_pedigree: (args: { pedigree_id: number; recipient_key: string }) => Promise<import("@workspace/browser-backend").ShareResult> | import("@workspace/browser-backend").ShareResult;
+  import_shared: (args: { share_token: string; importer_key?: string }) => Promise<import("@workspace/browser-backend").Pedigree> | import("@workspace/browser-backend").Pedigree;
+  import_pedigree_native: (args: { path: string; importer_key?: string }) => Promise<import("@workspace/browser-backend").Pedigree> | import("@workspace/browser-backend").Pedigree;
   import_pedigree_legacy: (args: { path: string }) => import("@workspace/browser-backend").LegacyImportSummary;
   export_pedigree_ppro: (args: { pedigree_id: number; exporter_key: string }) => string;
   backup_database: () => Promise<string>;
@@ -110,10 +110,10 @@ let initPromise: Promise<typeof import("@workspace/browser-backend")> | null = n
 
 async function getBrowserBackend() {
   if (browserBackendInitError) {
+    console.error("Browser backend initialization failure:", browserBackendInitError);
     throw new Error(
-      `Browser backend failed to initialize: ${browserBackendInitError.message}\n\n` +
-      `This is likely due to sql.js WASM loading failure.\n` +
-      `Check browser console for details.`
+      "Browser database engine failed to initialize.\n\n" +
+      "Please verify browser storage permissions and reload the page."
     );
   }
 

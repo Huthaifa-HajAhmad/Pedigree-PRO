@@ -53,48 +53,34 @@ pub fn init_db(app: &AppHandle) -> Result<Connection, String> {
 
     if !integrity_ok {
         if db_exists {
+            let timestamp = chrono::Utc::now().format("%Y%m%d_%H%M%S");
+            let quarantine_dir = app_dir.join("quarantine").join(format!("corrupt_{}", timestamp));
+            let _ = fs::create_dir_all(&quarantine_dir);
             eprintln!(
-                "WARNING: Database at {} is corrupt or key mismatch. Recreating from scratch.",
-                db_path.display()
+                "WARNING: Database at {} failed integrity check (key mismatch or corruption). Quarantining to {}.",
+                db_path.display(),
+                quarantine_dir.display()
             );
             drop(conn);
-            let _ = fs::remove_file(&db_path);
-            let _ = fs::remove_file(db_path.with_extension("db-wal"));
-            let _ = fs::remove_file(db_path.with_extension("db-shm"));
-            let _ = fs::remove_file(&key_path);
-
-            let master_secret = get_or_create_master_secret(&key_path)?;
-            let device_id = get_or_create_device_id(&db_path, false)?;
-
-            let mut derived_key = vec![0u8; KEY_LEN];
-            pbkdf2_hmac::<Sha512>(
-                &master_secret,
-                device_id.as_bytes(),
-                PBKDF2_ITERATIONS,
-                &mut derived_key,
-            );
-            let key_hex = hex::encode(&derived_key);
-
-            let conn = Connection::open(&db_path)
-                .map_err(|e| format!("Failed to open database: {}", e))?;
-
-            conn.execute_batch(&format!("PRAGMA key = \"x'{}'\";", key_hex))
-                .map_err(|e| format!("Failed to set SQLCipher key: {}", e))?;
-
-            run_migrations(&conn)?;
-
-            conn.execute_batch("PRAGMA journal_mode=WAL;")
-                .map_err(|e| format!("Failed to set WAL mode: {}", e))?;
-
-            conn.execute_batch("PRAGMA foreign_keys=ON;")
-                .map_err(|e| format!("Failed to enable foreign keys: {}", e))?;
-
-            persist_device_id(&conn, &device_id)?;
-
-            return Ok(conn);
+            let _ = fs::rename(&db_path, quarantine_dir.join("data.db"));
+            let wal_path = db_path.with_extension("db-wal");
+            if wal_path.exists() {
+                let _ = fs::rename(&wal_path, quarantine_dir.join("data.db-wal"));
+            }
+            let shm_path = db_path.with_extension("db-shm");
+            if shm_path.exists() {
+                let _ = fs::rename(&shm_path, quarantine_dir.join("data.db-shm"));
+            }
+            if key_path.exists() {
+                let _ = fs::copy(&key_path, quarantine_dir.join(KEY_FILE));
+            }
+            return Err(format!(
+                "Database failed integrity check (possible key mismatch or corruption). Existing files have been safely quarantined to {}. Please restore from backup or contact support.",
+                quarantine_dir.display()
+            ));
         }
         return Err(format!(
-            "Database appears corrupt or wrong key and cannot be recreated. Delete {} and restart.",
+            "Database failed to open or initialize at {}.",
             db_path.display()
         ));
     }
@@ -213,6 +199,17 @@ pub fn rotate_encryption_key(app: &tauri::AppHandle, conn: &Connection) -> Resul
         .map_err(|e| format!("Failed to rekey database: {}", e))?;
 
     let new_secret_b64 = base64::engine::general_purpose::STANDARD.encode(&new_secret);
+
+    // 1. Synchronize OS keychain first
+    let service = "org.pedigreepro.app";
+    let username = "db_master_secret";
+    if let Ok(entry) = keyring::Entry::new(service, username) {
+        if let Err(e) = entry.set_password(&new_secret_b64) {
+            eprintln!("WARNING: Failed to update master secret in OS keychain: {}", e);
+        }
+    }
+
+    // 2. Write file fallback
     fs::write(&key_path, &new_secret_b64)
         .map_err(|e| format!("Failed to write key file: {}", e))?;
 
@@ -241,17 +238,12 @@ pub fn backup_database(app: &tauri::AppHandle) -> Result<String, String> {
     fs::copy(&db_path, &backup_path)
         .map_err(|e| format!("Failed to copy database: {}", e))?;
 
-    // Also copy the key file
-    let key_path = app_dir.join(KEY_FILE);
-    if key_path.exists() {
-        let key_backup = backups_dir.join(format!("data_backup_{}.key", timestamp));
-        fs::copy(&key_path, &key_backup).ok();
-    }
-
     Ok(backup_path.to_string_lossy().to_string())
 }
 
 pub fn restore_database(app: &tauri::AppHandle, backup_path: &str) -> Result<(), String> {
+    crate::commands::validate_import_path(app, backup_path)?;
+
     let app_dir = app
         .path()
         .app_data_dir()

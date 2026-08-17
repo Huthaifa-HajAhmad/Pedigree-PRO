@@ -42,24 +42,46 @@ export function usePedigreeDraft({ id, pedigreeData, canvasRef, draftKeyRef }: U
       try {
         const raw = localStorage.getItem(draftKey);
         if (raw) {
-          const decrypted = await decryptDraft(raw);
-          const parsed = JSON.parse(decrypted) as { canvas: CanvasData; at: number };
+          let decrypted: string;
+          let wasLegacyPlaintext = false;
+          try {
+            decrypted = await decryptDraft(raw);
+          } catch {
+            // Attempt backward-compatible migration of legacy plaintext draft
+            const maybePlain = JSON.parse(raw);
+            if (maybePlain && typeof maybePlain === "object" && (maybePlain.canvas || maybePlain.nodes)) {
+              decrypted = raw;
+              wasLegacyPlaintext = true;
+            } else {
+              throw new Error("Corrupted draft");
+            }
+          }
+
+          const parsed = JSON.parse(decrypted) as { canvas?: CanvasData; nodes?: any[]; edges?: any[]; at?: number; timestamp?: number };
+          const canvasObj = parsed.canvas ?? (parsed.nodes ? { nodes: parsed.nodes, edges: parsed.edges ?? [], annotations: [] } : null);
+          const draftTime = parsed.at ?? parsed.timestamp ?? 0;
           const serverAt = new Date((pedigreeData as unknown as { updatedAt: string }).updatedAt).getTime();
-          if (parsed.at > serverAt + 3000 && parsed.canvas?.nodes?.length > 0) {
-            const sanitized = parseCanvas(JSON.stringify(parsed.canvas));
+          if (canvasObj && draftTime > serverAt + 3000 && (canvasObj.nodes?.length ?? 0) > 0) {
+            const sanitized = parseCanvas(JSON.stringify(canvasObj));
             setDraftData(sanitized);
             setShowDraftBanner(true);
+            if (wasLegacyPlaintext) {
+              const enc = await encryptDraft(JSON.stringify({ canvas: sanitized, at: draftTime }));
+              localStorage.setItem(draftKey, enc);
+            }
             return;
           }
         }
-      } catch {}
+      } catch (err) {
+        console.warn("Draft check failed or legacy draft unreadable:", err);
+      }
       draftEnabledRef.current = true;
     };
     
     checkDraft();
   }, [pedigreeData, draftKey]);
 
-  // Background draft pre-encryption helper
+  // Background draft encryption and auto-save helper
   useEffect(() => {
     const interval = setInterval(async () => {
       if (!draftEnabledRef.current || !canvasRef.current) return;
@@ -69,12 +91,15 @@ export function usePedigreeDraft({ id, pedigreeData, canvasRef, draftKeyRef }: U
           lastSerializedRef.current = payload;
           const enc = await encryptDraft(payload);
           encryptedDraftRef.current = enc;
+          localStorage.setItem(draftKeyRef.current, enc);
         }
-      } catch {}
-    }, 2000);
+      } catch (err) {
+        console.error("Auto-save draft failed:", err);
+      }
+    }, 1500);
 
     return () => clearInterval(interval);
-  }, []);
+  }, [canvasRef, draftKeyRef]);
 
   // Save encrypted draft to localStorage on page/tab close or unmount
   useEffect(() => {
@@ -94,7 +119,13 @@ export function usePedigreeDraft({ id, pedigreeData, canvasRef, draftKeyRef }: U
         } catch {}
       }
     };
-  }, []);
+  }, [draftKeyRef]);
+
+  const clearDraft = useCallback(() => {
+    try { localStorage.removeItem(draftKeyRef.current); } catch {}
+    lastSerializedRef.current = "";
+    encryptedDraftRef.current = "";
+  }, [draftKeyRef]);
 
   const handleRestoreDraft = useCallback((setCanvas: (c: CanvasData) => void, setHistory: (h: CanvasData[]) => void, setFuture: (f: CanvasData[]) => void) => {
     if (draftData) {
@@ -108,15 +139,16 @@ export function usePedigreeDraft({ id, pedigreeData, canvasRef, draftKeyRef }: U
   }, [draftData]);
 
   const handleDismissDraft = useCallback(() => {
-    try { localStorage.removeItem(draftKey); } catch {}
+    clearDraft();
     setShowDraftBanner(false);
     setDraftData(null);
     draftEnabledRef.current = true;
-  }, [draftKey]);
+  }, [clearDraft]);
 
   return {
     showDraftBanner,
     draftEnabledRef,
+    clearDraft,
     handleRestoreDraft,
     handleDismissDraft,
   };

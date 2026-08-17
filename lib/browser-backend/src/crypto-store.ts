@@ -188,6 +188,8 @@ export async function getProfilePrivateKey(
   const stored = await get<any>(`ppro:profile_private_key:${profileId}`, KEY_STORE);
   if (!stored) return undefined;
   if (typeof stored === "string") {
+    // Auto-migrate legacy plaintext key to encrypted format
+    await storeProfilePrivateKey(profileId, stored);
     return stored;
   }
   if (stored.ciphertext && stored.iv) {
@@ -218,6 +220,8 @@ export async function listProfilePrivateKeys(): Promise<
       const stored = await get<any>(k, KEY_STORE);
       if (stored) {
         if (typeof stored === "string") {
+          // Auto-migrate legacy plaintext key to encrypted format
+          await storeProfilePrivateKey(profileId, stored);
           entries.push({ profileId, privateKey: stored });
         } else if (stored.ciphertext && stored.iv) {
           const decrypted = await decryptDbBlob(stored.ciphertext, stored.iv, key);
@@ -276,23 +280,16 @@ async function getOrCreateDraftKey(): Promise<Uint8Array> {
 }
 
 export async function encryptDraft(payload: string): Promise<string> {
-  try {
-    const key = await getOrCreateDraftKey();
-    const { ciphertext, nonce } = await encryptAesGcm(payload, key);
-    return JSON.stringify({ ciphertext, nonce });
-  } catch (e) {
-    console.error("Failed to encrypt draft:", e);
-    return payload;
-  }
+  const key = await getOrCreateDraftKey();
+  const { ciphertext, nonce } = await encryptAesGcm(payload, key);
+  return JSON.stringify({ ciphertext, nonce });
 }
 
 export async function decryptDraft(encrypted: string): Promise<string> {
-  try {
-    const parsed = JSON.parse(encrypted);
-    if (parsed && typeof parsed === "object" && parsed.ciphertext && parsed.nonce) {
-      const key = await getOrCreateDraftKey();
-      return await decryptAesGcm(parsed.ciphertext, parsed.nonce, key);
-    }
-  } catch {}
-  return encrypted;
+  const parsed = JSON.parse(encrypted);
+  if (parsed && typeof parsed === "object" && parsed.ciphertext && parsed.nonce) {
+    const key = await getOrCreateDraftKey();
+    return await decryptAesGcm(parsed.ciphertext, parsed.nonce, key);
+  }
+  throw new Error("Invalid encrypted draft payload");
 }

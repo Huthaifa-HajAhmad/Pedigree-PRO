@@ -45,11 +45,14 @@ export class ErrorBoundary extends Component<Props, State> {
               An unexpected error occurred. Any previously auto-saved drafts have been
               retained in local storage. Reload the app to continue.
             </p>
-            {this.state.error && (
-              <pre className="text-xs text-left text-muted-foreground bg-muted border border-border rounded-lg p-3 mb-6 overflow-auto max-h-32 font-mono">
-                {this.state.error.message}
+            <details className="text-left mb-6">
+              <summary className="text-xs text-muted-foreground cursor-pointer select-none hover:text-foreground">
+                Technical Details
+              </summary>
+              <pre className="text-[11px] text-muted-foreground bg-muted border border-border rounded-lg p-3 mt-2 overflow-auto max-h-32 font-mono whitespace-pre-wrap">
+                An unexpected client-side error occurred. Technical diagnostics have been logged to the developer console.
               </pre>
-            )}
+            </details>
             <div className="flex gap-3 justify-center">
               <Button
                 onClick={() => window.location.reload()}

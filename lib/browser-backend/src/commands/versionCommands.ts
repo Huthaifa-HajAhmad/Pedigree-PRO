@@ -5,7 +5,7 @@ import type { PedigreeVersion, SaveVersionInput, Pedigree } from "./types";
 
 export function list_versions(args: { pedigree_id: number }): PedigreeVersion[] {
   return query<PedigreeVersion>(
-    "SELECT id, pedigree_id, version_number, label, canvas_data, canvas_hash, thumbnail, saver_key, saver_signature, created_at FROM pedigree_versions WHERE pedigree_id = ? ORDER BY version_number DESC",
+    "SELECT id, pedigree_id, version_number, label, canvas_data, canvas_hash, thumbnail, saver_key, saver_signature, nodes_count, couple_count, created_at FROM pedigree_versions WHERE pedigree_id = ? ORDER BY version_number DESC",
     [args.pedigree_id]
   );
 }
@@ -21,8 +21,18 @@ export function save_version(args: {
   const nextVersion = (lastVersion?.max_version ?? 0) + 1;
   const canvas_hash = computeHash(args.input.canvas_data);
 
+  let nodes_count = 0;
+  let couple_count = 0;
+  try {
+    const parsed = JSON.parse(args.input.canvas_data);
+    nodes_count = parsed.nodes?.length ?? 0;
+    couple_count = (parsed.edges || []).filter((e: any) =>
+      e.type === "couple" || e.type === "consanguinity" || e.type === "divorced" || e.type === "separated"
+    ).length;
+  } catch {}
+
   exec(
-    "INSERT INTO pedigree_versions (pedigree_id, version_number, label, canvas_data, canvas_hash, thumbnail, saver_key, saver_signature, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))",
+    "INSERT INTO pedigree_versions (pedigree_id, version_number, label, canvas_data, canvas_hash, thumbnail, saver_key, saver_signature, nodes_count, couple_count, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))",
     [
       args.pedigree_id,
       nextVersion,
@@ -32,12 +42,14 @@ export function save_version(args: {
       args.input.thumbnail ?? null,
       args.input.saver_key,
       args.input.saver_signature ?? null,
+      nodes_count,
+      couple_count,
     ]
   );
 
   const id = lastInsertRowId();
   const version = queryOne<PedigreeVersion>(
-    "SELECT id, pedigree_id, version_number, label, canvas_data, canvas_hash, thumbnail, saver_key, saver_signature, created_at FROM pedigree_versions WHERE id = ?",
+    "SELECT id, pedigree_id, version_number, label, canvas_data, canvas_hash, thumbnail, saver_key, saver_signature, nodes_count, couple_count, created_at FROM pedigree_versions WHERE id = ?",
     [id]
   );
   if (!version) throw new Error("Failed to retrieve saved version");

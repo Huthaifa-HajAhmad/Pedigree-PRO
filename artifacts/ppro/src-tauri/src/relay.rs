@@ -78,13 +78,19 @@ pub async fn relay_share(
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(15))
         .build()
-        .map_err(|e| format!("Failed to build reqwest client: {}", e))?;
+        .map_err(|e| {
+            eprintln!("Failed to build reqwest client: {}", e);
+            "Unable to initialize sharing network client".to_string()
+        })?;
     let response = client
         .post(&url)
         .json(&request_body)
         .send()
         .await
-        .map_err(|e| format!("Failed to connect to relay: {}", e))?;
+        .map_err(|e| {
+            eprintln!("Relay connection error: {}", e);
+            "Unable to connect to sharing relay service. Please check your network connection.".to_string()
+        })?;
 
     let status = response.status();
 
@@ -92,14 +98,17 @@ pub async fn relay_share(
         response
             .json::<RelayShareResponse>()
             .await
-            .map_err(|e| format!("Invalid relay response: {}", e))
+            .map_err(|e| {
+                eprintln!("Invalid relay response: {}", e);
+                "Invalid response received from sharing relay service".to_string()
+            })
     } else {
         let error = response
             .json::<RelayErrorResponse>()
             .await
             .map(|e| e.error)
             .unwrap_or_else(|_| format!("HTTP {}", status));
-        Err(format!("Relay error: {}", error))
+        Err(format!("Relay service error: {}", error))
     }
 }
 
@@ -123,13 +132,19 @@ pub async fn relay_receive(
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(15))
         .build()
-        .map_err(|e| format!("Failed to build reqwest client: {}", e))?;
+        .map_err(|e| {
+            eprintln!("Failed to build reqwest client: {}", e);
+            "Unable to initialize sharing network client".to_string()
+        })?;
     let response = client
         .post(&url)
         .json(&request_body)
         .send()
         .await
-        .map_err(|e| format!("Failed to connect to relay: {}", e))?;
+        .map_err(|e| {
+            eprintln!("Relay connection error: {}", e);
+            "Unable to connect to sharing relay service. Please check your network connection.".to_string()
+        })?;
 
     let status = response.status();
 
@@ -137,7 +152,10 @@ pub async fn relay_receive(
         response
             .json::<RelayReceiveResponse>()
             .await
-            .map_err(|e| format!("Invalid relay response: {}", e))
+            .map_err(|e| {
+                eprintln!("Invalid relay response: {}", e);
+                "Invalid response received from sharing relay service".to_string()
+            })
     } else if status.as_u16() == 404 {
         Err("Share token expired or not found".to_string())
     } else if status.as_u16() == 410 {
@@ -148,7 +166,7 @@ pub async fn relay_receive(
             .await
             .map(|e| e.error)
             .unwrap_or_else(|_| format!("HTTP {}", status));
-        Err(format!("Relay error: {}", error))
+        Err(format!("Relay service error: {}", error))
     }
 }
 
@@ -207,13 +225,19 @@ pub async fn revoke_shared_payload(
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(15))
         .build()
-        .map_err(|e| format!("Failed to build reqwest client: {}", e))?;
+        .map_err(|e| {
+            eprintln!("Failed to build reqwest client: {}", e);
+            "Unable to initialize sharing network client".to_string()
+        })?;
     let response = client
         .post(&url)
         .json(&request_body)
         .send()
         .await
-        .map_err(|e| format!("Failed to connect to relay: {}", e))?;
+        .map_err(|e| {
+            eprintln!("Relay connection error: {}", e);
+            "Unable to connect to sharing relay service. Please check your network connection.".to_string()
+        })?;
 
     let status = response.status();
 
@@ -225,6 +249,6 @@ pub async fn revoke_shared_payload(
             .await
             .map(|e| e.error)
             .unwrap_or_else(|_| format!("HTTP {}", status));
-        Err(format!("Relay error: {}", error))
+        Err(format!("Relay service error: {}", error))
     }
 }

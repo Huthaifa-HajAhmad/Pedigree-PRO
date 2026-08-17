@@ -270,6 +270,7 @@ async function runMigrations(): Promise<void> {
     [3, "003_drop_deprecated_columns", MIGRATION_003],
     [4, "004_share_log", MIGRATION_004],
     [5, "005_share_links", MIGRATION_005],
+    [6, "006_denormalize_version_counts", MIGRATION_006],
   ];
 
   for (const [version, name, sql] of migrations) {
@@ -317,6 +318,8 @@ CREATE TABLE IF NOT EXISTS pedigree_versions (
   thumbnail TEXT,
   saver_key TEXT,
   saver_signature TEXT,
+  nodes_count INTEGER DEFAULT 0,
+  couple_count INTEGER DEFAULT 0,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
@@ -422,3 +425,10 @@ CREATE TABLE IF NOT EXISTS share_links (
 
 CREATE INDEX IF NOT EXISTS idx_share_links_created_at ON share_links(created_at DESC);
 `;
+
+// Inlined migration 006: Denormalized version node/couple counts
+const MIGRATION_006 = `
+ALTER TABLE pedigree_versions ADD COLUMN nodes_count INTEGER DEFAULT 0;
+ALTER TABLE pedigree_versions ADD COLUMN couple_count INTEGER DEFAULT 0;
+`;
+

@@ -63,13 +63,11 @@ export function ShareModal({
       { pedigreeId, recipientKey: key },
       {
         onSuccess: (data: { share_token: string; share_url?: string }) => {
-          let shareUrl: string;
-          if (isTauriDesktop()) {
-            shareUrl = `${PUBLIC_APP_URL}/share/${data.share_token}`;
-          } else {
-            const base = window.location.origin + import.meta.env.BASE_URL.replace(/\/$/, "");
-            shareUrl = `${base}/share/${data.share_token}`;
-          }
+          const shareUrl = data.share_url || (
+            isTauriDesktop()
+              ? `${PUBLIC_APP_URL}/share/${data.share_token}`
+              : `${window.location.origin}${import.meta.env.BASE_URL.replace(/\/$/, "")}/share/${data.share_token}`
+          );
           setShareData({ token: data.share_token, shareUrl });
           setRevokeSuccess(false);
           setRevokeError(null);
@@ -128,15 +126,15 @@ export function ShareModal({
       setRevokeSuccess(true);
     } catch (err) {
       console.error("Revocation failed", err);
-      setRevokeError(err instanceof Error ? err.message : "Failed to revoke share link");
+      setRevokeError("Unable to revoke share link. Please verify your network connection or try again.");
     } finally {
       setIsRevoking(false);
     }
   };
 
   const securityLabel = isEncrypted
-    ? "End-to-end encrypted — only recipient can view"
-    : "Open link — anyone with URL can view";
+    ? "Recipient-encrypted (Ed25519 sealed box) — only matching profile key can decrypt"
+    : "Zero-knowledge link (AES-256-GCM) — encrypted client-side, key in URL fragment";
 
   return (
     <Dialog open={true} onOpenChange={() => onClose()}>

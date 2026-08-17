@@ -99,8 +99,8 @@ export default function Patients() {
               message: "The patient could not be registered. See details below.",
               error: backendError || error,
               details: backendError
-                ? `Backend initialization failed.\n${backendError.message}`
-                : `Error: ${error.message}\n\nStack:\n${error.stack || "N/A"}`,
+                ? `Backend initialization error: ${backendError.message}`
+                : `Error: ${error.message || "An unexpected error occurred"}`,
             });
           },
         }

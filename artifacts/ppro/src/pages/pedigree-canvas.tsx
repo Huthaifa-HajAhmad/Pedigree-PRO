@@ -15,6 +15,7 @@ import { ThemeContext, THEMES, applyThemeDom } from "@/lib/theme";
 import type { ThemeId } from "@/lib/theme";
 import { CanvasConfigOverrideProvider } from "@/features/pedigree-editor/context/CanvasConfigContext";
 import type { CanvasConfig } from "@/features/pedigree-editor/context/CanvasConfigContext";
+import { useToast } from "@/hooks/use-toast";
 
 
 export default function PedigreeCanvas() {
@@ -33,6 +34,7 @@ export default function PedigreeCanvas() {
 
 function PedigreeCanvasInner() {
   const ctx = usePedigreeEditor();
+  const { toast } = useToast();
   const { state, ops, memo, pedigree, profiles, showDraftBanner, onRestoreDraft, handleDismissDraft } = ctx;
   const [showTour, setShowTour] = useState(false);
 
@@ -107,6 +109,13 @@ function PedigreeCanvasInner() {
         await ops.backgroundSaveVersion(`Auto-saved before ${fmt} Export`);
       }
       await fn(args);
+    } catch (err) {
+      console.error(`Export to ${fmt} failed:`, err);
+      toast({
+        title: "Export Failed",
+        description: `Unable to export pedigree as ${fmt}. Please try again.`,
+        variant: "destructive",
+      });
     } finally {
       ctx.dispatch({ type: "SET_STATE", patch: { exportingFormat: null } });
     }

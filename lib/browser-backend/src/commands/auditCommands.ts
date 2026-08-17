@@ -30,7 +30,7 @@ export function get_dashboard_stats(): DashboardStats {
 }
 
 export function get_recent_activity(args?: { limit?: number }): ActivityItem[] {
-  const limit = args?.limit ?? 20;
+  const limit = Math.max(1, Math.min(args?.limit ?? 20, 100));
   return query<ActivityItem>(
     "SELECT id, action, subject, actor_key, timestamp FROM activity_log ORDER BY timestamp DESC LIMIT ?",
     [limit]

@@ -323,7 +323,7 @@ async function deriveSealboxKey(
 /**
  * Converts a Uint8Array to a base64url string (no padding).
  */
-function bytesToBase64url(bytes: Uint8Array): string {
+export function bytesToBase64url(bytes: Uint8Array): string {
   let binary = "";
   for (let i = 0; i < bytes.length; i++) {
     binary += String.fromCharCode(bytes[i]!);
@@ -334,7 +334,7 @@ function bytesToBase64url(bytes: Uint8Array): string {
 /**
  * Converts a base64url string to a Uint8Array.
  */
-function base64urlToBytes(base64url: string): Uint8Array {
+export function base64urlToBytes(base64url: string): Uint8Array {
   let base64 = base64url.replace(/-/g, "+").replace(/_/g, "/");
   while (base64.length % 4) base64 += "=";
   const binary = atob(base64);

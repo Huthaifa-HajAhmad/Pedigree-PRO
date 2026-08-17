@@ -394,12 +394,17 @@ export function useSharePedigree() {
       const pproJson = await exportPedigreePpro(pedigreeId, recipientKey);
 
       let payload: string;
+      let keyFragment = "";
       const hasKey = recipientKey && recipientKey !== "anonymous";
       if (hasKey) {
         const { sodiumSealBox } = await import("@workspace/crypto");
         payload = await sodiumSealBox(pproJson, recipientKey);
       } else {
-        payload = pproJson;
+        const { generateSymmetricKey, encryptAesGcm, bytesToBase64url } = await import("@workspace/crypto");
+        const symKey = generateSymmetricKey();
+        const { ciphertext, nonce } = await encryptAesGcm(pproJson, symKey);
+        payload = JSON.stringify({ v: "symmetric-gcm", nonce, ciphertext });
+        keyFragment = `#key=${bytesToBase64url(symKey)}`;
       }
 
       const { compressString, toBase64url, bytesToBase64 } = await import("@workspace/browser-backend");
@@ -407,17 +412,17 @@ export function useSharePedigree() {
       const compressedBase64 = toBase64url(bytesToBase64(compressed));
 
       try {
-        const { share_token } = await relayShare(compressedBase64, "");
+        const { share_token } = await relayShare(compressedBase64, "", 168);
         return {
           share_token,
-          share_url: `https://pedigree-pro.pages.dev/share/${share_token}`,
+          share_url: `https://pedigree-pro.pages.dev/share/${share_token}${keyFragment}`,
         };
       } catch {
         // Relay offline — fall back to self-contained token in URL fragment
         const token = compressedBase64;
         return {
           share_token: token,
-          share_url: `https://pedigree-pro.pages.dev/share/${encodeURIComponent(token)}`,
+          share_url: `https://pedigree-pro.pages.dev/share/${encodeURIComponent(token)}${keyFragment}`,
         };
       }
     },
@@ -440,22 +445,39 @@ async function decryptRelayPayload(
     raw = new TextDecoder().decode(rawBytes);
   }
 
-  // Try encrypted decryption first (libsodium sealed box)
+  // Check URL hash for symmetric key first
+  let symKeyBase64url: string | undefined;
+  if (typeof window !== "undefined" && window.location.hash) {
+    const hash = window.location.hash.slice(1);
+    const params = new URLSearchParams(hash);
+    symKeyBase64url = params.get("key") ?? undefined;
+    if (!symKeyBase64url && hash.startsWith("key=")) {
+      symKeyBase64url = hash.slice(4);
+    }
+  }
+
+  if (symKeyBase64url) {
+    try {
+      const parsedEnvelope = JSON.parse(raw);
+      if (parsedEnvelope?.v === "symmetric-gcm" && parsedEnvelope.ciphertext && parsedEnvelope.nonce) {
+        const { decryptAesGcm, base64urlToBytes } = await import("@workspace/crypto");
+        const decrypted = await decryptAesGcm(parsedEnvelope.ciphertext, parsedEnvelope.nonce, base64urlToBytes(symKeyBase64url));
+        return { raw: decrypted, encrypted: false };
+      }
+    } catch {}
+  }
+
+  // Try recipient-encrypted decryption (libsodium sealed box)
   const { sodiumOpenSealedBox } = await import("@workspace/crypto");
   const { listProfilePrivateKeys } = await import("@workspace/browser-backend");
 
   const privateKeys = await listProfilePrivateKeys();
   if (privateKeys.length === 0) {
-    try {
-      JSON.parse(raw);
-      return { raw, encrypted: false };
-    } catch {
-      return {
-        raw: "",
-        encrypted: true,
-        decryptError: "This share is encrypted for a specific recipient. You need a profile with the matching private key to view it. Create a profile and ask the sender to encrypt for your public key."
-      };
-    }
+    return {
+      raw: "",
+      encrypted: true,
+      decryptError: "This share is encrypted. Decryption key or matching profile private key not found."
+    };
   }
 
   let lastError: Error | null = null;
@@ -468,16 +490,10 @@ async function decryptRelayPayload(
     }
   }
 
-  // Fallback: try to parse as unencrypted .ppro JSON
-  try {
-    JSON.parse(raw);
-    return { raw, encrypted: false };
-  } catch { /* not JSON */ }
-
   return {
     raw: "",
     encrypted: true,
-    decryptError: lastError?.message ?? "This share is encrypted for a specific recipient. None of your stored private keys can decrypt it."
+    decryptError: lastError?.message ?? "This share is encrypted. Matching profile private key not found."
   };
 }
 

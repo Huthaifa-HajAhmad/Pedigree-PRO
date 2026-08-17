@@ -240,15 +240,14 @@ export async function exportSVG(
   options?: { transparent?: boolean }
 ): Promise<void> {
   const svgEl = document.querySelector('svg[data-canvas-svg="true"]') ?? document.querySelector("svg");
-  try {
-    const { clone } = prepareSvgForExport(svgEl as SVGSVGElement, canvas.nodes, { transparentBg: options?.transparent });
-    const serializer = new XMLSerializer();
-    const svgString = serializer.serializeToString(clone);
-    const blob = new Blob([svgString], { type: "image/svg+xml" });
-    await triggerDownload(blob, `${safeFilename(info.title)}_pedigree.svg`);
-  } catch {
-    alert("No pedigree canvas SVG found on the page.");
+  if (!svgEl) {
+    throw new Error("No pedigree canvas SVG element found on the page.");
   }
+  const { clone } = prepareSvgForExport(svgEl as SVGSVGElement, canvas.nodes, { transparentBg: options?.transparent });
+  const serializer = new XMLSerializer();
+  const svgString = serializer.serializeToString(clone);
+  const blob = new Blob([svgString], { type: "image/svg+xml" });
+  await triggerDownload(blob, `${safeFilename(info.title)}_pedigree.svg`);
 }
 
 export async function exportPNG(
@@ -257,6 +256,9 @@ export async function exportPNG(
   options?: { transparent?: boolean }
 ): Promise<void> {
   const svgEl = document.querySelector('svg[data-canvas-svg="true"]') ?? document.querySelector("svg");
+  if (!svgEl) {
+    throw new Error("No pedigree canvas SVG element found on the page.");
+  }
   let svgBlobUrl: string | null = null;
   try {
     const { clone, vb } = prepareSvgForExport(svgEl as SVGSVGElement, canvas.nodes, { transparentBg: options?.transparent });
@@ -287,8 +289,6 @@ export async function exportPNG(
       img.src = svgBlobUrl;
     });
     await triggerDownload(blob, `${safeFilename(info.title)}_pedigree.png`);
-  } catch {
-    alert("No pedigree canvas SVG found on the page.");
   } finally {
     if (svgBlobUrl) URL.revokeObjectURL(svgBlobUrl);
   }

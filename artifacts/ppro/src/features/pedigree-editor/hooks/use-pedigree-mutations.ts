@@ -9,6 +9,28 @@ import type { CanvasConfig } from "../context/CanvasConfigContext";
 const W = 1400;
 const H = 900;
 
+// Module-level ephemeral clipboard (15-minute auto-expiry, zero disk persistence)
+interface NodeClipboardData {
+  nodes: PedigreeNode[];
+  edges: PedigreeEdge[];
+  annotations?: PedigreeAnnotation[];
+  expiresAt: number;
+}
+
+let inMemoryClipboard: NodeClipboardData | null = null;
+let clipboardTimeoutId: ReturnType<typeof setTimeout> | null = null;
+
+export function clearNodeClipboard(): void {
+  inMemoryClipboard = null;
+  if (clipboardTimeoutId) {
+    clearTimeout(clipboardTimeoutId);
+    clipboardTimeoutId = null;
+  }
+  try {
+    localStorage.removeItem("ppro_node_clipboard");
+  } catch {}
+}
+
 export function usePedigreeMutations(
   stateRef: React.MutableRefObject<PedigreeEditorState>,
   configRef: React.MutableRefObject<CanvasConfig>,
@@ -260,38 +282,40 @@ export function usePedigreeMutations(
       a => selected.has(a.nodeId)
     ) ?? [];
 
-    const clipboardData = {
+    inMemoryClipboard = {
       nodes: nodesToCopy,
       edges: edgesToCopy,
-      annotations: annotationsToCopy
+      annotations: annotationsToCopy,
+      expiresAt: Date.now() + 15 * 60 * 1000,
     };
 
-    try {
-      localStorage.setItem("ppro_node_clipboard", JSON.stringify(clipboardData));
-      const copiedCount = nodesToCopy.length;
-      toast({
-        title: "Copied to Clipboard",
-        description: `Copied ${copiedCount} node${copiedCount !== 1 ? "s" : ""} to clipboard.`,
-      });
-    } catch (err) {
-      console.error("Failed to copy nodes to localStorage", err);
+    if (clipboardTimeoutId) {
+      clearTimeout(clipboardTimeoutId);
     }
-  }, [stateRef]);
+    clipboardTimeoutId = setTimeout(() => {
+      inMemoryClipboard = null;
+      clipboardTimeoutId = null;
+    }, 15 * 60 * 1000);
+
+    // Clean up any legacy plaintext key
+    try {
+      localStorage.removeItem("ppro_node_clipboard");
+    } catch {}
+
+    const copiedCount = nodesToCopy.length;
+    toast({
+      title: "Copied to Clipboard",
+      description: `Copied ${copiedCount} node${copiedCount !== 1 ? "s" : ""} to clipboard (in-memory, auto-clears in 15m).`,
+    });
+  }, [stateRef, toast]);
 
   const pasteNodes = useCallback(() => {
-    let clipboardData: { nodes: PedigreeNode[]; edges: PedigreeEdge[]; annotations?: PedigreeAnnotation[] } | null = null;
-    try {
-      const stored = localStorage.getItem("ppro_node_clipboard");
-      if (stored) {
-        clipboardData = JSON.parse(stored);
-      }
-    } catch (err) {
-      console.error("Failed to read clipboard from localStorage", err);
+    if (!inMemoryClipboard || Date.now() > inMemoryClipboard.expiresAt) {
+      inMemoryClipboard = null;
       return;
     }
 
-    if (!clipboardData || !clipboardData.nodes || clipboardData.nodes.length === 0) return;
-    const { nodes, edges, annotations = [] } = clipboardData;
+    const { nodes, edges, annotations = [] } = inMemoryClipboard;
 
     const idMap = new Map<string, string>();
     const newIds: string[] = [];

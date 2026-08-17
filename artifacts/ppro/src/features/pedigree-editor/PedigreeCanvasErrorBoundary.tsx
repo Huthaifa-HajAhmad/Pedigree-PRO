@@ -41,11 +41,14 @@ export class PedigreeCanvasErrorBoundary extends Component<Props, State> {
             <p className="text-sm text-muted-foreground">
               The pedigree canvas encountered an unexpected error. Your drafts have been preserved in local storage.
             </p>
-            {this.state.error && (
-              <pre className="text-xs text-muted-foreground bg-muted rounded p-3 text-left overflow-auto max-h-32">
-                {this.state.error.message}
+            <details className="text-left">
+              <summary className="text-xs text-muted-foreground cursor-pointer select-none hover:text-foreground">
+                Technical Details
+              </summary>
+              <pre className="text-[11px] text-muted-foreground bg-muted border border-border rounded p-3 mt-2 overflow-auto max-h-32 font-mono whitespace-pre-wrap">
+                An unexpected canvas rendering error occurred. Technical diagnostics have been logged to the developer console.
               </pre>
-            )}
+            </details>
             <div className="flex gap-3 justify-center pt-2">
               <button
                 onClick={this.handleReset}
