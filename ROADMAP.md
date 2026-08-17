@@ -9,8 +9,8 @@ This document outlines the strategic priorities, upcoming milestones, and long-t
 * :white_check_mark: Zero-server local-first architecture (Tauri Rust + Browser WASM).
 * :white_check_mark: Topological auto-layout engine with consanguinity collision resolution and crossing minimization.
 * :white_check_mark: Full standard pedigree symbol palette (twins, deceased, SAB/TOP/stillbirth, carrier states, proband indicator).
-* :white_check_mark: Clinical annotations (HPO, OMIM, HGVS variants) & inbreeding coefficient calculation ($F$).
-* :white_check_mark: Hybrid encrypted peer-to-peer and relay sharing with zero cloud data retention.
+* :white_check_mark: Clinical annotations & inbreeding coefficient calculation ($F$).
+* :white_check_mark: Relay sharing with zero cloud data retention.
 * :white_check_mark: Export to PDF, PowerPoint (PPTX), PNG, and native `.ppro` format.
 
 ---
