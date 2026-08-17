@@ -31,7 +31,6 @@
   "bundle": {
     "active": true,
     "targets": "all",
-    "createUpdaterArtifacts": true,
     "category": "Medical",
     "icon": [
       "icons/32x32.png",
@@ -60,12 +59,5 @@
       }
     }
   },
-  "plugins": {
-    "updater": {
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDVCOEM5QjVBNjlCQkYxMzIKUldUVnpKdWc1QkpvZ1k2L1B6aG55ZmlEa0V3RmV6VkpvMmliZ3l1QzVZZ291WGlvMWV6TUpKcm8K",
-      "endpoints": [
-        "https://github.com/Huthaifa-HajAhmad/Pedigree-PRO/releases/latest/download/latest.json"
-      ]
-    }
-  }
+  "plugins": {}
 }

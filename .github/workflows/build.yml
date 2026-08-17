@@ -75,11 +75,8 @@ jobs:
           tagName: ${{ github.ref_name }}
           releaseName: 'Pedigree PRO v__VERSION__'
           releaseBody: 'See CHANGELOG.md for details.'
-          includeUpdaterJson: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD || secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
 
   # ── Tauri Desktop Build (macOS) ──────────────────────────────
   build-tauri-macos:
@@ -109,11 +106,8 @@ jobs:
           releaseName: 'Pedigree PRO v__VERSION__'
           releaseBody: 'See CHANGELOG.md for details.'
           args: '--target universal-apple-darwin'
-          includeUpdaterJson: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD || secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
 
   # ── Tauri Desktop Build (Linux) ──────────────────────────────
   build-tauri-linux:
@@ -141,11 +135,8 @@ jobs:
           tagName: ${{ github.ref_name }}
           releaseName: 'Pedigree PRO v__VERSION__'
           releaseBody: 'See CHANGELOG.md for details.'
-          includeUpdaterJson: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD || secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
 
   # ── Static Web Frontend Deployment ───────────────────────────
   deploy-web:
