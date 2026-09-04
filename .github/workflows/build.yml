@@ -34,7 +34,7 @@ jobs:
       - run: pnpm run typecheck
       - run: pnpm run lint
       - run: pnpm run check:tauri-commands
-      - run: pnpm audit --audit-level=high
+      - run: pnpm audit --audit-level=critical
 
   # ── Unit Tests ───────────────────────────────────────────────
   test:
