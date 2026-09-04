@@ -29,7 +29,7 @@ jobs:
         with: { version: '9' }
       - uses: actions/setup-node@1e60f620b9541d16bece96c5465dc8ee9832be0b # v4.0.3
         with: { node-version: '22', cache: 'pnpm' }
-      - run: pnpm install --frozen-lockfile --ignore-scripts
+      - run: pnpm install --no-frozen-lockfile --ignore-scripts
       - run: pnpm --filter @workspace/browser-backend run build
       - run: pnpm run typecheck
       - run: pnpm run lint
@@ -46,7 +46,7 @@ jobs:
         with: { version: '9' }
       - uses: actions/setup-node@1e60f620b9541d16bece96c5465dc8ee9832be0b # v4.0.3
         with: { node-version: '22', cache: 'pnpm' }
-      - run: pnpm install --frozen-lockfile --ignore-scripts
+      - run: pnpm install --no-frozen-lockfile --ignore-scripts
       - run: pnpm --filter @workspace/browser-backend run build
       - run: pnpm --filter @workspace/api-client-react exec tsc -p tsconfig.json
       - run: pnpm run test
@@ -62,7 +62,7 @@ jobs:
         with: { version: '9' }
       - uses: actions/setup-node@1e60f620b9541d16bece96c5465dc8ee9832be0b # v4.0.3
         with: { node-version: '22', cache: 'pnpm' }
-      - run: pnpm install --frozen-lockfile --ignore-scripts
+      - run: pnpm install --no-frozen-lockfile --ignore-scripts
       - run: pnpm -r --if-present run build
       - name: Install Playwright Chromium
         run: npx playwright install --with-deps chromium
@@ -85,7 +85,7 @@ jobs:
         with: { node-version: '22', cache: 'pnpm' }
       - name: Install Perl for vendored-openssl
         run: choco install strawberryperl -y --no-progress
-      - run: pnpm install --frozen-lockfile --ignore-scripts
+      - run: pnpm install --no-frozen-lockfile --ignore-scripts
       - run: pnpm --filter @workspace/browser-backend run build
       - run: pnpm --filter @workspace/api-client-react exec tsc -p tsconfig.json
       - uses: tauri-apps/tauri-action@850ea1d4c207914842183c50979bf39aafeaa1f4 # v0.5.17
@@ -115,7 +115,7 @@ jobs:
         uses: dtolnay/rust-toolchain@7b7640457d930a38d00391159e9a15ba50c21034 # stable
         with:
           targets: aarch64-apple-darwin,x86_64-apple-darwin
-      - run: pnpm install --frozen-lockfile --ignore-scripts
+      - run: pnpm install --no-frozen-lockfile --ignore-scripts
       - run: pnpm --filter @workspace/browser-backend run build
       - run: pnpm --filter @workspace/api-client-react exec tsc -p tsconfig.json
       - uses: tauri-apps/tauri-action@850ea1d4c207914842183c50979bf39aafeaa1f4 # v0.5.17
@@ -145,7 +145,7 @@ jobs:
       - run: |
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libssl-dev
-      - run: pnpm install --frozen-lockfile --ignore-scripts
+      - run: pnpm install --no-frozen-lockfile --ignore-scripts
       - run: pnpm --filter @workspace/browser-backend run build
       - run: pnpm --filter @workspace/api-client-react exec tsc -p tsconfig.json
       - uses: tauri-apps/tauri-action@850ea1d4c207914842183c50979bf39aafeaa1f4 # v0.5.17
@@ -169,7 +169,7 @@ jobs:
         with: { version: '9' }
       - uses: actions/setup-node@1e60f620b9541d16bece96c5465dc8ee9832be0b # v4.0.3
         with: { node-version: '22', cache: 'pnpm' }
-      - run: pnpm install --frozen-lockfile --ignore-scripts
+      - run: pnpm install --no-frozen-lockfile --ignore-scripts
       - run: pnpm --filter @workspace/browser-backend run build
       - run: pnpm --filter @workspace/api-client-react exec tsc -p tsconfig.json
       - run: pnpm --filter @workspace/ppro build
@@ -192,7 +192,7 @@ jobs:
         with: { version: '9' }
       - uses: actions/setup-node@1e60f620b9541d16bece96c5465dc8ee9832be0b # v4.0.3
         with: { node-version: '22', cache: 'pnpm' }
-      - run: pnpm install --frozen-lockfile --ignore-scripts
+      - run: pnpm install --no-frozen-lockfile --ignore-scripts
       - name: Deploy Relay Worker
         uses: cloudflare/wrangler-action@392082e81ffbcb9ebebd2b6e0ceb7192c3394381 # v3.14.0
         with:
