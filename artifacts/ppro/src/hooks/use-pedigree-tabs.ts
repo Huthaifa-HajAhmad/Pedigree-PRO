@@ -116,5 +116,36 @@ export function usePedigreeTabs() {
     });
   }, []);
 
-  return { tabs, openTab, closeTab, reorderTabs, pruneStaleTabs, renameTab };
+  const syncWithPedigrees = useCallback((pedigrees: Array<{ id: number; title: string }>) => {
+    if (!pedigrees || pedigrees.length === 0) return;
+    setTabs((prev) => {
+      const validMap = new Map(pedigrees.map((p) => [p.id, p.title]));
+      let updated: PedigreeTab[] = prev
+        .filter((t) => validMap.has(t.id))
+        .map((t) => {
+          const freshTitle = validMap.get(t.id);
+          return freshTitle && freshTitle !== t.title ? { ...t, title: freshTitle } : t;
+        });
+
+      const existingIds = new Set(updated.map((t) => t.id));
+      for (const p of pedigrees) {
+        if (updated.length >= MAX_TABS) break;
+        if (!existingIds.has(p.id)) {
+          updated.push({ id: p.id, title: p.title });
+          existingIds.add(p.id);
+        }
+      }
+
+      const isSame =
+        updated.length === prev.length &&
+        updated.every((t, i) => prev[i]?.id === t.id && prev[i]?.title === t.title);
+
+      if (isSame) return prev;
+
+      writeTabs(updated);
+      return updated;
+    });
+  }, []);
+
+  return { tabs, openTab, closeTab, reorderTabs, pruneStaleTabs, renameTab, syncWithPedigrees };
 }

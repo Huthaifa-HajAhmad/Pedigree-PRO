@@ -200,6 +200,8 @@ export async function share_pedigree(args: {
     return {
       share_token: relayResult.share_token,
       share_url: `${appBaseUrl}/share/${relayResult.share_token}${keyFragment}`,
+      revoke_token: relayResult.revoke_token,
+      expires_at: relayResult.expires_at,
     };
   } catch {
     // Relay offline fallback
@@ -417,6 +419,8 @@ export async function relay_share(args: {
   return {
     share_token: result.share_token,
     share_url: `${appBaseUrl}/share/${result.share_token}`,
+    revoke_token: typeof result.revoke_token === "string" ? result.revoke_token : undefined,
+    expires_at: typeof result.expires_at === "string" ? result.expires_at : undefined,
   };
 }
 
@@ -474,7 +478,7 @@ export async function relay_receive(args: { share_token: string }): Promise<{
   }
 }
 
-export async function relay_revoke(args: { share_token: string }): Promise<void> {
+export async function relay_revoke(args: { share_token: string; revoke_token?: string }): Promise<void> {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 15000);
 
@@ -484,14 +488,15 @@ export async function relay_revoke(args: { share_token: string }): Promise<void>
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ share_token: args.share_token }),
+      body: JSON.stringify({ share_token: args.share_token, revoke_token: args.revoke_token }),
       signal: controller.signal,
     });
 
     clearTimeout(timeoutId);
 
     if (!response.ok && response.status !== 204) {
-      throw new Error(`Failed to revoke share token: HTTP ${response.status}`);
+      const errorData = await response.json().catch(() => ({ error: `HTTP ${response.status}` }));
+      throw new Error(errorData.error ?? `Failed to revoke share token: HTTP ${response.status}`);
     }
   } catch (err) {
     clearTimeout(timeoutId);

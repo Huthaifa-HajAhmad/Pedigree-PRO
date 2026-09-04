@@ -19,57 +19,76 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
 
 jobs:
-  # ── Type Checking ────────────────────────────────────────────
+  # ── Type Checking & Security Audit ───────────────────────────
   typecheck:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: pnpm/action-setup@a3252b78c470c02df07e9d792d148a66bbc9003a # v4.0.0
         with: { version: '9' }
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@1e60f620b9541d16bece96c5465dc8ee9832be0b # v4.0.3
         with: { node-version: '22', cache: 'pnpm' }
-      - run: pnpm install --no-frozen-lockfile --ignore-scripts
+      - run: pnpm install --frozen-lockfile --ignore-scripts
       - run: pnpm --filter @workspace/browser-backend run build
-      - run: pnpm --filter @workspace/api-client-react exec tsc -p tsconfig.json
       - run: pnpm run typecheck
       - run: pnpm run lint
+      - run: pnpm run check:tauri-commands
+      - run: pnpm audit --audit-level=high
 
   # ── Unit Tests ───────────────────────────────────────────────
   test:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: pnpm/action-setup@a3252b78c470c02df07e9d792d148a66bbc9003a # v4.0.0
         with: { version: '9' }
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@1e60f620b9541d16bece96c5465dc8ee9832be0b # v4.0.3
         with: { node-version: '22', cache: 'pnpm' }
-      - run: pnpm install --no-frozen-lockfile --ignore-scripts
+      - run: pnpm install --frozen-lockfile --ignore-scripts
       - run: pnpm --filter @workspace/browser-backend run build
       - run: pnpm --filter @workspace/api-client-react exec tsc -p tsconfig.json
       - run: pnpm run test
 
+  # ── E2E Smoke Tests (Playwright) ─────────────────────────────
+  e2e:
+    needs: [typecheck, test]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: pnpm/action-setup@a3252b78c470c02df07e9d792d148a66bbc9003a # v4.0.0
+        with: { version: '9' }
+      - uses: actions/setup-node@1e60f620b9541d16bece96c5465dc8ee9832be0b # v4.0.3
+        with: { node-version: '22', cache: 'pnpm' }
+      - run: pnpm install --frozen-lockfile --ignore-scripts
+      - run: pnpm -r --if-present run build
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Run Playwright Tests
+        run: pnpm --filter @workspace/ppro test:e2e
+
   # ── Tauri Desktop Build (Windows) ────────────────────────────
   build-tauri-windows:
-    needs: [typecheck, test]
+    needs: [typecheck, test, e2e]
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: windows-latest
     timeout-minutes: 30
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: pnpm/action-setup@a3252b78c470c02df07e9d792d148a66bbc9003a # v4.0.0
         with: { version: '9' }
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@1e60f620b9541d16bece96c5465dc8ee9832be0b # v4.0.3
         with: { node-version: '22', cache: 'pnpm' }
       - name: Install Perl for vendored-openssl
         run: choco install strawberryperl -y --no-progress
-      - run: pnpm install --no-frozen-lockfile --ignore-scripts
+      - run: pnpm install --frozen-lockfile --ignore-scripts
       - run: pnpm --filter @workspace/browser-backend run build
       - run: pnpm --filter @workspace/api-client-react exec tsc -p tsconfig.json
-      - uses: tauri-apps/tauri-action@v0
+      - uses: tauri-apps/tauri-action@850ea1d4c207914842183c50979bf39aafeaa1f4 # v0.5.17
         with:
           projectPath: artifacts/ppro
           tagName: ${{ github.ref_name }}
@@ -80,26 +99,26 @@ jobs:
 
   # ── Tauri Desktop Build (macOS) ──────────────────────────────
   build-tauri-macos:
-    needs: [typecheck, test]
+    needs: [typecheck, test, e2e]
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: macos-latest
     timeout-minutes: 30
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: pnpm/action-setup@a3252b78c470c02df07e9d792d148a66bbc9003a # v4.0.0
         with: { version: '9' }
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@1e60f620b9541d16bece96c5465dc8ee9832be0b # v4.0.3
         with: { node-version: '22', cache: 'pnpm' }
       - name: Install Rust stable with Apple targets
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@7b7640457d930a38d00391159e9a15ba50c21034 # stable
         with:
           targets: aarch64-apple-darwin,x86_64-apple-darwin
-      - run: pnpm install --no-frozen-lockfile --ignore-scripts
+      - run: pnpm install --frozen-lockfile --ignore-scripts
       - run: pnpm --filter @workspace/browser-backend run build
       - run: pnpm --filter @workspace/api-client-react exec tsc -p tsconfig.json
-      - uses: tauri-apps/tauri-action@v0
+      - uses: tauri-apps/tauri-action@850ea1d4c207914842183c50979bf39aafeaa1f4 # v0.5.17
         with:
           projectPath: artifacts/ppro
           tagName: ${{ github.ref_name }}
@@ -111,25 +130,25 @@ jobs:
 
   # ── Tauri Desktop Build (Linux) ──────────────────────────────
   build-tauri-linux:
-    needs: [typecheck, test]
+    needs: [typecheck, test, e2e]
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: pnpm/action-setup@a3252b78c470c02df07e9d792d148a66bbc9003a # v4.0.0
         with: { version: '9' }
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@1e60f620b9541d16bece96c5465dc8ee9832be0b # v4.0.3
         with: { node-version: '22', cache: 'pnpm' }
       - run: |
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libssl-dev
-      - run: pnpm install --no-frozen-lockfile --ignore-scripts
+      - run: pnpm install --frozen-lockfile --ignore-scripts
       - run: pnpm --filter @workspace/browser-backend run build
       - run: pnpm --filter @workspace/api-client-react exec tsc -p tsconfig.json
-      - uses: tauri-apps/tauri-action@v0
+      - uses: tauri-apps/tauri-action@850ea1d4c207914842183c50979bf39aafeaa1f4 # v0.5.17
         with:
           projectPath: artifacts/ppro
           tagName: ${{ github.ref_name }}
@@ -140,23 +159,44 @@ jobs:
 
   # ── Static Web Frontend Deployment ───────────────────────────
   deploy-web:
-    needs: [typecheck, test]
+    needs: [typecheck, test, e2e]
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: pnpm/action-setup@a3252b78c470c02df07e9d792d148a66bbc9003a # v4.0.0
         with: { version: '9' }
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@1e60f620b9541d16bece96c5465dc8ee9832be0b # v4.0.3
         with: { node-version: '22', cache: 'pnpm' }
-      - run: pnpm install --no-frozen-lockfile --ignore-scripts
+      - run: pnpm install --frozen-lockfile --ignore-scripts
       - run: pnpm --filter @workspace/browser-backend run build
       - run: pnpm --filter @workspace/api-client-react exec tsc -p tsconfig.json
       - run: pnpm --filter @workspace/ppro build
       - name: Deploy to Cloudflare Pages
-        uses: cloudflare/wrangler-action@v3
+        uses: cloudflare/wrangler-action@392082e81ffbcb9ebebd2b6e0ceb7192c3394381 # v3.14.0
         with:
           apiToken: ${{ secrets.CF_API_TOKEN }}
           accountId: ${{ secrets.CF_ACCOUNT_ID }}
           command: pages deploy artifacts/ppro/dist/public --project-name=pedigree-pro --branch=main
+
+  # ── Cloudflare Workers Relay Deployment ──────────────────────
+  deploy-relay:
+    needs: [typecheck, test, e2e]
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: pnpm/action-setup@a3252b78c470c02df07e9d792d148a66bbc9003a # v4.0.0
+        with: { version: '9' }
+      - uses: actions/setup-node@1e60f620b9541d16bece96c5465dc8ee9832be0b # v4.0.3
+        with: { node-version: '22', cache: 'pnpm' }
+      - run: pnpm install --frozen-lockfile --ignore-scripts
+      - name: Deploy Relay Worker
+        uses: cloudflare/wrangler-action@392082e81ffbcb9ebebd2b6e0ceb7192c3394381 # v3.14.0
+        with:
+          apiToken: ${{ secrets.CF_API_TOKEN }}
+          accountId: ${{ secrets.CF_ACCOUNT_ID }}
+          workingDirectory: services/relay
+          command: deploy

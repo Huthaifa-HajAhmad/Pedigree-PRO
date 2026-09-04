@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { useListPedigrees, useDeletePedigree, useCreatePedigree, useListPatients, queryKeys, getBackendInitError } from "@workspace/api-client-react";
+import { useListPedigrees, useDeletePedigree, useCreatePedigree, useListPatients, useListProfiles, queryKeys, getBackendInitError, getProfilePrivateKey } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Link, useLocation } from "wouter";
 import { Plus, Trash2, Dna, Upload, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
@@ -19,7 +19,6 @@ import { TableSkeleton } from "@/components/shared/Skeleton";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { ErrorDialog } from "@/components/shared/ErrorDialog";
 import { signData, computeHash } from "@workspace/crypto";
-import { listProfilePrivateKeys } from "@workspace/browser-backend";
 import { usePedigreeTabs } from "@/hooks/use-pedigree-tabs";
 
 const schema = z.object({
@@ -58,22 +57,30 @@ export default function Pedigrees() {
 
   const { data: pedigrees, isLoading } = useListPedigrees({ search: debouncedSearch || undefined });
   const { data: patients } = useListPatients();
+  const { data: profiles } = useListProfiles();
   const deletePedigree = useDeletePedigree();
   const createPedigree = useCreatePedigree();
-  const { closeTab } = usePedigreeTabs();
+  const { openTab, closeTab, pruneStaleTabs } = usePedigreeTabs();
+
+  useEffect(() => {
+    if (pedigrees) {
+      pruneStaleTabs(new Set(pedigrees.map((p) => p.id)));
+    }
+  }, [pedigrees, pruneStaleTabs]);
 
   const form = useForm<FormData>({
     resolver: zodResolver(schema),
     defaultValues: { title: "", patientId: "", notes: "" },
   });
 
-    const onSubmit = async (data: FormData) => {
+  const onSubmit = async (data: FormData) => {
     const canvasData = JSON.stringify({ nodes: [], edges: [] });
     const canvasHash = computeHash(canvasData);
-    const keys = await listProfilePrivateKeys();
-    const activeKey = keys.length > 0 ? keys[0] : null;
-    const creatorKey = activeKey ? (await import("@workspace/crypto")).getPublicKeyFromPrivate(activeKey.privateKey) : "";
-    const creatorSignature = activeKey ? await signData(canvasHash, activeKey.privateKey) : null;
+    const activeProfile = profiles && profiles.length > 0 ? profiles[0] : null;
+    const privateKey = activeProfile ? await getProfilePrivateKey(activeProfile.id) : null;
+    const cryptoModule = await import("@workspace/crypto");
+    const creatorKey = activeProfile?.public_key ?? (privateKey ? await cryptoModule.getPublicKeyFromPrivate(privateKey) : "");
+    const creatorSignature = privateKey ? await signData(canvasHash, privateKey) : null;
     createPedigree.mutate(
       {
         title: data.title,
@@ -81,12 +88,13 @@ export default function Pedigrees() {
         notes: data.notes ?? null,
         canvas_data: canvasData,
         canvas_hash: canvasHash,
-        creator_key: await creatorKey,
+        creator_key: creatorKey,
         creator_signature: creatorSignature,
       },
         {
           onSuccess: (pedigree) => {
             queryClient.invalidateQueries({ queryKey: queryKeys.pedigrees });
+            openTab(pedigree.id, pedigree.title);
             form.reset();
             setOpen(false);
             navigate(`/pedigrees/${pedigree.id}`);
@@ -236,7 +244,7 @@ export default function Pedigrees() {
           ) : (
             sortedPedigrees.map((p) => (
               <div key={p.id} data-testid={`row-pedigree-${p.id}`} className="grid grid-cols-2 md:grid-cols-5 gap-4 px-4 py-3 text-sm hover:bg-accent transition-colors items-center">
-                <Link href={`/pedigrees/${p.id}`} className="col-span-2 md:col-span-4 grid grid-cols-2 md:grid-cols-4 gap-4 items-center text-foreground hover:text-foreground hover:no-underline cursor-pointer">
+                <Link href={`/pedigrees/${p.id}`} onClick={() => openTab(p.id, p.title)} className="col-span-2 md:col-span-4 grid grid-cols-2 md:grid-cols-4 gap-4 items-center text-foreground hover:text-foreground hover:no-underline cursor-pointer">
                   <div className="col-span-2 flex items-center gap-2">
                     <Dna className="w-3.5 h-3.5 text-primary flex-shrink-0" />
                     <span className="font-medium truncate">{p.title}</span>

@@ -1,10 +1,16 @@
-import { useState } from "react";
-import { Palette, Type, Ruler, Check, RotateCcw, PanelTop, ShieldCheck, Lock, Info, Trash2 } from "lucide-react";
+import { useState, useRef, useEffect } from "react";
+import { Palette, Type, Ruler, Check, RotateCcw, PanelTop, ShieldCheck, Lock, Info, Trash2, Download, Upload, KeyRound, Database, RefreshCw, AlertTriangle, History, Undo2 } from "lucide-react";
 import { THEMES, COLOR_PALETTES, useTheme, applyTheme } from "@/lib/theme";
 import { FONT_OPTIONS, useFont } from "@/lib/font";
 import { PanelSection } from "@/components/shared/panels/PanelSection";
 import { useCanvasConfig, DEFAULT_CANVAS_CONFIG } from "@/features/pedigree-editor/context/CanvasConfigContext";
 import { secureDisposalWithConfirmation } from "@/lib/secure-disposal";
+import { backupDatabase, restoreDatabase, getSafetySnapshots, restoreSafetySnapshot, rotateEncryptionKey, detectApiMode, type SafetySnapshot } from "@workspace/api-client-react";
+import { useToast } from "@/hooks/use-toast";
+import { useQueryClient } from "@tanstack/react-query";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 
 const TABS = [
   { id: "appearance", label: "Appearance", icon: Palette },
@@ -429,6 +435,8 @@ function SecurityTab() {
         </div>
       </PanelSection>
 
+      <DatabaseBackupSection />
+
       <PanelSection title="Key Protection & Storage Architecture" icon={<ShieldCheck className="w-3.5 h-3.5" />}>
         <div className="space-y-4">
           <div className="flex gap-3 p-3.5 rounded-lg border border-warning/20 bg-warning/5 text-warning-foreground">
@@ -466,6 +474,515 @@ function SecurityTab() {
         </div>
       </PanelSection>
     </div>
+  );
+}
+
+function DatabaseBackupSection() {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const isDesktop = detectApiMode() === "tauri";
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Export state
+  const [exportModalOpen, setExportModalOpen] = useState(false);
+  const [exportPassphrase, setExportPassphrase] = useState("");
+  const [isExporting, setIsExporting] = useState(false);
+
+  // Restore states
+  const [restorePassphraseModalOpen, setRestorePassphraseModalOpen] = useState(false);
+  const [restoreConfirmModalOpen, setRestoreConfirmModalOpen] = useState(false);
+  const [restorePassphrase, setRestorePassphrase] = useState("");
+  const [pendingRestoreData, setPendingRestoreData] = useState<string | null>(null);
+  const [pendingDesktopPath, setPendingDesktopPath] = useState<string | null>(null);
+  const [isRestoring, setIsRestoring] = useState(false);
+
+  // Safety snapshots state
+  const [safetySnapshots, setSafetySnapshots] = useState<SafetySnapshot[]>([]);
+  const [recoverConfirmOpen, setRecoverConfirmOpen] = useState(false);
+  const [selectedSnapshot, setSelectedSnapshot] = useState<SafetySnapshot | null>(null);
+  const [isRecovering, setIsRecovering] = useState(false);
+
+  // Key rotation state
+  const [rotateConfirmOpen, setRotateConfirmOpen] = useState(false);
+  const [isRotating, setIsRotating] = useState(false);
+
+  const loadSafetySnapshots = async () => {
+    try {
+      const snapshots = await getSafetySnapshots();
+      setSafetySnapshots(snapshots || []);
+    } catch {
+      setSafetySnapshots([]);
+    }
+  };
+
+  useEffect(() => {
+    loadSafetySnapshots();
+  }, []);
+
+  const handleExportBackup = async () => {
+    setIsExporting(true);
+    try {
+      if (isDesktop) {
+        const path = await backupDatabase();
+        toast({ title: "Backup Created", description: `Database snapshot saved: ${path || "local data folder"}` });
+      } else {
+        const json = await backupDatabase(exportPassphrase.trim() || undefined);
+        const blob = new Blob([json], { type: "application/json" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        const dateStr = new Date().toISOString().slice(0, 10);
+        a.href = url;
+        a.download = `pedigree_pro_backup_${dateStr}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        toast({ title: "Backup Exported", description: "Encrypted database backup downloaded." });
+      }
+      setExportModalOpen(false);
+      setExportPassphrase("");
+    } catch (e) {
+      toast({
+        title: "Backup Failed",
+        description: e instanceof Error ? e.message : "Failed to create database backup",
+        variant: "destructive",
+      });
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const handleDesktopRestoreClick = async () => {
+    try {
+      const { open } = await import("@tauri-apps/plugin-dialog");
+      const selected = await open({
+        filters: [{ name: "Database Backup", extensions: ["db", "sqlite", "sqlite3"] }],
+        multiple: false,
+      });
+      if (selected && typeof selected === "string") {
+        setPendingDesktopPath(selected);
+        setRestoreConfirmModalOpen(true);
+      }
+    } catch (err) {
+      toast({
+        title: "File Selection Failed",
+        description: err instanceof Error ? err.message : "Failed to open file dialog",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleBrowserFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = async (evt) => {
+      const content = evt.target?.result as string;
+      if (!content) return;
+      try {
+        const parsed = JSON.parse(content);
+        if (parsed.v === "ppro-encrypted-backup-v2") {
+          setPendingRestoreData(content);
+          setRestorePassphrase("");
+          setRestorePassphraseModalOpen(true);
+          return;
+        }
+      } catch {}
+      setPendingRestoreData(content);
+      setRestoreConfirmModalOpen(true);
+    };
+    reader.readAsText(file);
+    e.target.value = "";
+  };
+
+  const executeRestore = async (backupDataOrPath: string, passphrase?: string) => {
+    setIsRestoring(true);
+    try {
+      await restoreDatabase(backupDataOrPath, passphrase?.trim() || undefined);
+      toast({ title: "Database Restored", description: "Clinic database successfully restored." });
+      setRestorePassphraseModalOpen(false);
+      setRestoreConfirmModalOpen(false);
+      setPendingRestoreData(null);
+      setPendingDesktopPath(null);
+      setRestorePassphrase("");
+      await loadSafetySnapshots();
+      queryClient.invalidateQueries();
+    } catch (e) {
+      toast({
+        title: "Restore Failed",
+        description: e instanceof Error ? e.message : "Invalid backup file or incorrect passphrase.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsRestoring(false);
+    }
+  };
+
+  const executeRecoverSnapshot = async (snapshot: SafetySnapshot) => {
+    setIsRecovering(true);
+    try {
+      await restoreSafetySnapshot(snapshot.id);
+      toast({ title: "Snapshot Recovered", description: "Database rolled back to pre-restore state." });
+      setRecoverConfirmOpen(false);
+      setSelectedSnapshot(null);
+      await loadSafetySnapshots();
+      queryClient.invalidateQueries();
+    } catch (e) {
+      toast({
+        title: "Recovery Failed",
+        description: e instanceof Error ? e.message : "Failed to recover safety snapshot.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsRecovering(false);
+    }
+  };
+
+  const handleRotateKey = async () => {
+    setIsRotating(true);
+    try {
+      await rotateEncryptionKey();
+      toast({ title: "Key Rotated", description: "Database re-encrypted with a fresh encryption key." });
+      setRotateConfirmOpen(false);
+    } catch (e) {
+      toast({
+        title: "Key Rotation Failed",
+        description: e instanceof Error ? e.message : "Failed to rotate database encryption key.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsRotating(false);
+    }
+  };
+
+  return (
+    <>
+      <PanelSection title="Database Backup & Disaster Recovery" icon={<Database className="w-3.5 h-3.5 text-primary" />}>
+        <div className="space-y-4">
+          <p className="text-xs text-muted-foreground leading-relaxed">
+            Create portable encrypted snapshots of your complete clinic database, restore previous backups, or rotate local storage keys.
+          </p>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+            <div className="p-3.5 rounded-lg border border-border bg-card/40 flex flex-col justify-between space-y-3">
+              <div className="space-y-1">
+                <span className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                  <Download className="w-3.5 h-3.5 text-primary" /> Export Encrypted Backup
+                </span>
+                <p className="text-[11px] text-muted-foreground leading-relaxed">
+                  {isDesktop
+                    ? "Generate a snapshot of the SQLCipher database file in your application directory."
+                    : "Export a portable AES-256-GCM encrypted backup (.json) with optional PBKDF2 passphrase protection."}
+                </p>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  if (isDesktop) {
+                    handleExportBackup();
+                  } else {
+                    setExportPassphrase("");
+                    setExportModalOpen(true);
+                  }
+                }}
+                className="w-full text-xs"
+              >
+                <Download className="w-3.5 h-3.5 mr-1.5" />
+                Export Backup
+              </Button>
+            </div>
+
+            <div className="p-3.5 rounded-lg border border-border bg-card/40 flex flex-col justify-between space-y-3">
+              <div className="space-y-1">
+                <span className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                  <Upload className="w-3.5 h-3.5 text-primary" /> Restore Database
+                </span>
+                <p className="text-[11px] text-muted-foreground leading-relaxed">
+                  {isDesktop
+                    ? "Restore from a previous SQLCipher database snapshot (.db)."
+                    : "Restore all clinical records from a portable JSON backup file."}
+                </p>
+              </div>
+              {isDesktop ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={handleDesktopRestoreClick}
+                  className="w-full text-xs"
+                >
+                  <Upload className="w-3.5 h-3.5 mr-1.5" />
+                  Select Backup File
+                </Button>
+              ) : (
+                <>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".json"
+                    onChange={handleBrowserFileSelect}
+                    className="hidden"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="w-full text-xs"
+                  >
+                    <Upload className="w-3.5 h-3.5 mr-1.5" />
+                    Restore from JSON
+                  </Button>
+                </>
+              )}
+            </div>
+          </div>
+
+          {safetySnapshots.length > 0 && (
+            <div className="p-3.5 rounded-lg border border-primary/20 bg-primary/5 flex items-center justify-between gap-3">
+              <div className="space-y-0.5">
+                <span className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                  <History className="w-3.5 h-3.5 text-primary" /> Safety Snapshot (Pre-Restore)
+                </span>
+                <p className="text-[11px] text-muted-foreground">
+                  Preserved before last restore:{" "}
+                  <span className="font-medium text-foreground">
+                    {new Date(safetySnapshots[0]!.created_at).toLocaleString()}
+                  </span>
+                </p>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setSelectedSnapshot(safetySnapshots[0]!);
+                  setRecoverConfirmOpen(true);
+                }}
+                className="text-xs flex-shrink-0"
+              >
+                <Undo2 className="w-3.5 h-3.5 mr-1.5" />
+                Recover Snapshot
+              </Button>
+            </div>
+          )}
+
+          {isDesktop && (
+            <div className="p-3 rounded-lg border border-border bg-card/40 flex items-center justify-between gap-3">
+              <div className="space-y-0.5">
+                <span className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                  <KeyRound className="w-3.5 h-3.5 text-muted-foreground" /> Rotate Encryption Key
+                </span>
+                <p className="text-[11px] text-muted-foreground">
+                  Re-encrypt local SQLCipher database at rest with a fresh master key stored in OS Keychain.
+                </p>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setRotateConfirmOpen(true)}
+                className="text-xs flex-shrink-0"
+              >
+                <RefreshCw className="w-3.5 h-3.5 mr-1.5" />
+                Rotate Key
+              </Button>
+            </div>
+          )}
+        </div>
+      </PanelSection>
+
+      {/* Export Passphrase Modal (Browser) */}
+      <Dialog open={exportModalOpen} onOpenChange={setExportModalOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-base font-semibold">
+              <Download className="w-4 h-4 text-primary" /> Export Portable Database Backup
+            </DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground">
+              Set a passphrase to encrypt your backup with PBKDF2 + AES-256-GCM. You will need this passphrase to restore your records on another machine.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <label className="text-xs font-medium text-foreground">
+              Backup Passphrase (recommended)
+            </label>
+            <Input
+              type="password"
+              placeholder="Enter passphrase or leave empty for device key"
+              value={exportPassphrase}
+              onChange={(e) => setExportPassphrase(e.target.value)}
+              className="text-xs"
+            />
+          </div>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="ghost" size="sm" onClick={() => setExportModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button size="sm" onClick={handleExportBackup} disabled={isExporting}>
+              {isExporting ? "Exporting..." : "Download Backup"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Restore Passphrase Modal (Browser v2) */}
+      <Dialog open={restorePassphraseModalOpen} onOpenChange={setRestorePassphraseModalOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-base font-semibold">
+              <Upload className="w-4 h-4 text-primary" /> Enter Backup Passphrase
+            </DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground">
+              This backup envelope is protected with passphrase-derived PBKDF2 encryption. Enter the passphrase used during export.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <label className="text-xs font-medium text-foreground">
+              Passphrase
+            </label>
+            <Input
+              type="password"
+              placeholder="Enter backup passphrase"
+              value={restorePassphrase}
+              onChange={(e) => setRestorePassphrase(e.target.value)}
+              className="text-xs"
+              autoFocus
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && pendingRestoreData && restorePassphrase) {
+                  executeRestore(pendingRestoreData, restorePassphrase);
+                }
+              }}
+            />
+            <p className="text-[11px] text-amber-500 flex items-center gap-1">
+              <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" />
+              Restoring will replace the active database. A safety snapshot is created automatically.
+            </p>
+          </div>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="ghost" size="sm" onClick={() => { setRestorePassphraseModalOpen(false); setPendingRestoreData(null); }}>
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              onClick={() => pendingRestoreData && executeRestore(pendingRestoreData, restorePassphrase)}
+              disabled={isRestoring || !restorePassphrase}
+            >
+              {isRestoring ? "Restoring..." : "Restore Database"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Restore Confirmation Modal (General / Legacy / Desktop) */}
+      <Dialog open={restoreConfirmModalOpen} onOpenChange={setRestoreConfirmModalOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-base font-semibold text-amber-500">
+              <AlertTriangle className="w-4 h-4 text-amber-500" /> Confirm Database Restore
+            </DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground leading-relaxed">
+              Are you sure you want to restore the database? This action will overwrite your current patient records, pedigrees, and version history.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="p-3 rounded-lg border border-border bg-card/50 text-[11px] text-muted-foreground space-y-1">
+            <span className="font-semibold text-foreground block">Safety Snapshot Protection</span>
+            <p>
+              A pre-restore backup snapshot will be preserved automatically before any changes are applied.
+            </p>
+            {pendingDesktopPath && (
+              <p className="truncate font-mono text-[10px] text-primary pt-1">
+                Source: {pendingDesktopPath}
+              </p>
+            )}
+          </div>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setRestoreConfirmModalOpen(false);
+                setPendingRestoreData(null);
+                setPendingDesktopPath(null);
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              onClick={() => {
+                if (isDesktop && pendingDesktopPath) {
+                  executeRestore(pendingDesktopPath, undefined);
+                } else if (pendingRestoreData) {
+                  executeRestore(pendingRestoreData, undefined);
+                }
+              }}
+              disabled={isRestoring}
+            >
+              {isRestoring ? "Restoring..." : "Confirm & Restore"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Recover Safety Snapshot Modal */}
+      <Dialog open={recoverConfirmOpen} onOpenChange={setRecoverConfirmOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-base font-semibold text-primary">
+              <Undo2 className="w-4 h-4 text-primary" /> Recover Safety Snapshot
+            </DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground leading-relaxed">
+              Revert your database to the state preserved immediately prior to your previous restore?
+            </DialogDescription>
+          </DialogHeader>
+          {selectedSnapshot && (
+            <div className="p-3 rounded-lg border border-border bg-card/50 text-[11px] text-muted-foreground space-y-1">
+              <span className="font-semibold text-foreground block">Snapshot Details</span>
+              <p>
+                Recorded: <span className="font-medium text-foreground">{new Date(selectedSnapshot.created_at).toLocaleString()}</span>
+              </p>
+            </div>
+          )}
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="ghost" size="sm" onClick={() => setRecoverConfirmOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              onClick={() => selectedSnapshot && executeRecoverSnapshot(selectedSnapshot)}
+              disabled={isRecovering}
+            >
+              {isRecovering ? "Recovering..." : "Revert to Snapshot"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Rotate Key Confirmation Dialog */}
+      <Dialog open={rotateConfirmOpen} onOpenChange={setRotateConfirmOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-base font-semibold text-amber-500">
+              <AlertTriangle className="w-4 h-4 text-amber-500" /> Rotate Encryption Key
+            </DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground">
+              This will re-encrypt your local database at rest with a newly generated cryptographic key. Existing records will remain intact.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="ghost" size="sm" onClick={() => setRotateConfirmOpen(false)}>
+              Cancel
+            </Button>
+            <Button size="sm" onClick={handleRotateKey} disabled={isRotating}>
+              {isRotating ? "Rotating..." : "Rotate Key"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 

@@ -7,23 +7,26 @@ export function list_profiles(): LocalProfile[] {
   );
 }
 
-export function create_profile(args: CreateProfileInput): LocalProfile {
+export function create_profile(
+  args: CreateProfileInput | { input: CreateProfileInput }
+): LocalProfile {
+  const input = "input" in args ? args.input : args;
   const id = crypto.randomUUID();
-  const publicKey = args.public_key ?? "";
+  const publicKey = input.public_key && input.public_key.trim().length > 0 ? input.public_key : crypto.randomUUID();
   exec(
     "INSERT INTO local_profiles (id, display_name, role_label, public_key, created_at, last_used_at) VALUES (?, ?, ?, ?, datetime('now'), datetime('now'))",
-    [id, args.display_name, args.role_label, publicKey]
+    [id, input.display_name, input.role_label, publicKey]
   );
 
   exec(
     "INSERT INTO activity_log (action, subject, actor_key, timestamp) VALUES ('profile_created', ?, ?, datetime('now'))",
-    [args.display_name, publicKey]
+    [`profile_${id}`, publicKey]
   );
 
   return {
     id,
-    display_name: args.display_name,
-    role_label: args.role_label,
+    display_name: input.display_name,
+    role_label: input.role_label,
     public_key: publicKey,
     created_at: new Date().toISOString(),
     last_used_at: new Date().toISOString(),
@@ -61,7 +64,7 @@ export function delete_profile(args: { profile_id: string }): void {
 
   exec(
     "INSERT INTO activity_log (action, subject, timestamp) VALUES ('profile_deleted', ?, datetime('now'))",
-    [profile.display_name]
+    [`profile_${args.profile_id}`]
   );
 }
 

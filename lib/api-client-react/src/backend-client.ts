@@ -48,11 +48,12 @@ export async function createProfile(input: CreateProfileInput): Promise<LocalPro
     await storeProfilePrivateKey(result.id, privateKey);
     return result;
   }
-  // Tauri mode: backend returns profile + private_key; store private key in IndexedDB
-  const result = await apiCall<{ profile: LocalProfile; private_key: string }>("create_profile", input as unknown as Record<string, unknown>);
-  const { storeProfilePrivateKey } = await import("@workspace/browser-backend");
-  await storeProfilePrivateKey(result.profile.id, result.private_key);
-  return result.profile;
+  // Tauri mode: backend generates keypair, stores private key in OS Keychain, returns profile
+  const result = await apiCall<LocalProfile>(
+    "create_profile",
+    { input } as unknown as Record<string, unknown>
+  );
+  return result;
 }
 
 export function switchProfile(profileId: string): Promise<LocalProfile> {
@@ -65,6 +66,43 @@ export function deleteProfile(profileId: string): Promise<void> {
 
 export function updateProfile(input: { id: string; display_name: string; role_label: string }): Promise<LocalProfile> {
   return apiCall<LocalProfile>("update_profile", input as unknown as Record<string, unknown>);
+}
+
+export async function storeProfilePrivateKey(profileId: string, privateKey: string): Promise<void> {
+  const mode = detectApiMode();
+  if (mode === "tauri") {
+    return apiCall<void>("store_profile_key", { profile_id: profileId, private_key: privateKey });
+  }
+  const { storeProfilePrivateKey: browserStore } = await import("@workspace/browser-backend");
+  return browserStore(profileId, privateKey);
+}
+
+export async function getProfilePrivateKey(profileId: string): Promise<string | null> {
+  const mode = detectApiMode();
+  if (mode === "tauri") {
+    try {
+      return await apiCall<string>("get_profile_key", { profile_id: profileId });
+    } catch {
+      return null;
+    }
+  }
+  const { getProfilePrivateKey: browserGet } = await import("@workspace/browser-backend");
+  const key = await browserGet(profileId);
+  return key ?? null;
+}
+
+export async function listProfilePrivateKeys(): Promise<{ profileId: string; privateKey: string }[]> {
+  const mode = detectApiMode();
+  if (mode === "tauri") {
+    try {
+      const keys = await apiCall<{ profile_id: string; private_key: string }[]>("list_profile_keys");
+      return keys.map((k) => ({ profileId: k.profile_id, privateKey: k.private_key }));
+    } catch {
+      return [];
+    }
+  }
+  const { listProfilePrivateKeys: browserList } = await import("@workspace/browser-backend");
+  return browserList();
 }
 
 // =============================================================================
@@ -103,6 +141,10 @@ export function getPatient(id: number): Promise<Patient> {
 }
 
 export function createPatient(input: CreatePatientInput): Promise<Patient> {
+  const mode = detectApiMode();
+  if (mode === "tauri") {
+    return apiCall<Patient>("create_patient", { input } as unknown as Record<string, unknown>);
+  }
   return apiCall<Patient>("create_patient", input as unknown as Record<string, unknown>);
 }
 
@@ -164,6 +206,10 @@ export function getPedigree(id: number): Promise<Pedigree> {
 }
 
 export function createPedigree(input: CreatePedigreeInput): Promise<Pedigree> {
+  const mode = detectApiMode();
+  if (mode === "tauri") {
+    return apiCall<Pedigree>("create_pedigree", { input } as unknown as Record<string, unknown>);
+  }
   return apiCall<Pedigree>("create_pedigree", input as unknown as Record<string, unknown>);
 }
 
@@ -276,6 +322,8 @@ export function savePreferences(theme: string): Promise<Preferences> {
 export interface ShareResult {
   share_token: string;
   share_url: string;
+  revoke_token?: string;
+  expires_at?: string;
 }
 
 export function sharePedigree(pedigreeId: number, recipientKey: string): Promise<ShareResult> {
@@ -320,8 +368,8 @@ export function relayReceive(shareToken: string): Promise<RelayPayload> {
   return apiCall<RelayPayload>("relay_receive", { share_token: shareToken });
 }
 
-export function relayRevoke(shareToken: string): Promise<void> {
-  return apiCall<void>("relay_revoke", { share_token: shareToken });
+export function relayRevoke(shareToken: string, revokeToken?: string): Promise<void> {
+  return apiCall<void>("relay_revoke", { share_token: shareToken, revoke_token: revokeToken });
 }
 
 export function exportPedigreePpro(pedigreeId: number, exporterKey: string): Promise<string> {
@@ -358,18 +406,23 @@ export function importPedigreeLegacy(path: string): Promise<LegacyImportSummary>
  * Creates a timestamped backup of the encrypted database file.
  * Returns the filesystem path (Tauri) or base64-encoded backup (browser).
  */
-export function backupDatabase(): Promise<string> {
+export function backupDatabase(passphrase?: string): Promise<string> {
+  const mode = detectApiMode();
+  if (mode === "browser") {
+    return apiCall<string>("backup_database", { passphrase });
+  }
   return apiCall<string>("backup_database");
 }
 
 /**
  * Restores the database from a backup.
  * @param backupPathOrData Filesystem path (Tauri) or base64-encoded backup data (browser)
+ * @param passphrase Optional passphrase for decrypting v2 portable backups
  */
-export function restoreDatabase(backupPathOrData: string): Promise<void> {
+export function restoreDatabase(backupPathOrData: string, passphrase?: string): Promise<void> {
   const mode = detectApiMode();
   if (mode === "browser") {
-    return apiCall<void>("restore_database", { backup_data: backupPathOrData });
+    return apiCall<void>("restore_database", { backup_data: backupPathOrData, passphrase });
   }
   return apiCall<void>("restore_database", { backup_path: backupPathOrData });
 }
@@ -380,4 +433,23 @@ export function restoreDatabase(backupPathOrData: string): Promise<void> {
  */
 export function rotateEncryptionKey(): Promise<void> {
   return apiCall<void>("rotate_key");
+}
+
+export interface SafetySnapshot {
+  id: string;
+  created_at: string;
+}
+
+/**
+ * Retrieves the available pre-restore safety snapshots.
+ */
+export function getSafetySnapshots(): Promise<SafetySnapshot[]> {
+  return apiCall<SafetySnapshot[]>("get_safety_snapshots");
+}
+
+/**
+ * Restores the database from a designated pre-restore safety snapshot.
+ */
+export function restoreSafetySnapshot(snapshotId: string): Promise<void> {
+  return apiCall<void>("restore_safety_snapshot", { snapshot_id: snapshotId });
 }

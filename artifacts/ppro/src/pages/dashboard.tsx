@@ -3,6 +3,7 @@ import { useGetDashboardStats, useGetRecentActivity, useListPedigrees, useClearA
 import { Link } from "wouter";
 import { UserCircle, Activity, TrendingUp, Clock, ChevronRight, ChevronDown, Dna, Plus, Upload, UserPlus, Calendar, GitBranch, Trash2 } from "lucide-react";
 import { StatsGrid } from "@/components/shared/StatsGrid";
+import { usePedigreeTabs } from "@/hooks/use-pedigree-tabs";
 
 function ScrollFade({ children }: { children: React.ReactNode }) {
   return (
@@ -30,6 +31,7 @@ export default function Dashboard() {
   const { data: recent, isLoading: recentLoading } = useGetRecentActivity(20);
   const { data: pedigrees, isLoading: pedigreesLoading } = useListPedigrees();
   const clearActivity = useClearActivity();
+  const { openTab } = usePedigreeTabs();
   const [showAllActivity, setShowAllActivity] = useState(false);
 
   const renderActivitySkeleton = useCallback((count: number) => [...Array(count)].map((_, i) => (
@@ -81,7 +83,7 @@ export default function Dashboard() {
       .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())
       .slice(0, 10);
     return recentPedigrees.map((p) => (
-      <Link key={p.id} href={`/pedigrees/${p.id}`}>
+      <Link key={p.id} href={`/pedigrees/${p.id}`} onClick={() => openTab(p.id, p.title)}>
         <div data-testid={`recent-pedigree-${p.id}`} className="px-5 py-3.5 flex items-center gap-3 hover:bg-accent/50 cursor-pointer transition-colors group">
           <div className="w-8 h-8 border border-border rounded-lg flex items-center justify-center flex-shrink-0 group-hover:border-primary/50 group-hover:bg-primary/5 transition-colors">
             <Dna className="w-4 h-4 text-primary" />

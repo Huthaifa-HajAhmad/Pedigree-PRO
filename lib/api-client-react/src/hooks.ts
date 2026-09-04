@@ -412,10 +412,12 @@ export function useSharePedigree() {
       const compressedBase64 = toBase64url(bytesToBase64(compressed));
 
       try {
-        const { share_token } = await relayShare(compressedBase64, "", 168);
+        const { share_token, revoke_token, expires_at } = await relayShare(compressedBase64, "", 168);
         return {
           share_token,
           share_url: `https://pedigree-pro.pages.dev/share/${share_token}${keyFragment}`,
+          revoke_token,
+          expires_at,
         };
       } catch {
         // Relay offline — fall back to self-contained token in URL fragment

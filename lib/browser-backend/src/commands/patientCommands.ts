@@ -24,17 +24,20 @@ export function get_patient(args: { id: number }): Patient {
   return patient;
 }
 
-export function create_patient(args: CreatePatientInput): Patient {
+export function create_patient(
+  args: CreatePatientInput | { input: CreatePatientInput }
+): Patient {
+  const input = "input" in args ? args.input : args;
   exec(
     "INSERT INTO patients (first_name, last_name, date_of_birth, sex, ethnicity, referral_reason, clinician_key, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))",
     [
-      args.first_name,
-      args.last_name,
-      args.date_of_birth ?? null,
-      args.sex ?? null,
-      args.ethnicity ?? null,
-      args.referral_reason ?? null,
-      args.clinician_key ?? null,
+      input.first_name,
+      input.last_name,
+      input.date_of_birth ?? null,
+      input.sex ?? null,
+      input.ethnicity ?? null,
+      input.referral_reason ?? null,
+      input.clinician_key ?? null,
     ]
   );
   const id = lastInsertRowId();

@@ -39,7 +39,12 @@ export {
   importPedigreeLegacy,
   backupDatabase,
   restoreDatabase,
+  getSafetySnapshots,
+  restoreSafetySnapshot,
   rotateEncryptionKey,
+  storeProfilePrivateKey,
+  getProfilePrivateKey,
+  listProfilePrivateKeys,
 } from "./backend-client";
 
 export type {
@@ -58,6 +63,7 @@ export type {
   ShareResult,
   RelayPayload,
   LegacyImportSummary,
+  SafetySnapshot,
 } from "./backend-client";
 
 // React Query hooks — canonical API for Pedigree PRO data access

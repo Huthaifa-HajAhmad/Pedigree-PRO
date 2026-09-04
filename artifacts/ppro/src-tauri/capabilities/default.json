@@ -8,9 +8,6 @@
     "shell:allow-open",
     "dialog:allow-save",
     "dialog:allow-open",
-    "updater:default",
-    "updater:allow-check",
-    "updater:allow-download-and-install",
     {
       "identifier": "fs:allow-write-file",
       "allow": [

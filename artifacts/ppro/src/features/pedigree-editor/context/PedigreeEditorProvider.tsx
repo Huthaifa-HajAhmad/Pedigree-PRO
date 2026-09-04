@@ -2,8 +2,9 @@ import { useReducer, useRef, useCallback, useEffect, useMemo, createContext, typ
 import { useLocation } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import {
-  useGetPedigree, useUpdatePedigree, useListVersions,
+  useGetPedigree, useListPedigrees, useUpdatePedigree, useListVersions,
   useSaveVersion, useRestoreVersion, useDeleteVersion, useListProfiles, useDeletePedigree, queryKeys,
+  getProfilePrivateKey,
 } from "@workspace/api-client-react";
 import { validatePedigree } from "@/lib/validate-pedigree";
 import { computeAutoLayout } from "@/lib/auto-layout";
@@ -14,7 +15,6 @@ import { toast } from "@/hooks/use-toast";
 import { usePedigreeTabs } from "@/hooks/use-pedigree-tabs";
 import { usePedigreeKeyboard } from "@/hooks/use-pedigree-keyboard";
 import { signData, computeHash as cryptoComputeHash, getPublicKeyFromPrivate } from "@workspace/crypto";
-import { listProfilePrivateKeys } from "@workspace/browser-backend";
 import { usePedigreeDraft } from "@/hooks/use-pedigree-draft";
 import { usePedigreeCanvas } from "@/features/pedigree-editor/hooks/use-pedigree-canvas";
 import { parseCanvas } from "@/features/pedigree-editor/utils/helpers";
@@ -37,6 +37,7 @@ export const PedigreeEditorContext = createContext<PedigreeEditorContextValue | 
 export function PedigreeEditorProvider({ id, children }: { id: number; children: React.ReactNode }) {
   const queryClient = useQueryClient();
   const { data: pedigree } = useGetPedigree(id);
+  const { data: allPedigrees } = useListPedigrees();
   const { data: versions, isLoading: versionsLoading } = useListVersions(id);
   const { data: profiles } = useListProfiles();
   const updatePedigree = useUpdatePedigree();
@@ -96,10 +97,10 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
       const t = generateThumbnail(targetCanvas);
       const canvasData = JSON.stringify(targetCanvas);
       const canvasHash = cryptoComputeHash(canvasData);
-      const keys = await listProfilePrivateKeys();
-      const activeKey = keys.length > 0 ? keys[0] : null;
-      const saverKey = activeKey ? await getPublicKeyFromPrivate(activeKey.privateKey) : "";
-      const saverSignature = activeKey ? await signData(canvasHash, activeKey.privateKey) : null;
+      const activeProfile = profiles && profiles.length > 0 ? profiles[0] : null;
+      const privateKey = activeProfile ? await getProfilePrivateKey(activeProfile.id) : null;
+      const saverKey = privateKey ? await getPublicKeyFromPrivate(privateKey) : (activeProfile?.public_key ?? "");
+      const saverSignature = privateKey ? await signData(canvasHash, privateKey) : null;
       await saveVersionMutation.mutateAsync({
         pedigreeId: id,
         input: {
@@ -278,7 +279,19 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
   }, [state.canvas.nodes, state.canvas.edges]);
 
   const setLocation = useLocation()[1];
-  const { tabs, openTab, closeTab, reorderTabs, renameTab: renameTabLocal } = usePedigreeTabs();
+  const { tabs, openTab, closeTab, reorderTabs, renameTab: renameTabLocal, syncWithPedigrees } = usePedigreeTabs();
+
+  useEffect(() => {
+    if (allPedigrees && allPedigrees.length > 0) {
+      syncWithPedigrees(allPedigrees);
+    }
+  }, [allPedigrees, syncWithPedigrees]);
+
+  useEffect(() => {
+    if (pedigree?.id && pedigree?.title) {
+      openTab(pedigree.id, pedigree.title);
+    }
+  }, [pedigree?.id, pedigree?.title, openTab]);
 
   const tabItems = useMemo(() => tabs.map((t) => ({ id: t.id, title: t.title })), [tabs]);
 
@@ -662,7 +675,35 @@ export function PedigreeEditorProvider({ id, children }: { id: number; children:
   usePedigreeKeyboard({ deleteSelected, deleteAnnotation, selectedAnnotationId: state.selectedAnnotationId, selectedNode: state.selectedIds.size === 1 ? state.canvas.nodes.find((n) => state.selectedIds.has(n.id)) ?? null : null, updateSelectedNode, addNode, addContextNode, undo, redo, navigateArrow, showSearch: state.showSearch, fitToScreen, runAutoLayout: (rp: boolean, isManual?: boolean) => runAutoLayout(rp, isManual), setShowSearch, setSearchQuery, setSelectedIds, setLinkMode, setLinkSource, setSelectedAnnotationId, setViewBox, spaceHeldRef, setSpaceHeld, searchInputRef, twinSelectMode: state.twinSelectMode, setTwinSelectMode: (v) => { const nv = typeof v === "function" ? v(stateRef.current.twinSelectMode) : v; dispatch({ type: "SET_STATE", patch: { twinSelectMode: nv, twinCandidateIds: nv ? stateRef.current.twinCandidateIds : new Set<string>() } }); }, clearTwinCandidates, selectedIds: state.selectedIds, canvasNodes: state.canvas.nodes, createCoupleAndChild, createCoupleEdge, createConsanguinityEdge, W, H, isPreviewMode: state.isPreviewMode, copySelectedNodes, pasteNodes });
 
   const handleSaveVersion = () => dispatch({ type: "SET_STATE", patch: { sessionLabel: `Session \u00b7 ${state.canvas.nodes.length} node${state.canvas.nodes.length !== 1 ? "s" : ""} \u00b7 ${new Date().toLocaleDateString()}`, showSaveModal: true } });
-  const commitSaveVersion = async () => { const t = generateThumbnail(state.canvas); const canvasData = JSON.stringify(state.canvas); const canvasHash = cryptoComputeHash(canvasData); const keys = await listProfilePrivateKeys(); const activeKey = keys.length > 0 ? keys[0] : null; const saverKey = activeKey ? await getPublicKeyFromPrivate(activeKey.privateKey) : ""; const saverSignature = activeKey ? await signData(canvasHash, activeKey.privateKey) : null; saveVersionMutation.mutate({ pedigreeId: id, input: { canvas_data: canvasData, canvas_hash: canvasHash, label: state.sessionLabel || null, thumbnail: t, saver_key: saverKey, saver_signature: saverSignature } }, { onSuccess: () => { clearDraft(); queryClient.invalidateQueries({ queryKey: queryKeys.versions(id) }); dispatch({ type: "SET_STATE", patch: { showSaveModal: false, sessionLabel: "" } }); } }); };
+  const commitSaveVersion = async () => {
+    const t = generateThumbnail(state.canvas);
+    const canvasData = JSON.stringify(state.canvas);
+    const canvasHash = cryptoComputeHash(canvasData);
+    const activeProfile = profiles && profiles.length > 0 ? profiles[0] : null;
+    const privateKey = activeProfile ? await getProfilePrivateKey(activeProfile.id) : null;
+    const saverKey = privateKey ? await getPublicKeyFromPrivate(privateKey) : (activeProfile?.public_key ?? "");
+    const saverSignature = privateKey ? await signData(canvasHash, privateKey) : null;
+    saveVersionMutation.mutate(
+      {
+        pedigreeId: id,
+        input: {
+          canvas_data: canvasData,
+          canvas_hash: canvasHash,
+          label: state.sessionLabel || null,
+          thumbnail: t,
+          saver_key: saverKey,
+          saver_signature: saverSignature,
+        },
+      },
+      {
+        onSuccess: () => {
+          clearDraft();
+          queryClient.invalidateQueries({ queryKey: queryKeys.versions(id) });
+          dispatch({ type: "SET_STATE", patch: { showSaveModal: false, sessionLabel: "" } });
+        },
+      }
+    );
+  };
   const handleDeleteVersion = (versionId: number) => { openConfirm("Delete Version", "Delete this saved session? This cannot be undone.", () => { deleteVersionMutation.mutate({ pedigreeId: id, versionId }, { onSuccess: () => { queryClient.invalidateQueries({ queryKey: queryKeys.versions(id) }); } }); }, "destructive"); };
   const handleRestoreVersion = (vid: number) => { openConfirm("Restore Version", "Restore this version? Current canvas will be replaced.", () => { restoreVersionMutation.mutate({ pedigreeId: id, versionId: vid }, { onSuccess: (d) => { const cd = (d as { canvas_data?: string | null }).canvas_data; if (cd) { skipLiveLayoutRef.current = true; dispatch({ type: "SET_CANVAS", canvas: parseCanvas(cd) }); } initialSyncDoneRef.current = true; queryClient.setQueryData(queryKeys.pedigree(id), d); dispatch({ type: "SET_STATE", patch: { showVersions: false, isPreviewMode: false, liveCanvasCache: null, showVisualDiff: false, previewVersionId: null } }); } }); }); };
 

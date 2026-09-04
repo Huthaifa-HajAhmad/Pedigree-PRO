@@ -203,15 +203,24 @@ pub fn rotate_encryption_key(app: &tauri::AppHandle, conn: &Connection) -> Resul
     // 1. Synchronize OS keychain first
     let service = "org.pedigreepro.app";
     let username = "db_master_secret";
+    let mut keychain_saved = false;
     if let Ok(entry) = keyring::Entry::new(service, username) {
-        if let Err(e) = entry.set_password(&new_secret_b64) {
-            eprintln!("WARNING: Failed to update master secret in OS keychain: {}", e);
+        if entry.set_password(&new_secret_b64).is_ok() {
+            keychain_saved = true;
+        } else {
+            eprintln!("WARNING: Failed to update master secret in OS keychain.");
         }
     }
 
-    // 2. Write file fallback
-    fs::write(&key_path, &new_secret_b64)
-        .map_err(|e| format!("Failed to write key file: {}", e))?;
+    // 2. Fallback: only write key file if OS keychain failed
+    if !keychain_saved {
+        eprintln!("WARNING: Falling back to file storage for master secret.");
+        fs::write(&key_path, &new_secret_b64)
+            .map_err(|e| format!("Failed to write key file: {}", e))?;
+    } else if key_path.exists() {
+        // If keychain succeeded and a legacy file exists, delete it for security
+        let _ = fs::remove_file(&key_path);
+    }
 
     Ok(())
 }
@@ -238,7 +247,57 @@ pub fn backup_database(app: &tauri::AppHandle) -> Result<String, String> {
     fs::copy(&db_path, &backup_path)
         .map_err(|e| format!("Failed to copy database: {}", e))?;
 
+    // Rolling retention: keep the 10 most recent backups
+    if let Ok(entries) = fs::read_dir(&backups_dir) {
+        let mut backup_files: Vec<_> = entries
+            .filter_map(|e| e.ok())
+            .filter(|e| {
+                let name = e.file_name().to_string_lossy().to_string();
+                name.starts_with("data_backup_") && name.ends_with(".db")
+            })
+            .collect();
+        backup_files.sort_by_key(|e| std::cmp::Reverse(e.file_name()));
+        if backup_files.len() > 10 {
+            for old_file in &backup_files[10..] {
+                let _ = fs::remove_file(old_file.path());
+            }
+        }
+    }
+
     Ok(backup_path.to_string_lossy().to_string())
+}
+
+fn validate_backup_file(app: &tauri::AppHandle, backup_path: &str) -> Result<(), String> {
+    let app_dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| format!("Failed to get app data dir: {}", e))?;
+    let key_path = app_dir.join(KEY_FILE);
+    let db_path = app_dir.join("data.db");
+    let master_secret = get_or_create_master_secret(&key_path)?;
+    let device_id = get_or_create_device_id(&db_path, true)?;
+
+    let mut derived_key = vec![0u8; KEY_LEN];
+    pbkdf2_hmac::<Sha512>(
+        &master_secret,
+        device_id.as_bytes(),
+        PBKDF2_ITERATIONS,
+        &mut derived_key,
+    );
+    let key_hex = hex::encode(&derived_key);
+
+    let test_conn = Connection::open(backup_path)
+        .map_err(|e| format!("Failed to open backup file: {}", e))?;
+    test_conn
+        .execute_batch(&format!("PRAGMA key = \"x'{}'\";", key_hex))
+        .map_err(|e| format!("Failed to set SQLCipher key on backup: {}", e))?;
+
+    let count: Result<i64, _> = test_conn.query_row("SELECT count(*) FROM sqlite_master;", [], |r| r.get(0));
+    if count.is_err() {
+        return Err("Invalid backup file: failed decryption or integrity check (corrupted or incompatible key)".to_string());
+    }
+
+    Ok(())
 }
 
 pub fn restore_database(app: &tauri::AppHandle, backup_path: &str) -> Result<(), String> {
@@ -255,25 +314,131 @@ pub fn restore_database(app: &tauri::AppHandle, backup_path: &str) -> Result<(),
         return Err(format!("Backup file not found: {}", backup_path));
     }
 
-    let mut file = std::fs::File::open(backup_path)
-        .map_err(|e| format!("Failed to open backup file: {}", e))?;
-    let mut header = [0u8; 16];
-    use std::io::Read;
-    if file.read_exact(&mut header).is_err() || &header != b"SQLite format 3\0" {
-        return Err("Invalid backup file: not a valid SQLite database".to_string());
-    }
+    // Validate SQLCipher encrypted backup by attempting to decrypt/read sqlite_master
+    validate_backup_file(app, backup_path)?;
 
     if db_path.exists() {
         let safety_backup = app_dir.join(format!(
             "data_pre_restore_{}.db",
             chrono::Utc::now().format("%Y%m%d_%H%M%S")
         ));
-        fs::copy(&db_path, &safety_backup)
-            .map_err(|e| format!("Failed to create safety backup: {}", e))?;
+        let _ = fs::copy(&db_path, &safety_backup);
+
+        // Prune older safety snapshots to keep at most the latest 2
+        if let Ok(entries) = fs::read_dir(&app_dir) {
+            let mut snapshots: Vec<PathBuf> = entries
+                .filter_map(|e| e.ok().map(|d| d.path()))
+                .filter(|p| {
+                    p.file_name()
+                        .and_then(|n| n.to_str())
+                        .map(|s| s.starts_with("data_pre_restore_") && s.ends_with(".db"))
+                        .unwrap_or(false)
+                })
+                .collect();
+            snapshots.sort();
+            while snapshots.len() > 2 {
+                let oldest = snapshots.remove(0);
+                let _ = fs::remove_file(oldest);
+            }
+        }
+    }
+
+    // Remove old WAL/SHM to avoid state mismatch
+    let wal_path = db_path.with_extension("db-wal");
+    if wal_path.exists() {
+        let _ = fs::remove_file(&wal_path);
+    }
+    let shm_path = db_path.with_extension("db-shm");
+    if shm_path.exists() {
+        let _ = fs::remove_file(&shm_path);
     }
 
     fs::copy(backup_path, &db_path)
         .map_err(|e| format!("Failed to restore database: {}", e))?;
+
+    Ok(())
+}
+
+pub fn list_safety_snapshots(app: &tauri::AppHandle) -> Result<Vec<crate::commands::SafetySnapshot>, String> {
+    let app_dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| format!("Failed to get app data dir: {}", e))?;
+
+    let mut snapshots = Vec::new();
+    if let Ok(entries) = fs::read_dir(&app_dir) {
+        let mut files: Vec<PathBuf> = entries
+            .filter_map(|e| e.ok().map(|d| d.path()))
+            .filter(|p| {
+                p.file_name()
+                    .and_then(|n| n.to_str())
+                    .map(|s| s.starts_with("data_pre_restore_") && s.ends_with(".db"))
+                    .unwrap_or(false)
+            })
+            .collect();
+        files.sort();
+        files.reverse(); // Newest first
+
+        for file in files {
+            if let Some(name) = file.file_name().and_then(|n| n.to_str()) {
+                // Parse timestamp from name like "data_pre_restore_20260821_193000.db"
+                let created_at = if let Ok(meta) = fs::metadata(&file) {
+                    if let Ok(created) = meta.created().or_else(|_| meta.modified()) {
+                        let dt: chrono::DateTime<chrono::Utc> = created.into();
+                        dt.to_rfc3339()
+                    } else {
+                        chrono::Utc::now().to_rfc3339()
+                    }
+                } else {
+                    chrono::Utc::now().to_rfc3339()
+                };
+
+                snapshots.push(crate::commands::SafetySnapshot {
+                    id: file.to_string_lossy().to_string(),
+                    created_at,
+                });
+            }
+        }
+    }
+
+    Ok(snapshots)
+}
+
+pub fn wipe_all_database_data(app_dir: &PathBuf) -> Result<(), String> {
+    use keyring::Entry;
+
+    // 1. Delete data.db, data.db-wal, data.db-shm
+    let db_path = app_dir.join("data.db");
+    let _ = fs::remove_file(&db_path);
+    let _ = fs::remove_file(db_path.with_extension("db-wal"));
+    let _ = fs::remove_file(db_path.with_extension("db-shm"));
+    let _ = fs::remove_file(app_dir.join(KEY_FILE));
+
+    // 2. Delete all backups and quarantined databases
+    let backups_dir = app_dir.join("backups");
+    if backups_dir.exists() {
+        let _ = fs::remove_dir_all(&backups_dir);
+    }
+    let quarantine_dir = app_dir.join("quarantine");
+    if quarantine_dir.exists() {
+        let _ = fs::remove_dir_all(&quarantine_dir);
+    }
+
+    if let Ok(entries) = fs::read_dir(app_dir) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if let Some(file_name) = path.file_name().and_then(|n| n.to_str()) {
+                if file_name.starts_with("data_backup_") || file_name.starts_with("data_pre_restore_") {
+                    let _ = fs::remove_file(path);
+                }
+            }
+        }
+    }
+
+    // 3. Delete master secret from keychain
+    if let Ok(entry) = Entry::new("org.pedigreepro.app", "db_master_secret") {
+        let _ = entry.delete_password();
+    }
 
     Ok(())
 }
@@ -325,6 +490,11 @@ fn run_migrations(conn: &Connection) -> Result<(), String> {
             5,
             "005_share_links",
             include_str!("../../../../lib/db/migrations/005_share_links.sql"),
+        ),
+        (
+            6,
+            "006_nodes_couple_counts",
+            include_str!("../../../../lib/db/migrations/006_nodes_couple_counts.sql"),
         ),
     ];
 

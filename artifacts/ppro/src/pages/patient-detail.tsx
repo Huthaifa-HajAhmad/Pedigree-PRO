@@ -1,5 +1,5 @@
 import { useParams, Link } from "wouter";
-import { useGetPatient, useListPedigrees, useCreatePedigree, queryKeys } from "@workspace/api-client-react";
+import { useGetPatient, useListPedigrees, useCreatePedigree, useListProfiles, queryKeys, getProfilePrivateKey } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { ArrowLeft, Dna, Plus, ChevronRight } from "lucide-react";
@@ -13,7 +13,6 @@ import { FormLayout } from "@/components/shared/FormLayout";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { TableSkeleton } from "@/components/shared/Skeleton";
 import { signData, computeHash, getPublicKeyFromPrivate } from "@workspace/crypto";
-import { listProfilePrivateKeys } from "@workspace/browser-backend";
 
 
 const schema = z.object({ title: z.string().min(1, "Title required"), notes: z.string().optional() });
@@ -28,6 +27,7 @@ export default function PatientDetail() {
 
   const { data: patient, isLoading } = useGetPatient(validId);
   const { data: pedigrees, isLoading: pedLoading } = useListPedigrees({ patientId: validId });
+  const { data: profiles } = useListProfiles();
   const createPedigree = useCreatePedigree();
 
   const form = useForm<FormData>({ resolver: zodResolver(schema), defaultValues: { title: "", notes: "" } });
@@ -35,10 +35,10 @@ export default function PatientDetail() {
   const onSubmit = async (data: FormData) => {
     const canvasData = JSON.stringify({ nodes: [], edges: [] });
     const canvasHash = computeHash(canvasData);
-    const keys = await listProfilePrivateKeys();
-    const activeKey = keys.length > 0 ? keys[0] : null;
-    const creatorKey = activeKey ? await getPublicKeyFromPrivate(activeKey.privateKey) : "";
-    const creatorSignature = activeKey ? await signData(canvasHash, activeKey.privateKey) : null;
+    const activeProfile = profiles && profiles.length > 0 ? profiles[0] : null;
+    const privateKey = activeProfile ? await getProfilePrivateKey(activeProfile.id) : null;
+    const creatorKey = activeProfile?.public_key ?? (privateKey ? await getPublicKeyFromPrivate(privateKey) : "");
+    const creatorSignature = privateKey ? await signData(canvasHash, privateKey) : null;
     createPedigree.mutate(
       {
         title: data.title,

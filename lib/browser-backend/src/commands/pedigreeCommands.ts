@@ -40,21 +40,24 @@ export function get_pedigree(args: { id: number }): Pedigree {
   return pedigree;
 }
 
-export function create_pedigree(args: CreatePedigreeInput): Pedigree {
+export function create_pedigree(
+  args: CreatePedigreeInput | { input: CreatePedigreeInput }
+): Pedigree {
+  const input = "input" in args ? args.input : args;
   return withTransaction(() => {
-    const canvas_hash = args.canvas_data
-      ? computeHash(args.canvas_data)
+    const canvas_hash = input.canvas_data
+      ? computeHash(input.canvas_data)
       : null;
     exec(
       "INSERT INTO pedigrees (title, patient_id, canvas_data, canvas_hash, notes, creator_key, creator_signature, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))",
       [
-        args.title,
-        args.patient_id ?? null,
-        args.canvas_data ?? null,
+        input.title,
+        input.patient_id ?? null,
+        input.canvas_data ?? null,
         canvas_hash,
-        args.notes ?? null,
-        args.creator_key,
-        args.creator_signature ?? null,
+        input.notes ?? null,
+        input.creator_key,
+        input.creator_signature ?? null,
       ]
     );
 
@@ -62,7 +65,7 @@ export function create_pedigree(args: CreatePedigreeInput): Pedigree {
 
     exec(
       "INSERT INTO activity_log (action, subject, actor_key, timestamp) VALUES ('created', ?, ?, datetime('now'))",
-      [args.title, args.creator_key]
+      [`pedigree_${id}`, input.creator_key]
     );
 
     return get_pedigree({ id });
@@ -94,7 +97,7 @@ export function update_pedigree(args: {
 
     exec(
       "INSERT INTO activity_log (action, subject, actor_key, timestamp) VALUES ('updated', ?, ?, datetime('now'))",
-      [merged.title, merged.creator_key ?? ""]
+      [`pedigree_${args.id}`, merged.creator_key ?? ""]
     );
 
     return get_pedigree({ id: args.id });
@@ -103,8 +106,8 @@ export function update_pedigree(args: {
 
 export function delete_pedigree(args: { id: number }): void {
   withTransaction(() => {
-    const pedigree = queryOne<{ title: string }>(
-      "SELECT title FROM pedigrees WHERE id = ?",
+    const pedigree = queryOne<{ id: number }>(
+      "SELECT id FROM pedigrees WHERE id = ?",
       [args.id]
     );
     if (!pedigree) throw new Error("Pedigree not found");
@@ -117,7 +120,7 @@ export function delete_pedigree(args: { id: number }): void {
 
     exec(
       "INSERT INTO activity_log (action, subject, timestamp) VALUES ('deleted', ?, datetime('now'))",
-      [pedigree.title]
+      [`pedigree_${args.id}`]
     );
   });
 }

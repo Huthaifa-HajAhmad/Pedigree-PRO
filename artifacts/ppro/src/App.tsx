@@ -10,6 +10,8 @@ import { ThemeProvider } from "@/lib/theme";
 import { FontProvider } from "@/lib/font";
 import { CanvasConfigProvider } from "@/features/pedigree-editor/context/CanvasConfigContext";
 import { useListProfiles } from "@workspace/api-client-react";
+import { useInactivityAutoLock } from "@/hooks/use-inactivity-autolock";
+import { AutoLockModal } from "@/components/shared/AutoLockModal";
 
 const NotFound = lazy(() => import("@/pages/not-found"));
 const Dashboard = lazy(() => import("@/pages/dashboard"));
@@ -89,6 +91,8 @@ function Router() {
 }
 
 function App() {
+  const { isLocked, unlock } = useInactivityAutoLock();
+
   useEffect(() => {
     const preventZoom = (e: WheelEvent) => {
       if (e.ctrlKey) {
@@ -111,6 +115,7 @@ function App() {
             <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
               <Router />
             </WouterRouter>
+            <AutoLockModal isOpen={isLocked} onUnlock={unlock} />
             <Toaster />
           </TooltipProvider>
         </QueryClientProvider>

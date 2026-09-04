@@ -68,20 +68,21 @@ On GitHub Windows runners, `choco install strawberryperl -y --no-progress` is us
 - The DB encryption key is itself wrapped with a second AES key before storage in IndexedDB (no-passphrase case).
 - Users may optionally set a passphrase; the key is then derived via PBKDF2-HMAC-SHA512 (256k iterations).
 
-### Profile Keys (Browser Mode)
-- Ed25519 keypairs are generated in the browser via `@workspace/crypto` (`@noble/ed25519`).
-- Private keys are stored in IndexedDB via `idb-keyval`, NOT in `localStorage`.
+### Profile Keys
+- **Desktop**: Stored in the OS Keychain via Rust `keyring` crate.
+- **Browser**: Generated via `@workspace/crypto` (`@noble/ed25519`) and stored in IndexedDB via `idb-keyval`, NOT in `localStorage`.
 - Never store private key material in `localStorage` — it is plaintext and XSS-vulnerable.
 
-### Sharing Encryption
-- Browser-mode sharing uses hybrid encryption (`encryptForRecipient` from `@workspace/crypto`):
+### Sharing Encryption & Zero-Knowledge Relay
+- Browser and desktop sharing uses hybrid encryption (`encryptForRecipient` from `@workspace/crypto`):
   - Ephemeral Ed25519 keypair + AES-GCM envelope.
   - Recipient decrypts with their stored private key via `decryptFromSender`.
-- Unencrypted base64 JSON fallback is supported for backward compatibility but will be removed.
+- The optional Cloudflare Worker relay in `services/relay/` receives only end-to-end encrypted ciphertext blobs and wrapped keys. It has zero knowledge of plaintext PHI. Self-hostable via `VITE_RELAY_URL`.
 
-### Data Privacy
+### Data Privacy & Backups
 - No server. No cloud sync. All data stays on the local device (filesystem or browser IndexedDB).
 - WebRTC LAN sharing is direct peer-to-peer; no signaling server, no data leaves the local network.
+- Browser backups use `ppro-encrypted-backup-v2` with PBKDF2 parameters embedded for cross-device portability.
 
 ## Layout Engine (`artifacts/ppro/src/lib/layout-engine.ts` + `auto-layout.ts`)
 
@@ -129,8 +130,8 @@ pnpm --filter @workspace/ppro run test
 
 ## Important Rules
 
-- **Never reintroduce server-side code** in `artifacts/api-server/` or `services/relay/`. These were permanently removed.
-- **Never use `localStorage` for key material.** Always use `storeProfilePrivateKey` / `getProfilePrivateKey` from `lib/browser-backend/src/crypto-store.ts`.
+- **Never reintroduce centralized backend server code** (e.g. `artifacts/api-server/`). The project is serverless and local-first. The Cloudflare Worker in `services/relay/` is a stateless zero-knowledge relay for ciphertext-only transit.
+- **Never use `localStorage` for key material.** Always use `storeProfilePrivateKey` / `getProfilePrivateKey` from `lib/browser-backend/src/crypto-store.ts` (browser) or OS Keychain (desktop).
 - **Do not add `/api` proxies to Vite config.** The project is serverless.
 - Keep `lib/db/src/index.ts` top-level await pattern for conditional Postgres/SQLite loading, but verify bundler compatibility before changing.
 

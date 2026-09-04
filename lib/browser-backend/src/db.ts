@@ -40,11 +40,17 @@ export async function initDb(): Promise<void> {
 
   initPromise = (async () => {
     try {
-      const SQL = await initSqlJs({
-        locateFile: (file: string) => {
-          return file.includes("sql-wasm") ? "/sql-wasm-browser.wasm" : `/${file}`;
-        },
-      });
+      const proc = (globalThis as unknown as { process?: { versions?: { node?: string }; env?: Record<string, string> } }).process;
+      const isNodeOrTest = typeof proc !== "undefined" && (proc.versions?.node != null || proc.env?.NODE_ENV === "test");
+      const SQL = await initSqlJs(
+        !isNodeOrTest && typeof window !== "undefined"
+          ? {
+              locateFile: (file: string) => {
+                return file.includes("sql-wasm") ? "/sql-wasm-browser.wasm" : `/${file}`;
+              },
+            }
+          : undefined
+      );
 
       dbKey = await getOrCreateDbKey();
 
@@ -84,8 +90,8 @@ export async function initDb(): Promise<void> {
       // Also use visibilitychange for mobile/tab switching
       document.addEventListener("visibilitychange", handleVisibilityChange);
 
-      // Periodic auto-save every 3 seconds to minimize data loss on abrupt close
-      autoSaveInterval = setInterval(saveIfDirty, 3_000);
+      // Periodic idle save (every 5 seconds) to catch changes if debounce did not fire
+      autoSaveInterval = setInterval(saveIfDirty, 5_000);
     } finally {
       initPromise = null; // Allow retry on next call
     }
@@ -94,19 +100,34 @@ export async function initDb(): Promise<void> {
   return initPromise;
 }
 
+let debounceSaveTimeout: ReturnType<typeof setTimeout> | null = null;
+
+/**
+ * Schedules a debounced save operation to minimize main-thread serialization.
+ */
+export function debounceSave(delayMs = 500): void {
+  if (debounceSaveTimeout !== null) {
+    clearTimeout(debounceSaveTimeout);
+  }
+  debounceSaveTimeout = setTimeout(() => {
+    debounceSaveTimeout = null;
+    saveIfDirty().catch((e) => console.error("[debounceSave] Auto-save error:", e));
+  }, delayMs);
+}
+
 /**
  * Marks the database as having unsaved changes.
  * Called internally by exec() to track mutation operations.
  */
 export function markDirty(): void {
   dirty = true;
+  debounceSave(500);
 }
 
 /**
  * Best-effort save on beforeunload.
  * beforeunload cannot await async operations, so we fire saveDb()
- * and rely on the periodic auto-save (3s interval) as the primary
- * durability mechanism. Data loss is limited to at most 3 seconds.
+ * and rely on the periodic auto-save as the primary durability mechanism.
  */
 function handleBeforeUnload(): void {
   if (!db || !dbKey || !dirty) return;
@@ -139,6 +160,10 @@ export function stopAutoSave(): void {
     clearInterval(autoSaveInterval);
     autoSaveInterval = null;
   }
+  if (debounceSaveTimeout !== null) {
+    clearTimeout(debounceSaveTimeout);
+    debounceSaveTimeout = null;
+  }
   window.removeEventListener("beforeunload", handleBeforeUnload);
   document.removeEventListener("visibilitychange", handleVisibilityChange);
 }
@@ -168,20 +193,12 @@ export async function importDb(data: Uint8Array): Promise<void> {
 /**
  * Saves the current database state to IndexedDB, encrypted.
  *
- * Uses a serialized promise chain so every call actually persists data.
- * Previous implementation skipped concurrent calls with `if (saveInProgress) return`,
- * which caused silent data loss: share_pedigree's INSERT + saveDb() could be
- * skipped if the 3-second auto-save was running, leaving the short code only
- * in the in-memory DB. A new tab loading from IndexedDB would get the stale
- * snapshot → 404.
+ * Uses a serialized promise chain and avoids re-serializing unchanged databases.
  */
 export async function saveDb(): Promise<void> {
   if (!db || !dbKey) return;
-  // Append this save to the chain; each save waits for the previous to finish.
-  // db.export() captures the LATEST in-memory state, so even queued saves
-  // will persist the correct data (including any INSERTs that happened while
-  // waiting for the previous save to complete).
   saveChain = saveChain.then(async () => {
+    if (!dirty) return;
     const data = db!.export();
     const { ciphertext, iv } = await encryptDbBlob(data, dbKey!);
     await set(DB_KEY, { ciphertext, iv }, DB_STORE);
@@ -205,6 +222,7 @@ export function exec(sql: string, params?: unknown[]): void {
     db.run(sql);
   }
   dirty = true;
+  debounceSave(500);
 }
 
 /**
@@ -264,16 +282,7 @@ async function runMigrations(): Promise<void> {
   const applied = query<{ version: number }>("SELECT version FROM _migrations");
   const appliedSet = new Set(applied.map((r) => r.version));
 
-  const migrations: [number, string, string][] = [
-    [1, "001_initial", MIGRATION_001],
-    [2, "002_clinical_annotations", MIGRATION_002],
-    [3, "003_drop_deprecated_columns", MIGRATION_003],
-    [4, "004_share_log", MIGRATION_004],
-    [5, "005_share_links", MIGRATION_005],
-    [6, "006_denormalize_version_counts", MIGRATION_006],
-  ];
-
-  for (const [version, name, sql] of migrations) {
+  for (const [version, name, sql] of MIGRATIONS) {
     if (appliedSet.has(version)) continue;
     exec(sql);
     exec("INSERT INTO _migrations (version, name) VALUES (?, ?)", [version, name]);
@@ -281,7 +290,7 @@ async function runMigrations(): Promise<void> {
 }
 
 // Inlined migration 001 (same as Rust backend, minus deprecated Phase 0-D columns)
-const MIGRATION_001 = `
+export const MIGRATION_001 = `
 CREATE TABLE IF NOT EXISTS patients (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   first_name TEXT NOT NULL,
@@ -318,8 +327,6 @@ CREATE TABLE IF NOT EXISTS pedigree_versions (
   thumbnail TEXT,
   saver_key TEXT,
   saver_signature TEXT,
-  nodes_count INTEGER DEFAULT 0,
-  couple_count INTEGER DEFAULT 0,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
@@ -358,7 +365,7 @@ CREATE INDEX IF NOT EXISTS idx_activity_log_actor_key ON activity_log(actor_key)
 `;
 
 // Inlined migration 002 (clinical annotations)
-const MIGRATION_002 = `
+export const MIGRATION_002 = `
 CREATE TABLE IF NOT EXISTS pedigree_node_annotations (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   pedigree_id INTEGER NOT NULL REFERENCES pedigrees(id) ON DELETE CASCADE,
@@ -393,13 +400,13 @@ CREATE INDEX IF NOT EXISTS idx_pedigree_phenotypes_pedigree ON pedigree_phenotyp
 // Inlined migration 003: Drop deprecated Phase 0-D columns and tables.
 // For databases created after this migration, these columns won't exist,
 // so we skip DROP COLUMN (not supported in sql.js SQLite < 3.35).
-const MIGRATION_003 = `
+export const MIGRATION_003 = `
 DROP INDEX IF EXISTS idx_pedigrees_share_token;
 DROP TABLE IF EXISTS users;
 `;
 
 // Inlined migration 004: Share log for HIPAA audit trail
-const MIGRATION_004 = `
+export const MIGRATION_004 = `
 CREATE TABLE IF NOT EXISTS share_log (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   pedigree_id INTEGER NOT NULL REFERENCES pedigrees(id) ON DELETE CASCADE,
@@ -416,7 +423,7 @@ CREATE INDEX IF NOT EXISTS idx_share_log_created_at ON share_log(created_at DESC
 `;
 
 // Inlined migration 005: Shortlink mapping for share tokens
-const MIGRATION_005 = `
+export const MIGRATION_005 = `
 CREATE TABLE IF NOT EXISTS share_links (
   short_code TEXT PRIMARY KEY,
   token TEXT NOT NULL,
@@ -427,8 +434,17 @@ CREATE INDEX IF NOT EXISTS idx_share_links_created_at ON share_links(created_at 
 `;
 
 // Inlined migration 006: Denormalized version node/couple counts
-const MIGRATION_006 = `
+export const MIGRATION_006 = `
 ALTER TABLE pedigree_versions ADD COLUMN nodes_count INTEGER DEFAULT 0;
 ALTER TABLE pedigree_versions ADD COLUMN couple_count INTEGER DEFAULT 0;
 `;
+
+export const MIGRATIONS: [number, string, string][] = [
+  [1, "001_initial", MIGRATION_001],
+  [2, "002_clinical_annotations", MIGRATION_002],
+  [3, "003_drop_deprecated_columns", MIGRATION_003],
+  [4, "004_share_log", MIGRATION_004],
+  [5, "005_share_links", MIGRATION_005],
+  [6, "006_denormalize_version_counts", MIGRATION_006],
+];
 

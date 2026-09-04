@@ -46,7 +46,8 @@ async function generateWrappingKey(): Promise<CryptoKey> {
  */
 async function deriveKeyFromPassphrase(
   passphrase: string,
-  salt: Uint8Array
+  salt: Uint8Array,
+  iterations = 256_000
 ): Promise<CryptoKey> {
   const enc = new TextEncoder();
   const keyMaterial = await crypto.subtle.importKey(
@@ -56,11 +57,11 @@ async function deriveKeyFromPassphrase(
     false,
     ["deriveBits", "deriveKey"]
   );
-return crypto.subtle.deriveKey(
+  return crypto.subtle.deriveKey(
     {
       name: "PBKDF2",
       salt: toArrayBuffer(salt),
-      iterations: 256_000,
+      iterations,
       hash: "SHA-512",
     },
     keyMaterial,
@@ -269,13 +270,26 @@ export async function decryptDbBlob(
 const DRAFT_KEY_NAME = "ppro:draft_encryption_key";
 
 async function getOrCreateDraftKey(): Promise<Uint8Array> {
+  const masterKey = await getOrCreateDbKey();
   const stored = await get<any>(DRAFT_KEY_NAME, KEY_STORE);
-  if (stored instanceof Uint8Array && stored.length === 32) {
-    return stored;
+  if (stored) {
+    if (stored instanceof Uint8Array && stored.length === 32) {
+      // Auto-migrate legacy unencrypted draft key to encrypted format
+      const { ciphertext, iv } = await encryptDbBlob(stored, masterKey);
+      await set(DRAFT_KEY_NAME, { ciphertext, iv }, KEY_STORE);
+      return stored;
+    }
+    if (stored.ciphertext && stored.iv) {
+      const decrypted = await decryptDbBlob(stored.ciphertext, stored.iv, masterKey);
+      if (decrypted.length === 32) {
+        return decrypted;
+      }
+    }
   }
   const newKey = new Uint8Array(32);
   crypto.getRandomValues(newKey);
-  await set(DRAFT_KEY_NAME, newKey, KEY_STORE);
+  const { ciphertext, iv } = await encryptDbBlob(newKey, masterKey);
+  await set(DRAFT_KEY_NAME, { ciphertext, iv }, KEY_STORE);
   return newKey;
 }
 
@@ -293,3 +307,19 @@ export async function decryptDraft(encrypted: string): Promise<string> {
   }
   throw new Error("Invalid encrypted draft payload");
 }
+
+export async function getPassphraseSalt(): Promise<Uint8Array | null> {
+  const salt = await get<Uint8Array>(PASSPHRASE_SALT_NAME, KEY_STORE);
+  return salt ?? null;
+}
+
+export async function getRawDraftKeyStorageForTesting(): Promise<any> {
+  return await get<any>(DRAFT_KEY_NAME, KEY_STORE);
+}
+
+export async function clearKeyStoreForTesting(): Promise<void> {
+  const { clear } = await import("idb-keyval");
+  await clear(KEY_STORE);
+}
+
+export { deriveKeyFromPassphrase };

@@ -48,7 +48,6 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_shell::init())
-        .plugin(tauri_plugin_updater::Builder::new().build())
         .setup(|app| {
             let handle = app.handle().clone();
             let conn = db::init_db(&handle)?;
@@ -64,7 +63,7 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
-            // ─── Profiles ─────────────────────────────────────
+            // ─── Profiles & OS Keychain ───────────────────────
             commands::create_profile,
             commands::list_profiles,
             commands::switch_profile,
@@ -72,6 +71,10 @@ pub fn run() {
             commands::delete_profile,
             commands::export_profile,
             commands::import_profile,
+            commands::store_profile_key,
+            commands::get_profile_key,
+            commands::delete_profile_key,
+            commands::list_profile_keys,
             // ─── Patients ─────────────────────────────────────
             commands::list_patients,
             commands::get_patient,
@@ -99,7 +102,10 @@ pub fn run() {
             // ─── Database Management ──────────────────────────
             commands::backup_database,
             commands::restore_database,
+            commands::get_safety_snapshots,
+            commands::restore_safety_snapshot,
             commands::rotate_key,
+            commands::wipe_all_data,
             // ─── Sharing ──────────────────────────────────────
             commands::share_pedigree,
             commands::relay_share,
@@ -115,7 +121,6 @@ pub fn run() {
             commands::save_preferences,
             // ─── WebView ───────────────────────────────────────
             commands::disable_zoom,
-
         ])
         .run(tauri::generate_context!())
         .expect("error while running Pedigree PRO");

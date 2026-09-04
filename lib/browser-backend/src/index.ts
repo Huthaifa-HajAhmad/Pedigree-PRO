@@ -17,6 +17,8 @@ export {
   decryptDbBlob,
   encryptDraft,
   decryptDraft,
+  getRawDraftKeyStorageForTesting,
+  clearKeyStoreForTesting,
 } from "./crypto-store";
 
 // Re-export all command functions so the adapter can route to them
@@ -53,6 +55,8 @@ export {
   export_pedigree_ppro,
   backup_database,
   restore_database,
+  get_safety_snapshots,
+  restore_safety_snapshot,
   rotate_key,
   relay_share,
   relay_receive,
@@ -84,4 +88,5 @@ export type {
   ShareResult,
   SharedPedigreeView,
   LegacyImportSummary,
+  SafetySnapshot,
 } from "./commands";

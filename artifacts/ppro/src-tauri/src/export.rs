@@ -221,7 +221,7 @@ pub fn export_pedigree_ppro_inner(
 }
 
 /// Tauri command wrapper for export_pedigree_ppro.
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub fn export_pedigree_ppro(
     state: State<AppState>,
     pedigree_id: i64,

@@ -1,7 +1,7 @@
 import type { CanvasData, PedigreeNode, PedigreeEdge, PedigreeAnnotation, DragState } from "@/features/pedigree-editor/canvas/types";
 import type { ValidationResult } from "@/lib/validate-pedigree";
 import type { InheritanceMode } from "@/lib/risk-calculator";
-import type { PedigreeVersion } from "@workspace/api-client-react";
+import type { PedigreeVersion, LocalProfile } from "@workspace/api-client-react";
 
 export interface PedigreeEditorState {
   canvas: CanvasData;
@@ -236,7 +236,7 @@ export interface PedigreeEditorContextValue {
   versions: PedigreeVersion[] | undefined;
   versionsLoading: boolean;
   saveVersionPending: boolean;
-  profiles: Array<{ public_key: string; display_name: string; role_label?: string }> | undefined;
+  profiles: LocalProfile[] | undefined;
   showDraftBanner: boolean;
   onRestoreDraft: () => void;
   handleDismissDraft: () => void;

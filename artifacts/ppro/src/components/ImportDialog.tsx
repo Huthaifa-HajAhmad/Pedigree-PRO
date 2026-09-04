@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { useCreatePedigree, useListPatients, useListProfiles, queryKeys } from "@workspace/api-client-react";
+import { useCreatePedigree, useListPatients, useListProfiles, queryKeys, getProfilePrivateKey } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { Upload } from "lucide-react";
@@ -9,7 +9,8 @@ import { PreviewStep } from "@/components/steps/PreviewStep";
 import { ImportingStep } from "@/components/steps/ImportingStep";
 import { parseFile, type ParseResult } from "@/lib/import-pedigree";
 import { signData, computeHash, getPublicKeyFromPrivate } from "@workspace/crypto";
-import { listProfilePrivateKeys, validatePproExport } from "@workspace/browser-backend";
+import { validatePproExport } from "@workspace/browser-backend";
+import { usePedigreeTabs } from "@/hooks/use-pedigree-tabs";
 
 interface Props {
   children: React.ReactNode;
@@ -35,6 +36,7 @@ export function ImportDialog({ children }: Props) {
   const { data: patients } = useListPatients();
   const { data: profiles } = useListProfiles();
   const createPedigree = useCreatePedigree();
+  const { openTab } = usePedigreeTabs();
 
   const reset = () => {
     setStep("upload");
@@ -115,10 +117,10 @@ export function ImportDialog({ children }: Props) {
     setStep("importing");
     const canvasData = JSON.stringify(result.canvasData);
     const canvasHash = computeHash(canvasData);
-    const keys = await listProfilePrivateKeys();
-    const activeKey = keys.length > 0 ? keys[0] : null;
-    const creatorKey = profiles?.[0]?.public_key ?? (activeKey ? await getPublicKeyFromPrivate(activeKey.privateKey) : "");
-    const creatorSignature = activeKey ? await signData(canvasHash, activeKey.privateKey) : null;
+    const activeProfile = profiles?.[0];
+    const privateKey = activeProfile ? await getProfilePrivateKey(activeProfile.id) : null;
+    const creatorKey = activeProfile?.public_key ?? (privateKey ? await getPublicKeyFromPrivate(privateKey) : "");
+    const creatorSignature = privateKey ? await signData(canvasHash, privateKey) : null;
     createPedigree.mutate({
       title: title.trim(),
       patient_id: patientId ? parseInt(patientId, 10) : undefined,
@@ -128,7 +130,13 @@ export function ImportDialog({ children }: Props) {
       creator_key: creatorKey,
       creator_signature: creatorSignature,
     }, {
-      onSuccess: (pedigree) => { queryClient.invalidateQueries({ queryKey: queryKeys.pedigrees }); setOpen(false); reset(); navigate(`/pedigrees/${pedigree.id}`); },
+      onSuccess: (pedigree) => {
+        queryClient.invalidateQueries({ queryKey: queryKeys.pedigrees });
+        openTab(pedigree.id, pedigree.title);
+        setOpen(false);
+        reset();
+        navigate(`/pedigrees/${pedigree.id}`);
+      },
       onError: () => { setError("Failed to create pedigree."); setStep("preview"); },
     });
   };

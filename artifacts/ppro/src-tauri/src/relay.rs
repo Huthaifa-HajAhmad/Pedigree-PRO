@@ -36,6 +36,7 @@ pub struct RelayShareRequest {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct RelayShareResponse {
     pub share_token: String,
+    pub revoke_token: Option<String>,
     pub expires_at: String,
 }
 
@@ -191,13 +192,13 @@ pub async fn share_encrypted_payload(
     ciphertext: &str,
     encrypted_key: &str,
     ttl_hours: Option<u32>,
-) -> Result<(String, String), String> {
+) -> Result<(String, String, Option<String>, String), String> {
     let result = relay_share(ciphertext, encrypted_key, ttl_hours).await?;
 
     let base_url = relay_base_url();
     let share_url = format!("{}/s/{}", base_url, result.share_token);
 
-    Ok((result.share_token, share_url))
+    Ok((result.share_token, share_url, result.revoke_token, result.expires_at))
 }
 
 /// Fetches and decrypts a shared payload from the relay.
@@ -211,15 +212,23 @@ pub async fn fetch_shared_payload(
     Ok((result.ciphertext, result.encrypted_key))
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+pub struct RelayRevokeRequest {
+    pub share_token: String,
+    pub revoke_token: Option<String>,
+}
+
 /// Revokes a shared payload on the relay by deleting its token.
 pub async fn revoke_shared_payload(
     share_token: &str,
+    revoke_token: Option<&str>,
 ) -> Result<(), String> {
     let base_url = relay_base_url();
     let url = format!("{}/api/relay/revoke", base_url);
 
-    let request_body = RelayReceiveRequest {
+    let request_body = RelayRevokeRequest {
         share_token: share_token.to_string(),
+        revoke_token: revoke_token.map(|s| s.to_string()),
     };
 
     let client = reqwest::Client::builder()

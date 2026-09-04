@@ -20,9 +20,8 @@ import { ShareModal } from "@/components/ShareModal";
 import { usePedigreeEditor } from "@/features/pedigree-editor/context/usePedigreeEditor";
 import { useCanvasConfig } from "@/features/pedigree-editor/context/CanvasConfigContext";
 import { useQueryClient } from "@tanstack/react-query";
-import { useCreatePedigree, queryKeys } from "@workspace/api-client-react";
+import { useCreatePedigree, queryKeys, getProfilePrivateKey } from "@workspace/api-client-react";
 import { computeHash } from "@workspace/crypto";
-import { listProfilePrivateKeys } from "@workspace/browser-backend";
 import { NODE_SIZE } from "@/features/pedigree-editor/canvas/types";
 import { groupFamiliesByParents } from "@/lib/layout-shared";
 
@@ -35,7 +34,7 @@ export function PedigreeCanvasBody() {
   const ctx = usePedigreeEditor();
   const [, navigate] = useLocation();
   const {
-    state, ops, memo, refs, dispatch, pedigree, versions } = ctx;
+    state, ops, memo, refs, dispatch, pedigree, versions, profiles } = ctx;
   const { config, updateConfig } = useCanvasConfig();
 
   const { toast } = useToast();
@@ -45,11 +44,11 @@ export function PedigreeCanvasBody() {
   const handleCreateNewPedigree = useCallback(async () => {
     const canvasData = JSON.stringify({ nodes: [], edges: [], annotations: [] });
     const canvasHash = computeHash(canvasData);
-    const keys = await listProfilePrivateKeys();
-    const activeKey = keys.length > 0 ? keys[0] : null;
+    const activeProfile = profiles && profiles.length > 0 ? profiles[0] : null;
+    const privateKey = activeProfile ? await getProfilePrivateKey(activeProfile.id) : null;
     const cryptoModule = await import("@workspace/crypto");
-    const creatorKey = activeKey ? await cryptoModule.getPublicKeyFromPrivate(activeKey.privateKey) : "";
-    const creatorSignature = activeKey ? await cryptoModule.signData(canvasHash, activeKey.privateKey) : null;
+    const creatorKey = activeProfile?.public_key ?? (privateKey ? await cryptoModule.getPublicKeyFromPrivate(privateKey) : "");
+    const creatorSignature = privateKey ? await cryptoModule.signData(canvasHash, privateKey) : null;
     try {
       const pedigreeObj = await createPedigree.mutateAsync({
         title: "New Pedigree",

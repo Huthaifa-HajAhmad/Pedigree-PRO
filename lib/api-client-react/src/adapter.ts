@@ -47,8 +47,9 @@ type BrowserCommandName =
   | "share_pedigree" | "import_shared"
   | "import_pedigree_native" | "import_pedigree_legacy"
   | "export_pedigree_ppro"
-  | "backup_database" | "restore_database" | "rotate_key"
-  | "relay_share" | "relay_receive" | "relay_revoke";
+  | "backup_database" | "restore_database" | "get_safety_snapshots" | "restore_safety_snapshot" | "rotate_key"
+  | "relay_share" | "relay_receive" | "relay_revoke"
+  | "store_profile_key" | "get_profile_key" | "delete_profile_key" | "list_profile_keys";
 
 /** All valid command names (browser + Tauri-only). */
 type CommandName = BrowserCommandName | "import_pedigree_from_json";
@@ -64,18 +65,18 @@ type CommandName = BrowserCommandName | "import_pedigree_from_json";
  */
 type CommandMap = {
   list_profiles: () => import("@workspace/browser-backend").LocalProfile[];
-  create_profile: (args: { display_name: string; role_label: string; public_key?: string }) => import("@workspace/browser-backend").LocalProfile;
+  create_profile: (args: { display_name: string; role_label: string; public_key?: string } | { input: { display_name: string; role_label: string } }) => import("@workspace/browser-backend").LocalProfile;
   switch_profile: (args: { profile_id: string }) => import("@workspace/browser-backend").LocalProfile;
   delete_profile: (args: { profile_id: string }) => void;
   update_profile: (args: { id: string; display_name: string; role_label: string }) => import("@workspace/browser-backend").LocalProfile;
   list_patients: (args?: { search?: string }) => import("@workspace/browser-backend").Patient[];
   get_patient: (args: { id: number }) => import("@workspace/browser-backend").Patient;
-  create_patient: (args: import("@workspace/browser-backend").CreatePatientInput) => import("@workspace/browser-backend").Patient;
+  create_patient: (args: import("@workspace/browser-backend").CreatePatientInput | { input: import("@workspace/browser-backend").CreatePatientInput }) => import("@workspace/browser-backend").Patient;
   update_patient: (args: { id: number; input: Partial<import("@workspace/browser-backend").CreatePatientInput> }) => import("@workspace/browser-backend").Patient;
   delete_patient: (args: { id: number }) => void;
   list_pedigrees: (args?: { patient_id?: number; search?: string }) => import("@workspace/browser-backend").PedigreeSummary[];
   get_pedigree: (args: { id: number }) => import("@workspace/browser-backend").Pedigree;
-  create_pedigree: (args: import("@workspace/browser-backend").CreatePedigreeInput) => import("@workspace/browser-backend").Pedigree;
+  create_pedigree: (args: import("@workspace/browser-backend").CreatePedigreeInput | { input: import("@workspace/browser-backend").CreatePedigreeInput }) => import("@workspace/browser-backend").Pedigree;
   update_pedigree: (args: { id: number; input: Partial<import("@workspace/browser-backend").CreatePedigreeInput> }) => import("@workspace/browser-backend").Pedigree;
   delete_pedigree: (args: { id: number }) => void;
   list_versions: (args: { pedigree_id: number }) => import("@workspace/browser-backend").PedigreeVersion[];
@@ -92,12 +93,18 @@ type CommandMap = {
   import_pedigree_native: (args: { path: string; importer_key?: string }) => Promise<import("@workspace/browser-backend").Pedigree> | import("@workspace/browser-backend").Pedigree;
   import_pedigree_legacy: (args: { path: string }) => import("@workspace/browser-backend").LegacyImportSummary;
   export_pedigree_ppro: (args: { pedigree_id: number; exporter_key: string }) => string;
-  backup_database: () => Promise<string>;
-  restore_database: (args: { backup_data: string }) => Promise<void>;
+  backup_database: (args?: { passphrase?: string }) => Promise<string>;
+  restore_database: (args: { backup_data: string; passphrase?: string }) => Promise<void>;
+  get_safety_snapshots: () => Promise<import("@workspace/browser-backend").SafetySnapshot[]> | import("@workspace/browser-backend").SafetySnapshot[];
+  restore_safety_snapshot: (args: { snapshot_id: string }) => Promise<void>;
   rotate_key: () => Promise<void>;
   relay_share: (args: { ciphertext: string; encrypted_key: string; ttl_hours?: number }) => Promise<import("@workspace/browser-backend").ShareResult>;
   relay_receive: (args: { share_token: string }) => Promise<{ ciphertext: string; encrypted_key: string }>;
-  relay_revoke: (args: { share_token: string }) => Promise<void>;
+  relay_revoke: (args: { share_token: string; revoke_token?: string }) => Promise<void>;
+  store_profile_key?: (args: { profile_id: string; private_key: string }) => Promise<void>;
+  get_profile_key?: (args: { profile_id: string }) => Promise<string>;
+  delete_profile_key?: (args: { profile_id: string }) => Promise<void>;
+  list_profile_keys?: () => Promise<{ profile_id: string; private_key: string }[]>;
 };
 
 // =============================================================================

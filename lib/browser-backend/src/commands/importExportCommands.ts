@@ -348,46 +348,151 @@ export function import_pedigree_legacy(args: { path: string }): LegacyImportSumm
   throw new Error("Legacy database import is only available in desktop mode");
 }
 
-export async function backup_database(): Promise<string> {
+export async function backup_database(args?: { passphrase?: string }): Promise<string> {
   const { exportDb } = await import("../db");
-  const { getOrCreateDbKey, encryptDbBlob } = await import("../crypto-store");
+  const { getOrCreateDbKey, encryptDbBlob, deriveKeyFromPassphrase } = await import("../crypto-store");
   const { bytesToBase64 } = await import("./sharingCommands");
   const data = await exportDb();
+
+  if (args?.passphrase && args.passphrase.trim().length > 0) {
+    const salt = crypto.getRandomValues(new Uint8Array(32));
+    const iterations = 256_000;
+    const key = await deriveKeyFromPassphrase(args.passphrase.trim(), salt, iterations);
+    const { ciphertext, iv } = await encryptDbBlob(data, key);
+
+    return JSON.stringify({
+      v: "ppro-encrypted-backup-v2",
+      kdf: "PBKDF2-HMAC-SHA512",
+      iterations,
+      salt: bytesToBase64(salt),
+      iv: bytesToBase64(iv),
+      ciphertext: bytesToBase64(ciphertext),
+      created_at: new Date().toISOString(),
+    });
+  }
+
+  // Device-local backup using device key
   const key = await getOrCreateDbKey();
   const { ciphertext, iv } = await encryptDbBlob(data, key);
+
   return JSON.stringify({
     v: "ppro-encrypted-backup-v1",
     iv: bytesToBase64(iv),
     ciphertext: bytesToBase64(ciphertext),
+    created_at: new Date().toISOString(),
   });
 }
 
-export async function restore_database(args: { backup_data: string }): Promise<void> {
+export async function restore_database(args: { backup_data: string; passphrase?: string }): Promise<void> {
   let dbBytes: Uint8Array;
   
   try {
     const parsed = JSON.parse(args.backup_data);
-    if (parsed?.v === "ppro-encrypted-backup-v1" && parsed.ciphertext && parsed.iv) {
-      const { getOrCreateDbKey, decryptDbBlob } = await import("../crypto-store");
-      const { base64ToBytes } = await import("./sharingCommands");
-      const key = await getOrCreateDbKey();
+    const { getOrCreateDbKey, decryptDbBlob, deriveKeyFromPassphrase } = await import("../crypto-store");
+    const { base64ToBytes } = await import("./sharingCommands");
+
+    if (parsed?.v === "ppro-encrypted-backup-v2" && parsed.ciphertext && parsed.iv) {
+      if (!parsed.salt) {
+        throw new Error("Invalid v2 backup: missing PBKDF2 salt");
+      }
+      if (!args.passphrase || args.passphrase.trim().length === 0) {
+        throw new Error("Passphrase required to restore this encrypted backup");
+      }
+      const salt = base64ToBytes(parsed.salt);
+      const iterations = typeof parsed.iterations === "number" ? parsed.iterations : 256_000;
+      const key = await deriveKeyFromPassphrase(args.passphrase.trim(), salt, iterations);
+      const iv = base64ToBytes(parsed.iv);
+      const ciphertext = base64ToBytes(parsed.ciphertext);
+      dbBytes = await decryptDbBlob(ciphertext, iv, key);
+    } else if (parsed?.v === "ppro-encrypted-backup-v1" && parsed.ciphertext && parsed.iv) {
+      const key = await getOrCreateDbKey(args.passphrase);
       const iv = base64ToBytes(parsed.iv);
       const ciphertext = base64ToBytes(parsed.ciphertext);
       dbBytes = await decryptDbBlob(ciphertext, iv, key);
     } else {
       throw new Error("Unknown backup payload format");
     }
-  } catch {
+  } catch (err) {
     // Fallback: legacy unencrypted SQLite binary dump
-    const raw = atob(args.backup_data);
-    if (raw.length < 16 || !raw.startsWith("SQLite format 3\0")) {
-      throw new Error("Invalid backup file: not a valid encrypted backup or SQLite database");
+    try {
+      const raw = atob(args.backup_data);
+      if (raw.length < 16 || !raw.startsWith("SQLite format 3\0")) {
+        throw new Error("Invalid backup file");
+      }
+      dbBytes = new Uint8Array(raw.length);
+      for (let i = 0; i < raw.length; i++) dbBytes[i] = raw.charCodeAt(i);
+    } catch {
+      throw new Error(
+        "Invalid backup file: failed to decrypt backup payload. " +
+        (err instanceof Error ? err.message : "Ensure correct passphrase or backup file.")
+      );
     }
-    dbBytes = new Uint8Array(raw.length);
-    for (let i = 0; i < raw.length; i++) dbBytes[i] = raw.charCodeAt(i);
   }
 
+  const { exportDb, importDb } = await import("../db");
+  try {
+    const currentBytes = await exportDb();
+    const { getOrCreateDbKey, encryptDbBlob } = await import("../crypto-store");
+    const { set, createStore, keys, del } = await import("idb-keyval");
+    const key = await getOrCreateDbKey();
+    const { ciphertext, iv } = await encryptDbBlob(currentBytes, key);
+    const safetyStore = createStore("pedigree_pro", "safety_backups");
+    const newSnapshotId = `pre_restore_${Date.now()}`;
+    await set(newSnapshotId, { ciphertext, iv, created_at: new Date().toISOString() }, safetyStore);
+
+    // Prune safety snapshots to keep at most the latest 2
+    const allKeys = await keys(safetyStore);
+    const snapshotKeys = allKeys
+      .filter((k): k is string => typeof k === "string" && k.startsWith("pre_restore_"))
+      .sort();
+    while (snapshotKeys.length > 2) {
+      const oldest = snapshotKeys.shift()!;
+      await del(oldest, safetyStore);
+    }
+  } catch (safetyErr) {
+    console.warn("[restore_database] Could not create pre-restore safety snapshot:", safetyErr);
+  }
+
+  await importDb(dbBytes);
+}
+
+export async function get_safety_snapshots(): Promise<import("./types").SafetySnapshot[]> {
+  try {
+    const { createStore, keys, get } = await import("idb-keyval");
+    const safetyStore = createStore("pedigree_pro", "safety_backups");
+    const allKeys = await keys(safetyStore);
+    const snapshotKeys = allKeys
+      .filter((k): k is string => typeof k === "string" && k.startsWith("pre_restore_"))
+      .sort()
+      .reverse();
+
+    const snapshots: import("./types").SafetySnapshot[] = [];
+    for (const key of snapshotKeys) {
+      const data = await get<{ created_at?: string }>(key, safetyStore);
+      if (data?.created_at) {
+        snapshots.push({ id: key, created_at: data.created_at });
+      }
+    }
+    return snapshots;
+  } catch (err) {
+    console.warn("[get_safety_snapshots] Failed to load safety snapshots:", err);
+    return [];
+  }
+}
+
+export async function restore_safety_snapshot(args: { snapshot_id: string }): Promise<void> {
+  const { createStore, get } = await import("idb-keyval");
+  const { getOrCreateDbKey, decryptDbBlob } = await import("../crypto-store");
   const { importDb } = await import("../db");
+  const safetyStore = createStore("pedigree_pro", "safety_backups");
+  const snapshot = await get<{ ciphertext?: Uint8Array; iv?: Uint8Array }>(args.snapshot_id, safetyStore);
+
+  if (!snapshot || !snapshot.ciphertext || !snapshot.iv) {
+    throw new Error(`Safety snapshot not found or corrupted: ${args.snapshot_id}`);
+  }
+
+  const key = await getOrCreateDbKey();
+  const dbBytes = await decryptDbBlob(snapshot.ciphertext, snapshot.iv, key);
   await importDb(dbBytes);
 }
 

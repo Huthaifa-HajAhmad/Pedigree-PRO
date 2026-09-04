@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useSharePedigree, useListProfiles } from "@workspace/api-client-react";
 import { Link2, Copy, Check, ExternalLink, Shield, ShieldAlert, Key, AlertTriangle, Mail, Loader2, Clock, Info, ShieldX } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -29,12 +29,39 @@ export function ShareModal({
 }: ShareModalProps) {
   const [relayCopied, setRelayCopied] = useState(false);
   const [recipientKey, setRecipientKey] = useState("");
-  const [shareData, setShareData] = useState<{ token: string; shareUrl: string } | null>(null);
+  const [shareData, setShareData] = useState<{ token: string; shareUrl: string; revokeToken?: string; expiresAt?: string } | null>(null);
   const [myKeyCopied, setMyKeyCopied] = useState(false);
   const [generateCooldown, setGenerateCooldown] = useState(false);
   const [isRevoking, setIsRevoking] = useState(false);
   const [revokeSuccess, setRevokeSuccess] = useState(false);
   const [revokeError, setRevokeError] = useState<string | null>(null);
+
+  const ACTIVE_SHARE_STORAGE_KEY = `ppro:active_share:${pedigreeId}`;
+
+  // Restore active unexpired share from local storage on mount
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem(ACTIVE_SHARE_STORAGE_KEY);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (parsed && typeof parsed.token === "string" && typeof parsed.shareUrl === "string") {
+          const expiresAt = parsed.expiresAt ? new Date(parsed.expiresAt).getTime() : 0;
+          if (expiresAt === 0 || Date.now() < expiresAt) {
+            setShareData({
+              token: parsed.token,
+              shareUrl: parsed.shareUrl,
+              revokeToken: parsed.revokeToken,
+              expiresAt: parsed.expiresAt,
+            });
+          } else {
+            localStorage.removeItem(ACTIVE_SHARE_STORAGE_KEY);
+          }
+        }
+      }
+    } catch {
+      // Ignore storage read errors
+    }
+  }, [pedigreeId, ACTIVE_SHARE_STORAGE_KEY]);
 
   const shareMutation = useSharePedigree();
   const { data: profiles } = useListProfiles();
@@ -45,10 +72,13 @@ export function ShareModal({
 
   const formattedDate = useMemo(() => new Date().toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" }), []);
   const expiryDate = useMemo(() => {
+    if (shareData?.expiresAt) {
+      return new Date(shareData.expiresAt).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
+    }
     const d = new Date();
     d.setDate(d.getDate() + 7);
     return d.toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
-  }, []);
+  }, [shareData?.expiresAt]);
 
   const handleGenerateRelay = async () => {
     if (generateCooldown) return;
@@ -62,13 +92,32 @@ export function ShareModal({
     shareMutation.mutate(
       { pedigreeId, recipientKey: key },
       {
-        onSuccess: (data: { share_token: string; share_url?: string }) => {
+        onSuccess: (data: { share_token: string; share_url?: string; revoke_token?: string; expires_at?: string }) => {
           const shareUrl = data.share_url || (
             isTauriDesktop()
               ? `${PUBLIC_APP_URL}/share/${data.share_token}`
               : `${window.location.origin}${import.meta.env.BASE_URL.replace(/\/$/, "")}/share/${data.share_token}`
           );
-          setShareData({ token: data.share_token, shareUrl });
+          // Prefer authoritative server expiration timestamp; fallback to +7 days for offline shares
+          const expiresAt = data.expires_at || (() => {
+            const d = new Date();
+            d.setDate(d.getDate() + 7);
+            return d.toISOString();
+          })();
+          // Note: Storing under ppro:active_share:${pedigreeId} preserves the most recent active
+          // share for this pedigree so the clinician can return and revoke it within the TTL window.
+          const activeShare = {
+            token: data.share_token,
+            shareUrl,
+            revokeToken: data.revoke_token,
+            expiresAt,
+          };
+          try {
+            localStorage.setItem(ACTIVE_SHARE_STORAGE_KEY, JSON.stringify(activeShare));
+          } catch {
+            // Storage quota exceeded or disabled
+          }
+          setShareData(activeShare);
           setRevokeSuccess(false);
           setRevokeError(null);
         },
@@ -121,7 +170,12 @@ export function ShareModal({
     setRevokeError(null);
     try {
       const { relayRevoke } = await import("@workspace/api-client-react");
-      await relayRevoke(shareData.token);
+      await relayRevoke(shareData.token, shareData.revokeToken);
+      try {
+        localStorage.removeItem(ACTIVE_SHARE_STORAGE_KEY);
+      } catch {
+        // Storage cleanup
+      }
       setShareData(null);
       setRevokeSuccess(true);
     } catch (err) {
@@ -290,7 +344,18 @@ export function ShareModal({
                   </div>
 
                   <div className="flex justify-end">
-                    <Button variant="link" size="sm" onClick={() => { setShareData(null); setRecipientKey(""); }} className="text-xs text-muted-foreground hover:text-foreground">
+                    <Button
+                      variant="link"
+                      size="sm"
+                      onClick={() => {
+                        try {
+                          localStorage.removeItem(ACTIVE_SHARE_STORAGE_KEY);
+                        } catch {}
+                        setShareData(null);
+                        setRecipientKey("");
+                      }}
+                      className="text-xs text-muted-foreground hover:text-foreground"
+                    >
                       Generate another link
                     </Button>
                   </div>
@@ -309,9 +374,12 @@ export function ShareModal({
                   <div className="p-3 rounded-lg border border-teal-500/20 bg-teal-500/5 text-slate-600 dark:text-slate-300 text-[10px] leading-relaxed font-sans">
                     <div className="font-semibold text-teal-600 dark:text-teal-400 mb-1.5 flex items-center gap-1.5">
                       <Info className="w-3.5 h-3.5 shrink-0" />
-                      <span>Share Actions Guide</span>
+                      <span>Share Actions Guide & Privacy</span>
                     </div>
                     <ul className="space-y-1.5 list-disc pl-3">
+                      <li>
+                        <strong>Zero-Knowledge Relay:</strong> The relay server only sees end-to-end encrypted ciphertext. It never possesses private keys and cannot view clinical data.
+                      </li>
                       <li>
                         <strong>Email:</strong> Automatically composes an email draft in your local system mail client.
                       </li>

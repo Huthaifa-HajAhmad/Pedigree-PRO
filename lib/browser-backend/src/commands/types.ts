@@ -143,6 +143,8 @@ export interface Preferences {
 export interface ShareResult {
   share_token: string;
   share_url: string;
+  revoke_token?: string;
+  expires_at?: string;
 }
 
 export interface SharedPedigreeView {
@@ -154,7 +156,11 @@ export interface SharedPedigreeView {
   decryptError?: string;
 }
 
-// Legacy Import
+export interface SafetySnapshot {
+  id: string;
+  created_at: string;
+}
+
 export interface LegacyImportSummary {
   patients_imported: number;
   pedigrees_imported: number;

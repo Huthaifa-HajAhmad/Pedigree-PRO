@@ -169,6 +169,8 @@ pub struct Preferences {
 pub struct ShareResult {
     pub share_token: String,
     pub share_url: String,
+    pub revoke_token: Option<String>,
+    pub expires_at: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -177,24 +179,88 @@ pub struct RelayPayload {
     pub encrypted_key: String,
 }
 
-// =============================================================================
-// Profile Commands
-// =============================================================================
+#[derive(Debug, Serialize, Deserialize)]
+pub struct SafetySnapshot {
+    pub id: String,
+    pub created_at: String,
+}
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct ProfileWithPrivateKey {
-    pub profile: Profile,
+pub struct ProfileKeyEntry {
+    pub profile_id: String,
     pub private_key: String,
 }
 
-#[tauri::command]
+const PROFILE_KEY_SERVICE: &str = "org.pedigreepro.app.profiles";
+
+fn get_profile_keyring_entry(profile_id: &str) -> Result<keyring::Entry, String> {
+    keyring::Entry::new(PROFILE_KEY_SERVICE, &format!("profile_{}", profile_id))
+        .map_err(|e| format!("Failed to access OS keychain for profile {}: {}", profile_id, e))
+}
+
+#[tauri::command(rename_all = "snake_case")]
+pub fn store_profile_key(profile_id: String, private_key: String) -> Result<(), String> {
+    let entry = get_profile_keyring_entry(&profile_id)?;
+    entry
+        .set_password(&private_key)
+        .map_err(|e| format!("Failed to store profile private key in OS keychain: {}", e))
+}
+
+#[tauri::command(rename_all = "snake_case")]
+pub fn get_profile_key(profile_id: String) -> Result<String, String> {
+    let entry = get_profile_keyring_entry(&profile_id)?;
+    entry
+        .get_password()
+        .map_err(|e| format!("Failed to retrieve profile private key from OS keychain: {}", e))
+}
+
+#[tauri::command(rename_all = "snake_case")]
+pub fn delete_profile_key(profile_id: String) -> Result<(), String> {
+    if let Ok(entry) = get_profile_keyring_entry(&profile_id) {
+        let _ = entry.delete_password();
+    }
+    Ok(())
+}
+
+#[tauri::command(rename_all = "snake_case")]
+pub fn list_profile_keys(state: State<AppState>) -> Result<Vec<ProfileKeyEntry>, String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let mut stmt = db
+        .prepare("SELECT id FROM local_profiles ORDER BY last_used_at DESC")
+        .map_err(|e| e.to_string())?;
+    let profile_ids: Vec<String> = stmt
+        .query_map([], |row| row.get(0))
+        .map_err(|e| e.to_string())?
+        .filter_map(|r| r.ok())
+        .collect();
+
+    let mut entries = Vec::new();
+    for id in profile_ids {
+        if let Ok(entry) = get_profile_keyring_entry(&id) {
+            if let Ok(key) = entry.get_password() {
+                entries.push(ProfileKeyEntry {
+                    profile_id: id,
+                    private_key: key,
+                });
+            }
+        }
+    }
+    Ok(entries)
+}
+
+#[tauri::command(rename_all = "snake_case")]
 pub fn create_profile(
     state: State<AppState>,
     input: ProfileInput,
-) -> Result<ProfileWithPrivateKey, String> {
+) -> Result<Profile, String> {
     let db = state.db.lock().map_err(|e| e.to_string())?;
     let id = uuid::Uuid::new_v4().to_string();
     let (public_key, private_key) = signatures::generate_keypair();
+
+    // Store private key directly in OS Keychain on desktop
+    if let Ok(entry) = get_profile_keyring_entry(&id) {
+        let _ = entry.set_password(&private_key);
+    }
 
     db.execute(
         "INSERT INTO local_profiles (id, display_name, role_label, public_key, created_at, last_used_at)
@@ -207,23 +273,20 @@ pub fn create_profile(
     let _ = db.execute(
         "INSERT INTO activity_log (action, subject, actor_key, timestamp)
          VALUES ('profile_created', ?1, ?2, datetime('now'))",
-        params![input.display_name, public_key],
+        params![format!("profile_{}", id), public_key],
     );
 
-    Ok(ProfileWithPrivateKey {
-        profile: Profile {
-            id,
-            display_name: input.display_name,
-            role_label: input.role_label,
-            public_key,
-            created_at: chrono::Utc::now().to_rfc3339(),
-            last_used_at: chrono::Utc::now().to_rfc3339(),
-        },
-        private_key,
+    Ok(Profile {
+        id,
+        display_name: input.display_name,
+        role_label: input.role_label,
+        public_key,
+        created_at: chrono::Utc::now().to_rfc3339(),
+        last_used_at: chrono::Utc::now().to_rfc3339(),
     })
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub fn list_profiles(state: State<AppState>) -> Result<Vec<Profile>, String> {
     let db = state.db.lock().map_err(|e| e.to_string())?;
     let mut stmt = db
@@ -251,7 +314,7 @@ pub fn list_profiles(state: State<AppState>) -> Result<Vec<Profile>, String> {
     Ok(profiles)
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub fn switch_profile(state: State<AppState>, profile_id: String) -> Result<Profile, String> {
     let db = state.db.lock().map_err(|e| e.to_string())?;
 
@@ -289,17 +352,24 @@ pub fn switch_profile(state: State<AppState>, profile_id: String) -> Result<Prof
     Ok(profile)
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub fn delete_profile(state: State<AppState>, profile_id: String) -> Result<(), String> {
     let db = state.db.lock().map_err(|e| e.to_string())?;
 
-    let display_name: String = db
+    let exists: bool = db
         .query_row(
-            "SELECT display_name FROM local_profiles WHERE id = ?1",
+            "SELECT COUNT(*) > 0 FROM local_profiles WHERE id = ?1",
             params![profile_id],
             |row| row.get(0),
         )
-        .map_err(|e| format!("Profile not found: {}", e))?;
+        .unwrap_or(false);
+
+    if !exists {
+        return Err("Profile not found".to_string());
+    }
+
+    // Clean up OS Keychain entry
+    let _ = delete_profile_key(profile_id.clone());
 
     db.execute(
         "DELETE FROM local_profiles WHERE id = ?1",
@@ -311,13 +381,13 @@ pub fn delete_profile(state: State<AppState>, profile_id: String) -> Result<(), 
     let _ = db.execute(
         "INSERT INTO activity_log (action, subject, timestamp)
          VALUES ('profile_deleted', ?1, datetime('now'))",
-        params![display_name],
+        params![format!("profile_{}", profile_id)],
     );
 
     Ok(())
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub fn update_profile(
     state: State<AppState>,
     id: String,
@@ -360,7 +430,7 @@ pub fn update_profile(
     Ok(profile)
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub fn export_profile(
     _state: State<AppState>,
     _profile_id: String,
@@ -369,7 +439,7 @@ pub fn export_profile(
     Err("Profile export not yet implemented".to_string())
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub fn import_profile(
     _state: State<AppState>,
     _encrypted_blob: String,
@@ -382,7 +452,7 @@ pub fn import_profile(
 // Patient Commands
 // =============================================================================
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub fn list_patients(
     state: State<AppState>,
     search: Option<String>,
@@ -419,7 +489,7 @@ pub fn list_patients(
     Ok(patients)
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub fn get_patient(state: State<AppState>, id: i64) -> Result<Patient, String> {
     let db = state.db.lock().map_err(|e| e.to_string())?;
     db.query_row(
@@ -432,7 +502,7 @@ pub fn get_patient(state: State<AppState>, id: i64) -> Result<Patient, String> {
     .map_err(|e| format!("Patient not found: {}", e))
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub fn create_patient(
     state: State<AppState>,
     input: PatientInput,
@@ -460,7 +530,7 @@ pub fn create_patient(
     get_patient(state, id)
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub fn update_patient(
     state: State<AppState>,
     id: i64,
@@ -489,7 +559,7 @@ pub fn update_patient(
     get_patient(state, id)
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub fn delete_patient(state: State<AppState>, id: i64) -> Result<(), String> {
     let mut db = state.db.lock().map_err(|e| e.to_string())?;
     let tx = db.transaction().map_err(|e| e.to_string())?;
@@ -513,7 +583,7 @@ pub fn delete_patient(state: State<AppState>, id: i64) -> Result<(), String> {
 // Pedigree Commands
 // =============================================================================
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub fn list_pedigrees(
     state: State<AppState>,
     patient_id: Option<i64>,
@@ -523,7 +593,11 @@ pub fn list_pedigrees(
 
     let mut sql = String::from(
         "SELECT p.id, p.title, p.patient_id,
-                CAST(COALESCE(json_array_length(json_extract(p.canvas_data, '$.nodes')), 0) AS INTEGER) AS node_count,
+                CAST(COALESCE((
+                    SELECT pv.nodes_count FROM pedigree_versions pv
+                    WHERE pv.pedigree_id = p.id
+                    ORDER BY pv.version_number DESC LIMIT 1
+                ), CASE WHEN p.canvas_data IS NULL THEN 0 ELSE COALESCE(json_array_length(json_extract(p.canvas_data, '$.nodes')), 0) END) AS INTEGER) AS node_count,
                 CAST(COUNT(DISTINCT pv.id) AS INTEGER) AS version_count,
                 p.creator_key, p.created_at, p.updated_at
          FROM pedigrees p
@@ -577,7 +651,7 @@ pub fn list_pedigrees(
     Ok(summaries)
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub fn get_pedigree(state: State<AppState>, id: i64) -> Result<Pedigree, String> {
     let db = state.db.lock().map_err(|e| e.to_string())?;
     db.query_row(
@@ -590,7 +664,7 @@ pub fn get_pedigree(state: State<AppState>, id: i64) -> Result<Pedigree, String>
     .map_err(|e| format!("Pedigree not found: {}", e))
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub fn create_pedigree(
     state: State<AppState>,
     input: PedigreeInput,
@@ -624,10 +698,11 @@ pub fn create_pedigree(
 
     let id = tx.last_insert_rowid();
 
+    let pedigree_subj = format!("pedigree_{}", id);
     let _ = tx.execute(
         "INSERT INTO activity_log (action, subject, actor_key, timestamp)
          VALUES ('created', ?1, ?2, datetime('now'))",
-        params![input.title, input.creator_key],
+        params![pedigree_subj, input.creator_key],
     );
 
     tx.commit().map_err(|e| format!("Failed to commit transaction: {}", e))?;
@@ -635,7 +710,7 @@ pub fn create_pedigree(
     get_pedigree(state, id)
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub fn update_pedigree(
     state: State<AppState>,
     id: i64,
@@ -667,10 +742,11 @@ pub fn update_pedigree(
     )
     .map_err(|e| format!("Failed to update pedigree: {}", e))?;
 
+    let pedigree_subj = format!("pedigree_{}", id);
     let _ = tx.execute(
         "INSERT INTO activity_log (action, subject, actor_key, timestamp)
          VALUES ('updated', ?1, ?2, datetime('now'))",
-        params![input.title, input.creator_key],
+        params![pedigree_subj, input.creator_key],
     );
 
     tx.commit().map_err(|e| format!("Failed to commit transaction: {}", e))?;
@@ -678,18 +754,10 @@ pub fn update_pedigree(
     get_pedigree(state, id)
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub fn delete_pedigree(state: State<AppState>, id: i64) -> Result<(), String> {
     let mut db = state.db.lock().map_err(|e| e.to_string())?;
     let tx = db.transaction().map_err(|e| e.to_string())?;
-
-    let title: String = tx
-        .query_row(
-            "SELECT title FROM pedigrees WHERE id = ?1",
-            params![id],
-            |row| row.get(0),
-        )
-        .map_err(|e| format!("Pedigree not found: {}", e))?;
 
     // CASCADE DELETES
     let _ = tx.execute("DELETE FROM pedigree_versions WHERE pedigree_id = ?1", params![id]);
@@ -704,10 +772,11 @@ pub fn delete_pedigree(state: State<AppState>, id: i64) -> Result<(), String> {
         return Err("Pedigree not found".to_string());
     }
 
+    let pedigree_subj = format!("pedigree_{}", id);
     let _ = tx.execute(
         "INSERT INTO activity_log (action, subject, timestamp)
          VALUES ('deleted', ?1, datetime('now'))",
-        params![title],
+        params![pedigree_subj],
     );
 
     tx.commit().map_err(|e| format!("Failed to commit transaction: {}", e))?;
@@ -718,13 +787,13 @@ pub fn delete_pedigree(state: State<AppState>, id: i64) -> Result<(), String> {
 // Version Commands
 // =============================================================================
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub fn list_versions(state: State<AppState>, pedigree_id: i64) -> Result<Vec<PedigreeVersion>, String> {
     let db = state.db.lock().map_err(|e| e.to_string())?;
     let mut stmt = db
         .prepare(
             "SELECT id, pedigree_id, version_number, label, canvas_data, canvas_hash,
-                    thumbnail, saver_key, saver_signature, created_at
+                    thumbnail, saver_key, saver_signature, nodes_count, couple_count, created_at
              FROM pedigree_versions
              WHERE pedigree_id = ?1
              ORDER BY version_number DESC",
@@ -743,9 +812,9 @@ pub fn list_versions(state: State<AppState>, pedigree_id: i64) -> Result<Vec<Ped
                 thumbnail: row.get(6)?,
                 saver_key: row.get(7)?,
                 saver_signature: row.get(8)?,
-                nodes_count: None,
-                couple_count: None,
-                created_at: row.get(9)?,
+                nodes_count: row.get(9)?,
+                couple_count: row.get(10)?,
+                created_at: row.get(11)?,
             })
         })
         .map_err(|e| format!("Query error: {}", e))?
@@ -755,7 +824,7 @@ pub fn list_versions(state: State<AppState>, pedigree_id: i64) -> Result<Vec<Ped
     Ok(versions)
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub fn save_version(
     state: State<AppState>,
     pedigree_id: i64,
@@ -778,10 +847,25 @@ pub fn save_version(
     let next_version = last_version.unwrap_or(0) + 1;
     let canvas_hash = signatures::hash_sha256(input.canvas_data.as_bytes());
 
+    let nodes_count = serde_json::from_str::<serde_json::Value>(&input.canvas_data)
+        .ok()
+        .and_then(|v| v.get("nodes").and_then(|n| n.as_array()).map(|a| a.len() as i64))
+        .unwrap_or(0);
+    let couple_count = serde_json::from_str::<serde_json::Value>(&input.canvas_data)
+        .ok()
+        .and_then(|v| {
+            v.get("edges").and_then(|e| e.as_array()).map(|a| {
+                a.iter()
+                    .filter(|edge| edge.get("type").and_then(|t| t.as_str()) == Some("couple"))
+                    .count() as i64
+            })
+        })
+        .unwrap_or(0);
+
     db.execute(
         "INSERT INTO pedigree_versions (pedigree_id, version_number, label, canvas_data,
-         canvas_hash, thumbnail, saver_key, saver_signature, created_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, datetime('now'))",
+         canvas_hash, thumbnail, saver_key, saver_signature, nodes_count, couple_count, created_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, datetime('now'))",
         params![
             pedigree_id,
             next_version,
@@ -791,6 +875,8 @@ pub fn save_version(
             input.thumbnail,
             input.saver_key,
             input.saver_signature,
+            nodes_count,
+            couple_count,
         ],
     )
     .map_err(|e| format!("Failed to save version: {}", e))?;
@@ -799,7 +885,7 @@ pub fn save_version(
 
     db.query_row(
         "SELECT id, pedigree_id, version_number, label, canvas_data, canvas_hash,
-                thumbnail, saver_key, saver_signature, created_at
+                thumbnail, saver_key, saver_signature, nodes_count, couple_count, created_at
          FROM pedigree_versions WHERE id = ?1",
         params![id],
         |row| {
@@ -813,16 +899,16 @@ pub fn save_version(
                 thumbnail: row.get(6)?,
                 saver_key: row.get(7)?,
                 saver_signature: row.get(8)?,
-                nodes_count: None,
-                couple_count: None,
-                created_at: row.get(9)?,
+                nodes_count: row.get(9)?,
+                couple_count: row.get(10)?,
+                created_at: row.get(11)?,
             })
         },
     )
     .map_err(|e| format!("Failed to retrieve saved version: {}", e))
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub fn restore_version(
     state: State<AppState>,
     pedigree_id: i64,
@@ -851,7 +937,7 @@ pub fn restore_version(
     get_pedigree(state, pedigree_id)
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub fn delete_version(
     state: State<AppState>,
     pedigree_id: i64,
@@ -873,7 +959,7 @@ pub fn delete_version(
 // Dashboard Commands
 // =============================================================================
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub fn get_dashboard_stats(state: State<AppState>) -> Result<DashboardStats, String> {
     let db = state.db.lock().map_err(|e| e.to_string())?;
 
@@ -914,7 +1000,7 @@ pub fn get_dashboard_stats(state: State<AppState>) -> Result<DashboardStats, Str
     })
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub fn get_recent_activity(
     state: State<AppState>,
     limit: Option<i64>,
@@ -946,7 +1032,7 @@ pub fn get_recent_activity(
     Ok(activities)
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub fn clear_activity_log(state: State<AppState>) -> Result<(), String> {
     let db = state.db.lock().map_err(|e| e.to_string())?;
     db.execute("DELETE FROM activity_log", [])
@@ -958,7 +1044,7 @@ pub fn clear_activity_log(state: State<AppState>) -> Result<(), String> {
 // Preferences Commands
 // =============================================================================
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub fn get_preferences(state: State<AppState>) -> Result<Preferences, String> {
     let db = state.db.lock().map_err(|e| e.to_string())?;
 
@@ -990,7 +1076,7 @@ pub fn get_preferences(state: State<AppState>) -> Result<Preferences, String> {
     })
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub fn save_preferences(state: State<AppState>, theme: String) -> Result<Preferences, String> {
     let db = state.db.lock().map_err(|e| e.to_string())?;
     let device_id = db::read_device_id_from_db(&db)
@@ -1012,7 +1098,7 @@ pub fn save_preferences(state: State<AppState>, theme: String) -> Result<Prefere
 // Sharing Commands (Stubs — implemented in relay.rs)
 // =============================================================================
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub async fn share_pedigree(
     state: State<'_, AppState>,
     pedigree_id: i64,
@@ -1022,18 +1108,23 @@ pub async fn share_pedigree(
     Ok(ppro_json)
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub async fn relay_share(
     ciphertext: String,
     encrypted_key: String,
     ttl_hours: Option<u32>,
 ) -> Result<ShareResult, String> {
-    let (share_token, share_url) =
+    let (share_token, share_url, revoke_token, expires_at) =
         crate::relay::share_encrypted_payload(&ciphertext, &encrypted_key, ttl_hours).await?;
-    Ok(ShareResult { share_token, share_url })
+    Ok(ShareResult {
+        share_token,
+        share_url,
+        revoke_token,
+        expires_at: Some(expires_at),
+    })
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub async fn relay_receive(
     share_token: String,
 ) -> Result<RelayPayload, String> {
@@ -1042,14 +1133,15 @@ pub async fn relay_receive(
     Ok(RelayPayload { ciphertext, encrypted_key })
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub async fn relay_revoke(
     share_token: String,
+    revoke_token: Option<String>,
 ) -> Result<(), String> {
-    crate::relay::revoke_shared_payload(&share_token).await
+    crate::relay::revoke_shared_payload(&share_token, revoke_token.as_deref()).await
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub async fn import_shared(
     share_token: String,
     _importer_key: Option<String>,
@@ -1069,16 +1161,40 @@ pub async fn import_shared(
 
 /// Creates a timestamped backup of the encrypted database file.
 /// Returns the filesystem path to the backup.
-#[tauri::command]
-pub fn backup_database(app: tauri::AppHandle) -> Result<String, String> {
+#[tauri::command(rename_all = "snake_case")]
+pub fn backup_database(app: tauri::AppHandle, state: State<AppState>) -> Result<String, String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    // Ensure all WAL changes are checkpointed to data.db before copying
+    db.execute_batch("PRAGMA wal_checkpoint(TRUNCATE);")
+        .map_err(|e| format!("Failed to checkpoint WAL before backup: {}", e))?;
+    drop(db);
     crate::db::backup_database(&app)
 }
 
 /// Restores the database from a backup file.
 /// Creates a safety backup of the current database before overwriting.
-#[tauri::command]
-pub fn restore_database(app: tauri::AppHandle, backup_path: String) -> Result<(), String> {
-    crate::db::restore_database(&app, &backup_path)
+#[tauri::command(rename_all = "snake_case")]
+pub fn restore_database(app: tauri::AppHandle, state: State<AppState>, backup_path: String) -> Result<(), String> {
+    let mut db = state.db.lock().map_err(|e| e.to_string())?;
+    let _ = db.execute_batch("PRAGMA wal_checkpoint(TRUNCATE);");
+    // Swap with an in-memory connection to release any OS file locks on data.db before file overwrite
+    *db = rusqlite::Connection::open_in_memory().map_err(|e| e.to_string())?;
+    crate::db::restore_database(&app, &backup_path)?;
+    let new_conn = crate::db::init_db(&app)?;
+    *db = new_conn;
+    Ok(())
+}
+
+/// Retrieves list of available pre-restore safety snapshots.
+#[tauri::command(rename_all = "snake_case")]
+pub fn get_safety_snapshots(app: tauri::AppHandle) -> Result<Vec<SafetySnapshot>, String> {
+    crate::db::list_safety_snapshots(&app)
+}
+
+/// Restores database from a specific pre-restore safety snapshot.
+#[tauri::command(rename_all = "snake_case")]
+pub fn restore_safety_snapshot(app: tauri::AppHandle, state: State<AppState>, snapshot_id: String) -> Result<(), String> {
+    restore_database(app, state, snapshot_id)
 }
 
 /// Rotates the SQLCipher encryption key.
@@ -1086,10 +1202,46 @@ pub fn restore_database(app: tauri::AppHandle, backup_path: String) -> Result<()
 /// Generates a new master secret, re-encrypts the database with it,
 /// and stores the new secret in the OS keychain.
 /// This should be done periodically for security hygiene.
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub fn rotate_key(app: tauri::AppHandle, state: State<AppState>) -> Result<(), String> {
     let db = state.db.lock().map_err(|e| e.to_string())?;
     crate::db::rotate_encryption_key(&app, &db)
+}
+
+/// Permanently wipes all client-side database data, backups, and keychain secrets on desktop.
+#[tauri::command(rename_all = "snake_case")]
+pub fn wipe_all_data(app: tauri::AppHandle, state: State<AppState>) -> Result<(), String> {
+    use tauri::Manager;
+    let app_dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| format!("Failed to resolve app data directory: {}", e))?;
+
+    let mut db = state.db.lock().map_err(|e| e.to_string())?;
+    let _ = db.execute_batch("PRAGMA wal_checkpoint(TRUNCATE);");
+
+    // Also delete all stored profile keys in keychain
+    let profiles: Vec<String> = db
+        .prepare("SELECT id FROM local_profiles")
+        .and_then(|mut stmt| {
+            stmt.query_map([], |row| row.get(0))
+                .map(|rows| rows.filter_map(|r| r.ok()).collect())
+        })
+        .unwrap_or_default();
+
+    for pid in profiles {
+        if let Ok(entry) = get_profile_keyring_entry(&pid) {
+            let _ = entry.delete_password();
+        }
+    }
+
+    crate::db::wipe_all_database_data(&app_dir)?;
+
+    // Re-initialize a fresh empty database
+    let new_conn = crate::db::init_db(&app)?;
+    *db = new_conn;
+
+    Ok(())
 }
 
 // =============================================================================
@@ -1103,7 +1255,7 @@ pub fn rotate_key(app: tauri::AppHandle, state: State<AppState>) -> Result<(), S
 ///
 /// The .ppro content is read from the file at `path` and imported with full
 /// cryptographic provenance verification.
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub fn import_pedigree_native(
     app: tauri::AppHandle,
     state: State<AppState>,
@@ -1122,7 +1274,7 @@ pub fn import_pedigree_native(
 
 /// Imports a pedigree from raw .ppro JSON content (not a file path).
 /// Used by the frontend after client-side decryption of shared data.
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub fn import_pedigree_from_json(
     state: State<AppState>,
     json_content: String,
@@ -1144,7 +1296,7 @@ pub fn import_pedigree_from_json(
 ///
 /// Returns a structured summary with counts of imported records and the
 /// migration profile key.
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub fn import_pedigree_legacy(
     app: tauri::AppHandle,
     state: State<AppState>,
@@ -1235,7 +1387,7 @@ fn map_summary_row(row: &rusqlite::Row) -> rusqlite::Result<SummaryRow> {
     })
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub fn disable_zoom(window: tauri::WebviewWindow) -> Result<(), String> {
     crate::configure_webview_zoom(&window);
     Ok(())

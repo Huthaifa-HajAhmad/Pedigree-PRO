@@ -8,7 +8,7 @@
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 [![Security: Local-First](https://img.shields.io/badge/Security-Zero--Server-emerald.svg)](docs/COMPLIANCE-HIPAA.md)
 
-A privacy-first pedigree drawing tool for clinical geneticists and researchers. No cloud. No accounts. No data leaves your device.
+A privacy-first pedigree drawing tool for clinical geneticists and researchers. Local-first storage by default. No mandatory accounts or central databases.
 
 [Download](#installation) · [Features](#features) · [Architecture](#architecture) · [Contributing](CONTRIBUTING.md) · [Security](SECURITY.md) · [Roadmap](ROADMAP.md)
 
@@ -84,7 +84,7 @@ A privacy-first pedigree drawing tool for clinical geneticists and researchers. 
 - Comprehensive mutation audit trail for clinical governance
 
 ### Privacy & Compliance
-- **Zero-server architecture** — no cloud, no accounts, no telemetry
+- **Local-first zero-server core** — all PHI stored securely on your local device
 - **Encrypted at rest** — AES-256-GCM (browser) or SQLCipher (desktop)
 - **HIPAA-aligned** — no third-party services, keys stored in IndexedDB (never localStorage)
 - Self-hosted fonts — no Google Fonts CDN calls (IP leak prevention)
@@ -236,13 +236,15 @@ npx vite build --config artifacts/ppro/vite.config.ts
 - **Desktop**: SQLCipher database file on disk.
 
 ### Profile Keys
-- Ed25519 keypairs generated in-browser via `@noble/ed25519`
-- Private keys stored exclusively in IndexedDB via `idb-keyval`
-- **Never stored in localStorage** (XSS-vulnerable)
+- **Desktop**: Private keys stored in the OS-native Keychain (Credential Manager on Windows, Keychain on macOS, Secret Service on Linux) via the Rust `keyring` crate.
+- **Browser**: Private keys stored in IndexedDB via `idb-keyval`.
+- **Never stored in localStorage** (XSS-vulnerable).
 
-### Data Privacy
-- No server. No cloud sync. All data stays on the local device.
-- Relay sharing uses zero-knowledge hybrid encryption; the relay operator never accesses plaintext data.
+### Data Privacy & Zero-Knowledge Sharing
+- **Local-First**: No mandatory server. No cloud sync. All clinical data stays on the local device.
+- **Zero-Knowledge Cloud Relay**: When sharing via links, data is encrypted end-to-end client-side (ephemeral Ed25519 + AES-GCM envelope). The relay worker in `services/relay/` sees only ciphertext and wrapped keys; it cannot decrypt or view PHI.
+- **Self-Hostable**: The sharing relay can be self-hosted by setting `VITE_RELAY_URL` to your own Cloudflare Worker or compatible endpoint.
+- **Portable Backups**: Encrypted backups (`.ppro` or JSON) embed PBKDF2 KDF parameters for secure cross-device passphrase portability.
 
 ---
 

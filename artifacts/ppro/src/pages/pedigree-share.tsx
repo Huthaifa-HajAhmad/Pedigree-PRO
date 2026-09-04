@@ -1,5 +1,5 @@
 import { useParams, Link, useLocation } from "wouter";
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useGetSharedPedigree, useImportShared } from "@workspace/api-client-react";
 import { ReadOnlyCanvas } from "@/features/pedigree-editor/canvas/ReadOnlyCanvas";
 import type { CanvasData } from "@/features/pedigree-editor/canvas/types";
@@ -25,6 +25,13 @@ export default function PedigreeShare() {
   const [retryKey, setRetryKey] = useState(0);
 
   const { data: pedigree, isLoading, isError, refetch } = useGetSharedPedigree(token ?? "");
+
+  // Auto-scrub key fragment from URL after successful decryption/load to protect against history/tab leaking
+  useEffect(() => {
+    if (pedigree && !pedigree.decryptError && typeof window !== "undefined" && window.location.hash) {
+      window.history.replaceState(null, "", window.location.pathname + window.location.search);
+    }
+  }, [pedigree]);
 
   const handleRetry = useCallback(() => {
     setRetryKey((k) => k + 1);
