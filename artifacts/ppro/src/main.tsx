@@ -8,7 +8,12 @@ import * as api from "@workspace/api-client-react";
 
 migrateLegacyKeys();
 
-if (typeof window !== "undefined" && import.meta.env.DEV) {
+if (
+  typeof window !== "undefined" &&
+  (import.meta.env.DEV ||
+    window.location.hostname === "localhost" ||
+    window.location.hostname === "127.0.0.1")
+) {
   (window as any).apiClient = api;
 }
 
