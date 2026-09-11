@@ -174,7 +174,7 @@ jobs:
       - run: pnpm --filter @workspace/api-client-react exec tsc -p tsconfig.json
       - run: pnpm --filter @workspace/ppro build
       - name: Deploy to Cloudflare Pages
-        uses: cloudflare/wrangler-action@v3
+        uses: cloudflare/wrangler-action@v4
         with:
           apiToken: ${{ secrets.CF_API_TOKEN }}
           accountId: ${{ secrets.CF_ACCOUNT_ID }}
@@ -195,7 +195,7 @@ jobs:
         with: { node-version: '22', cache: 'pnpm' }
       - run: pnpm install --no-frozen-lockfile --ignore-scripts
       - name: Deploy Relay Worker
-        uses: cloudflare/wrangler-action@v3
+        uses: cloudflare/wrangler-action@v4
         with:
           apiToken: ${{ secrets.CF_API_TOKEN }}
           accountId: ${{ secrets.CF_ACCOUNT_ID }}
