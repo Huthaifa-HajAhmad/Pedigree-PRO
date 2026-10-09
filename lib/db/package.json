@@ -14,15 +14,15 @@
     "init-sqlite": "node ../../scripts/init-sqlite-async.mjs"
   },
   "dependencies": {
-    "better-sqlite3": "^8.1.0",
+    "better-sqlite3": "^13.0.3",
     "drizzle-orm": "catalog:",
     "drizzle-zod": "^0.8.3",
-    "sql.js": "^1.14.1",
+    "sql.js": "^1.14.2",
     "zod": "catalog:"
   },
   "devDependencies": {
-    "@types/better-sqlite3": "^7.6.13",
+    "@types/better-sqlite3": "^9.6.0",
     "@types/node": "catalog:",
-    "drizzle-kit": "^0.31.9"
+    "drizzle-kit": "^0.31.11"
   }
 }

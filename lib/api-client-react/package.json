@@ -14,10 +14,10 @@
   },
   "peerDependencies": {
     "react": ">=18",
-    "@tauri-apps/api": "^2.11.0"
+    "@tauri-apps/api": "^2.12.1"
   },
   "devDependencies": {
-    "@tauri-apps/api": "^2.11.0",
+    "@tauri-apps/api": "^2.12.1",
     "typescript": "7.0.2"
   }
 }
