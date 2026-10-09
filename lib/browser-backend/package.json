@@ -17,8 +17,8 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "sql.js": "^1.14.1",
-    "idb-keyval": "^6.2.1",
+    "sql.js": "^1.14.2",
+    "idb-keyval": "^6.3.0",
     "@workspace/crypto": "workspace:*"
   },
   "devDependencies": {
