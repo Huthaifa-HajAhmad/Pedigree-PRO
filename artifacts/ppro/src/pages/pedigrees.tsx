@@ -81,10 +81,14 @@ export default function Pedigrees() {
     const cryptoModule = await import("@workspace/crypto");
     const creatorKey = activeProfile?.public_key ?? (privateKey ? await cryptoModule.getPublicKeyFromPrivate(privateKey) : "");
     const creatorSignature = privateKey ? await signData(canvasHash, privateKey) : null;
+    // The select uses the sentinel value "none" for "No patient". Passing it to
+    // parseInt() yields NaN, which then gets bound as a patient_id.
+    const parsedPatientId =
+      data.patientId && data.patientId !== "none" ? Number.parseInt(data.patientId, 10) : Number.NaN;
     createPedigree.mutate(
       {
         title: data.title,
-        patient_id: data.patientId ? parseInt(data.patientId, 10) : null,
+        patient_id: Number.isFinite(parsedPatientId) ? parsedPatientId : null,
         notes: data.notes ?? null,
         canvas_data: canvasData,
         canvas_hash: canvasHash,
