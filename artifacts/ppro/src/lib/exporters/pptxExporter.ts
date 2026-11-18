@@ -99,6 +99,49 @@ export async function exportPPTX(info: ExportInfo, canvas: ExportCanvas): Promis
 
     slide.addShape(shapeType, shapeOpts);
 
+    // Adoption is indicated with square brackets around the symbol.
+    if (n.adopted) {
+      const bw = nodeS * 0.42;
+      const bh = nodeS * 1.05;
+      slide.addText("[", {
+        x: px - nodeS / 2 - bw,
+        y: py - bh / 2,
+        w: bw,
+        h: bh,
+        fontSize: Math.max(8, nodeS * 22),
+        color: "0F172A",
+        fontFace: "Arial",
+        align: "right",
+        valign: "middle"
+      });
+      slide.addText("]", {
+        x: px + nodeS / 2,
+        y: py - bh / 2,
+        w: bw,
+        h: bh,
+        fontSize: Math.max(8, nodeS * 22),
+        color: "0F172A",
+        fontFace: "Arial",
+        align: "left",
+        valign: "middle"
+      });
+    }
+
+    if (n.insideText) {
+      slide.addText(n.insideText, {
+        x: px - nodeS / 2,
+        y: py - nodeS / 2,
+        w: nodeS,
+        h: nodeS,
+        fontSize: Math.max(6, nodeS * 14),
+        bold: true,
+        color: n.affected ? "FFFFFF" : "0F172A",
+        fontFace: "Arial",
+        align: "center",
+        valign: "middle"
+      });
+    }
+
     if (n.carrier && !n.affected) {
       const dotSize = nodeS * 0.28;
       slide.addShape(pptx.ShapeType.ellipse, {
@@ -147,8 +190,15 @@ export async function exportPPTX(info: ExportInfo, canvas: ExportCanvas): Promis
 
     const texts: string[] = [];
     if (n.label) texts.push(n.label);
-    if (n.age) texts.push(`${n.age}y`);
+    if (n.age) {
+      const ageText = n.age.toLowerCase();
+      texts.push(ageText.endsWith("m") || ageText.endsWith("y") ? n.age : `${n.age}y`);
+    }
     if (n.condition) texts.push(n.condition);
+    const genotypes = [n.genotype, n.genotype2, ...(n.additionalGenotypes ?? [])].filter(
+      (g): g is string => typeof g === "string" && g.trim() !== "",
+    );
+    if (genotypes.length > 0) texts.push(genotypes.join("  "));
 
     if (texts.length > 0) {
       slide.addText(texts.join("\n"), {
@@ -230,7 +280,7 @@ export async function exportPPTX(info: ExportInfo, canvas: ExportCanvas): Promis
 
     if (children.length === 0) continue;
 
-    let mx = 0;
+    let mx: number | null = null;
     let my = 0;
 
     if (parentIds.length === 2) {
@@ -251,7 +301,9 @@ export async function exportPPTX(info: ExportInfo, canvas: ExportCanvas): Promis
       }
     }
 
-    if (mx === 0) continue;
+    // `mx` can legitimately be 0 (a node at the left edge of the plot area), so
+    // only skip when it was never resolved.
+    if (mx === null) continue;
 
     const cy = children[0]!.py;
     const midY = my + (cy - nodeSize / 2 - my) / 2;
@@ -312,7 +364,6 @@ export async function exportPPTX(info: ExportInfo, canvas: ExportCanvas): Promis
       shapeType = pptx.ShapeType.diamond;
     } else if (item.shape === "sab") {
       shapeType = pptx.ShapeType.triangle;
-      shapeOpts.rotate = 180;
       shapeOpts.fill = { color: "64748B" };
       shapeOpts.line = { color: "64748B", width: 1 };
     } else if (item.shape === "filled") {
@@ -488,6 +539,22 @@ export async function exportPPTX(info: ExportInfo, canvas: ExportCanvas): Promis
       slide.addShape(shapeType, shapeOpts);
     }
 
+    // Pregnancy carries a "P" inside the diamond, matching the canvas and legend panel.
+    if (item.shape === "pregnancy") {
+      slide.addText("P", {
+        x: lx,
+        y: ly - lSize / 2,
+        w: lSize,
+        h: lSize,
+        fontSize: 7,
+        bold: true,
+        color: "0F172A",
+        fontFace: "Arial",
+        align: "center",
+        valign: "middle"
+      });
+    }
+
     slide.addText(item.label, {
       x: lx + lSize + 0.06,
       y: ly - 0.12,
@@ -500,6 +567,44 @@ export async function exportPPTX(info: ExportInfo, canvas: ExportCanvas): Promis
       valign: "middle"
     });
   });
+
+  // Canvas annotations (free-floating annotations have no anchor and are skipped)
+  for (const ann of canvas.annotations ?? []) {
+    const pos = ann.nodeId ? nodePosMap.get(ann.nodeId) : undefined;
+    const annText = (ann.text ?? "").trim();
+    if (!pos || !annText) continue;
+
+    const offset = nodeSize / 2 + 0.12;
+    let ax = pos.px - 0.9;
+    let ay = pos.py + offset;
+    let aw = 1.8;
+    let align: "left" | "right" | "center" = "center";
+    if (ann.position === "above") {
+      ay = pos.py - offset - 0.2;
+    } else if (ann.position === "left") {
+      ax = pos.px - offset - 1.1;
+      ay = pos.py - 0.1;
+      aw = 1.1;
+      align = "right";
+    } else if (ann.position === "right") {
+      ax = pos.px + offset;
+      ay = pos.py - 0.1;
+      aw = 1.1;
+      align = "left";
+    }
+
+    slide.addText(annText, {
+      x: ax,
+      y: ay,
+      w: aw,
+      h: 0.3,
+      fontSize: Math.max(6, Math.min(12, (ann.fontSize || 10) * 0.7)),
+      color: (ann.color || "#475569").replace("#", ""),
+      fontFace: "Arial",
+      align,
+      valign: "middle"
+    });
+  }
 
   const blob = (await pptx.write({ outputType: "blob" })) as Blob;
   await triggerDownload(blob, `${safeFilename(info.title)}.pptx`);

@@ -9,6 +9,7 @@ export interface ExportNode {
   adopted?: boolean;
   label: string;
   stillbirth?: boolean;
+  insideText?: string;
   age: string;
   dob?: string;
   condition?: string;
