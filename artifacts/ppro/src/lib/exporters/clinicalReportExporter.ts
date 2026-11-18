@@ -592,17 +592,23 @@ export async function exportClinicalReport(info: ExportInfo, canvas: ExportCanva
     for (let i = 0; i < Math.min(allAnns.length, maxAnns); i++) {
       const ann  = allAnns[i];
       if (!ann) continue;
-      const node = byId.get(ann.nodeId);
-      const nl   = node?.label || node?.type || ann.nodeId;
+      const isFreeAnnotation = !ann.nodeId;
+      const node = isFreeAnnotation ? undefined : byId.get(ann.nodeId);
+      const nl   = isFreeAnnotation ? "" : (node?.label || node?.type || ann.nodeId);
       const r = parseInt(ann.color.slice(1, 3), 16) || 80;
       const g = parseInt(ann.color.slice(3, 5), 16) || 130;
       const b = parseInt(ann.color.slice(5, 7), 16) || 80;
-      doc.setTextColor(r, g, b); doc.setFontSize(6); doc.setFont("helvetica", "bold");
-      doc.text(`${nl}:`, M, cy + 3.5);
-      const nlW = doc.getTextWidth(`${nl}: `);
+      doc.setFontSize(6); doc.setFont("helvetica", "bold");
+      const prefixText = nl ? `${nl}:` : "";
+      let prefixW = 0;
+      if (prefixText) {
+        doc.setTextColor(r, g, b);
+        doc.text(prefixText, M, cy + 3.5);
+        prefixW = doc.getTextWidth(`${prefixText} `);
+      }
       doc.setFont("helvetica", "normal"); doc.setTextColor(80, 80, 80);
-      const annLines = doc.splitTextToSize(ann.text, CW - nlW - 12);
-      if (annLines[0]) doc.text(annLines[0], M + nlW + 1, cy + 3.5);
+      const annLines = doc.splitTextToSize(ann.text, CW - prefixW - 12);
+      if (annLines[0]) doc.text(annLines[0], M + prefixW + 1, cy + 3.5);
       doc.setTextColor(120, 120, 120); doc.setFontSize(5);
       doc.text(`(${ann.position})`, PW - M, cy + 3.5, { align: "right" });
       cy += 6;
