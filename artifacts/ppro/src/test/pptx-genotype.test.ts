@@ -48,5 +48,31 @@ it.each(["+/-", undefined])("does not append a blank line to node details (%s)",
   expect(runs).toBeDefined();
   expect(runs!.at(-1)!.options?.breakLine).toBe(false);
   expect(runs!.slice(0, -1).every((run) => run.options?.breakLine)).toBe(true);
-  if (genotype) expect(runs!.at(-1)).toMatchObject({ text: "+/-", options: { italic: true } });
+  if (genotype) expect(runs!.at(-1)).toMatchObject({ text: "+/-", options: { italic: false } });
+});
+
+it("italicises only written gene names in PPTX genotype runs", async () => {
+  const node: ExportNode = {
+    id: "person",
+    type: "male",
+    affected: false,
+    carrier: true,
+    deceased: false,
+    proband: false,
+    label: "Person",
+    x: 100,
+    y: 100,
+    genotype: "BRCA1 +/-",
+    genotype2: "F8 +/Y",
+  };
+  await exportPPTX({ title: "Synthetic pedigree" }, { nodes: [node], edges: [] });
+  const runs = texts.find((text): text is Run[] => Array.isArray(text));
+  expect(runs).toBeDefined();
+  expect(runs).toEqual([
+    { text: "Person", options: { breakLine: true } },
+    { text: "BRCA1", options: { italic: true } },
+    { text: " +/-  ", options: { italic: false } },
+    { text: "F8", options: { italic: true } },
+    { text: " +/Y", options: { italic: false, breakLine: false } },
+  ]);
 });

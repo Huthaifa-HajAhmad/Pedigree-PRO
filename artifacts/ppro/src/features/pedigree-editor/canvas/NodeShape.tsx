@@ -2,6 +2,7 @@ import { memo, useState, useRef, useCallback, useEffect } from "react";
 import type { PedigreeNode } from "./types";
 import { useCanvasConfig } from "@/features/pedigree-editor/context/CanvasConfigContext";
 import { getQuadrantsForStyle } from "@/features/pedigree-editor/utils/helpers";
+import { parseGenotypeSegments } from "@/lib/genotypeFormatting";
 
 
 interface NodeShapeProps {
@@ -246,20 +247,29 @@ export const NodeShape = memo(function NodeShape({
           const wildtypeColor = cfg.config.genotypeWildtypeColor || "#4B5563";
           const separatorColor = cfg.config.genotypeSeparatorColor || "#9CA3AF";
 
-          return Array.from(genotype).map((char, idx) => {
-            let fill = wildtypeColor;
-            let fontWeight = "normal";
-            if (char === "+") {
-              fill = mutantColor;
-              fontWeight = "bold";
-            } else if (char === "/") {
-              fill = separatorColor;
+          return parseGenotypeSegments(genotype).map((segment, segIdx) => {
+            if (segment.italic) {
+              return (
+                <tspan key={segIdx} fill={wildtypeColor} fontWeight="normal" fontStyle="italic">
+                  {segment.text}
+                </tspan>
+              );
             }
-            return (
-              <tspan key={idx} fill={fill} fontWeight={fontWeight}>
-                {char}
-              </tspan>
-            );
+            return Array.from(segment.text).map((char, charIdx) => {
+              let fill = wildtypeColor;
+              let fontWeight = "normal";
+              if (char === "+") {
+                fill = mutantColor;
+                fontWeight = "bold";
+              } else if (char === "/") {
+                fill = separatorColor;
+              }
+              return (
+                <tspan key={`${segIdx}-${charIdx}`} fill={fill} fontWeight={fontWeight} fontStyle="normal">
+                  {char}
+                </tspan>
+              );
+            });
           });
         };
 
@@ -283,7 +293,7 @@ export const NodeShape = memo(function NodeShape({
               const y = S / 2 + labelHeight + genotypeFontSize + genotypeOffset + idx * (genotypeFontSize + 2);
               return (
                 <text key={idx} x={0} y={y}
-                  textAnchor="middle" fontSize={cfg.config.genotypeFontSize ?? 12} style={{ userSelect: "none", fontFamily: "JetBrains Mono, monospace", fontStyle: "italic" }}>
+                  textAnchor="middle" fontSize={cfg.config.genotypeFontSize ?? 12} style={{ userSelect: "none", fontFamily: "JetBrains Mono, monospace" }}>
                   {renderGenotype(g)}
                 </text>
               );

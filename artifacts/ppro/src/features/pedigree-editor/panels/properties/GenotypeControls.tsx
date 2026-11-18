@@ -94,7 +94,7 @@ export function GenotypePresetPicker({
 
 /**
  * A single genotype row: label + add/remove affordance, the free-text input
- * (italic/monospace so the panel matches the canvas), and the preset picker.
+ * (monospace so symbols stay upright), and the preset picker.
  *
  * `mode="commit"` applies bulk edits on Enter or when the input loses focus.
  */
@@ -118,7 +118,7 @@ export function GenotypeField({
   mode?: "live" | "commit";
 }) {
   const inputClassName =
-    "w-full bg-background border border-border/80 rounded-lg px-2.5 py-1 text-xs font-mono italic outline-none hover:bg-accent/20 focus:border-muted-foreground/45 focus-visible:ring-0 shadow-none transition-all duration-200";
+    "w-full bg-background border border-border/80 rounded-lg px-2.5 py-1 text-xs font-mono outline-none hover:bg-accent/20 focus:border-muted-foreground/45 focus-visible:ring-0 shadow-none transition-all duration-200";
 
   return (
     <div className="space-y-1.5">

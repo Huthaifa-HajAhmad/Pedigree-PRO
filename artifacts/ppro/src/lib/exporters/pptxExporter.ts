@@ -1,4 +1,5 @@
 import { getQuadrantsForStyle } from "@/features/pedigree-editor/utils/helpers";
+import { parseGenotypeSegments } from "@/lib/genotypeFormatting";
 import { computeLegendItems } from "./legend";
 import type { ExportNode, ExportCanvas, ExportInfo } from "./types";
 import { safeFilename, triggerDownload } from "./utils";
@@ -198,8 +199,20 @@ export async function exportPPTX(info: ExportInfo, canvas: ExportCanvas): Promis
     const genotypes = [n.genotype, n.genotype2, ...(n.additionalGenotypes ?? [])].filter(
       (g): g is string => typeof g === "string" && g.trim() !== "",
     );
-    // Genotypes are italic on the canvas (clinical convention), keep parity here.
-    if (genotypes.length > 0) runs.push({ text: genotypes.join("  "), options: { italic: true, breakLine: true } });
+    // Only written gene names are italicised; allele and chromosome symbols stay upright.
+    if (genotypes.length > 0) {
+      const segments = parseGenotypeSegments(genotypes.join("  "));
+      segments.forEach((seg, idx) => {
+        const isLastSegment = idx === segments.length - 1;
+        runs.push({
+          text: seg.text,
+          options: {
+            italic: seg.italic,
+            ...(isLastSegment ? { breakLine: true } : {}),
+          },
+        });
+      });
+    }
 
     if (runs.length > 0) {
       runs[runs.length - 1]!.options!.breakLine = false;
