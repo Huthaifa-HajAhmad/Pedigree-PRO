@@ -1,7 +1,7 @@
 // Pedigree PRO — Library Root
 //
 // ─── Tauri Command Registration ───────────────────────────────────
-//   db.rs             — SQLCipher Database Engine (libsqlcipher-sys)
+//   db.rs             — Local database with SQLCipher-compatible encryption
 //   commands.rs       — Tauri IPC Command Handlers
 //   export.rs         — Encrypted Export (Ed25519 + AES-256-GCM)
 //   signatures.rs     — Ed25519 Keypair Generation & Signature Verification

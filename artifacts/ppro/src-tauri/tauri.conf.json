@@ -4,9 +4,9 @@
   "version": "1.4.0",
   "identifier": "org.pedigreepro.app",
   "build": {
-    "beforeDevCommand": "pnpm dev",
+    "beforeDevCommand": "node ../../scripts/build-native-database.mjs && pnpm dev",
     "devUrl": "http://localhost:4173",
-    "beforeBuildCommand": "npx vite build --config vite.config.ts",
+    "beforeBuildCommand": "node ../../scripts/build-native-database.mjs && pnpm build",
     "frontendDist": "../dist/public"
   },
   "app": {
@@ -32,13 +32,7 @@
     "active": true,
     "targets": "all",
     "category": "Medical",
-    "icon": [
-      "icons/32x32.png",
-      "icons/128x128.png",
-      "icons/128x128@2x.png",
-      "icons/icon.icns",
-      "icons/icon.ico"
-    ],
+    "icon": ["icons/32x32.png", "icons/128x128.png", "icons/128x128@2x.png", "icons/icon.icns", "icons/icon.ico"],
     "resources": [],
     "windows": {
       "wix": {

@@ -1,0 +1,9 @@
+# Prepare the static archive with scripts/build-native-database.mjs first.
+# These settings apply to all Cargo commands inside this repository. Its Rust
+# workspace shares one encryption engine; run unrelated Rust projects elsewhere.
+[env]
+SQLITE3_LIB_DIR = { value = "artifacts/ppro/src-tauri/database/native", relative = true, force = true }
+SQLITE3_INCLUDE_DIR = { value = "artifacts/ppro/src-tauri/database/vendor/sqlite3mc", relative = true, force = true }
+SQLITE3_STATIC = { value = "1", force = true }
+# pkg-config's probe checks this variable before running the system tool.
+SQLITE3_NO_PKG_CONFIG = { value = "1", force = true }

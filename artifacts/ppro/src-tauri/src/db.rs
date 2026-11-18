@@ -1,4 +1,4 @@
-// Pedigree PRO — Database Initialization (SQLCipher)
+// Pedigree PRO — Database Initialization (SQLCipher-compatible encryption)
 use rusqlite::Connection;
 use sha2::Sha256;
 use std::fs;
@@ -34,20 +34,15 @@ pub fn init_db(app: &AppHandle) -> Result<Connection, String> {
     let master_secret = get_or_create_master_secret(&key_path)?;
     let device_id = get_or_create_device_id(&db_path, db_exists)?;
 
-    let mut derived_key = vec![0u8; KEY_LEN];
+    let mut derived_key = [0u8; KEY_LEN];
     pbkdf2_hmac::<Sha512>(
         &master_secret,
         device_id.as_bytes(),
         PBKDF2_ITERATIONS,
         &mut derived_key,
     );
-    let key_hex = hex::encode(&derived_key);
-
-    let conn = Connection::open(&db_path)
+    let conn = ppro_database::open_encrypted(&db_path, &derived_key)
         .map_err(|e| format!("Failed to open database: {}", e))?;
-
-    conn.execute_batch(&format!("PRAGMA key = \"x'{}'\";", key_hex))
-        .map_err(|e| format!("Failed to set SQLCipher key: {}", e))?;
 
     let integrity_ok = conn.execute_batch("SELECT count(*) FROM sqlite_master;").is_ok();
 
@@ -186,16 +181,14 @@ pub fn rotate_encryption_key(app: &tauri::AppHandle, conn: &Connection) -> Resul
     let device_id = read_device_id_from_db(conn)
         .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
 
-    let mut derived_key = vec![0u8; 32];
+    let mut derived_key = [0u8; KEY_LEN];
     pbkdf2_hmac::<Sha512>(
         &new_secret,
         device_id.as_bytes(),
         PBKDF2_ITERATIONS,
         &mut derived_key,
     );
-    let new_key_hex = hex::encode(&derived_key);
-
-    conn.execute_batch(&format!("PRAGMA rekey = \"x'{}'\";", new_key_hex))
+    ppro_database::rekey(conn, &derived_key)
         .map_err(|e| format!("Failed to rekey database: {}", e))?;
 
     let new_secret_b64 = base64::engine::general_purpose::STANDARD.encode(&new_secret);
@@ -277,20 +270,15 @@ fn validate_backup_file(app: &tauri::AppHandle, backup_path: &str) -> Result<(),
     let master_secret = get_or_create_master_secret(&key_path)?;
     let device_id = get_or_create_device_id(&db_path, true)?;
 
-    let mut derived_key = vec![0u8; KEY_LEN];
+    let mut derived_key = [0u8; KEY_LEN];
     pbkdf2_hmac::<Sha512>(
         &master_secret,
         device_id.as_bytes(),
         PBKDF2_ITERATIONS,
         &mut derived_key,
     );
-    let key_hex = hex::encode(&derived_key);
-
-    let test_conn = Connection::open(backup_path)
+    let test_conn = ppro_database::open_encrypted(std::path::Path::new(backup_path), &derived_key)
         .map_err(|e| format!("Failed to open backup file: {}", e))?;
-    test_conn
-        .execute_batch(&format!("PRAGMA key = \"x'{}'\";", key_hex))
-        .map_err(|e| format!("Failed to set SQLCipher key on backup: {}", e))?;
 
     let count: Result<i64, _> = test_conn.query_row("SELECT count(*) FROM sqlite_master;", [], |r| r.get(0));
     if count.is_err() {

@@ -11,7 +11,8 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "check:tauri-commands": "node ./scripts/check-tauri-commands.js",
-    "test": "pnpm --filter @workspace/ppro run test"
+    "test": "pnpm --filter @workspace/ppro run test",
+    "test:native": "node --test scripts/native-database-build.test.mjs && cargo test --manifest-path artifacts/ppro/src-tauri/Cargo.toml -p ppro-database --locked"
   },
   "private": true,
   "devDependencies": {

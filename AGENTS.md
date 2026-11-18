@@ -4,7 +4,7 @@
 
 Pedigree PRO is a zero-server clinical pedigree editor. It runs in two modes:
 
-1. **Tauri desktop** (`tauri`): Rust backend + SQLCipher SQLite (local filesystem)
+1. **Tauri desktop** (`tauri`): Rust backend + SQLite3 Multiple Ciphers in SQLCipher 4 compatibility mode (local filesystem)
 2. **Browser standalone** (`browser`): sql.js WASM SQLite + IndexedDB persistence + Web Crypto API
 
 The frontend uses a unified adapter (`lib/api-client-react/src/adapter.ts`) that detects the runtime mode and routes all data operations to the appropriate backend. No REST API, no Postgres, no internet required.
@@ -55,11 +55,7 @@ cd artifacts/ppro
 pnpm tauri build
 ```
 
-**Local build requires Perl** for `bundled-sqlcipher-vendored-openssl` (the `openssl-sys` crate compiles OpenSSL from source). Install via:
-```bash
-choco install strawberryperl -y
-```
-On GitHub Windows runners, `choco install strawberryperl -y --no-progress` is used in CI (see `.github/workflows/build.yml`).
+Desktop encryption uses pinned SQLite3 Multiple Ciphers 2.7.1 source, compiled statically with the platform C compiler. Perl and OpenSSL are not required. Tauri build/dev hooks run `scripts/build-native-database.mjs` automatically. Before direct Cargo commands, run that script from the repository root. Run `pnpm test:native` for encryption tests. `.cargo/config.toml` forces the prepared library instead of system SQLite. Keep `cipher=sqlcipher` and `legacy=4` before applying raw keys.
 
 ## Security Model
 
@@ -231,7 +227,7 @@ Invoke-WebRequest -Uri "http://127.0.0.1:3788/console?limit=20" -UseBasicParsing
 The `Build & Release` workflow triggers on pushes to `main` (typecheck + test + deploy-web) and on `v*` tags (full build + release).
 
 **Tag-triggered builds** produce artifacts for all three platforms:
-- **Windows**: `windows-latest` runner, installs Strawberry Perl via Chocolatey for vendored-openssl build, produces `.exe` (NSIS) + `.msi`
+- **Windows**: `windows-latest` runner, compiles SQLite3 Multiple Ciphers with MSVC (no Perl), produces `.exe` (NSIS) + `.msi`
 - **macOS**: `macos-latest` runner, builds universal (`aarch64-apple-darwin` + `x86_64-apple-darwin`), produces `.dmg`
 - **Linux**: `ubuntu-latest` runner, installs `libwebkit2gtk-4.1-dev` etc., produces `.AppImage` + `.deb` + `.rpm`
 
@@ -255,10 +251,10 @@ git tag v1.2.2
 git push origin v1.2.2
 ```
 
-**Key learnings from v1.2.2 CI debugging:**
+**Historical learnings from v1.2.2 CI debugging (encryption build superseded by SQLite3 Multiple Ciphers):**
 - `choco install openssl` on GitHub Windows runners installs to inconsistent paths (`C:\Program Files\OpenSSL-Win64` vs `C:\OpenSSL-Win64`), and the lib structure (`lib/VC/x64/MD/`) doesn't match what `openssl-sys` expects by default. **Do not use this approach.**
-- `bundled-sqlcipher-vendored-openssl` is the correct rusqlite feature: it compiles OpenSSL from source and links statically, eliminating DLL distribution entirely.
-- Strawberry Perl is required on Windows for the vendored OpenSSL build (used by `openssl-sys`'s `Makefile`-based build process).
+- The former `bundled-sqlcipher-vendored-openssl` feature compiled OpenSSL from source and linked statically. Current builds use SQLite3 Multiple Ciphers instead.
+- Strawberry Perl was required on Windows for the former vendored OpenSSL build (used by `openssl-sys`'s `Makefile`-based build process).
 - Tauri v2 auto-merges `tauri.{platform}.conf.json` files (e.g., `tauri.windows.conf.json`). If you create one, it will be deep-merged into `tauri.conf.json` at build time. With vendored openssl, no platform-specific config is needed.
 - PowerShell heredocs (`<<'EOF'`) don't work with `gh release edit --notes-file`. Write to a temp file and use `--notes-file path/to/file.md` instead.
 - `gh release edit --notes` (inline) truncates multi-line content in PowerShell. Always use `--notes-file`.
@@ -379,4 +375,4 @@ Prior approaches attempted (all failed):
 - `useVersionManagement.ts` was deleted (dead code, never referenced).
 - All `.hpcl` references rebranded to `.ppro` across source files (Rust, TypeScript, docs). Internal draft key prefixes (`haplopainter_draft_*`) retained as they are localStorage keys, not user-facing.
 - `tauri.windows.conf.json` was deleted (June 2026) — no longer needed because `bundled-sqlcipher-vendored-openssl` links OpenSSL statically instead of bundling DLLs.
-- `bundled-sqlcipher` was replaced with `bundled-sqlcipher-vendored-openssl` in `artifacts/ppro/src-tauri/Cargo.toml`. This compiles OpenSSL from source during `cargo build`, requiring Perl on Windows. The benefit: no external DLLs to distribute, no fragile PATH detection on CI.
+- `bundled-sqlcipher` was replaced with `bundled-sqlcipher-vendored-openssl` in `artifacts/ppro/src-tauri/Cargo.toml`. That historical configuration compiled OpenSSL from source during `cargo build`, requiring Perl on Windows. Current builds use SQLite3 Multiple Ciphers without OpenSSL or Perl. The benefit: no external DLLs to distribute, no fragile PATH detection on CI.

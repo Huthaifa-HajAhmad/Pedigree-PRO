@@ -5,6 +5,15 @@
 **Depends on:** ADR-001 (Trust Model), ADR-002 (Schema Redesign)  
 **Supersedes:** `lib/db/src/sqlite-adapter.ts` dual-driver approach (extended, not replaced)
 
+
+## Desktop encryption update (2026-11-18)
+
+This update supersedes the desktop SQLCipher/OpenSSL build selection in the original draft below. Desktop builds now use pinned SQLite3 Multiple Ciphers 2.7.1 source, statically linked through upstream rusqlite 0.31. The SQLCipher 4 file format is retained: AES-256-CBC with HMAC-SHA512 page authentication. Existing raw 32-byte keys, database files, and backups keep their format. `cipher=sqlcipher` and `legacy=4` are set before the key. No data-format migration, OpenSSL, or Perl is required.
+
+The platform C compiler builds the library through `scripts/build-native-database.mjs`, called by the Tauri build/dev hooks. Direct Cargo commands require that preparation step. `pnpm test:native` prepares the library and tests compatibility, encryption, key rotation, backups, and schema migrations. Native tests run on Windows, macOS, and Linux in CI.
+
+Browser mode continues to use sql.js, with the database blob encrypted using Web Crypto AES-256-GCM before IndexedDB storage. Earlier browser SQLCipher/OPFS proposals in this draft do not describe the current implementation.
+
 ---
 
 ## 1. Context

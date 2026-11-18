@@ -11,16 +11,16 @@ Third-Party Software and Attributions
 This project bundles or depends on third-party software components licensed under
 permissive open-source licenses:
 
-1. SQLCipher
-   Copyright (c) 2008-2024, ZETETIC LLC
-   Licensed under the BSD-style License.
-   https://www.zetetic.net/sqlcipher/
+1. SQLite3 Multiple Ciphers 2.7.1
+   Copyright (c) 2019-2026 Ulrich Telle
+   Licensed under the MIT License.
+   https://github.com/utelle/SQLite3MultipleCiphers
+   Bundled component license notices remain in the unmodified source under
+   artifacts/ppro/src-tauri/database/vendor/sqlite3mc/.
 
-2. OpenSSL Toolkit
-   Copyright (c) 1998-2024 The OpenSSL Project.
-   Copyright (c) 1995-1998 Eric A. Young, Tim J. Hudson.
-   Licensed under the Apache License 2.0 / OpenSSL License.
-   https://www.openssl.org/
+2. SQLite
+   Dedicated to the public domain.
+   https://www.sqlite.org/copyright.html
 
 3. sql.js (SQLite compiled to WebAssembly)
    Copyright (c) 2021 Alon Zakai, sql.js contributors.

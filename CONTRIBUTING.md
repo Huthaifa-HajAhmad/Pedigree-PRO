@@ -18,7 +18,7 @@ Before writing code, please review our core architectural rules:
 
 ### 1. Dual-Build Parity Mandate (Strict)
 Pedigree PRO operates in two runtime modes from a unified codebase:
-1. **Tauri Desktop (`tauri`)**: Rust backend + SQLCipher SQLite on the local filesystem.
+1. **Tauri Desktop (`tauri`)**: Rust backend + SQLite3 Multiple Ciphers on the local filesystem, using the SQLCipher 4 file format.
 2. **Browser Standalone (`browser`)**: sql.js WASM SQLite + IndexedDB persistence + Web Crypto API.
 
 **Every feature, bug fix, or code change in `artifacts/ppro/src/` or `lib/` MUST be implemented and verified for BOTH modes.**
@@ -41,7 +41,9 @@ The pedigree auto-layout engine (`artifacts/ppro/src/lib/layout-engine.ts`) hand
 * **Node.js** (v22+ LTS recommended)
 * **pnpm** (`npm install -g pnpm`)
 * **Rust toolchain** (required only for Tauri desktop builds)
-* **Windows Desktop Builds Only:** [Strawberry Perl](https://strawberryperl.com/) (required to compile vendored OpenSSL statically from source: `choco install strawberryperl -y`).
+* **Native desktop builds:** a C compiler (Visual Studio C++ Build Tools and Windows SDK on Windows, Xcode command-line tools on macOS, GCC/Clang on Linux). Perl and OpenSSL are not required.
+
+Tauri commands prepare the static SQLite3 Multiple Ciphers library automatically. Run `pnpm test:native` from the repository root for encryption regression tests. Before direct Cargo commands, run `node scripts/build-native-database.mjs`.
 
 ### Installation & Build
 

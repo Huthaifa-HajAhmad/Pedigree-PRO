@@ -85,7 +85,7 @@ A privacy-first pedigree drawing tool for clinical geneticists and researchers. 
 
 ### Privacy & Compliance
 - **Local-first zero-server core** — all PHI stored securely on your local device
-- **Encrypted at rest** — AES-256-GCM (browser) or SQLCipher (desktop)
+- **Encrypted at rest** — AES-256-GCM (browser) or SQLite3 Multiple Ciphers in SQLCipher 4 compatibility mode (desktop)
 - **HIPAA-aligned** — no third-party services, keys stored in IndexedDB (never localStorage)
 - Self-hosted fonts — no Google Fonts CDN calls (IP leak prevention)
 
@@ -117,14 +117,14 @@ A privacy-first pedigree drawing tool for clinical geneticists and researchers. 
 │   Tauri Desktop      │       Browser Standalone          │
 │   ┌──────────────┐   │   ┌───────────────────────────┐  │
 │   │  Rust IPC    │   │   │  sql.js WASM (IndexedDB)  │  │
-│   │  SQLCipher   │   │   │  Web Crypto API           │  │
+│   │  SQLite3MC   │   │   │  Web Crypto API           │  │
 │   │  (filesystem)│   │   │  (browser storage)        │  │
 │   └──────────────┘   │   └───────────────────────────┘  │
 └──────────────────────┴──────────────────────────────────┘
 ```
 
 The frontend uses a **unified adapter** (`lib/api-client-react/src/adapter.ts`) that detects the runtime at launch:
-- `window.__TAURI__` present → Tauri IPC (`invoke`) → Rust backend → SQLCipher on disk
+- `window.__TAURI__` present → Tauri IPC (`invoke`) → Rust backend → SQLite3 Multiple Ciphers on disk (SQLCipher 4 format)
 - Otherwise → lazy-loads `@workspace/browser-backend` → sql.js WASM → IndexedDB + Web Crypto
 
 **No REST API. No Postgres. No internet required.**
@@ -172,7 +172,7 @@ pnpm --filter @workspace/ppro run dev
 
 - **Node.js** 22+ (LTS) and **pnpm**
 - **Rust toolchain** (Tauri desktop builds only)
-- **VS Build Tools 2022** + **OpenSSL** (Windows, Tauri builds only)
+- **VS Build Tools 2022** with the C++ workload and Windows SDK (Windows desktop builds); a C compiler on macOS/Linux
 
 ### Setup
 
@@ -196,16 +196,17 @@ pnpm --filter @workspace/ppro run test
 
 ### Build Tauri Desktop
 
-Building locally on Windows requires **Strawberry Perl** to compile the vendored OpenSSL library from source:
+Desktop builds compile the pinned SQLite3 Multiple Ciphers source into a static library. Perl and OpenSSL are not required. Tauri build and development commands prepare the library automatically; macOS preparation builds both Intel and Apple Silicon archives.
 
 ```powershell
-# Install Perl (Windows)
-choco install strawberryperl -y
-
 # Build desktop binaries (MSI + NSIS)
 cd artifacts/ppro
 pnpm tauri build
 ```
+
+Run `pnpm test:native` from the repository root for native encryption tests. For direct Cargo commands, first run `node scripts/build-native-database.mjs` from the root.
+
+Native preparation reuses its archive when source, build options, and archive contents are unchanged. Use `node scripts/build-native-database.mjs --force` to rebuild after changing the C compiler in place. Cargo settings in this repository intentionally override system SQLite discovery for all nested Rust commands.
 
 ### Frontend-Only Build
 
@@ -222,7 +223,7 @@ npx vite build --config artifacts/ppro/vite.config.ts
 | Frontend | React 19, Vite 7, Tailwind CSS 4, Radix UI |
 | State | React Query, React Hook Form, Zod |
 | Canvas | Custom SVG pedigree engine, html2canvas |
-| Desktop | Tauri 2, Rust, SQLCipher |
+| Desktop | Tauri 2, Rust, SQLite3 Multiple Ciphers (SQLCipher 4 format) |
 | Browser | sql.js (WASM SQLite), IndexedDB, Web Crypto API |
 | Crypto | Ed25519 (@noble/ed25519), AES-256-GCM, PBKDF2 |
 | Export | jsPDF, pptxgenjs, DOMPurify |
@@ -233,7 +234,7 @@ npx vite build --config artifacts/ppro/vite.config.ts
 
 ### Encryption at Rest
 - **Browser**: Database blob encrypted with AES-256-GCM before writing to IndexedDB. Key wrapped with a second AES key. Optional passphrase via PBKDF2-HMAC-SHA512 (256k iterations).
-- **Desktop**: SQLCipher database file on disk.
+- **Desktop**: SQLite3 Multiple Ciphers encrypts the database in SQLCipher 4 format (AES-256-CBC with HMAC-SHA512 page authentication). Existing SQLCipher 4 files keep their format.
 
 ### Profile Keys
 - **Desktop**: Private keys stored in the OS-native Keychain (Credential Manager on Windows, Keychain on macOS, Secret Service on Linux) via the Rust `keyring` crate.

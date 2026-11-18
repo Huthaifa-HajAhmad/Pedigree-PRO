@@ -2322,8 +2322,6 @@ version = "0.28.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0c10584274047cb335c23d3e61bcef8e323adae7c5c8c760540f73610177fc3f"
 dependencies = [
- "cc",
- "openssl-sys",
  "pkg-config",
  "vcpkg",
 ]
@@ -2824,28 +2822,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "openssl-src"
-version = "300.6.0+3.6.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a8e8cbfd3a4a8c8f089147fd7aaa33cf8c7450c4d09f8f80698a0cf093abeff4"
-dependencies = [
- "cc",
-]
-
-[[package]]
-name = "openssl-sys"
-version = "0.9.115"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "158fe5b292746440aa6e7a7e690e55aeb72d41505e2804c23c6973ad0e9c9781"
-dependencies = [
- "cc",
- "libc",
- "openssl-src",
- "pkg-config",
- "vcpkg",
-]
-
-[[package]]
 name = "option-ext"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2952,6 +2928,7 @@ dependencies = [
  "hex",
  "keyring",
  "pbkdf2",
+ "ppro-database",
  "rand 0.8.6",
  "reqwest 0.12.28",
  "rusqlite",
@@ -3186,6 +3163,22 @@ name = "powerfmt"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "439ee305def115ba05938db6eb1644ff94165c5ab5e9420d1c1bcedbba909391"
+
+[[package]]
+name = "ppro-database"
+version = "0.1.0"
+dependencies = [
+ "hex",
+ "rusqlite",
+ "tempfile",
+]
+
+[[package]]
+name = "ppro-database-builder"
+version = "0.1.0"
+dependencies = [
+ "cc",
+]
 
 [[package]]
 name = "ppv-lite86"

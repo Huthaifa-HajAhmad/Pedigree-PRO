@@ -5,6 +5,15 @@
 **Depends on:** ADR-001 (Trust Model), ADR-002 (Schema Redesign), ADR-003 (Database Strategy)  
 **Supersedes:** Existing Express API server (`artifacts/api-server/`) and Vite dev servers
 
+
+## Desktop encryption update (2026-11-18)
+
+This update supersedes the desktop SQLCipher/OpenSSL build selection in the original draft below. Desktop builds now use pinned SQLite3 Multiple Ciphers 2.7.1 source, statically linked through upstream rusqlite 0.31. The SQLCipher 4 file format is retained: AES-256-CBC with HMAC-SHA512 page authentication. Existing raw 32-byte keys, database files, and backups keep their format. `cipher=sqlcipher` and `legacy=4` are set before the key. No data-format migration, OpenSSL, or Perl is required.
+
+The platform C compiler builds the library through `scripts/build-native-database.mjs`, called by the Tauri build/dev hooks. Direct Cargo commands require that preparation step. `pnpm test:native` prepares the library and tests compatibility, encryption, key rotation, backups, and schema migrations. Native tests run on Windows, macOS, and Linux in CI.
+
+Browser mode continues to use sql.js, with the database blob encrypted using Web Crypto AES-256-GCM before IndexedDB storage. Earlier browser SQLCipher/OPFS proposals in this draft do not describe the current implementation.
+
 ---
 
 ## 1. Context
@@ -299,7 +308,7 @@ Pedigree PRO is designed as a **medical device component** (pedigree visualizati
 |---|---|---|
 | **(a)(1) Access Control** | Unique user identification | ✅ Ed25519 keypair per local profile provides cryptographic unique identification. In Server Mode, TLS client certificates. |
 | **(a)(2)(i) Automatic Logoff** | Session timeout | ✅ No persistent sessions. In Tauri mode, database connection closes when app exits. Key material evicted from memory. |
-| **(a)(2)(ii) Encryption & Decryption** | Encrypt PHI at rest | ✅ SQLCipher AES-256-CBC with HMAC-SHA1 page-level integrity. Entire database file is encrypted. |
+| **(a)(2)(ii) Encryption & Decryption** | Encrypt PHI at rest | ✅ SQLite3 Multiple Ciphers, SQLCipher 4 format: AES-256-CBC with HMAC-SHA512 page-level integrity. Entire database file is encrypted. |
 | **(a)(2)(iv) Encryption in Transit** | Encrypt PHI over networks | ✅ All sharing payloads end-to-end encrypted (libsodium sealed boxes). Relay sees only ciphertext. Server Mode uses TLS 1.3 with mutual auth. |
 | **(b) Audit Controls** | Record and examine PHI activity | ✅ `activity_log` table with cryptographic signatures. Every mutation signed by actor's private key. Content hashing provides tamper evidence. |
 | **(c)(1) Integrity** | Protect PHI from improper alteration | ✅ `canvas_hash` (SHA-256) on every pedigree version. Per-page HMAC on database. Ed25519 signatures verify provenance. |

@@ -18,7 +18,7 @@ Pedigree PRO is designed as a **medical device component** for clinical genetics
 | Requirement | Implementation | Evidence |
 |---|---|---|
 | Unique user identification | Ed25519 keypair per local profile provides cryptographic unique identification | `local_profiles` table: UUID + Ed25519 public key (ADR-001 §3.1) |
-| Emergency access procedure | Database encrypted with SQLCipher; master secret in OS keychain accessible via OS login | `db.rs` §key derivation |
+| Emergency access procedure | Database encrypted with SQLite3 Multiple Ciphers in SQLCipher 4 compatibility mode; master secret in OS keychain accessible via OS login | `db.rs` §key derivation |
 | Automatic logoff | No persistent sessions; database connection closes when app exits; key material evicted from memory | Tauri lifecycle: connection dropped on exit |
 
 ---
@@ -37,7 +37,7 @@ Pedigree PRO is designed as a **medical device component** for clinical genetics
 
 | Requirement | Implementation | Evidence |
 |---|---|---|
-| Protect PHI from improper alteration | Per-page HMAC-SHA1 via SQLCipher; `canvas_hash` on every pedigree version | ADR-003 §3.3 |
+| Protect PHI from improper alteration | Per-page HMAC-SHA512 via SQLite3 Multiple Ciphers (SQLCipher 4 format); `canvas_hash` on every pedigree version | ADR-003 §3.3 |
 | Signature verification | Ed25519 signatures on all mutations verifiable by any consumer | `signatures.rs`: `verify()` |
 | Content hashing | SHA-256 of `canvas_data` stored as `canvas_hash`; verified on read | `commands.rs`: `create_pedigree()`, `save_version()` |
 
@@ -66,7 +66,7 @@ Pedigree PRO is designed as a **medical device component** for clinical genetics
 
 | Requirement | Implementation | Evidence |
 |---|---|---|
-| Encrypt PHI at rest | SQLCipher AES-256-CBC with HMAC-SHA1 page-level integrity | `db.rs`: `PRAGMA key` |
+| Encrypt PHI at rest | SQLite3 Multiple Ciphers in SQLCipher 4 mode: AES-256-CBC with HMAC-SHA512 page-level integrity | `db.rs`: `PRAGMA key` |
 | Key derivation | PBKDF2-HMAC-SHA512 (256,000 iterations) from OS keychain master secret | `db.rs` §PBKDF2 |
 | Key storage | OS-native keychain via `tauri-plugin-keystore` | `db.rs` §get_or_create_master_secret |
 | Key rotation | `PRAGMA rekey` via `rotate_encryption_key()` | `db.rs` §rotate_encryption_key |
@@ -77,7 +77,7 @@ Pedigree PRO is designed as a **medical device component** for clinical genetics
 
 | Requirement | Implementation |
 |---|---|
-| Encrypted backup | `backup_database()` copies SQLCipher database to timestamped file in `backups/` directory |
+| Encrypted backup | `backup_database()` checkpoints the transaction log and copies the SQLCipher-compatible encrypted database to a timestamped file in `backups/` directory |
 | Restore procedure | `restore_database()` creates safety backup before overwriting current database |
 | Offsite backup | Clinician-managed: copy backup files to network share or encrypted removable media |
 

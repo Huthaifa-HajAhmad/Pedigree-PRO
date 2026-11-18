@@ -1,0 +1,3 @@
+# Preserve upstream source bytes and whitespace for checksum verification.
+artifacts/ppro/src-tauri/database/vendor/sqlite3mc/*.c -text -whitespace
+artifacts/ppro/src-tauri/database/vendor/sqlite3mc/*.h -text -whitespace
