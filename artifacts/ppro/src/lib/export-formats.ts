@@ -7,6 +7,20 @@ function safeFilenameLocal(title: string): string {
 export function exportPED(info: ExportInfo, canvas: ExportCanvas): string {
   const familyId = info.title.replace(/[^a-zA-Z0-9]/g, "_").slice(0, 20) || "FAM001";
 
+  // PED is whitespace-delimited, so individual ids must be unique and free of
+  // spaces. Node labels are user text ("Pat. GF") and can also collide.
+  const usedIds = new Set<string>();
+  const idFor = new Map<string, string>();
+  canvas.nodes.forEach((node, idx) => {
+    const raw = node.label?.trim() ? node.label.trim() : `IND${idx + 1}`;
+    const base = raw.replace(/[\s\t\n\r]+/g, "_").replace(/[^A-Za-z0-9_.-]/g, "_") || `IND${idx + 1}`;
+    let candidate = base;
+    let suffix = 2;
+    while (usedIds.has(candidate)) candidate = `${base}_${suffix++}`;
+    usedIds.add(candidate);
+    idFor.set(node.id, candidate);
+  });
+
   const nodeParentMap = new Map<string, { fatherId: string | null; motherId: string | null }>();
   for (const edge of canvas.edges) {
     if (edge.type === "parent-child") {
@@ -22,13 +36,13 @@ export function exportPED(info: ExportInfo, canvas: ExportCanvas): string {
   }
 
   const lines: string[] = [`# Exported from Pedigree PRO - ${new Date().toISOString()}`, `# Title: ${info.title}`];
-  canvas.nodes.forEach((node, idx) => {
-    const individualId = node.label || `IND${idx + 1}`;
+  canvas.nodes.forEach((node) => {
+    const individualId = idFor.get(node.id) ?? node.id.replace(/\s+/g, "_");
     const sexCode = node.type === "male" ? "1" : node.type === "female" ? "2" : "0";
     const phenoCode = node.affected ? "2" : "1";
     const parents = nodeParentMap.get(node.id);
-    const fatherLabel = parents?.fatherId ? (canvas.nodes.find(n => n.id === parents.fatherId)?.label ?? parents.fatherId) : "0";
-    const motherLabel = parents?.motherId ? (canvas.nodes.find(n => n.id === parents.motherId)?.label ?? parents.motherId) : "0";
+    const fatherLabel = parents?.fatherId ? (idFor.get(parents.fatherId) ?? parents.fatherId) : "0";
+    const motherLabel = parents?.motherId ? (idFor.get(parents.motherId) ?? parents.motherId) : "0";
     lines.push([familyId, individualId, fatherLabel, motherLabel, sexCode, phenoCode].join("\t"));
   });
 

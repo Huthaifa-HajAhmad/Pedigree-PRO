@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { exportPED } from "@/lib/export-pedigree";
+import { exportPED as exportPEDString } from "@/lib/export-formats";
 import type { ExportCanvas } from "@/lib/export-pedigree";
 
 describe("exportPED", () => {
@@ -67,5 +68,40 @@ describe("exportPED", () => {
 
     expect(createdElement.download).toBe("My_test_pedigree.ped");
     expect(clicked).toBe(true);
+  });
+});
+
+describe("exportPED (batch format, string output)", () => {
+  const canvas: ExportCanvas = {
+    nodes: [
+      { id: "n1", type: "male", affected: false, carrier: false, deceased: false, proband: false, label: "Pat. GF", age: "", x: 0, y: 0 },
+      { id: "n2", type: "female", affected: false, carrier: false, deceased: false, proband: false, label: "Pat GF", age: "", x: 0, y: 0 },
+      { id: "n3", type: "unknown", affected: true, carrier: false, deceased: false, proband: true, label: "Proband", age: "", x: 0, y: 0 },
+    ],
+    edges: [
+      { id: "e1", type: "parent-child", sourceId: "n1", targetId: "n3" },
+      { id: "e2", type: "parent-child", sourceId: "n2", targetId: "n3" },
+    ],
+  };
+
+  it("emits whitespace-free, unique individual ids and links parents by them", () => {
+    const rows = exportPEDString({ title: "Fam", patientId: null, notes: null }, canvas)
+      .split("\n")
+      .filter((l) => !l.startsWith("#"));
+
+    expect(rows).toHaveLength(3);
+    for (const row of rows) {
+      const cols = row.split("\t");
+      expect(cols).toHaveLength(6);
+      expect(cols[1]).not.toMatch(/\s/);
+    }
+
+    const ids = rows.map((r) => r.split("\t")[1]);
+    expect(new Set(ids).size).toBe(ids.length);
+
+    const child = rows.find((r) => r.includes("\tProband\t"))!;
+    const cols = child.split("\t");
+    expect(cols[2]).toBe(ids[0]);
+    expect(cols[3]).toBe(ids[1]);
   });
 });

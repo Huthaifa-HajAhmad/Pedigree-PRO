@@ -19,6 +19,10 @@ export async function exportPED(info: ExportInfo, canvas: ExportCanvas): Promise
   const nodeMap = buildNodeMap(canvas.nodes);
   const famId = safeFilename(info.title) || "FAM1";
 
+  // PED is tab/space delimited: an individual id containing whitespace would
+  // silently shift every following column.
+  const pedId = (id: string) => id.replace(/[\s\t\n\r]+/g, "_") || "0";
+
   const lines: string[] = [];
   for (const node of canvas.nodes) {
     const pIds = adj.parentsOf.get(node.id) ?? [];
@@ -28,17 +32,19 @@ export async function exportPED(info: ExportInfo, canvas: ExportCanvas): Promise
       const parentNode = nodeMap.get(pId);
       if (parentNode) {
         if (parentNode.type === "male") {
-          fatherId = parentNode.id;
+          fatherId = pedId(parentNode.id);
         } else if (parentNode.type === "female") {
-          motherId = parentNode.id;
+          motherId = pedId(parentNode.id);
         }
       }
     }
 
+    // Pregnancy/SAB nodes are not individuals; PED has no representation for
+    // them, so they degrade to "unknown sex" rather than being dropped.
     const sexCode = node.type === "male" ? "1" : node.type === "female" ? "2" : "0";
     const phenoCode = node.affected ? "2" : "1";
 
-    lines.push(`${famId}\t${node.id}\t${fatherId}\t${motherId}\t${sexCode}\t${phenoCode}`);
+    lines.push(`${famId}\t${pedId(node.id)}\t${fatherId}\t${motherId}\t${sexCode}\t${phenoCode}`);
   }
 
   const content = lines.join("\n") + "\n";
