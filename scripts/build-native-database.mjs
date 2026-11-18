@@ -80,7 +80,7 @@ if (targets.length > 1) {
     "-output",
     join(output, "libsqlite3.a"),
   ]);
-  run("lipo", ["-verify_arch", "arm64", "x86_64", join(output, "libsqlite3.a")]);
+  run("lipo", [join(output, "libsqlite3.a"), "-verify_arch", "arm64", "x86_64"]);
 }
 // Rust copies static libraries into its dependency archives. Rebuild that copy
 // after preparing the C library, including both macOS architectures.
