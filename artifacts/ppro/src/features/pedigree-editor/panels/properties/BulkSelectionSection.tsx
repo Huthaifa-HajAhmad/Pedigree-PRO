@@ -5,6 +5,27 @@ import { PanelShell } from "@/components/shared/panels/PanelShell";
 import { PanelSection } from "@/components/shared/panels/PanelSection";
 import { COUPLE_LABELS } from "./types";
 
+/**
+ * Resolve the two roles for a couple-creating action from the two selected nodes.
+ *
+ * Guarantees the returned ids are always distinct. The previous implementation
+ * could return the same id twice (e.g. unknown + male -> male for both roles),
+ * which created a self-loop edge (sourceId === targetId).
+ */
+export function resolveCouplePair(
+  a: Pick<PedigreeNode, "id" | "type">,
+  b: Pick<PedigreeNode, "id" | "type">,
+): { maleId: string; femaleId: string } {
+  const male = a.type === "male" ? a : b.type === "male" ? b : null;
+  const female = a.type === "female" ? a : b.type === "female" ? b : null;
+
+  if (male && female) return { maleId: male.id, femaleId: female.id };
+  if (male) return { maleId: male.id, femaleId: male.id === a.id ? b.id : a.id };
+  if (female) return { maleId: female.id === a.id ? b.id : a.id, femaleId: female.id };
+  // Same/unspecified sex on both sides: keep selection order, never collapse to one id.
+  return { maleId: a.id, femaleId: b.id };
+}
+
 export function BulkSelectionSection({
   selectedIds,
   canvasNodes,
@@ -385,8 +406,7 @@ export function BulkSelectionSection({
         if (hasRelEdge) return null;
         if (isBlocked) return null;
 
-        const maleId = a.type === "male" ? a.id : b.type === "male" ? b.id : a.id;
-        const femaleId = a.type === "female" ? a.id : b.type === "female" ? b.id : b.id;
+        const { maleId, femaleId } = resolveCouplePair(a, b);
 
         return (
           <PanelSection title="Add Relationship" icon={<Link2 className="w-3 h-3" />} defaultOpen={true}>
@@ -497,8 +517,10 @@ export function BulkSelectionSection({
                   {noChildren && onCreateCoupleAndChild && (
                     <button type="button" 
                       onClick={() => {
-                        const maleId = srcNode?.type === "male" ? srcNode.id : tgtNode?.type === "male" ? tgtNode.id : srcNode?.id || e.sourceId;
-                        const femaleId = srcNode?.type === "female" ? srcNode.id : tgtNode?.type === "female" ? tgtNode.id : tgtNode?.id || e.targetId;
+                        const { maleId, femaleId } = resolveCouplePair(
+                          { id: e.sourceId, type: srcNode?.type ?? "unknown" },
+                          { id: e.targetId, type: tgtNode?.type ?? "unknown" },
+                        );
                         onCreateCoupleAndChild(maleId, femaleId);
                       }}
                       className="w-full mt-1 py-1.5 text-xs border border-border/80 rounded-lg text-muted-foreground hover:bg-accent/30 hover:border-muted-foreground/30 hover:text-foreground transition-all duration-200 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
