@@ -162,7 +162,9 @@ export function buildTemplate(key: string): CanvasData {
         annotations: match.canvasData.annotations ? match.canvasData.annotations.map(a => ({
           ...a,
           id: `ta${ts}_${a.id}`,
-          nodeId: mapId(a.nodeId)
+          // Free-floating annotations have an empty nodeId. Mapping "" would turn
+          // them into "t<ts>_" and break every `!ann.nodeId` check downstream.
+          nodeId: a.nodeId ? mapId(a.nodeId) : ""
         })) : []
       };
     }
