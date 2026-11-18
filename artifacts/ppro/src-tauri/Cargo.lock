@@ -3046,7 +3046,7 @@ dependencies = [
  "tokio",
  "uuid",
  "webview2-com 0.38.2",
- "windows-core 0.61.2",
+ "windows-core 0.62.2",
 ]
 
 [[package]]
