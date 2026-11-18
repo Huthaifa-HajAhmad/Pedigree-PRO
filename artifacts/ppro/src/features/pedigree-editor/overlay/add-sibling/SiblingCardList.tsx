@@ -1,5 +1,5 @@
 import React from "react";
-import { GripVertical, Trash2, Square, Circle, Diamond } from "lucide-react";
+import { GripVertical, Trash2, Square, Circle, Diamond, Triangle } from "lucide-react";
 import { DatePicker } from "@/components/ui/date-picker";
 import { SexSelect } from "./SexSelect";
 import { TraitsSelect } from "./TraitsSelect";
@@ -88,6 +88,8 @@ export function SiblingCardList({
                     <Square className="w-3.5 h-3.5 text-sky-500/70 stroke-[2.5px]" />
                   ) : sb.type === "female" ? (
                     <Circle className="w-3.5 h-3.5 text-pink-500/70 stroke-[2.5px]" />
+                  ) : sb.type === "sab" ? (
+                    <Triangle className="w-3.5 h-3.5 text-slate-500/70 stroke-[2.5px]" />
                   ) : (
                     <Diamond className="w-3.5 h-3.5 text-slate-500/70 stroke-[2.5px]" />
                   )}

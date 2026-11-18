@@ -1,8 +1,12 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useId } from "react";
 import { BookOpen, X, Camera } from "lucide-react";
 import { getQuadrantsForStyle } from "../utils/helpers";
 
 function LegendSymbol({ k, isPublication }: { k: string; isPublication?: boolean }) {
+  // Self-contained shading patterns: the legend renders in standalone <svg>
+  // elements (including the publication modal), so it must not depend on the
+  // <defs> that live inside the canvas SVG.
+  const uid = useId().replace(/[^a-zA-Z0-9_-]/g, "");
   const G = isPublication ? "#0284c7" : "hsl(var(--primary))";
   const W = isPublication ? "#1e293b" : "hsl(var(--foreground) / 0.6)";
   const fillCol = isPublication ? "#1e293b" : "hsl(var(--foreground))";
@@ -24,6 +28,7 @@ function LegendSymbol({ k, isPublication }: { k: string; isPublication?: boolean
   if (k === "pregnancy") return (
     <svg width={14} height={14} viewBox="-7 -7 14 14">
       <polygon points="0,-5.5 5.5,0 0,5.5 -5.5,0" fill="none" stroke={W} strokeWidth={1.5} />
+      <text x={0} y={0.5} textAnchor="middle" dominantBaseline="central" fontSize={5} fontWeight="bold" fill={W} style={{ fontFamily: "JetBrains Mono, monospace" }}>P</text>
     </svg>
   );
   if (k === "sab") return (
@@ -86,22 +91,38 @@ function LegendSymbol({ k, isPublication }: { k: string; isPublication?: boolean
 
     if (style === "striped") {
       return (
-        <svg width={14} height={14} viewBox="-7 -7 14 14">
-          <circle r={5} fill="url(#shading-striped)" stroke={strokeColor} strokeWidth={1.5} />
+        <svg width={14} height={14} viewBox="-7 -7 14 14" style={{ color: strokeColor }}>
+          <defs>
+            <pattern id={`${uid}-striped`} width="4" height="4" patternTransform="rotate(45 0 0)" patternUnits="userSpaceOnUse">
+              <line x1="0" y1="0" x2="0" y2="4" stroke="currentColor" strokeWidth="1.6" />
+            </pattern>
+          </defs>
+          <circle r={5} fill={`url(#${uid}-striped)`} stroke={strokeColor} strokeWidth={1.5} />
         </svg>
       );
     }
     if (style === "cross-hatched") {
       return (
-        <svg width={14} height={14} viewBox="-7 -7 14 14">
-          <circle r={5} fill="url(#shading-cross-hatched)" stroke={strokeColor} strokeWidth={1.5} />
+        <svg width={14} height={14} viewBox="-7 -7 14 14" style={{ color: strokeColor }}>
+          <defs>
+            <pattern id={`${uid}-cross-hatched`} width="4" height="4" patternTransform="rotate(45 0 0)" patternUnits="userSpaceOnUse">
+              <line x1="0" y1="0" x2="0" y2="4" stroke="currentColor" strokeWidth="1.3" />
+              <line x1="0" y1="0" x2="4" y2="0" stroke="currentColor" strokeWidth="1.3" />
+            </pattern>
+          </defs>
+          <circle r={5} fill={`url(#${uid}-cross-hatched)`} stroke={strokeColor} strokeWidth={1.5} />
         </svg>
       );
     }
     if (style === "dots") {
       return (
-        <svg width={14} height={14} viewBox="-7 -7 14 14">
-          <circle r={5} fill="url(#shading-dots)" stroke={strokeColor} strokeWidth={1.5} />
+        <svg width={14} height={14} viewBox="-7 -7 14 14" style={{ color: strokeColor }}>
+          <defs>
+            <pattern id={`${uid}-dots`} width="3" height="3" patternUnits="userSpaceOnUse">
+              <circle cx="1.5" cy="1.5" r="0.9" fill="currentColor" />
+            </pattern>
+          </defs>
+          <circle r={5} fill={`url(#${uid}-dots)`} stroke={strokeColor} strokeWidth={1.5} />
         </svg>
       );
     }
@@ -188,10 +209,10 @@ export function LegendPanel({ entries, expanded: controlledExpanded, onToggle, c
 
         {/* Grid */}
         <div className="p-8 grid grid-cols-4 gap-8 bg-white overflow-y-auto max-h-[70vh]">
-          {/* Column 1: Gender & Shapes */}
+          {/* Column 1: Sex & Shapes */}
           <div className="space-y-4">
             <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-100 pb-2">
-              Gender & Shapes
+              Sex &amp; Shapes
             </h4>
             {categories.shapes.length > 0 ? (
               <div className="space-y-3">

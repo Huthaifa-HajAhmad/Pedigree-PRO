@@ -92,8 +92,8 @@ export function SingleNodeSection({
       <PanelSection title="Type & Status" icon={<Dna className="w-3 h-3" />}>
         <div className="space-y-4">
           <div>
-            <label htmlFor="prop-node-gender" className="text-xs text-muted-foreground uppercase tracking-wider block mb-1.5">Gender</label>
-            <div className="flex bg-muted/60 p-0.5 rounded-lg border border-border/60 items-stretch w-full">
+            <span id="prop-node-sex-label" className="text-xs text-muted-foreground uppercase tracking-wider block mb-1.5">Sex</span>
+            <div role="group" aria-labelledby="prop-node-sex-label" className="flex bg-muted/60 p-0.5 rounded-lg border border-border/60 items-stretch w-full">
               {(["male", "female", "unknown", "pregnancy", "sab"] as const).map((t, idx) => {
                 const isActive = singleSelected.type === t;
                 const labelText = t === "sab" ? "SAB" : t.charAt(0).toUpperCase() + t.slice(1);
@@ -104,6 +104,8 @@ export function SingleNodeSection({
                       type="button"
                       key={t}
                       data-testid={`button-sex-${t}`}
+                      aria-label={`Set sex to ${labelText}`}
+                      aria-pressed={isActive}
                       onClick={() => onUpdateSelectedNode({ type: t })}
                       title={labelText}
                       className={`flex-1 py-1.5 rounded-md transition-all duration-200 border flex items-center justify-center min-w-0 ${
@@ -112,12 +114,13 @@ export function SingleNodeSection({
                           : "border-transparent text-muted-foreground hover:text-foreground hover:bg-card/25"
                       }`}
                     >
-                      <svg className="w-4.5 h-4.5 flex-shrink-0" viewBox="-10 -10 20 20" fill="none" stroke="currentColor">
+                      <svg aria-hidden="true" className="w-4.5 h-4.5 flex-shrink-0" viewBox="-10 -10 20 20" fill="none" stroke="currentColor">
                         {(() => {
                           const sw = 1.8;
                           if (t === "male") return <rect x={-7} y={-7} width={14} height={14} strokeWidth={sw} rx={0.5} />;
                           if (t === "female") return <circle cx={0} cy={0} r={7} strokeWidth={sw} />;
-                          if (t === "sab") return <polygon points="0,7 -7,-7 7,-7" strokeWidth={sw} />;
+                          // Apex up, matching NodeShape, the legend, and the PDF/thumbnail exporters.
+                          if (t === "sab") return <polygon points="0,-7 -7,7 7,7" strokeWidth={sw} />;
                           if (t === "pregnancy") return (
                             <>
                               <rect x={-7} y={-7} width={14} height={14} strokeWidth={sw} rx={0.5} transform="rotate(45)" />
