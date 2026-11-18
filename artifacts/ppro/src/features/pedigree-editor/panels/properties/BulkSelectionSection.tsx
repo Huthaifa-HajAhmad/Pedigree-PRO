@@ -4,6 +4,7 @@ import type { PedigreeNode, PedigreeEdge } from "@/features/pedigree-editor/canv
 import { PanelShell } from "@/components/shared/panels/PanelShell";
 import { PanelSection } from "@/components/shared/panels/PanelSection";
 import { COUPLE_LABELS } from "./types";
+import { GenotypeField } from "./GenotypeControls";
 
 /**
  * Resolve the two roles for a couple-creating action from the two selected nodes.
@@ -275,70 +276,24 @@ export function BulkSelectionSection({
 
                     return (
                       <>
-                        {Array.from({ length: genotypeRowsCount }).map((_, idx) => {
-                          const gVal = getCommonGenotypeForIndex(idx);
-                          return (
-                            <div key={idx} className="space-y-1.5 animate-in fade-in slide-in-from-top-1 duration-200">
-                              <div className="flex items-center justify-between gap-3">
-                                <div className="flex items-center gap-1.5 min-w-0">
-                                  <label htmlFor={`bulk-genotype-${idx}`} className="text-xs text-muted-foreground uppercase tracking-wider truncate">
-                                    {idx === 0 ? "Genotype" : `Row ${idx + 1}`}
-                                  </label>
-                                  {idx > 0 && (
-                                    <button
-                                      type="button"
-                                      onClick={() => handleBulkRemoveRow(idx)}
-                                      className="text-[10px] text-destructive hover:underline font-medium shrink-0"
-                                    >
-                                      Remove
-                                    </button>
-                                  )}
-                                </div>
-                                <input
-                                  id={`bulk-genotype-${idx}`}
-                                  placeholder="e.g. +/-"
-                                  aria-label={idx === 0 ? "Genotype" : `Genotype Row ${idx + 1}`}
-                                  defaultValue={gVal}
-                                  key={`bulk-geno-${idx}-${gVal}`}
-                                  className="flex-1 min-w-[120px] bg-background border border-border/80 rounded-lg px-2.5 py-1 text-xs outline-none hover:bg-accent/20 focus:border-muted-foreground/45 focus-visible:ring-0 shadow-none transition-all duration-200 font-mono"
-                                  onKeyDown={(e) => {
-                                    if (e.key === "Enter") {
-                                      handleBulkGenotypeChange(idx, (e.target as HTMLInputElement).value || "");
-                                    }
-                                  }}
+                        <div className="space-y-3">
+                          {Array.from({ length: genotypeRowsCount }).map((_, idx) => {
+                            const gVal = getCommonGenotypeForIndex(idx);
+                            return (
+                              <div key={idx} className="animate-in fade-in slide-in-from-top-1 duration-200">
+                                <GenotypeField
+                                  inputId={`bulk-genotype-${idx}`}
+                                  label={idx === 0 ? "Genotype" : `Row ${idx + 1}`}
+                                  value={gVal}
+                                  mode="commit"
+                                  onChange={(next) => handleBulkGenotypeChange(idx, next)}
+                                  onAdd={idx === 0 ? () => setGenotypeRowsCount(prev => prev + 1) : undefined}
+                                  onRemove={idx > 0 ? () => handleBulkRemoveRow(idx) : undefined}
                                 />
                               </div>
-                              <div className="flex bg-muted/60 p-0.5 rounded-lg border border-border/60 items-stretch w-full">
-                                {(["+/-", "+/+", "-/-", "+/Y", "-/Y"] as const).map((preset, pIdx) => {
-                                  const isActive = gVal === preset;
-                                  return (
-                                    <React.Fragment key={preset}>
-                                      {pIdx > 0 && <div className="w-[1px] h-3.5 bg-border/50 shrink-0 self-center" />}
-                                      <button
-                                        type="button"
-                                        onClick={() => handleBulkGenotypeChange(idx, isActive ? "" : preset)}
-                                        className={`flex-1 py-0.5 rounded-md text-[10px] font-mono transition-all border text-center ${
-                                          isActive
-                                            ? "bg-card text-primary border-border/75 shadow-xs font-semibold"
-                                            : "border-transparent text-muted-foreground hover:text-foreground hover:bg-card/25"
-                                        }`}
-                                      >
-                                        {preset}
-                                      </button>
-                                    </React.Fragment>
-                                  );
-                                })}
-                              </div>
-                            </div>
-                          );
-                        })}
-                        <button
-                          type="button"
-                          onClick={() => setGenotypeRowsCount(prev => prev + 1)}
-                          className="w-full py-1.5 border border-dashed border-border hover:border-primary/50 rounded-lg text-[10px] text-muted-foreground hover:text-primary transition-all flex items-center justify-center gap-1 mt-2 font-medium"
-                        >
-                          <Plus className="w-3.5 h-3.5" /> Add Genotype Row
-                        </button>
+                            );
+                          })}
+                        </div>
                       </>
                     );
                   })()}

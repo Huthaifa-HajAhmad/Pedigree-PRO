@@ -1,10 +1,11 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { User, Dna, MessageSquare, Stethoscope, Trash2, Plus } from "lucide-react";
 import type { PedigreeNode, PedigreeAnnotation } from "@/features/pedigree-editor/canvas/types";
 import { PanelShell } from "@/components/shared/panels/PanelShell";
 import { PanelSection } from "@/components/shared/panels/PanelSection";
 import { AnnotationEditorPanel } from "@/features/pedigree-editor/panels/AnnotationEditorPanel";
 import { NodeQuadrantShadingSection } from "./NodeQuadrantShadingSection";
+import { GenotypeField } from "./GenotypeControls";
 import { calculateAgeFromDob } from "./types";
 
 export function SingleNodeSection({
@@ -31,6 +32,7 @@ export function SingleNodeSection({
   onReorderAnnotations?: (annId: string, direction: "up" | "down") => void;
 }) {
   const [genotypeRowsCount, setGenotypeRowsCount] = useState(1);
+  const pendingGenotypeFocus = useRef<number | null>(null);
 
   useEffect(() => {
     let count = 1;
@@ -42,6 +44,17 @@ export function SingleNodeSection({
     }
     setGenotypeRowsCount(count);
   }, [singleSelected.id, singleSelected.genotype2, singleSelected.additionalGenotypes]);
+
+  // Focus the freshly added genotype row so typing can continue immediately.
+  useEffect(() => {
+    const idx = pendingGenotypeFocus.current;
+    if (idx === null) return;
+    pendingGenotypeFocus.current = null;
+    const frame = requestAnimationFrame(() => {
+      document.getElementById(`prop-node-genotype-${idx}`)?.focus();
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [genotypeRowsCount]);
 
   const getStatus = (node: PedigreeNode) => node.affected ? "affected" : node.carrier ? "carrier" : "unaffected";
   const applyStatus = (status: string) => {
@@ -433,63 +446,23 @@ export function SingleNodeSection({
               };
 
               return (
-                <div className="space-y-3.5">
+                <div className="space-y-3">
                   {allGenotypes.slice(0, genotypeRowsCount).map((gVal, idx) => (
-                    <div key={idx} className="animate-in fade-in slide-in-from-top-1 duration-200 space-y-1.5">
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="flex items-center gap-1.5 min-w-0">
-                          <label htmlFor={`prop-node-genotype-${idx}`} className="text-xs text-muted-foreground uppercase tracking-wider truncate">
-                            {idx === 0 ? "Genotype" : `Row ${idx + 1}`}
-                          </label>
-                          {idx > 0 && (
-                            <button
-                              type="button"
-                              onClick={() => handleRemoveRow(idx)}
-                              className="text-[10px] text-destructive hover:underline font-medium shrink-0"
-                            >
-                              Remove
-                            </button>
-                          )}
-                        </div>
-                        <input
-                          id={`prop-node-genotype-${idx}`}
-                          value={gVal}
-                          onChange={(e) => handleGenotypeChange(idx, e.target.value)}
-                          placeholder="e.g. +/-"
-                          className="flex-1 min-w-[120px] bg-background border border-border/80 rounded-lg px-2.5 py-1 text-xs outline-none hover:bg-accent/20 focus:border-muted-foreground/45 focus-visible:ring-0 shadow-none transition-all duration-200"
-                        />
-                      </div>
-                      <div className="flex bg-muted/60 p-0.5 rounded-lg border border-border/60 items-stretch w-full">
-                        {(["+/-", "+/+", "-/-", "+/Y", "-/Y"] as const).map((preset, pIdx) => {
-                          const isActive = gVal === preset;
-                          return (
-                            <React.Fragment key={preset}>
-                              {pIdx > 0 && <div className="w-[1px] h-3.5 bg-border/50 shrink-0 self-center" />}
-                              <button
-                                type="button"
-                                onClick={() => handleGenotypeChange(idx, isActive ? "" : preset)}
-                                className={`flex-1 py-0.5 rounded-md text-[10px] font-mono transition-all border text-center ${
-                                  isActive
-                                    ? "bg-card text-primary border-border/75 shadow-xs font-semibold"
-                                    : "border-transparent text-muted-foreground hover:text-foreground hover:bg-card/25"
-                                }`}
-                              >
-                                {preset}
-                              </button>
-                            </React.Fragment>
-                          );
-                        })}
-                      </div>
+                    <div key={idx} className="animate-in fade-in slide-in-from-top-1 duration-200">
+                      <GenotypeField
+                        inputId={`prop-node-genotype-${idx}`}
+                        label={idx === 0 ? "Genotype" : `Row ${idx + 1}`}
+                        value={gVal}
+                        onChange={(next) => handleGenotypeChange(idx, next)}
+                        onAdd={idx === 0 ? () => {
+                          pendingGenotypeFocus.current = genotypeRowsCount;
+                          setGenotypeRowsCount(prev => prev + 1);
+                        } : undefined}
+                        onRemove={idx > 0 ? () => handleRemoveRow(idx) : undefined}
+                        showHemizygous={singleSelected.type !== "female"}
+                      />
                     </div>
                   ))}
-                  
-                  <button
-                    type="button"
-                    onClick={() => setGenotypeRowsCount(prev => prev + 1)}
-                    className="w-full py-1.5 border border-dashed border-border hover:border-primary/50 rounded-lg text-[10px] text-muted-foreground hover:text-primary transition-all flex items-center justify-center gap-1 mt-2 font-medium"
-                  >
-                    <Plus className="w-3 h-3" /> Add Genotype Row
-                  </button>
                 </div>
               );
             })()}

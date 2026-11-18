@@ -188,20 +188,22 @@ export async function exportPPTX(info: ExportInfo, canvas: ExportCanvas): Promis
       });
     }
 
-    const texts: string[] = [];
-    if (n.label) texts.push(n.label);
+    const runs: Array<{ text: string; options?: { italic?: boolean; breakLine?: boolean } }> = [];
+    if (n.label) runs.push({ text: n.label, options: { breakLine: true } });
     if (n.age) {
       const ageText = n.age.toLowerCase();
-      texts.push(ageText.endsWith("m") || ageText.endsWith("y") ? n.age : `${n.age}y`);
+      runs.push({ text: ageText.endsWith("m") || ageText.endsWith("y") ? n.age : `${n.age}y`, options: { breakLine: true } });
     }
-    if (n.condition) texts.push(n.condition);
+    if (n.condition) runs.push({ text: n.condition, options: { breakLine: true } });
     const genotypes = [n.genotype, n.genotype2, ...(n.additionalGenotypes ?? [])].filter(
       (g): g is string => typeof g === "string" && g.trim() !== "",
     );
-    if (genotypes.length > 0) texts.push(genotypes.join("  "));
+    // Genotypes are italic on the canvas (clinical convention), keep parity here.
+    if (genotypes.length > 0) runs.push({ text: genotypes.join("  "), options: { italic: true, breakLine: true } });
 
-    if (texts.length > 0) {
-      slide.addText(texts.join("\n"), {
+    if (runs.length > 0) {
+      runs[runs.length - 1]!.options!.breakLine = false;
+      slide.addText(runs, {
         x: px - 1.0,
         y: py + nodeSize / 2 + 0.05,
         w: 2.0,

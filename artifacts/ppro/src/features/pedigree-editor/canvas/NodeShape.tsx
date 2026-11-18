@@ -283,7 +283,7 @@ export const NodeShape = memo(function NodeShape({
               const y = S / 2 + labelHeight + genotypeFontSize + genotypeOffset + idx * (genotypeFontSize + 2);
               return (
                 <text key={idx} x={0} y={y}
-                  textAnchor="middle" fontSize={cfg.config.genotypeFontSize ?? 12} style={{ userSelect: "none", fontFamily: "JetBrains Mono, monospace" }}>
+                  textAnchor="middle" fontSize={cfg.config.genotypeFontSize ?? 12} style={{ userSelect: "none", fontFamily: "JetBrains Mono, monospace", fontStyle: "italic" }}>
                   {renderGenotype(g)}
                 </text>
               );
