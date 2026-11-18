@@ -14,7 +14,7 @@
     "init-sqlite": "node ../../scripts/init-sqlite-async.mjs"
   },
   "dependencies": {
-    "better-sqlite3": "^8.1.0",
+    "better-sqlite3": "^13.2.0",
     "drizzle-orm": "catalog:",
     "drizzle-zod": "^0.8.3",
     "sql.js": "^1.14.1",
