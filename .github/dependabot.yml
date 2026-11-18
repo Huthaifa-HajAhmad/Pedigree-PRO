@@ -5,18 +5,24 @@ updates:
     schedule:
       interval: "weekly"
     groups:
-      dependencies:
+      minor-and-patch:
         patterns:
           - "*"
+        update-types:
+          - "minor"
+          - "patch"
 
   - package-ecosystem: "cargo"
     directory: "/artifacts/ppro/src-tauri"
     schedule:
       interval: "weekly"
     groups:
-      dependencies:
+      minor-and-patch:
         patterns:
           - "*"
+        update-types:
+          - "minor"
+          - "patch"
 
   - package-ecosystem: "github-actions"
     directory: "/"
